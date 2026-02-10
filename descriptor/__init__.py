@@ -1,6 +1,7 @@
 from .descriptor import DescriptorResult, compute_descriptor_from_runs, write_descriptor_csv, write_descriptor_json
 from .distances import covariance_inverse, mahalanobis_distance, pairwise_mahalanobis
 from .embeddings import pca_2d, umap_2d
+from .experiment import analyze_task_runs, write_run_trace
 from .io import TraceLogger, read_trace_jsonl, write_trace_jsonl
 from .metrics import ExtensionOptions, compute_run_metrics, compute_task_metrics
 from .pareto import ideal_point_distance, normalize_objectives, pareto_frontier
@@ -18,6 +19,8 @@ __all__ = [
     "pairwise_mahalanobis",
     "pca_2d",
     "umap_2d",
+    "analyze_task_runs",
+    "write_run_trace",
     "TraceLogger",
     "read_trace_jsonl",
     "write_trace_jsonl",

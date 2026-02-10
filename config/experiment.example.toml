@@ -1,0 +1,49 @@
+[openrouter]
+# If omitted, runtime falls back to deterministic local mock mode.
+api_key = ""
+base_url = "https://openrouter.ai/api/v1"
+http_referer = ""
+x_title = "MAS Analyzer"
+timeout_s = 60.0
+
+[experiment]
+output_dir = "outputs"
+runs_per_task = 3
+seed = 42
+task_limit = 5
+
+[mas]
+levels = 2
+intra_level_link_ratio = 0.7
+full_linked = false
+number_of_agents = 4
+# Alternatively, specify explicit per-level counts matching `levels`.
+# agents_per_level = [2, 2]
+agent_types = ["planner", "researcher"]
+communication_count_internally = 2
+turn_mode = "multi_turn"
+max_turns = 3
+
+[models]
+# Used when no per-agent-type mapping is found.
+default = "openai/gpt-4o-mini"
+planner = "openai/gpt-4o-mini"
+researcher = "openai/gpt-4o-mini"
+
+[browsecomp]
+# Preferred: path to a local decrypted JSONL file.
+decrypted_path = ""
+# Optional auto download/decrypt flow using `datasets`.
+auto_download = false
+decrypted_output_path = "data/browsecomp_plus_decrypted.jsonl"
+qrel_evidence_path = "topics-qrels/qrel_evidence.txt"
+qrel_golds_path = "topics-qrels/qrel_golds.txt"
+dataset_name = "Tevatron/browsecomp-plus"
+dataset_cache_dir = ""
+
+[finance_agent]
+# Optional local CSV override; if empty the adapter downloads and caches the pinned upstream CSV.
+local_csv_path = ""
+dataset_url = "https://raw.githubusercontent.com/vals-ai/finance-agent/aad00743ce54b348678a2073aac51fba825ca901/data/public.csv"
+cache_dir = ".cache/finance_agent"
+success_threshold = 0.5

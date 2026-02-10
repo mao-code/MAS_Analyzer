@@ -100,3 +100,88 @@ Traces can be segmented into stages (plan/retrieve/act/verify/revise/finalize) a
 - verify is sparse → hallucination risk
 - retrieve has tool failures → repeated retries and latency spikes
 - revise dominates tokens → unstable planning/execution loop
+## Quickstart (Current Runnable Slice)
+
+### 1. Install core dependencies
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 2. Create experiment config
+
+```bash
+cp config/experiment.example.toml config/experiment.toml
+```
+
+- `openrouter.api_key` can be set in `config/experiment.toml`.
+- `OPENROUTER_API_KEY` environment variable overrides the config value when both are set.
+- If no valid key is present, MAS runtime uses deterministic local mock fallback so experiments remain runnable.
+
+### 3. Inspect benchmark adapters
+
+```bash
+python main.py list-benchmarks
+python main.py benchmark-info --benchmark finance_agent --config config/experiment.toml
+python main.py benchmark-info --benchmark browsecomp --config config/experiment.toml
+```
+
+### 4. Run an experiment
+
+```bash
+python main.py run --config config/experiment.toml --benchmark finance_agent --task-limit 1 --runs-per-task 1
+```
+
+Outputs are written to:
+
+- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.trace.jsonl`
+- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.eval.json`
+- `outputs/<timestamp>/<benchmark>/<task_id>/descriptor.json`
+- `outputs/<timestamp>/<benchmark>/<task_id>/descriptor.csv`
+- `outputs/<timestamp>/<benchmark>/<task_id>/analysis.json`
+- `outputs/<timestamp>/summary.json`
+- `outputs/<timestamp>/summary.csv`
+
+## OpenRouter Setup
+
+The client uses OpenRouter via the OpenAI-compatible endpoint:
+
+- Base URL: `https://openrouter.ai/api/v1`
+- Chat endpoint: `https://openrouter.ai/api/v1/chat/completions`
+- Optional attribution headers: `HTTP-Referer`, `X-Title`
+
+Model routing is controlled by `[models]` in config:
+
+- `models.default` is required.
+- Per-agent-type model selection uses `models.<agent_type>` when present.
+
+## Benchmark Notes
+
+### FinanceAgent adapter
+
+- Loads the pinned public CSV from the referenced commit and caches it locally.
+- Uses a rubric proxy score (`correctness` hit ratio minus `contradiction` hit ratio).
+- This is intentionally lightweight and not leaderboard-parity with the full upstream tool harness.
+
+### BrowseComp adapter
+
+Preferred setup:
+
+- Provide local decrypted JSONL path via `browsecomp.decrypted_path`.
+
+Optional auto-download/decrypt mode:
+
+- Requires `datasets` package and Hugging Face authentication for gated dataset access.
+
+Official heavy-parity components (not required for this lightweight adapter):
+
+- `pyserini` + Java 21 for BM25 parity.
+- `faiss` + `tevatron` for dense retrieval parity.
+- `vllm` + GPU for official LLM-judge parity.
+
+## Package Naming
+
+- Canonical benchmark package is `benchmark/`.
+- `benchmarks/` is kept as a compatibility shim that re-exports from `benchmark/`.
