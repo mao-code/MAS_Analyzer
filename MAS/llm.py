@@ -56,7 +56,7 @@ class OpenRouterLLMClient:
             self.client = None
 
     def model_for_agent_type(self, agent_type: str) -> str:
-        return self.models.get(agent_type, self.models.get("default", "openai/gpt-4o-mini"))
+        return self.models.get(agent_type, self.models.get("default", "qwen/qwen3-8b"))
 
     def generate(
         self,
