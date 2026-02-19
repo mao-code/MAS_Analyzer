@@ -18,6 +18,7 @@ def _now_stamp() -> str:
 
 
 def _benchmark_section_config(config: Any, benchmark_name: str) -> Dict[str, Any]:
+    # Pull benchmark-specific config table from the unified experiment config.
     if benchmark_name == "finance_agent":
         return dict(config.finance_agent)
     if benchmark_name == "browsecomp":
@@ -50,10 +51,12 @@ def _write_summary_csv(path: Path, rows: Sequence[Dict[str, Any]]) -> None:
 
 
 def run_command(args: argparse.Namespace) -> int:
+    # 1) Load runtime knobs (OpenRouter, MAS topology, model routing, benchmark settings).
     config = load_experiment_config(args.config)
 
     benchmark_name = args.benchmark
     benchmark_cfg = _benchmark_section_config(config, benchmark_name)
+    # 2) Instantiate the benchmark adapter and MAS runtime.
     benchmark = get_benchmark(benchmark_name, config=benchmark_cfg)
 
     llm_client = OpenRouterLLMClient(config.openrouter, config.models)
@@ -96,12 +99,14 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
+            # 3) Run MAS/SAS forward pass and emit one trace.
             run = runner.run_task(task=task, run_index=run_index, seed=run_seed)
 
             trace_path = task_dir / f"run_{run_index}.trace.jsonl"
             write_run_trace(run.trace_events, trace_path)
             run_traces.append(run.trace_events)
 
+            # 4) Let the benchmark score the model output.
             evaluation = benchmark.evaluate(
                 task,
                 run.final_answer,
@@ -112,6 +117,7 @@ def run_command(args: argparse.Namespace) -> int:
             eval_path = task_dir / f"run_{run_index}.eval.json"
             _write_eval(eval_path, evaluation, run.final_answer)
 
+        # 5) Convert trace+eval into descriptor artifacts and analysis outputs.
         analysis = analyze_task_runs(
             task_id=task.task_id,
             benchmark_name=benchmark_name,

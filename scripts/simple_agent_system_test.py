@@ -66,6 +66,11 @@ class EventClock:
 
 
 class MemoryStore:
+    # Minimal memory model:
+    # - shared_notes: global scratchpad across agents
+    # - agent_notes: each agent's own running notes
+    # - agent_inboxes: inter-agent messages (MAS communication)
+    # - tool_history: remembered tool outputs per agent
     def __init__(self, agent_ids: Sequence[str]) -> None:
         self.shared_notes: List[str] = []
         self.agent_notes: Dict[str, List[str]] = {agent_id: [] for agent_id in agent_ids}
@@ -129,6 +134,7 @@ class MemoryStore:
 
 
 class ToolRegistry:
+    # Local tool registry used by the standalone test (no external tool server).
     def __init__(self) -> None:
         self._specs: Dict[str, ToolSpec] = {
             "calculator": ToolSpec(
@@ -228,6 +234,9 @@ class SimpleAgentSystemRunner:
 
     def run_task(self, task: SimpleTask, run_index: int, seed: int) -> SimpleRunResult:
         mas_cfg = self.config.mas
+        # SAS vs MAS is determined by topology config:
+        # - SAS: 1 agent, single level
+        # - MAS: multiple agents and message passing through topology edges
         topology = build_topology(mas_cfg, seed=seed)
         rng = random.Random(seed)
         clock = EventClock()
@@ -289,6 +298,7 @@ class SimpleAgentSystemRunner:
                 )
 
             for spec in topology.agents:
+                # Auto tool stage: detect obvious arithmetic/lookup needs.
                 memory_block = memory.prompt_memory_block(spec.agent_id)
                 auto_calls = self._auto_tool_calls(task.prompt, memory_block)
                 for tool_name, tool_arg in auto_calls:
@@ -364,6 +374,7 @@ class SimpleAgentSystemRunner:
                         )
 
                 if message_budget[spec.agent_id] > 0:
+                    # MAS communication path encoded as tool_call/tool_result trace events.
                     recipient = self._select_recipient(rng, topology, spec.agent_id)
                     if recipient is not None:
                         message_text = self._message_snippet(llm.text)
@@ -417,6 +428,7 @@ class SimpleAgentSystemRunner:
                     actor="system",
                     event_type="verify",
                     payload={
+                        # Verify node: lightweight runtime health snapshot.
                         "node": "turn_check",
                         "turn": turn,
                         "active_inboxes": active_inboxes,
@@ -437,6 +449,7 @@ class SimpleAgentSystemRunner:
                 actor="system",
                 event_type="verify",
                 payload={
+                    # Evaluation-precheck node before finalization.
                     "node": "evaluation_precheck",
                     "turns_executed": turns_executed,
                     "auto_tool_calls": auto_tool_calls,
@@ -662,6 +675,8 @@ class SimpleAgentSystemRunner:
 
 
 def evaluate_run(task: SimpleTask, run: SimpleRunResult) -> BenchmarkEvaluation:
+    # Standalone evaluator used when there is no benchmark adapter:
+    # combines completion, token overlap with optional reference, and tool usage.
     answer = run.final_answer.strip()
     completion = 1.0 if answer else 0.0
 
@@ -741,6 +756,7 @@ def build_runtime_config(base: ExperimentConfig, args: argparse.Namespace) -> Ex
         agent_types = ["general"]
 
     if args.mode == "sas":
+        # Force single-agent shape regardless of other MAS flags.
         mas_cfg = replace(
             base.mas,
             levels=1,
@@ -754,6 +770,7 @@ def build_runtime_config(base: ExperimentConfig, args: argparse.Namespace) -> Ex
             max_turns=1,
         )
     else:
+        # Build a multi-agent shape from CLI knobs.
         levels = max(1, int(args.levels))
         total_agents = max(levels, int(args.agents))
         mas_cfg = replace(
@@ -883,6 +900,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         evaluations=evaluations,
         output_dir=run_root,
     )
+    # Reuse descriptor pipeline so this standalone script produces the same
+    # descriptor/analysis artifacts as benchmark runs in main.py.
 
     summary = {
         "timestamp": timestamp,
