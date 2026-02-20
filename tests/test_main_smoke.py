@@ -67,6 +67,7 @@ class TestMainSmoke(unittest.TestCase):
                     [finance_agent]
                     local_csv_path = "{csv_path.as_posix()}"
                     success_threshold = 0.5
+                    eval_mode = "substring"
                     """
                 ).strip()
                 + "\n",

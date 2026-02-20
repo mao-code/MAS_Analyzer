@@ -6,6 +6,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()  # auto-load .env (OPENROUTER_API_KEY, HF_TOKEN, etc.)
+
 
 @dataclass
 class OpenRouterConfig:

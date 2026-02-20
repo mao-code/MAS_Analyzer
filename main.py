@@ -19,10 +19,25 @@ def _now_stamp() -> str:
 
 def _benchmark_section_config(config: Any, benchmark_name: str) -> Dict[str, Any]:
     if benchmark_name == "finance_agent":
-        return dict(config.finance_agent)
-    if benchmark_name == "browsecomp":
-        return dict(config.browsecomp)
-    return {}
+        cfg = dict(config.finance_agent)
+    elif benchmark_name == "browsecomp":
+        cfg = dict(config.browsecomp)
+    else:
+        return {}
+
+    # Inject global openrouter config as fallback for LLM judge.
+    # Benchmark-specific [browsecomp.openrouter] overrides take precedence.
+    if "openrouter" not in cfg:
+        cfg["openrouter"] = {}
+    or_defaults = {
+        "api_key": config.openrouter.api_key,
+        "base_url": config.openrouter.base_url,
+    }
+    for key, value in or_defaults.items():
+        if key not in cfg["openrouter"] and value:
+            cfg["openrouter"][key] = value
+
+    return cfg
 
 
 def _write_eval(path: Path, evaluation: BenchmarkEvaluation, prediction: str) -> None:
