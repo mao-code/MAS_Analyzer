@@ -4,10 +4,12 @@ from typing import Any, Dict
 
 from .browsecomp import BrowseCompBenchmark
 from .finance_agent import FinanceAgentBenchmark
+from .plancraft import PlancraftBenchmark
 
 BENCHMARK_REGISTRY = {
     "finance_agent": FinanceAgentBenchmark,
     "browsecomp": BrowseCompBenchmark,
+    "plancraft": PlancraftBenchmark,
 }
 
 

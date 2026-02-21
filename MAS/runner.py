@@ -277,17 +277,27 @@ class MASRunner:
 
     @staticmethod
     def _build_agent_prompt(
-        task_prompt: str,
+        task_prompt: Any,
         spec: AgentSpec,
         turn: int,
         inbox: List[Dict[str, Any]],
-    ) -> str:
+    ) -> Any:
         inbox_text = ""
         if inbox:
             pieces = []
             for message in inbox[-5:]:
                 pieces.append(f"From {message['from']} (turn {message['turn']}): {message['text']}")
             inbox_text = "\n".join(pieces)
+
+        if isinstance(task_prompt, list):
+            # Pass the list through natively, but wrap MAS system logic as the final instruction
+            mas_instruction = (
+                f"Agent: {spec.agent_id} (type={spec.agent_type}, level={spec.level})\n"
+                f"Turn: {turn}\n"
+                f"Messages:\n{inbox_text or 'None'}\n\n"
+                "Produce a concise step toward the final answer."
+            )
+            return task_prompt + [{"role": "system", "content": mas_instruction}]
 
         return (
             f"Task:\n{task_prompt}\n\n"

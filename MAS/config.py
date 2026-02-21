@@ -137,6 +137,7 @@ class ExperimentConfig:
     models: Dict[str, str] = field(default_factory=dict)
     browsecomp: Dict[str, Any] = field(default_factory=dict)
     finance_agent: Dict[str, Any] = field(default_factory=dict)
+    plancraft: Dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         self.openrouter.validate()
@@ -217,6 +218,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         models=models,
         browsecomp=_as_dict(data.get("browsecomp", {}), "[browsecomp]"),
         finance_agent=_as_dict(data.get("finance_agent", {}), "[finance_agent]"),
+        plancraft=_as_dict(data.get("plancraft", {}), "[plancraft]"),
     )
     config.validate()
     return config

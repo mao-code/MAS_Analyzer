@@ -27,9 +27,12 @@ import re
 import urllib.request
 from pathlib import Path
 from statistics import mode
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, TYPE_CHECKING
 
 from .base import BenchmarkEvaluation, BenchmarkTask
+
+if TYPE_CHECKING:
+    from MAS.runner import MASRunResult
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +145,16 @@ class FinanceAgentBenchmark:
                     break
 
         return tasks
+
+    def run(
+        self,
+        task: BenchmarkTask,
+        runner: Any,
+        run_index: int,
+        seed: int,
+    ) -> MASRunResult:
+        """One-shot benchmark: delegate entirely to the runner."""
+        return runner.run_task(task=task, run_index=run_index, seed=seed)
 
     def evaluate(
         self,

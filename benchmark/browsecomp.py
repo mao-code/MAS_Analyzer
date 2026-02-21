@@ -30,9 +30,12 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Set
+from typing import Any, Dict, List, Sequence, Set, TYPE_CHECKING
 
 from .base import BenchmarkEvaluation, BenchmarkTask
+
+if TYPE_CHECKING:
+    from MAS.runner import MASRunResult
 
 logger = logging.getLogger(__name__)
 
@@ -221,10 +224,19 @@ class BrowseCompBenchmark:
                 "retrieval_recall (evidence + gold)",
                 "citation_precision",
                 "citation_recall",
-                "confidence (for calibration error)",
             ],
             "notes": notes,
         }
+
+    def run(
+        self,
+        task: BenchmarkTask,
+        runner: Any,
+        run_index: int,
+        seed: int,
+    ) -> MASRunResult:
+        """One-shot benchmark: delegate entirely to the runner."""
+        return runner.run_task(task=task, run_index=run_index, seed=seed)
 
     # ------------------------------------------------------------------
     # Evaluation: LLM-as-Judge (official GRADER_TEMPLATE)

@@ -22,6 +22,8 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> Dict[str, Any
         cfg = dict(config.finance_agent)
     elif benchmark_name == "browsecomp":
         cfg = dict(config.browsecomp)
+    elif benchmark_name == "plancraft":
+        return dict(config.plancraft)
     else:
         return {}
 
@@ -111,7 +113,12 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
-            run = runner.run_task(task=task, run_index=run_index, seed=run_seed)
+            run = benchmark.run(
+                task=task,
+                runner=runner,
+                run_index=run_index,
+                seed=run_seed,
+            )
 
             trace_path = task_dir / f"run_{run_index}.trace.jsonl"
             write_run_trace(run.trace_events, trace_path)
