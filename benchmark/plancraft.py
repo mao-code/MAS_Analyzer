@@ -27,7 +27,8 @@ interaction loop must be driven by the runner.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Sequence, TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 from .base import BenchmarkEvaluation, BenchmarkTask
 
@@ -46,7 +47,7 @@ class PlancraftBenchmark:
         resolution      Image resolution "high" or "low" (default: "high")
     """
 
-    def __init__(self, config: Dict[str, Any] | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         cfg = config or {}
         self.split: str = str(cfg.get("split", "val"))
         self.max_steps: int = int(cfg.get("max_steps", 30))
@@ -69,22 +70,20 @@ class PlancraftBenchmark:
 
             handlers = [MoveActionHandler(), SmeltActionHandler(), ImpossibleActionHandler()]
             self._system_prompt_text = get_system_prompt(handlers)["content"]
-            
+
             # Retrieve official few-shot examples as dict array
             self._few_shot_messages = get_prompt_example(handlers, use_text_inventory=True)
         except ImportError:
             logger.warning("Failed to import PlanCraft system prompt tools.")
             self._few_shot_messages = []
 
-    def load_tasks(
-        self, task_limit: int | None = None
-    ) -> Sequence[BenchmarkTask]:
+    def load_tasks(self, task_limit: int | None = None) -> Sequence[BenchmarkTask]:
         from plancraft.simple import get_plancraft_examples
 
         examples = get_plancraft_examples(split=self.split)
         self._examples = examples
 
-        tasks: List[BenchmarkTask] = []
+        tasks: list[BenchmarkTask] = []
         for ex in examples:
             metadata = {
                 "source": "plancraft",
@@ -100,9 +99,7 @@ class PlancraftBenchmark:
                 BenchmarkTask(
                     task_id=str(ex.id),
                     prompt=f"Craft an item of type: {ex.target}",
-                    reference_answer=(
-                        "impossible" if ex.impossible else ex.target
-                    ),
+                    reference_answer=("impossible" if ex.impossible else ex.target),
                     metadata=metadata,
                 )
             )
@@ -130,9 +127,7 @@ class PlancraftBenchmark:
                 break
 
         if example is None:
-            raise ValueError(
-                f"PlanCraft example not found for task_id={task.task_id}"
-            )
+            raise ValueError(f"PlanCraft example not found for task_id={task.task_id}")
 
         return PlancraftGymWrapper(
             example=example,
@@ -156,13 +151,13 @@ class PlancraftBenchmark:
         all_events = []
         final_action = ""
         done = terminated or truncated
-        
+
         # Build a persistent history matching official dialogue layout
         dialogue_history = []
-        
+
         while not done:
             current_obs_text = obs.get("text", "")
-            
+
             # Construct the identical list of messages expected by official evaluators
             full_prompt: list[dict[str, str]] = [
                 {"role": "system", "content": self._system_prompt_text}
@@ -184,7 +179,7 @@ class PlancraftBenchmark:
             all_events.extend(mas_result.trace_events)
 
             final_action = mas_result.final_answer.strip()
-            
+
             # Record the step for context in subsequent turns
             dialogue_history.append({"role": "user", "content": current_obs_text})
             dialogue_history.append({"role": "assistant", "content": final_action})
@@ -209,7 +204,7 @@ class PlancraftBenchmark:
         task: BenchmarkTask,
         prediction: str,
         *,
-        run_metadata: Dict[str, Any] | None = None,
+        run_metadata: dict[str, Any] | None = None,
     ) -> BenchmarkEvaluation:
         run_metadata = run_metadata or {}
 
@@ -224,16 +219,14 @@ class PlancraftBenchmark:
         # Success conditions:
         # 1. Positive reward (crafted the target)
         # 2. Correctly identified impossible task
-        if reward > 0:
-            success = True
-        elif is_impossible and prediction.strip().lower() == "impossible":
+        if reward > 0 or is_impossible and prediction.strip().lower() == "impossible":
             success = True
         else:
             success = False
 
         score = 1.0 if success else 0.0
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "prediction": prediction,
             "reference_answer": task.reference_answer,
             "reward": reward,
@@ -254,7 +247,7 @@ class PlancraftBenchmark:
             details=details,
         )
 
-    def requirements(self) -> Dict[str, Any]:
+    def requirements(self) -> dict[str, Any]:
         return {
             "benchmark": "plancraft",
             "version": "0.4.x",

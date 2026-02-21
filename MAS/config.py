@@ -4,7 +4,7 @@ import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -32,8 +32,8 @@ class MASConfig:
     intra_level_link_ratio: float
     full_linked: bool
     number_of_agents: int | None = None
-    agents_per_level: List[int] | None = None
-    agent_types: List[str] = field(default_factory=lambda: ["general"])
+    agents_per_level: list[int] | None = None
+    agent_types: list[str] = field(default_factory=lambda: ["general"])
     communication_count_internally: int = 1
     turn_mode: str = "single_turn"
     max_turns: int = 1
@@ -62,17 +62,13 @@ class MASConfig:
                 )
             for idx, count in enumerate(self.agents_per_level):
                 if count < 1:
-                    raise ValueError(
-                        f"mas.agents_per_level[{idx}] must be >= 1 (got {count})"
-                    )
+                    raise ValueError(f"mas.agents_per_level[{idx}] must be >= 1 (got {count})")
 
         if self.number_of_agents is not None and self.number_of_agents < 1:
             raise ValueError("mas.number_of_agents must be >= 1 when provided")
 
         if self.agents_per_level is None and self.number_of_agents is None:
-            raise ValueError(
-                "Either mas.number_of_agents or mas.agents_per_level must be provided"
-            )
+            raise ValueError("Either mas.number_of_agents or mas.agents_per_level must be provided")
 
         if self.agents_per_level is not None and self.number_of_agents is not None:
             total = sum(self.agents_per_level)
@@ -94,7 +90,7 @@ class MASConfig:
         assert self.number_of_agents is not None
         return int(self.number_of_agents)
 
-    def resolved_agents_per_level(self) -> List[int]:
+    def resolved_agents_per_level(self) -> list[int]:
         if self.agents_per_level is not None:
             return list(self.agents_per_level)
 
@@ -134,10 +130,10 @@ class ExperimentConfig:
     openrouter: OpenRouterConfig
     mas: MASConfig
     experiment: ExperimentRuntimeConfig
-    models: Dict[str, str] = field(default_factory=dict)
-    browsecomp: Dict[str, Any] = field(default_factory=dict)
-    finance_agent: Dict[str, Any] = field(default_factory=dict)
-    plancraft: Dict[str, Any] = field(default_factory=dict)
+    models: dict[str, str] = field(default_factory=dict)
+    browsecomp: dict[str, Any] = field(default_factory=dict)
+    finance_agent: dict[str, Any] = field(default_factory=dict)
+    plancraft: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         self.openrouter.validate()
@@ -165,8 +161,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     openrouter = OpenRouterConfig(
         api_key=api_key,
-        base_url=_opt_str(openrouter_raw.get("base_url"))
-        or "https://openrouter.ai/api/v1",
+        base_url=_opt_str(openrouter_raw.get("base_url")) or "https://openrouter.ai/api/v1",
         http_referer=_opt_str(openrouter_raw.get("http_referer")),
         x_title=_opt_str(openrouter_raw.get("x_title")),
         timeout_s=float(openrouter_raw.get("timeout_s", 60.0)),
@@ -204,9 +199,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         output_dir=str(experiment_raw.get("output_dir", "outputs")),
         runs_per_task=int(experiment_raw.get("runs_per_task", 3)),
         seed=int(experiment_raw.get("seed", 42)),
-        task_limit=(
-            int(experiment_raw["task_limit"]) if "task_limit" in experiment_raw else None
-        ),
+        task_limit=(int(experiment_raw["task_limit"]) if "task_limit" in experiment_raw else None),
     )
 
     models = {str(key): str(value) for key, value in models_raw.items()}
@@ -224,7 +217,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     return config
 
 
-def _as_dict(value: Any, section_name: str) -> Dict[str, Any]:
+def _as_dict(value: Any, section_name: str) -> dict[str, Any]:
     if value is None:
         return {}
     if not isinstance(value, dict):
@@ -232,7 +225,7 @@ def _as_dict(value: Any, section_name: str) -> Dict[str, Any]:
     return dict(value)
 
 
-def _opt_str(value: Any) -> Optional[str]:
+def _opt_str(value: Any) -> str | None:
     if value is None:
         return None
     value = str(value).strip()

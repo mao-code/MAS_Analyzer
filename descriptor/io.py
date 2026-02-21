@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, List, Optional
 
 from .schema import TraceEvent, validate_trace_events
 
 
-def read_trace_jsonl(path: str | Path, *, strict: bool = True) -> List[TraceEvent]:
-    events: List[TraceEvent] = []
+def read_trace_jsonl(path: str | Path, *, strict: bool = True) -> list[TraceEvent]:
+    events: list[TraceEvent] = []
     path = Path(path)
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
@@ -36,7 +36,7 @@ def write_trace_jsonl(events: Iterable[TraceEvent], path: str | Path) -> None:
 class TraceLogger:
     """Minimal trace logger for systems emitting events."""
 
-    events: List[TraceEvent] = field(default_factory=list)
+    events: list[TraceEvent] = field(default_factory=list)
 
     def log_event(self, event: TraceEvent) -> None:
         self.events.append(event)
@@ -53,8 +53,8 @@ class TraceLogger:
         token_out: int,
         latency_ms: float,
         cost_usd: float,
-        state_id: Optional[str] = None,
-        extra: Optional[dict] = None,
+        state_id: str | None = None,
+        extra: dict | None = None,
     ) -> TraceEvent:
         event = TraceEvent(
             timestamp_start=timestamp_start,

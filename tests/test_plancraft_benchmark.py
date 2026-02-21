@@ -22,9 +22,7 @@ class TestPlancraftBenchmark(unittest.TestCase):
 
         bench = PlancraftBenchmark({"split": "val"})
 
-        with patch(
-            "plancraft.simple.get_plancraft_examples", return_value=[ex]
-        ):
+        with patch("plancraft.simple.get_plancraft_examples", return_value=[ex]):
             tasks = bench.load_tasks(task_limit=1)
 
         self.assertEqual(len(tasks), 1)

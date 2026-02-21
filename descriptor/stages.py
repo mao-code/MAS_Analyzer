@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable
+from collections.abc import Iterable
 
 from .schema import TraceEvent
 from .utils import is_tool_error
@@ -23,7 +23,7 @@ def stage_for_event(event: TraceEvent) -> str:
     return EVENT_STAGE_MAP.get(event.event_type, "act")
 
 
-def compute_stage_metrics(events: Iterable[TraceEvent]) -> Dict[str, float]:
+def compute_stage_metrics(events: Iterable[TraceEvent]) -> dict[str, float]:
     counts = {stage: 0 for stage in STAGES}
     tokens = {stage: 0.0 for stage in STAGES}
     latency = {stage: 0.0 for stage in STAGES}
@@ -40,7 +40,7 @@ def compute_stage_metrics(events: Iterable[TraceEvent]) -> Dict[str, float]:
         if event.event_type == "verify":
             verify_counts[stage] += 1
 
-    metrics: Dict[str, float] = {}
+    metrics: dict[str, float] = {}
     for stage in STAGES:
         count = counts[stage]
         metrics[f"stage_{stage}_events"] = float(count)

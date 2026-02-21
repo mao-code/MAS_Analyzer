@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -19,30 +20,26 @@ from .utils import (
 
 
 class Evaluator(Protocol):
-    def evaluate_success(self, events: Iterable[TraceEvent]) -> Optional[bool]:
-        ...
+    def evaluate_success(self, events: Iterable[TraceEvent]) -> bool | None: ...
 
-    def evaluate_completion(self, events: Iterable[TraceEvent]) -> Optional[bool]:
-        ...
+    def evaluate_completion(self, events: Iterable[TraceEvent]) -> bool | None: ...
 
-    def evaluate_faithfulness(self, events: Iterable[TraceEvent]) -> Optional[float]:
-        ...
+    def evaluate_faithfulness(self, events: Iterable[TraceEvent]) -> float | None: ...
 
-    def evaluate_context_relevancy(self, events: Iterable[TraceEvent]) -> Optional[float]:
-        ...
+    def evaluate_context_relevancy(self, events: Iterable[TraceEvent]) -> float | None: ...
 
 
 class NullEvaluator:
-    def evaluate_success(self, events: Iterable[TraceEvent]) -> Optional[bool]:
+    def evaluate_success(self, events: Iterable[TraceEvent]) -> bool | None:
         return None
 
-    def evaluate_completion(self, events: Iterable[TraceEvent]) -> Optional[bool]:
+    def evaluate_completion(self, events: Iterable[TraceEvent]) -> bool | None:
         return None
 
-    def evaluate_faithfulness(self, events: Iterable[TraceEvent]) -> Optional[float]:
+    def evaluate_faithfulness(self, events: Iterable[TraceEvent]) -> float | None:
         return None
 
-    def evaluate_context_relevancy(self, events: Iterable[TraceEvent]) -> Optional[float]:
+    def evaluate_context_relevancy(self, events: Iterable[TraceEvent]) -> float | None:
         return None
 
 
@@ -58,9 +55,9 @@ class ExtensionOptions:
 def compute_run_metrics(
     events: Sequence[TraceEvent],
     *,
-    evaluator: Optional[Evaluator] = None,
-    extensions: Optional[ExtensionOptions] = None,
-) -> Dict[str, Any]:
+    evaluator: Evaluator | None = None,
+    extensions: ExtensionOptions | None = None,
+) -> dict[str, Any]:
     if evaluator is None:
         evaluator = NullEvaluator()
     if extensions is None:
@@ -86,9 +83,7 @@ def compute_run_metrics(
     tool_fail_total = sum(1 for event in events if is_tool_error(event))
 
     backtrack_count = sum(
-        1
-        for event in events
-        if event.event_type == "revise" or bool(event.payload.get("redo"))
+        1 for event in events if event.event_type == "revise" or bool(event.payload.get("redo"))
     )
     backtrack_rate = backtrack_count / steps_total if steps_total else 0.0
 
@@ -97,13 +92,11 @@ def compute_run_metrics(
 
     loop_score = compute_loop_score(events)
 
-    run_metrics: Dict[str, Any] = {
+    run_metrics: dict[str, Any] = {
         "success": bool(success),
         "completion": bool(completion),
         "faithfulness": float(faithfulness) if faithfulness is not None else np.nan,
-        "context_relevancy": float(context_relevancy)
-        if context_relevancy is not None
-        else np.nan,
+        "context_relevancy": float(context_relevancy) if context_relevancy is not None else np.nan,
         "latency_total": float(latency_total),
         "tokens_total": float(token_total),
         "cost_total": float(cost_total),
@@ -161,7 +154,7 @@ def _nanvar(values: Sequence[float]) -> float:
     return float(np.nanvar(arr))
 
 
-def compute_task_metrics(run_metrics: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any]:
     if not run_metrics:
         raise ValueError("At least one run metric entry is required")
 
@@ -184,7 +177,7 @@ def compute_task_metrics(run_metrics: Sequence[Dict[str, Any]]) -> Dict[str, Any
     total_tool_calls = tool_calls.sum()
     total_tool_fails = tool_fails.sum()
 
-    metrics: Dict[str, Any] = {
+    metrics: dict[str, Any] = {
         "Q1_success_rate": float(successes.mean()),
         "Q2_completion_rate": float(completions.mean()),
         "Q3_faithfulness": _nanmean(faithfulness),
@@ -193,7 +186,9 @@ def compute_task_metrics(run_metrics: Sequence[Dict[str, Any]]) -> Dict[str, Any
         "C2_tokens_total": float(tokens.sum()),
         "C3_cost_total": float(costs.sum()),
         "C4_tool_calls_total": float(total_tool_calls),
-        "C5_tool_error_rate": float(total_tool_fails / total_tool_calls) if total_tool_calls else 0.0,
+        "C5_tool_error_rate": float(total_tool_fails / total_tool_calls)
+        if total_tool_calls
+        else 0.0,
         "R1_success_var": _nanvar(successes.tolist()),
         "R2_latency_var": _nanvar(latencies.tolist()),
         "R3_tokens_var": _nanvar(tokens.tolist()),
@@ -210,9 +205,13 @@ def compute_task_metrics(run_metrics: Sequence[Dict[str, Any]]) -> Dict[str, Any
         metrics[key] = float(np.mean(values))
 
     if "avg_branching" in run_metrics[0]:
-        metrics["avg_branching"] = float(np.mean([rm.get("avg_branching", 0.0) for rm in run_metrics]))
+        metrics["avg_branching"] = float(
+            np.mean([rm.get("avg_branching", 0.0) for rm in run_metrics])
+        )
     if "unique_tools" in run_metrics[0]:
-        metrics["unique_tools"] = float(np.mean([rm.get("unique_tools", 0.0) for rm in run_metrics]))
+        metrics["unique_tools"] = float(
+            np.mean([rm.get("unique_tools", 0.0) for rm in run_metrics])
+        )
     if "executability_score" in run_metrics[0]:
         metrics["executability_score"] = float(
             np.mean([rm.get("executability_score", 0.0) for rm in run_metrics])
@@ -221,8 +220,8 @@ def compute_task_metrics(run_metrics: Sequence[Dict[str, Any]]) -> Dict[str, Any
     return metrics
 
 
-def aggregate_failure_modes(run_metrics: Sequence[Dict[str, Any]]) -> Dict[str, int]:
-    hist: Dict[str, int] = {}
+def aggregate_failure_modes(run_metrics: Sequence[dict[str, Any]]) -> dict[str, int]:
+    hist: dict[str, int] = {}
     for rm in run_metrics:
         data = rm.get("failure_mode_hist")
         if not isinstance(data, dict):

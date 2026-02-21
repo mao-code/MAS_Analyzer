@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List, Tuple
 
 import numpy as np
 
@@ -10,7 +10,7 @@ import numpy as np
 class RobustScaler:
     median_: np.ndarray
     iqr_: np.ndarray
-    feature_names: List[str]
+    feature_names: list[str]
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         return (X - self.median_) / self.iqr_
@@ -28,7 +28,7 @@ class RobustScaler:
 
 def robust_scale(
     X: np.ndarray, feature_names: Iterable[str] | None = None
-) -> Tuple[np.ndarray, RobustScaler]:
+) -> tuple[np.ndarray, RobustScaler]:
     if X.ndim != 2:
         raise ValueError("X must be a 2D array")
     median = np.median(X, axis=0)

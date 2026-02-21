@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
 
 
-def covariance_inverse(X: np.ndarray, *, regularization: float = 1e-6) -> Tuple[np.ndarray, np.ndarray]:
+def covariance_inverse(
+    X: np.ndarray, *, regularization: float = 1e-6
+) -> tuple[np.ndarray, np.ndarray]:
     if X.ndim != 2:
         raise ValueError("X must be a 2D array")
     cov = np.cov(X, rowvar=False)

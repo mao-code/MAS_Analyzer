@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Dict, List
 
 from .config import MASConfig
 
@@ -16,14 +15,14 @@ class AgentSpec:
 
 @dataclass
 class Topology:
-    agents: List[AgentSpec]
-    adjacency: Dict[str, List[str]]
+    agents: list[AgentSpec]
+    adjacency: dict[str, list[str]]
 
-    def neighbors(self, agent_id: str) -> List[str]:
+    def neighbors(self, agent_id: str) -> list[str]:
         return self.adjacency.get(agent_id, [])
 
-    def level_to_agents(self) -> Dict[int, List[str]]:
-        mapping: Dict[int, List[str]] = {}
+    def level_to_agents(self) -> dict[int, list[str]]:
+        mapping: dict[int, list[str]] = {}
         for agent in self.agents:
             mapping.setdefault(agent.level, []).append(agent.agent_id)
         return mapping
@@ -35,8 +34,8 @@ def build_topology(config: MASConfig, seed: int) -> Topology:
     rng = random.Random(seed)
     agents_per_level = config.resolved_agents_per_level()
 
-    agents: List[AgentSpec] = []
-    level_to_agents: Dict[int, List[str]] = {}
+    agents: list[AgentSpec] = []
+    level_to_agents: dict[int, list[str]] = {}
     agent_type_count = len(config.agent_types)
     agent_index = 0
 
@@ -50,7 +49,7 @@ def build_topology(config: MASConfig, seed: int) -> Topology:
             level_to_agents[level].append(agent_id)
             agent_index += 1
 
-    adjacency_sets: Dict[str, set[str]] = {agent.agent_id: set() for agent in agents}
+    adjacency_sets: dict[str, set[str]] = {agent.agent_id: set() for agent in agents}
 
     # Intra-level connectivity.
     for level_agents in level_to_agents.values():
@@ -75,8 +74,7 @@ def build_topology(config: MASConfig, seed: int) -> Topology:
                 adjacency_sets[dst].add(src)
 
     adjacency = {
-        agent_id: sorted(list(neighbors))
-        for agent_id, neighbors in adjacency_sets.items()
+        agent_id: sorted(list(neighbors)) for agent_id, neighbors in adjacency_sets.items()
     }
 
     return Topology(agents=agents, adjacency=adjacency)

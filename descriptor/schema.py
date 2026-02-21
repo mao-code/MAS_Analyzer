@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 EVENT_TYPES = {
     "plan",
@@ -38,20 +38,20 @@ class TraceEvent:
     timestamp_end: float
     actor: str
     event_type: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     token_in: int
     token_out: int
     latency_ms: float
     cost_usd: float
-    state_id: Optional[str] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
+    state_id: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
     @property
     def duration_ms(self) -> float:
         return max(0.0, self.timestamp_end - self.timestamp_start)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], *, strict: bool = True) -> "TraceEvent":
+    def from_dict(cls, data: dict[str, Any], *, strict: bool = True) -> TraceEvent:
         validate_event_dict(data, strict=strict)
 
         payload = data.get("payload", {})
@@ -74,7 +74,7 @@ class TraceEvent:
             extra=extra,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         data = {
             "timestamp_start": self.timestamp_start,
             "timestamp_end": self.timestamp_end,
@@ -94,14 +94,16 @@ class TraceEvent:
         return data
 
 
-def validate_event_dict(data: Dict[str, Any], *, strict: bool = True) -> None:
+def validate_event_dict(data: dict[str, Any], *, strict: bool = True) -> None:
     missing = REQUIRED_FIELDS - data.keys()
     if missing:
         raise ValueError(f"TraceEvent missing required fields: {sorted(missing)}")
 
     event_type = data.get("event_type")
     if event_type not in EVENT_TYPES:
-        raise ValueError(f"Invalid event_type '{event_type}'. Expected one of {sorted(EVENT_TYPES)}")
+        raise ValueError(
+            f"Invalid event_type '{event_type}'. Expected one of {sorted(EVENT_TYPES)}"
+        )
 
     if strict:
         if data.get("timestamp_end") < data.get("timestamp_start"):
@@ -114,7 +116,7 @@ def validate_event_dict(data: Dict[str, Any], *, strict: bool = True) -> None:
             raise ValueError("cost_usd must be non-negative")
 
 
-def validate_trace_events(events: List[TraceEvent], *, strict: bool = True) -> None:
+def validate_trace_events(events: list[TraceEvent], *, strict: bool = True) -> None:
     if not events:
         raise ValueError("Trace must contain at least one event")
     if strict:

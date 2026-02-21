@@ -29,8 +29,9 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .base import BenchmarkEvaluation, BenchmarkTask
 
@@ -103,7 +104,7 @@ class BrowseCompBenchmark:
         openrouter             Dict with base_url / api_key overrides.
     """
 
-    def __init__(self, config: Dict[str, Any] | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         cfg = config or {}
         self.decrypted_path = cfg.get("decrypted_path")
         self.auto_download = bool(cfg.get("auto_download", False))
@@ -114,9 +115,7 @@ class BrowseCompBenchmark:
         self.qrel_evidence_path = Path(
             str(cfg.get("qrel_evidence_path", "topics-qrels/qrel_evidence.txt"))
         )
-        self.qrel_golds_path = Path(
-            str(cfg.get("qrel_golds_path", "topics-qrels/qrel_golds.txt"))
-        )
+        self.qrel_golds_path = Path(str(cfg.get("qrel_golds_path", "topics-qrels/qrel_golds.txt")))
         self.dataset_name = str(cfg.get("dataset_name", "Tevatron/browsecomp-plus"))
         self.dataset_cache_dir = cfg.get("dataset_cache_dir")
 
@@ -128,11 +127,11 @@ class BrowseCompBenchmark:
 
         # Lazily initialised LLM client
         self._llm_client: Any | None = None
-        self._llm_config: Dict[str, Any] = dict(cfg.get("openrouter", {}))
+        self._llm_config: dict[str, Any] = dict(cfg.get("openrouter", {}))
 
         # Loaded at load_tasks() time
-        self._qrel_evidence: Dict[str, Set[str]] | None = None
-        self._qrel_golds: Dict[str, Set[str]] | None = None
+        self._qrel_evidence: dict[str, set[str]] | None = None
+        self._qrel_golds: dict[str, set[str]] | None = None
 
     # ------------------------------------------------------------------
     # BenchmarkAdapter interface
@@ -140,7 +139,7 @@ class BrowseCompBenchmark:
 
     def load_tasks(self, task_limit: int | None = None) -> Sequence[BenchmarkTask]:
         decrypted_path = self._ensure_decrypted_dataset()
-        tasks: List[BenchmarkTask] = []
+        tasks: list[BenchmarkTask] = []
 
         with decrypted_path.open("r", encoding="utf-8") as handle:
             for line in handle:
@@ -157,14 +156,10 @@ class BrowseCompBenchmark:
                 metadata = {
                     "source": "browsecomp_plus",
                     "gold_docids": [
-                        str(item.get("docid"))
-                        for item in gold_docs
-                        if isinstance(item, dict)
+                        str(item.get("docid")) for item in gold_docs if isinstance(item, dict)
                     ],
                     "evidence_docids": [
-                        str(item.get("docid"))
-                        for item in evidence_docs
-                        if isinstance(item, dict)
+                        str(item.get("docid")) for item in evidence_docs if isinstance(item, dict)
                     ],
                 }
 
@@ -188,7 +183,7 @@ class BrowseCompBenchmark:
         task: BenchmarkTask,
         prediction: str,
         *,
-        run_metadata: Dict[str, Any] | None = None,
+        run_metadata: dict[str, Any] | None = None,
     ) -> BenchmarkEvaluation:
         run_metadata = run_metadata or {}
 
@@ -196,7 +191,7 @@ class BrowseCompBenchmark:
             return self._evaluate_llm_judge(task, prediction, run_metadata)
         return self._evaluate_substring(task, prediction, run_metadata)
 
-    def requirements(self) -> Dict[str, Any]:
+    def requirements(self) -> dict[str, Any]:
         notes = [
             "Data: BrowseComp-Plus (830 queries) from Tevatron/browsecomp-plus on HF.",
             f"Eval mode: {self.eval_mode}.",
@@ -246,7 +241,7 @@ class BrowseCompBenchmark:
         self,
         task: BenchmarkTask,
         prediction: str,
-        run_metadata: Dict[str, Any],
+        run_metadata: dict[str, Any],
     ) -> BenchmarkEvaluation:
         # Build judge prompt
         judge_prompt = GRADER_TEMPLATE.format(
@@ -273,11 +268,9 @@ class BrowseCompBenchmark:
         cited_docids = extract_citations_from_response(prediction)
         qrel_evidence = self._qrel_evidence or {}
         evidence_set = qrel_evidence.get(task.task_id, set())
-        citation_metrics = compute_citation_metrics(
-            cited_docids, sorted(evidence_set)
-        )
+        citation_metrics = compute_citation_metrics(cited_docids, sorted(evidence_set))
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "eval_mode": "llm_judge",
             "judge_model": self.judge_model,
             "judge_result": judge_result,
@@ -327,7 +320,7 @@ class BrowseCompBenchmark:
 
         import openai  # type: ignore
 
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         base_url = self._llm_config.get("base_url")
         api_key = self._llm_config.get("api_key")
         if base_url:
@@ -346,11 +339,9 @@ class BrowseCompBenchmark:
         self,
         task: BenchmarkTask,
         prediction: str,
-        run_metadata: Dict[str, Any],
+        run_metadata: dict[str, Any],
     ) -> BenchmarkEvaluation:
-        answer_match = self._normalized_exact_or_numeric_match(
-            prediction, task.reference_answer
-        )
+        answer_match = self._normalized_exact_or_numeric_match(prediction, task.reference_answer)
         score = 1.0 if answer_match else 0.0
 
         retrieval = self._compute_retrieval_metrics(task, run_metadata)
@@ -358,11 +349,9 @@ class BrowseCompBenchmark:
         cited_docids = extract_citations_from_response(prediction)
         qrel_evidence = self._qrel_evidence or {}
         evidence_set = qrel_evidence.get(task.task_id, set())
-        citation_metrics = compute_citation_metrics(
-            cited_docids, sorted(evidence_set)
-        )
+        citation_metrics = compute_citation_metrics(cited_docids, sorted(evidence_set))
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "eval_mode": "substring",
             "answer_match": answer_match,
             "prediction": prediction,
@@ -390,8 +379,8 @@ class BrowseCompBenchmark:
     def _compute_retrieval_metrics(
         self,
         task: BenchmarkTask,
-        run_metadata: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        run_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
         retrieved = run_metadata.get("retrieved_docids") or []
         retrieved_set = {str(item) for item in retrieved}
 
@@ -418,9 +407,7 @@ class BrowseCompBenchmark:
         return text.strip()
 
     @classmethod
-    def _normalized_exact_or_numeric_match(
-        cls, prediction: str, reference: str
-    ) -> bool:
+    def _normalized_exact_or_numeric_match(cls, prediction: str, reference: str) -> bool:
         pred_norm = cls._normalize_text(prediction)
         ref_norm = cls._normalize_text(reference)
 
@@ -438,9 +425,9 @@ class BrowseCompBenchmark:
         return False
 
     @staticmethod
-    def _extract_numbers(text: str) -> List[float]:
+    def _extract_numbers(text: str) -> list[float]:
         numbers = re.findall(r"-?\d+(?:\.\d+)?", text)
-        out: List[float] = []
+        out: list[float] = []
         for value in numbers:
             try:
                 out.append(float(value))
@@ -454,7 +441,7 @@ class BrowseCompBenchmark:
         return abs(a - b) <= tolerance
 
     @staticmethod
-    def _recall(retrieved: Set[str], relevant: Set[str]) -> float | None:
+    def _recall(retrieved: set[str], relevant: set[str]) -> float | None:
         if not relevant:
             return None
         return len(retrieved.intersection(relevant)) / float(len(relevant))
@@ -467,9 +454,7 @@ class BrowseCompBenchmark:
         if self.decrypted_path:
             path = Path(str(self.decrypted_path)).expanduser().resolve()
             if not path.exists():
-                raise FileNotFoundError(
-                    f"BrowseComp decrypted path not found: {path}"
-                )
+                raise FileNotFoundError(f"BrowseComp decrypted path not found: {path}")
             return path
 
         if self.decrypted_output_path.exists():
@@ -490,34 +475,26 @@ class BrowseCompBenchmark:
                 "Install and authenticate with Hugging Face."
             ) from exc
 
-        logger.info(
-            "Downloading BrowseComp-Plus dataset from %s", self.dataset_name
-        )
-        cache_dir = (
-            str(self.dataset_cache_dir) if self.dataset_cache_dir else None
-        )
-        dataset = load_dataset(
-            self.dataset_name, split="test", cache_dir=cache_dir
-        )
+        logger.info("Downloading BrowseComp-Plus dataset from %s", self.dataset_name)
+        cache_dir = str(self.dataset_cache_dir) if self.dataset_cache_dir else None
+        dataset = load_dataset(self.dataset_name, split="test", cache_dir=cache_dir)
 
         self.decrypted_output_path.parent.mkdir(parents=True, exist_ok=True)
         skip_keys = {"query_id"}
         with self.decrypted_output_path.open("w", encoding="utf-8") as handle:
             for row in dataset:
-                decrypted = self._transform_decrypt(
-                    row, self.canary, skip_keys
-                )
+                decrypted = self._transform_decrypt(row, self.canary, skip_keys)
                 handle.write(json.dumps(decrypted, ensure_ascii=False))
                 handle.write("\n")
 
         return self.decrypted_output_path
 
     @staticmethod
-    def _load_qrels(path: Path) -> Dict[str, Set[str]]:
+    def _load_qrels(path: Path) -> dict[str, set[str]]:
         if not path.exists():
             return {}
 
-        qrels: Dict[str, Set[str]] = {}
+        qrels: dict[str, set[str]] = {}
         with path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()
@@ -533,9 +510,7 @@ class BrowseCompBenchmark:
     @staticmethod
     def _derive_key(password: str, length: int) -> bytes:
         digest = hashlib.sha256(password.encode("utf-8")).digest()
-        return digest * (length // len(digest)) + digest[
-            : length % len(digest)
-        ]
+        return digest * (length // len(digest)) + digest[: length % len(digest)]
 
     @classmethod
     def _decrypt_string(cls, ciphertext_b64: str, password: str) -> str:
@@ -545,28 +520,21 @@ class BrowseCompBenchmark:
         return decrypted.decode("utf-8")
 
     @classmethod
-    def _transform_decrypt(
-        cls, obj: Any, password: str, skip_keys: Set[str]
-    ) -> Any:
+    def _transform_decrypt(cls, obj: Any, password: str, skip_keys: set[str]) -> Any:
         if isinstance(obj, str):
             try:
                 return cls._decrypt_string(obj, password)
             except Exception:
                 return obj
         if isinstance(obj, list):
-            return [
-                cls._transform_decrypt(item, password, skip_keys)
-                for item in obj
-            ]
+            return [cls._transform_decrypt(item, password, skip_keys) for item in obj]
         if isinstance(obj, dict):
-            out: Dict[str, Any] = {}
+            out: dict[str, Any] = {}
             for key, value in obj.items():
                 if key in skip_keys:
                     out[key] = value
                 else:
-                    out[key] = cls._transform_decrypt(
-                        value, password, skip_keys
-                    )
+                    out[key] = cls._transform_decrypt(value, password, skip_keys)
             return out
         return obj
 
@@ -577,7 +545,7 @@ class BrowseCompBenchmark:
 # ======================================================================
 
 
-def parse_judge_response(judge_response: str) -> Dict[str, Any]:
+def parse_judge_response(judge_response: str) -> dict[str, Any]:
     """Parse the structured judge output.
 
     Expected fields:
@@ -586,7 +554,7 @@ def parse_judge_response(judge_response: str) -> Dict[str, Any]:
         correct: yes | no
         confidence: 0-100
     """
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "extracted_final_answer": None,
         "reasoning": None,
         "correct": None,
@@ -642,15 +610,9 @@ def parse_judge_response(judge_response: str) -> Dict[str, Any]:
 
     # --- correct (yes/no) ---
     correct_match = (
-        re.search(
-            r"\*\*correct:\*\*\s*(yes|no)", judge_response, re.IGNORECASE
-        )
-        or re.search(
-            r"\*\*correct\*\*:\s*(yes|no)", judge_response, re.IGNORECASE
-        )
-        or re.search(
-            r"correct:\s*(yes|no)", judge_response, re.IGNORECASE
-        )
+        re.search(r"\*\*correct:\*\*\s*(yes|no)", judge_response, re.IGNORECASE)
+        or re.search(r"\*\*correct\*\*:\s*(yes|no)", judge_response, re.IGNORECASE)
+        or re.search(r"correct:\s*(yes|no)", judge_response, re.IGNORECASE)
     )
     if correct_match:
         result["correct"] = correct_match.group(1).lower() == "yes"
@@ -689,7 +651,7 @@ def parse_judge_response(judge_response: str) -> Dict[str, Any]:
 # ======================================================================
 
 
-def extract_citations_from_response(response_text: str) -> List[str]:
+def extract_citations_from_response(response_text: str) -> list[str]:
     """Extract cited document IDs from response text.
 
     Handles formats:
@@ -726,10 +688,10 @@ def extract_citations_from_response(response_text: str) -> List[str]:
 
 
 def compute_citation_metrics(
-    cited_docids: List[str], relevant_docids: List[str]
-) -> Dict[str, float]:
+    cited_docids: list[str], relevant_docids: list[str]
+) -> dict[str, float]:
     """Compute citation precision and recall against relevance judgments."""
-    metrics: Dict[str, float] = {
+    metrics: dict[str, float] = {
         "num_citations": float(len(cited_docids)),
         "num_relevant": float(len(relevant_docids)),
         "precision": 0.0,

@@ -25,9 +25,10 @@ import json
 import logging
 import re
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 from statistics import mode
-from typing import Any, Dict, List, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .base import BenchmarkEvaluation, BenchmarkTask
 
@@ -95,7 +96,7 @@ class FinanceAgentBenchmark:
         judge_temperature   Temperature for judge calls (default: 0.0).
     """
 
-    def __init__(self, config: Dict[str, Any] | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         cfg = config or {}
         self.dataset_url = str(cfg.get("dataset_url", PUBLIC_CSV_URL))
         self.cache_dir = Path(str(cfg.get("cache_dir", ".cache/finance_agent")))
@@ -110,7 +111,7 @@ class FinanceAgentBenchmark:
 
         # Lazily initialised LLM client (only if eval_mode == "llm_judge")
         self._llm_client: Any | None = None
-        self._llm_config: Dict[str, Any] = dict(cfg.get("openrouter", {}))
+        self._llm_config: dict[str, Any] = dict(cfg.get("openrouter", {}))
 
     # ------------------------------------------------------------------
     # BenchmarkAdapter interface
@@ -118,7 +119,7 @@ class FinanceAgentBenchmark:
 
     def load_tasks(self, task_limit: int | None = None) -> Sequence[BenchmarkTask]:
         csv_path = self._resolve_csv_path()
-        tasks: List[BenchmarkTask] = []
+        tasks: list[BenchmarkTask] = []
 
         with csv_path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
@@ -127,9 +128,7 @@ class FinanceAgentBenchmark:
                 rubric = self._parse_rubric(row.get("Rubric", ""))
                 metadata = {
                     "question_type": row.get("Question Type", ""),
-                    "expert_time_mins": self._safe_float(
-                        row.get("Expert time (mins)", "")
-                    ),
+                    "expert_time_mins": self._safe_float(row.get("Expert time (mins)", "")),
                     "rubric": rubric,
                     "source": "finance_agent_public_csv",
                 }
@@ -161,7 +160,7 @@ class FinanceAgentBenchmark:
         task: BenchmarkTask,
         prediction: str,
         *,
-        run_metadata: Dict[str, Any] | None = None,
+        run_metadata: dict[str, Any] | None = None,
     ) -> BenchmarkEvaluation:
         run_metadata = run_metadata or {}
         rubric = list(task.metadata.get("rubric", []))
@@ -170,7 +169,7 @@ class FinanceAgentBenchmark:
             return self._evaluate_llm_judge(task, prediction, rubric, run_metadata)
         return self._evaluate_substring(task, prediction, rubric, run_metadata)
 
-    def requirements(self) -> Dict[str, Any]:
+    def requirements(self) -> dict[str, Any]:
         notes = [
             "Data: public CSV from vals-ai/finance-agent (537 questions).",
             f"Eval mode: {self.eval_mode}.",
@@ -211,15 +210,15 @@ class FinanceAgentBenchmark:
         self,
         task: BenchmarkTask,
         prediction: str,
-        rubric: List[Dict[str, Any]],
-        run_metadata: Dict[str, Any],
+        rubric: list[dict[str, Any]],
+        run_metadata: dict[str, Any],
     ) -> BenchmarkEvaluation:
         correctness_total = 0
         contradiction_total = 0
         correctness_hits = 0
         contradiction_hits = 0
 
-        criterion_results: List[Dict[str, Any]] = []
+        criterion_results: list[dict[str, Any]] = []
 
         for criterion in rubric:
             operator = str(criterion.get("operator", "")).strip().lower()
@@ -250,19 +249,15 @@ class FinanceAgentBenchmark:
                 }
             )
 
-        correctness_ratio = (
-            correctness_hits / correctness_total if correctness_total > 0 else 0.0
-        )
+        correctness_ratio = correctness_hits / correctness_total if correctness_total > 0 else 0.0
         contradiction_ratio = (
-            contradiction_hits / contradiction_total
-            if contradiction_total > 0
-            else 0.0
+            contradiction_hits / contradiction_total if contradiction_total > 0 else 0.0
         )
 
         score = max(0.0, min(1.0, correctness_ratio - contradiction_ratio))
         success = score >= self.success_threshold
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "eval_mode": "llm_judge",
             "judge_model": self.judge_model,
             "judge_repeats": self.judge_repeats,
@@ -305,7 +300,7 @@ class FinanceAgentBenchmark:
             criteria=criteria,
         )
 
-        votes: List[bool] = []
+        votes: list[bool] = []
         for _ in range(self.judge_repeats):
             try:
                 response = client.chat.completions.create(
@@ -322,7 +317,8 @@ class FinanceAgentBenchmark:
                 votes.append(judgment.strip().lower() == "yes")
             except Exception:
                 logger.warning(
-                    "LLM judge call failed for criterion: %s", criteria[:80],
+                    "LLM judge call failed for criterion: %s",
+                    criteria[:80],
                     exc_info=True,
                 )
                 votes.append(False)
@@ -341,7 +337,7 @@ class FinanceAgentBenchmark:
 
         import openai  # type: ignore
 
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
 
         # Support OpenRouter if configured
         base_url = self._llm_config.get("base_url")
@@ -363,8 +359,8 @@ class FinanceAgentBenchmark:
         self,
         task: BenchmarkTask,
         prediction: str,
-        rubric: List[Dict[str, Any]],
-        run_metadata: Dict[str, Any],
+        rubric: list[dict[str, Any]],
+        run_metadata: dict[str, Any],
     ) -> BenchmarkEvaluation:
         pred_norm = self._normalize_text(prediction)
 
@@ -373,7 +369,7 @@ class FinanceAgentBenchmark:
         correctness_hits = 0
         contradiction_hits = 0
 
-        criterion_results: List[Dict[str, Any]] = []
+        criterion_results: list[dict[str, Any]] = []
         for criterion in rubric:
             operator = str(criterion.get("operator", "")).strip().lower()
             text = str(criterion.get("criteria", "")).strip()
@@ -398,19 +394,15 @@ class FinanceAgentBenchmark:
                 }
             )
 
-        correctness_ratio = (
-            correctness_hits / correctness_total if correctness_total > 0 else 0.0
-        )
+        correctness_ratio = correctness_hits / correctness_total if correctness_total > 0 else 0.0
         contradiction_ratio = (
-            contradiction_hits / contradiction_total
-            if contradiction_total > 0
-            else 0.0
+            contradiction_hits / contradiction_total if contradiction_total > 0 else 0.0
         )
 
         score = max(0.0, min(1.0, correctness_ratio - contradiction_ratio))
         success = score >= self.success_threshold
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "eval_mode": "substring",
             "correctness_hits": correctness_hits,
             "correctness_total": correctness_total,
@@ -465,12 +457,12 @@ class FinanceAgentBenchmark:
         return False
 
     @staticmethod
-    def _extract_numbers(text: str) -> List[float]:
+    def _extract_numbers(text: str) -> list[float]:
         """Extract numbers from text, handling commas and common suffixes."""
         # Remove commas in numbers (e.g. "2,865,507" -> "2865507")
         cleaned = re.sub(r"(\d),(\d)", r"\1\2", text)
         numbers = re.findall(r"-?\d+(?:\.\d+)?", cleaned)
-        out: List[float] = []
+        out: list[float] = []
         for value in numbers:
             try:
                 out.append(float(value))
@@ -508,13 +500,13 @@ class FinanceAgentBenchmark:
         return cached
 
     @staticmethod
-    def _parse_rubric(value: str) -> List[Dict[str, Any]]:
+    def _parse_rubric(value: str) -> list[dict[str, Any]]:
         if not value:
             return []
         try:
             parsed = ast.literal_eval(value)
             if isinstance(parsed, list):
-                out: List[Dict[str, Any]] = []
+                out: list[dict[str, Any]] = []
                 for item in parsed:
                     if isinstance(item, dict):
                         out.append(dict(item))

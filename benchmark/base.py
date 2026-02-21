@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Protocol, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from MAS.runner import MASRunResult
@@ -14,7 +15,7 @@ class BenchmarkTask:
     task_id: str
     prompt: Any
     reference_answer: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -24,7 +25,7 @@ class BenchmarkEvaluation:
     task_id: str
     score: float
     success: bool
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 class BenchmarkAdapter(Protocol):
@@ -35,8 +36,7 @@ class BenchmarkAdapter(Protocol):
     Interactive benchmarks (e.g. PlanCraft) drive an env step loop internally.
     """
 
-    def load_tasks(self, task_limit: int | None = None) -> Sequence[BenchmarkTask]:
-        ...
+    def load_tasks(self, task_limit: int | None = None) -> Sequence[BenchmarkTask]: ...
 
     def run(
         self,
@@ -53,9 +53,7 @@ class BenchmarkAdapter(Protocol):
         task: BenchmarkTask,
         prediction: str,
         *,
-        run_metadata: Dict[str, Any] | None = None,
-    ) -> BenchmarkEvaluation:
-        ...
+        run_metadata: dict[str, Any] | None = None,
+    ) -> BenchmarkEvaluation: ...
 
-    def requirements(self) -> Dict[str, Any]:
-        ...
+    def requirements(self) -> dict[str, Any]: ...
