@@ -9,10 +9,11 @@ import random
 import re
 import sys
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -49,15 +50,15 @@ class ToolSpec:
 @dataclass
 class SimpleRunResult:
     final_answer: str
-    trace_events: List[TraceEvent]
-    run_metadata: Dict[str, Any] = field(default_factory=dict)
+    trace_events: list[TraceEvent]
+    run_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class EventClock:
     def __init__(self) -> None:
         self.cursor = time.time()
 
-    def span(self, latency_ms: float) -> Tuple[float, float]:
+    def span(self, latency_ms: float) -> tuple[float, float]:
         duration_s = max(latency_ms / 1000.0, 1e-6)
         start = self.cursor
         end = start + duration_s
@@ -72,15 +73,15 @@ class MemoryStore:
     # - agent_inboxes: inter-agent messages (MAS communication)
     # - tool_history: remembered tool outputs per agent
     def __init__(self, agent_ids: Sequence[str]) -> None:
-        self.shared_notes: List[str] = []
-        self.agent_notes: Dict[str, List[str]] = {agent_id: [] for agent_id in agent_ids}
-        self.agent_inboxes: Dict[str, List[Dict[str, Any]]] = {agent_id: [] for agent_id in agent_ids}
-        self.tool_history: Dict[str, List[str]] = {agent_id: [] for agent_id in agent_ids}
+        self.shared_notes: list[str] = []
+        self.agent_notes: dict[str, list[str]] = {agent_id: [] for agent_id in agent_ids}
+        self.agent_inboxes: dict[str, list[dict[str, Any]]] = {
+            agent_id: [] for agent_id in agent_ids
+        }
+        self.tool_history: dict[str, list[str]] = {agent_id: [] for agent_id in agent_ids}
 
     def add_inbox_message(self, recipient: str, sender: str, turn: int, text: str) -> None:
-        self.agent_inboxes[recipient].append(
-            {"from": sender, "turn": turn, "text": text[:220]}
-        )
+        self.agent_inboxes[recipient].append({"from": sender, "turn": turn, "text": text[:220]})
 
     def remember_agent_output(self, agent_id: str, text: str, turn: int) -> None:
         note = f"turn={turn} output={text[:200]}"
@@ -94,9 +95,10 @@ class MemoryStore:
 
     def prompt_memory_block(self, agent_id: str, *, limit: int = 5) -> str:
         inbox = self.agent_inboxes.get(agent_id, [])[-limit:]
-        inbox_text = "\n".join(
-            f"- From {msg['from']} (turn {msg['turn']}): {msg['text']}" for msg in inbox
-        ) or "- None"
+        inbox_text = (
+            "\n".join(f"- From {msg['from']} (turn {msg['turn']}): {msg['text']}" for msg in inbox)
+            or "- None"
+        )
 
         agent_local = self.agent_notes.get(agent_id, [])[-limit:]
         local_text = "\n".join(f"- {item}" for item in agent_local) or "- None"
@@ -118,25 +120,19 @@ class MemoryStore:
             f"{shared_text}"
         )
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "shared_notes_count": len(self.shared_notes),
-            "agent_notes_count": {
-                key: len(value) for key, value in self.agent_notes.items()
-            },
-            "inbox_count": {
-                key: len(value) for key, value in self.agent_inboxes.items()
-            },
-            "tool_history_count": {
-                key: len(value) for key, value in self.tool_history.items()
-            },
+            "agent_notes_count": {key: len(value) for key, value in self.agent_notes.items()},
+            "inbox_count": {key: len(value) for key, value in self.agent_inboxes.items()},
+            "tool_history_count": {key: len(value) for key, value in self.tool_history.items()},
         }
 
 
 class ToolRegistry:
     # Local tool registry used by the standalone test (no external tool server).
     def __init__(self) -> None:
-        self._specs: Dict[str, ToolSpec] = {
+        self._specs: dict[str, ToolSpec] = {
             "calculator": ToolSpec(
                 name="calculator",
                 description="Evaluate simple arithmetic expressions.",
@@ -148,11 +144,14 @@ class ToolRegistry:
                 usage="TOOL:lookup:<query>",
             ),
         }
-        self._knowledge_base: List[Tuple[str, str]] = [
+        self._knowledge_base: list[tuple[str, str]] = [
             ("1", "OpenRouter provides an OpenAI-compatible chat completion API endpoint."),
             ("2", "MAS means multi-agent system. SAS means single-agent system."),
             ("3", "This script logs descriptor-compatible trace events in JSONL format."),
-            ("4", "Python dataclasses are used in this repository for configuration and schema objects."),
+            (
+                "4",
+                "Python dataclasses are used in this repository for configuration and schema objects.",
+            ),
         ]
         self._bin_ops = {
             ast.Add: operator.add,
@@ -165,20 +164,20 @@ class ToolRegistry:
         }
         self._unary_ops = {ast.UAdd: operator.pos, ast.USub: operator.neg}
 
-    def specs(self) -> List[ToolSpec]:
+    def specs(self) -> list[ToolSpec]:
         return list(self._specs.values())
 
     def has_tool(self, name: str) -> bool:
         return name in self._specs
 
-    def execute(self, name: str, argument: str) -> Dict[str, Any]:
+    def execute(self, name: str, argument: str) -> dict[str, Any]:
         if name == "calculator":
             return self._calculator(argument)
         if name == "lookup":
             return self._lookup(argument)
         return {"ok": False, "output": "", "error": f"unknown tool: {name}"}
 
-    def _calculator(self, expression: str) -> Dict[str, Any]:
+    def _calculator(self, expression: str) -> dict[str, Any]:
         expression = expression.strip()
         if not expression:
             return {"ok": False, "output": "", "error": "empty expression"}
@@ -192,7 +191,7 @@ class ToolRegistry:
     def _eval_ast(self, node: ast.AST) -> float:
         if isinstance(node, ast.Expression):
             return self._eval_ast(node.body)
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
             return float(node.value)
         if isinstance(node, ast.BinOp) and type(node.op) in self._bin_ops:
             left = self._eval_ast(node.left)
@@ -203,12 +202,12 @@ class ToolRegistry:
             return float(self._unary_ops[type(node.op)](val))
         raise ValueError("unsupported expression")
 
-    def _lookup(self, query: str) -> Dict[str, Any]:
+    def _lookup(self, query: str) -> dict[str, Any]:
         query_tokens = set(re.findall(r"[a-z0-9]+", query.lower()))
         if not query_tokens:
             return {"ok": False, "output": "", "error": "empty query"}
 
-        scored: List[Tuple[int, str, str]] = []
+        scored: list[tuple[int, str, str]] = []
         for docid, text in self._knowledge_base:
             doc_tokens = set(re.findall(r"[a-z0-9]+", text.lower()))
             score = len(query_tokens & doc_tokens)
@@ -240,14 +239,14 @@ class SimpleAgentSystemRunner:
         topology = build_topology(mas_cfg, seed=seed)
         rng = random.Random(seed)
         clock = EventClock()
-        events: List[TraceEvent] = []
+        events: list[TraceEvent] = []
 
         agent_ids = [agent.agent_id for agent in topology.agents]
         memory = MemoryStore(agent_ids=agent_ids)
         message_budget = {
             agent.agent_id: mas_cfg.communication_count_internally for agent in topology.agents
         }
-        agent_outputs: Dict[str, str] = {}
+        agent_outputs: dict[str, str] = {}
         auto_tool_calls = 0
         llm_tool_calls = 0
 
@@ -419,9 +418,7 @@ class SimpleAgentSystemRunner:
                         )
 
             turns_executed += 1
-            active_inboxes = sum(
-                1 for values in memory.agent_inboxes.values() if values
-            )
+            active_inboxes = sum(1 for values in memory.agent_inboxes.values() if values)
             events.append(
                 self._event(
                     clock,
@@ -504,7 +501,7 @@ class SimpleAgentSystemRunner:
         self,
         *,
         clock: EventClock,
-        events: List[TraceEvent],
+        events: list[TraceEvent],
         memory: MemoryStore,
         actor: str,
         tool_name: str,
@@ -557,8 +554,8 @@ class SimpleAgentSystemRunner:
             )
         )
 
-    def _auto_tool_calls(self, task_prompt: str, memory_block: str) -> List[Tuple[str, str]]:
-        calls: List[Tuple[str, str]] = []
+    def _auto_tool_calls(self, task_prompt: str, memory_block: str) -> list[tuple[str, str]]:
+        calls: list[tuple[str, str]] = []
         all_text = f"{task_prompt}\n{memory_block}"
         expression = self.MATH_EXPR_PATTERN.search(all_text)
         if expression:
@@ -593,7 +590,7 @@ class SimpleAgentSystemRunner:
             f"{memory_block}"
         )
 
-    def _extract_first_tool_request(self, text: str) -> Tuple[str, str] | None:
+    def _extract_first_tool_request(self, text: str) -> tuple[str, str] | None:
         for line in text.splitlines():
             match = self.TOOL_REQUEST_PATTERN.search(line.strip())
             if not match:
@@ -613,7 +610,7 @@ class SimpleAgentSystemRunner:
         return neighbors[rng.randrange(len(neighbors))]
 
     @staticmethod
-    def _final_answer(agents: List[AgentSpec], outputs: Dict[str, str]) -> str:
+    def _final_answer(agents: list[AgentSpec], outputs: dict[str, str]) -> str:
         if not outputs:
             return ""
         final_agent = agents[-1].agent_id
@@ -624,7 +621,7 @@ class SimpleAgentSystemRunner:
         return re.sub(r"\s+", " ", text.strip())[:220]
 
     @staticmethod
-    def _extract_docids(text: str) -> List[str]:
+    def _extract_docids(text: str) -> list[str]:
         single = re.findall(r"\[(\d+)\]", text)
         grouped = re.findall(r"\[([^\[\]]+?)\]", text)
         ids = set(single)
@@ -633,7 +630,7 @@ class SimpleAgentSystemRunner:
         return sorted(ids)
 
     @staticmethod
-    def _topology_payload(topology: Topology) -> Dict[str, Any]:
+    def _topology_payload(topology: Topology) -> dict[str, Any]:
         return {
             "agents": [
                 {
@@ -652,7 +649,7 @@ class SimpleAgentSystemRunner:
         *,
         actor: str,
         event_type: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         token_in: int,
         token_out: int,
         latency_ms: float,
@@ -697,9 +694,7 @@ def evaluate_run(task: SimpleTask, run: SimpleRunResult) -> BenchmarkEvaluation:
     tool_bonus = 1.0 if tool_results else 0.0
 
     act_events = [event for event in run.trace_events if event.event_type == "act"]
-    mock_calls = sum(
-        1 for event in act_events if bool(event.payload.get("mock_used", False))
-    )
+    mock_calls = sum(1 for event in act_events if bool(event.payload.get("mock_used", False)))
     mock_ratio = mock_calls / max(1, len(act_events))
 
     score = 0.35 * completion + 0.45 * overlap + 0.20 * tool_bonus
@@ -816,7 +811,7 @@ def build_runtime_config(base: ExperimentConfig, args: argparse.Namespace) -> Ex
 
 
 def now_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def write_eval(path: Path, evaluation: BenchmarkEvaluation, prediction: str) -> None:
@@ -875,9 +870,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_root = Path(args.output_dir) / timestamp / args.mode / task.task_id
     run_root.mkdir(parents=True, exist_ok=True)
 
-    run_traces: List[List[TraceEvent]] = []
-    evaluations: List[BenchmarkEvaluation] = []
-    final_answers: List[str] = []
+    run_traces: list[list[TraceEvent]] = []
+    evaluations: list[BenchmarkEvaluation] = []
+    final_answers: list[str] = []
 
     for run_index in range(runtime_cfg.experiment.runs_per_task):
         run_seed = runtime_cfg.experiment.seed + run_index
@@ -922,10 +917,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Run complete: {run_root}")
     print(f"Summary: {summary_path}")
     if evaluations:
-        print(
-            "Last run score="
-            f"{evaluations[-1].score:.3f} success={evaluations[-1].success}"
-        )
+        print(f"Last run score={evaluations[-1].score:.3f} success={evaluations[-1].success}")
     return 0
 
 

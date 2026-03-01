@@ -4,7 +4,7 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 from descriptor.schema import TraceEvent
 
@@ -16,8 +16,8 @@ from .topology import AgentSpec, Topology, build_topology
 @dataclass
 class MASRunResult:
     final_answer: str
-    trace_events: List[TraceEvent]
-    run_metadata: Dict[str, Any] = field(default_factory=dict)
+    trace_events: list[TraceEvent]
+    run_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class _EventClock:
@@ -44,15 +44,15 @@ class MASRunner:
         topology = build_topology(mas_cfg, seed=seed)
         rng = random.Random(seed)
 
-        events: List[TraceEvent] = []
+        events: list[TraceEvent] = []
         clock = _EventClock()
 
-        inboxes: Dict[str, List[Dict[str, Any]]] = {agent.agent_id: [] for agent in topology.agents}
+        inboxes: dict[str, list[dict[str, Any]]] = {agent.agent_id: [] for agent in topology.agents}
         message_budget = {
             agent.agent_id: mas_cfg.communication_count_internally for agent in topology.agents
         }
         sent_by_agent = {agent.agent_id: 0 for agent in topology.agents}
-        agent_outputs: Dict[str, str] = {}
+        agent_outputs: dict[str, str] = {}
 
         events.append(
             self._event(
@@ -254,7 +254,7 @@ class MASRunner:
         *,
         actor: str,
         event_type: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         token_in: int,
         token_out: int,
         latency_ms: float,
@@ -277,17 +277,27 @@ class MASRunner:
 
     @staticmethod
     def _build_agent_prompt(
-        task_prompt: str,
+        task_prompt: Any,
         spec: AgentSpec,
         turn: int,
-        inbox: List[Dict[str, Any]],
-    ) -> str:
+        inbox: list[dict[str, Any]],
+    ) -> Any:
         inbox_text = ""
         if inbox:
             pieces = []
             for message in inbox[-5:]:
                 pieces.append(f"From {message['from']} (turn {message['turn']}): {message['text']}")
             inbox_text = "\n".join(pieces)
+
+        if isinstance(task_prompt, list):
+            # Pass the list through natively, but wrap MAS system logic as the final instruction
+            mas_instruction = (
+                f"Agent: {spec.agent_id} (type={spec.agent_type}, level={spec.level})\n"
+                f"Turn: {turn}\n"
+                f"Messages:\n{inbox_text or 'None'}\n\n"
+                "Produce a concise step toward the final answer."
+            )
+            return task_prompt + [{"role": "system", "content": mas_instruction}]
 
         return (
             f"Task:\n{task_prompt}\n\n"
@@ -310,14 +320,14 @@ class MASRunner:
         return snippet[:220]
 
     @staticmethod
-    def _final_answer(agents: List[AgentSpec], outputs: Dict[str, str]) -> str:
+    def _final_answer(agents: list[AgentSpec], outputs: dict[str, str]) -> str:
         if not outputs:
             return ""
         last_agent = agents[-1].agent_id
         return outputs.get(last_agent, next(iter(outputs.values())))
 
     @staticmethod
-    def _extract_docids(text: str) -> List[str]:
+    def _extract_docids(text: str) -> list[str]:
         # Compatible with citation styles like [123], [123, 456], and 【123】.
         single = re.findall(r"\[(\d+)\]", text)
         single_full = re.findall(r"【(\d+)】", text)
@@ -331,7 +341,7 @@ class MASRunner:
         return sorted(docids)
 
     @staticmethod
-    def _topology_payload(topology: Topology) -> Dict[str, Any]:
+    def _topology_payload(topology: Topology) -> dict[str, Any]:
         return {
             "agents": [
                 {

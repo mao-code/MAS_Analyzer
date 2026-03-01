@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, Tuple
-
 import numpy as np
 import pandas as pd
 
-
-ObjectiveSpec = Dict[str, str]
+ObjectiveSpec = dict[str, str]
 
 
 def pareto_frontier(
@@ -30,16 +27,16 @@ def pareto_frontier(
                 continue
             if np.all(scores[j] >= scores[i]) and np.any(scores[j] > scores[i]):
                 mask[i] = False
-        
+
     return mask if return_mask else df.loc[mask].copy()
 
 
 def normalize_objectives(
     df: pd.DataFrame, objectives: ObjectiveSpec
-) -> Tuple[pd.DataFrame, Dict[str, Tuple[float, float]]]:
+) -> tuple[pd.DataFrame, dict[str, tuple[float, float]]]:
     metrics = list(objectives.keys())
     norm_df = pd.DataFrame(index=df.index)
-    bounds: Dict[str, Tuple[float, float]] = {}
+    bounds: dict[str, tuple[float, float]] = {}
     for metric in metrics:
         values = df[metric].astype(float)
         min_v = float(values.min())
@@ -59,8 +56,8 @@ def ideal_point_distance(
     df: pd.DataFrame,
     objectives: ObjectiveSpec,
     *,
-    weights: Dict[str, float] | None = None,
-) -> Tuple[pd.Series, np.ndarray, pd.DataFrame]:
+    weights: dict[str, float] | None = None,
+) -> tuple[pd.Series, np.ndarray, pd.DataFrame]:
     norm_df, _ = normalize_objectives(df, objectives)
     metrics = list(objectives.keys())
     if weights is None:

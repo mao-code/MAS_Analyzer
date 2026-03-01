@@ -39,6 +39,7 @@ class TestFinanceBenchmark(unittest.TestCase):
                 {
                     "local_csv_path": str(path),
                     "success_threshold": 0.5,
+                    "eval_mode": "substring",
                 }
             )
             tasks = benchmark.load_tasks()

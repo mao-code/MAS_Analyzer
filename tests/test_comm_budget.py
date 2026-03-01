@@ -1,9 +1,9 @@
 import unittest
 
+from benchmark.base import BenchmarkTask
 from MAS.config import ExperimentConfig, ExperimentRuntimeConfig, MASConfig, OpenRouterConfig
 from MAS.llm import OpenRouterLLMClient
 from MAS.runner import MASRunner
-from benchmark.base import BenchmarkTask
 
 
 class TestCommunicationBudget(unittest.TestCase):

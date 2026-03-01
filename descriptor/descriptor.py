@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 import pandas as pd
 
-from .metrics import ExtensionOptions, aggregate_failure_modes, compute_run_metrics, compute_task_metrics
+from .metrics import (
+    ExtensionOptions,
+    aggregate_failure_modes,
+    compute_run_metrics,
+    compute_task_metrics,
+)
 from .schema import TraceEvent
 
 
@@ -15,11 +21,11 @@ from .schema import TraceEvent
 class DescriptorResult:
     """Descriptor for a task built from repeated runs."""
 
-    metrics: Dict[str, Any]
-    per_run: List[Dict[str, Any]]
-    extensions: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any]
+    per_run: list[dict[str, Any]]
+    extensions: dict[str, Any] = field(default_factory=dict)
 
-    def to_flat_dict(self) -> Dict[str, Any]:
+    def to_flat_dict(self) -> dict[str, Any]:
         data = dict(self.metrics)
         for key, value in self.extensions.items():
             if isinstance(value, dict):
@@ -35,8 +41,8 @@ class DescriptorResult:
 def compute_descriptor_from_runs(
     runs: Sequence[Sequence[TraceEvent]],
     *,
-    evaluator: Optional[Any] = None,
-    extensions: Optional[ExtensionOptions] = None,
+    evaluator: Any | None = None,
+    extensions: ExtensionOptions | None = None,
 ) -> DescriptorResult:
     if extensions is None:
         extensions = ExtensionOptions()
@@ -45,7 +51,7 @@ def compute_descriptor_from_runs(
         compute_run_metrics(run, evaluator=evaluator, extensions=extensions) for run in runs
     ]
     metrics = compute_task_metrics(run_metrics)
-    extensions_out: Dict[str, Any] = {}
+    extensions_out: dict[str, Any] = {}
 
     if extensions.failure_mode_hist:
         extensions_out["failure_mode_hist"] = aggregate_failure_modes(run_metrics)

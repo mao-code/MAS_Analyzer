@@ -4,7 +4,7 @@ import hashlib
 import random
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .config import OpenRouterConfig
 
@@ -17,13 +17,13 @@ class LLMResult:
     cost_usd: float
     model: str
     mock_used: bool
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class OpenRouterLLMClient:
     """OpenRouter chat client with deterministic local fallback."""
 
-    def __init__(self, config: OpenRouterConfig, models: Dict[str, str]) -> None:
+    def __init__(self, config: OpenRouterConfig, models: dict[str, str]) -> None:
         self.config = config
         self.models = dict(models)
         self.client = None
@@ -36,13 +36,13 @@ class OpenRouterLLMClient:
         except Exception:
             return
 
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         if config.http_referer:
             headers["HTTP-Referer"] = config.http_referer
         if config.x_title:
             headers["X-Title"] = config.x_title
 
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "base_url": config.base_url,
             "api_key": config.api_key,
             "timeout": config.timeout_s,
@@ -61,7 +61,7 @@ class OpenRouterLLMClient:
     def generate(
         self,
         *,
-        prompt: str,
+        prompt: Any,
         agent_type: str,
         task_id: str,
         run_index: int,
@@ -72,9 +72,14 @@ class OpenRouterLLMClient:
 
         if self.client is not None:
             try:
+                if isinstance(prompt, list):
+                    messages = prompt
+                else:
+                    messages = [{"role": "user", "content": str(prompt)}]
+
                 completion = self.client.chat.completions.create(
                     model=model,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=messages,
                     temperature=temperature,
                 )
                 text = self._extract_text(completion)
@@ -118,7 +123,7 @@ class OpenRouterLLMClient:
     def _mock_result(
         self,
         *,
-        prompt: str,
+        prompt: Any,
         agent_type: str,
         task_id: str,
         run_index: int,
@@ -126,17 +131,21 @@ class OpenRouterLLMClient:
         model: str,
         fallback_reason: str,
     ) -> LLMResult:
-        seed_value = self._stable_seed(task_id, str(run_index), agent_id, agent_type, prompt)
+        prompt_str = (
+            prompt
+            if isinstance(prompt, str)
+            else " ".join(str(m.get("content", "")) for m in prompt)
+        )
+        seed_value = self._stable_seed(task_id, str(run_index), agent_id, agent_type, prompt_str)
         rng = random.Random(seed_value)
 
-        words = [token for token in re.split(r"\s+", prompt.strip()) if token]
+        words = [token for token in re.split(r"\s+", prompt_str.strip()) if token]
         if not words:
             words = ["empty", "prompt"]
         sampled = [words[rng.randrange(len(words))] for _ in range(min(8, len(words) + 2))]
         answer = (
             f"MOCK[{agent_id}|{agent_type}] "
-            f"Synthesized response with seed={seed_value % 100000}: "
-            + " ".join(sampled)
+            f"Synthesized response with seed={seed_value % 100000}: " + " ".join(sampled)
         )
 
         return LLMResult(
@@ -179,10 +188,16 @@ class OpenRouterLLMClient:
         return str(content)
 
     @staticmethod
-    def _estimate_tokens(text: str) -> int:
-        if not text.strip():
+    def _estimate_tokens(text: Any) -> int:
+        if isinstance(text, list):
+            content = " ".join(str(m.get("content", "")) for m in text)
+            if not content.strip():
+                return 0
+            return max(1, int(len(re.findall(r"\S+", content)) * 1.3))
+
+        if not text or not str(text).strip():
             return 0
-        return max(1, int(len(re.findall(r"\S+", text)) * 1.3))
+        return max(1, int(len(re.findall(r"\S+", str(text))) * 1.3))
 
     @staticmethod
     def _stable_seed(*parts: str) -> int:

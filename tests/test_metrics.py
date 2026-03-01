@@ -46,7 +46,9 @@ class TestMetrics(unittest.TestCase):
             self._make_event("finalize", 1, 1, 2.0, 0.002, {"success": True}),
         ]
 
-        run_metrics = compute_run_metrics(events, extensions=ExtensionOptions(include_stage_metrics=True))
+        run_metrics = compute_run_metrics(
+            events, extensions=ExtensionOptions(include_stage_metrics=True)
+        )
         self.assertTrue(run_metrics["success"])
         self.assertTrue(run_metrics["completion"])
         self.assertEqual(run_metrics["tool_calls_total"], 1.0)

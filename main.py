@@ -3,27 +3,43 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import sys
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any
 
-from MAS import MASRunner, OpenRouterLLMClient, load_experiment_config
 from benchmark import BenchmarkEvaluation, get_benchmark, list_benchmarks
 from descriptor.experiment import analyze_task_runs, write_run_trace
+from MAS import MASRunner, OpenRouterLLMClient, load_experiment_config
 
 
 def _now_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _benchmark_section_config(config: Any, benchmark_name: str) -> Dict[str, Any]:
-    # Pull benchmark-specific config table from the unified experiment config.
+def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any]:
     if benchmark_name == "finance_agent":
-        return dict(config.finance_agent)
-    if benchmark_name == "browsecomp":
-        return dict(config.browsecomp)
-    return {}
+        cfg = dict(config.finance_agent)
+    elif benchmark_name == "browsecomp":
+        cfg = dict(config.browsecomp)
+    elif benchmark_name == "plancraft":
+        return dict(config.plancraft)
+    else:
+        return {}
+
+    # Inject global openrouter config as fallback for LLM judge.
+    # Benchmark-specific [browsecomp.openrouter] overrides take precedence.
+    if "openrouter" not in cfg:
+        cfg["openrouter"] = {}
+    or_defaults = {
+        "api_key": config.openrouter.api_key,
+        "base_url": config.openrouter.base_url,
+    }
+    for key, value in or_defaults.items():
+        if key not in cfg["openrouter"] and value:
+            cfg["openrouter"][key] = value
+
+    return cfg
 
 
 def _write_eval(path: Path, evaluation: BenchmarkEvaluation, prediction: str) -> None:
@@ -37,7 +53,7 @@ def _write_eval(path: Path, evaluation: BenchmarkEvaluation, prediction: str) ->
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _write_summary_csv(path: Path, rows: Sequence[Dict[str, Any]]) -> None:
+def _write_summary_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
     if not rows:
         path.write_text("", encoding="utf-8")
         return
@@ -64,9 +80,7 @@ def run_command(args: argparse.Namespace) -> int:
 
     task_limit = args.task_limit if args.task_limit is not None else config.experiment.task_limit
     runs_per_task = (
-        args.runs_per_task
-        if args.runs_per_task is not None
-        else config.experiment.runs_per_task
+        args.runs_per_task if args.runs_per_task is not None else config.experiment.runs_per_task
     )
     seed = args.seed if args.seed is not None else config.experiment.seed
     output_root = Path(args.output_dir or config.experiment.output_dir)
@@ -80,8 +94,8 @@ def run_command(args: argparse.Namespace) -> int:
     if not tasks:
         raise RuntimeError(f"No tasks loaded for benchmark '{benchmark_name}'")
 
-    summary_rows: List[Dict[str, Any]] = []
-    summary_json: Dict[str, Any] = {
+    summary_rows: list[dict[str, Any]] = []
+    summary_json: dict[str, Any] = {
         "timestamp": timestamp,
         "benchmark": benchmark_name,
         "config_path": str(Path(args.config).resolve()),
@@ -99,6 +113,16 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
+            
+            # lai changes
+            run = benchmark.run(
+                task=task,
+                runner=runner,
+                run_index=run_index,
+                seed=run_seed,
+            )
+            
+            # original main changes
             # 3) Run MAS/SAS forward pass and emit one trace.
             run = runner.run_task(task=task, run_index=run_index, seed=run_seed)
 
@@ -136,7 +160,7 @@ def run_command(args: argparse.Namespace) -> int:
         }
         summary_json["tasks"].append(task_summary)
 
-        row: Dict[str, Any] = {
+        row: dict[str, Any] = {
             "benchmark": benchmark_name,
             "task_id": task.task_id,
             "runs": analysis["evaluation"].get("count", 0),
@@ -166,7 +190,7 @@ def list_benchmarks_command(_: argparse.Namespace) -> int:
 
 def benchmark_info_command(args: argparse.Namespace) -> int:
     config = load_experiment_config(args.config) if args.config else None
-    benchmark_cfg: Dict[str, Any]
+    benchmark_cfg: dict[str, Any]
     if config is None:
         benchmark_cfg = {}
     else:

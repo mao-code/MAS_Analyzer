@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, Sequence
+from typing import Any
 
 from .descriptor import (
     DescriptorResult,
@@ -29,7 +30,7 @@ def analyze_task_runs(
     evaluations: Sequence[Any],
     output_dir: str | Path,
     extensions: ExtensionOptions | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Compute descriptor artifacts and emit analysis.json for one task."""
 
     output_dir = Path(output_dir)
@@ -68,7 +69,7 @@ def analyze_task_runs(
     return analysis
 
 
-def _summarize_evaluations(evaluations: Sequence[Any]) -> Dict[str, Any]:
+def _summarize_evaluations(evaluations: Sequence[Any]) -> dict[str, Any]:
     scores = []
     successes = []
     items = []
@@ -106,7 +107,7 @@ def _summarize_evaluations(evaluations: Sequence[Any]) -> Dict[str, Any]:
     }
 
 
-def _infer_stage_bottleneck(metrics: Dict[str, Any]) -> Dict[str, Any]:
+def _infer_stage_bottleneck(metrics: dict[str, Any]) -> dict[str, Any]:
     stage_latency = {
         key: float(value)
         for key, value in metrics.items()
