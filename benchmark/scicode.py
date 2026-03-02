@@ -97,12 +97,30 @@ SKIPPED_STEPS: set[tuple[str, int]] = {
 
 
 def _extract_python_script(text: str) -> str:
-    """Extract python code from a markdown-formatted LLM response."""
-    pattern = r"```python(.*?)```"
-    matches = re.findall(pattern, text, re.DOTALL)
-    if matches:
-        return matches[0].strip()
-    return text.strip()
+    """Extract python code from a markdown-formatted LLM response.
+
+    Mirrors the official ``extract_python_script`` in
+    ``src/scicode/gen/models.py`` – including the ``re.sub`` that strips
+    import statements so that they don't clash with the ``dependencies``
+    block that is prepended separately.
+    """
+    if "```" in text:
+        if "```python" in text:
+            python_script = text.split("```python")[1].split("```")[0]
+        else:
+            python_script = text.split("```")[1].split("```")[0]
+    else:
+        python_script = text
+
+    # Official repo strips all import lines from the generated code because
+    # the required dependencies are prepended separately.
+    python_script = re.sub(
+        r"^\s*(import .*|from .*\s+import\s+.*)",
+        "",
+        python_script,
+        flags=re.MULTILINE,
+    )
+    return python_script
 
 
 # ---------------------------------------------------------------------------
