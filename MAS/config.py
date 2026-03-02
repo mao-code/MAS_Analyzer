@@ -134,6 +134,7 @@ class ExperimentConfig:
     browsecomp: dict[str, Any] = field(default_factory=dict)
     finance_agent: dict[str, Any] = field(default_factory=dict)
     plancraft: dict[str, Any] = field(default_factory=dict)
+    scicode: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         self.openrouter.validate()
@@ -212,6 +213,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         browsecomp=_as_dict(data.get("browsecomp", {}), "[browsecomp]"),
         finance_agent=_as_dict(data.get("finance_agent", {}), "[finance_agent]"),
         plancraft=_as_dict(data.get("plancraft", {}), "[plancraft]"),
+        scicode=_as_dict(data.get("scicode", {}), "[scicode]"),
     )
     config.validate()
     return config

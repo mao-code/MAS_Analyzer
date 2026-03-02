@@ -382,21 +382,21 @@ class MASRunner:
             inbox_text = "\n".join(pieces)
 
         if isinstance(task_prompt, list):
-            # Pass the list through natively, but wrap MAS system logic as the final instruction
+            if not inbox_text:
+                return task_prompt
+            # Pass the list through natively, but wrap MAS system logic as the first instruction
             mas_instruction = (
                 f"Agent: {spec.agent_id} (type={spec.agent_type}, level={spec.level})\n"
                 f"Turn: {turn}\n"
-                f"Messages:\n{inbox_text or 'None'}\n\n"
-                "Produce a concise step toward the final answer."
+                f"Messages:\n{inbox_text}"
             )
-            return task_prompt + [{"role": "system", "content": mas_instruction}]
+            return [{"role": "system", "content": mas_instruction}] + task_prompt
 
         return (
             f"Task:\n{task_prompt}\n\n"
             f"Agent: {spec.agent_id} (type={spec.agent_type}, level={spec.level})\n"
             f"Turn: {turn}\n"
-            f"Messages:\n{inbox_text or 'None'}\n\n"
-            "Produce a concise step toward the final answer."
+            f"Messages:\n{inbox_text or 'None'}"
         )
 
     @staticmethod
