@@ -143,6 +143,38 @@ class SciCodeBenchmark:
         self.with_background: bool = bool(cfg.get("with_background", False))
         self.h5py_file: str = str(cfg.get("h5py_file", "data/test_data.h5"))
         self.template = MULTISTEP_TEMPLATE if self.with_background else BACKGROUND_COMMENT_TEMPLATE
+        self._ensure_data_exists()
+
+    def _ensure_data_exists(self) -> None:
+        """Download the numeric test results from Hugging Face if missing.
+
+        Official source is Google Drive (manual), but a stable mirror exists
+        on Hugging Face for programmatic access.
+        """
+        data_path = Path(self.h5py_file)
+        if data_path.exists():
+            return
+
+        logger.info(
+            f"SciCode evaluation data not found at {data_path}. "
+            "Attempting to download from Hugging Face mirror..."
+        )
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Mirror hosted on Hugging Face (akshathmangudi/SciCode)
+        url = "https://huggingface.co/datasets/akshathmangudi/SciCode/resolve/main/raw/raw_ground.h5?download=true"
+
+        try:
+            # -L follows redirects, -o writes to file
+            subprocess.run(["curl", "-L", url, "-o", str(data_path)], check=True)
+            logger.info(f"Successfully downloaded SciCode data to {data_path}")
+        except Exception as e:
+            logger.error(
+                f"Failed to download SciCode data: {e}\n"
+                "Please manually download 'test_data.h5' and place it at: "
+                f"{data_path.resolve()}\n"
+                "Manual download link: https://drive.google.com/drive/folders/1W5GZW6_bdiDAiipuFMqdUhvUaHIj6-pR?usp=drive_link"
+            )
 
     # ---- load_tasks --------------------------------------------------------
 
