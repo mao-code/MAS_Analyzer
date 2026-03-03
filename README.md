@@ -105,6 +105,7 @@ Traces can be segmented into stages (plan/retrieve/act/verify/revise/finalize) a
 ### 1. Install core dependencies
 
 ```bash
+# Python 3.11+ is required (pyproject: requires-python >=3.11)
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -174,6 +175,24 @@ Preferred setup:
 Optional auto-download/decrypt mode:
 
 - Requires `datasets` package and Hugging Face authentication for gated dataset access.
+- For `Tevatron/browsecomp-plus`, public access is available in most environments.
+
+Quick smoke-test setup (no judge API cost):
+
+- Set `browsecomp.auto_download = true`
+- Set `browsecomp.eval_mode = "substring"`
+- Run with small limits, e.g. `--task-limit 2 --runs-per-task 1`
+
+SAS vs MAS setup:
+
+- SAS baseline: set `[mas]` to `number_of_agents = 1`, `levels = 1`, `turn_mode = "single_turn"`.
+- MAS run: increase `number_of_agents`, use `levels > 1` and/or `turn_mode = "multi_turn"` with `max_turns > 1`.
+
+Higher-fidelity setup (LLM judge):
+
+- Set `browsecomp.eval_mode = "llm_judge"`
+- Configure `browsecomp.judge_model` and OpenRouter/OpenAI credentials
+- Keep `judge_temperature` and prompt format aligned with official settings
 
 Official heavy-parity components (not required for this lightweight adapter):
 

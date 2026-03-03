@@ -98,7 +98,7 @@ class BrowseCompBenchmark:
         qrel_evidence_path    Path to qrel_evidence.txt (TREC format).
         qrel_golds_path       Path to qrel_golds.txt (TREC format).
         eval_mode             "llm_judge" or "substring" (default: "llm_judge").
-        judge_model           Model for LLM judge (default: "openai/gpt-4o").
+        judge_model           Model for LLM judge (default: "openai/gpt-4.1").
         judge_temperature     Temperature for judge (default: 0.7).
         judge_max_tokens      Max output tokens for judge (default: 4096).
         openrouter             Dict with base_url / api_key overrides.
@@ -121,7 +121,7 @@ class BrowseCompBenchmark:
 
         # Evaluation settings
         self.eval_mode: str = str(cfg.get("eval_mode", "llm_judge"))
-        self.judge_model: str = str(cfg.get("judge_model", "openai/gpt-4o"))
+        self.judge_model: str = str(cfg.get("judge_model", "openai/gpt-4.1"))
         self.judge_temperature: float = float(cfg.get("judge_temperature", 0.7))
         self.judge_max_tokens: int = int(cfg.get("judge_max_tokens", 4096))
 
@@ -266,8 +266,7 @@ class BrowseCompBenchmark:
 
         # Citation metrics
         cited_docids = extract_citations_from_response(prediction)
-        qrel_evidence = self._qrel_evidence or {}
-        evidence_set = qrel_evidence.get(task.task_id, set())
+        evidence_set = self._relevant_evidence_docids(task)
         citation_metrics = compute_citation_metrics(cited_docids, sorted(evidence_set))
 
         details: dict[str, Any] = {
@@ -296,9 +295,8 @@ class BrowseCompBenchmark:
 
     def _call_judge(self, prompt: str) -> str:
         """Call the LLM judge and return raw text response."""
-        client = self._get_llm_client()
-
         try:
+            client = self._get_llm_client()
             response = client.chat.completions.create(
                 model=self.judge_model,
                 temperature=self.judge_temperature,
@@ -347,8 +345,7 @@ class BrowseCompBenchmark:
         retrieval = self._compute_retrieval_metrics(task, run_metadata)
 
         cited_docids = extract_citations_from_response(prediction)
-        qrel_evidence = self._qrel_evidence or {}
-        evidence_set = qrel_evidence.get(task.task_id, set())
+        evidence_set = self._relevant_evidence_docids(task)
         citation_metrics = compute_citation_metrics(cited_docids, sorted(evidence_set))
 
         details: dict[str, Any] = {
@@ -384,15 +381,35 @@ class BrowseCompBenchmark:
         retrieved = run_metadata.get("retrieved_docids") or []
         retrieved_set = {str(item) for item in retrieved}
 
-        qrel_evidence = self._qrel_evidence or {}
-        qrel_golds = self._qrel_golds or {}
-        evidence_set = qrel_evidence.get(task.task_id, set())
-        gold_set = qrel_golds.get(task.task_id, set())
+        evidence_set = self._relevant_evidence_docids(task)
+        gold_set = self._relevant_gold_docids(task)
 
         return {
             "retrieved_docids": sorted(retrieved_set),
             "recall_evidence": self._recall(retrieved_set, evidence_set),
             "recall_gold": self._recall(retrieved_set, gold_set),
+        }
+
+    def _relevant_evidence_docids(self, task: BenchmarkTask) -> set[str]:
+        qrel_evidence = self._qrel_evidence or {}
+        from_qrel = qrel_evidence.get(task.task_id, set())
+        if from_qrel:
+            return from_qrel
+        return {
+            str(item)
+            for item in task.metadata.get("evidence_docids", [])
+            if str(item).strip()
+        }
+
+    def _relevant_gold_docids(self, task: BenchmarkTask) -> set[str]:
+        qrel_golds = self._qrel_golds or {}
+        from_qrel = qrel_golds.get(task.task_id, set())
+        if from_qrel:
+            return from_qrel
+        return {
+            str(item)
+            for item in task.metadata.get("gold_docids", [])
+            if str(item).strip()
         }
 
     # ------------------------------------------------------------------

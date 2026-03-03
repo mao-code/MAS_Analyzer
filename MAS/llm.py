@@ -143,8 +143,10 @@ class OpenRouterLLMClient:
         if not words:
             words = ["empty", "prompt"]
         sampled = [words[rng.randrange(len(words))] for _ in range(min(8, len(words) + 2))]
+        # Avoid square brackets so benchmark citation/docid regexes do not
+        # treat mock metadata as retrieved evidence docids.
         answer = (
-            f"MOCK[{agent_id}|{agent_type}] "
+            f"MOCK({agent_id}|{agent_type}) "
             f"Synthesized response with seed={seed_value % 100000}: " + " ".join(sampled)
         )
 

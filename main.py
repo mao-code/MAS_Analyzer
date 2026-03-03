@@ -113,18 +113,13 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
-            
-            # lai changes
+
             run = benchmark.run(
                 task=task,
                 runner=runner,
                 run_index=run_index,
                 seed=run_seed,
             )
-            
-            # original main changes
-            # 3) Run MAS/SAS forward pass and emit one trace.
-            run = runner.run_task(task=task, run_index=run_index, seed=run_seed)
 
             trace_path = task_dir / f"run_{run_index}.trace.jsonl"
             write_run_trace(run.trace_events, trace_path)
