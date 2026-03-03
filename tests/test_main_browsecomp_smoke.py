@@ -89,6 +89,18 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
             self.assertTrue((task_dir / "descriptor.json").exists())
             self.assertTrue((task_dir / "descriptor.csv").exists())
             self.assertTrue((task_dir / "analysis.json").exists())
+
+            analysis = json.loads((task_dir / "analysis.json").read_text(encoding="utf-8"))
+            self.assertGreater(analysis["descriptor"]["C4_tool_calls_total"], 0.0)
+
+            eval_payload = json.loads((task_dir / "run_0.eval.json").read_text(encoding="utf-8"))
+            run_metadata = eval_payload["details"]["run_metadata"]
+            self.assertIn("search", run_metadata.get("tool_call_counts", {}))
+
+            settings_path = root / "experiment_settings.json"
+            self.assertTrue(settings_path.exists())
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(settings["system"]["mode"], "SAS")
             self.assertTrue((root / "summary.json").exists())
             self.assertTrue((root / "summary.csv").exists())
 

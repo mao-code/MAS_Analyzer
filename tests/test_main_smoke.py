@@ -99,6 +99,7 @@ class TestMainSmoke(unittest.TestCase):
             self.assertTrue((task_dir / "descriptor.json").exists())
             self.assertTrue((task_dir / "descriptor.csv").exists())
             self.assertTrue((task_dir / "analysis.json").exists())
+            self.assertTrue((root / "experiment_settings.json").exists())
             self.assertTrue((root / "summary.json").exists())
             self.assertTrue((root / "summary.csv").exists())
 

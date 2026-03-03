@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import random
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .config import OpenRouterConfig
 
@@ -18,6 +19,7 @@ class LLMResult:
     model: str
     mock_used: bool
     metadata: dict[str, Any] = field(default_factory=dict)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 class OpenRouterLLMClient:
@@ -66,9 +68,12 @@ class OpenRouterLLMClient:
         task_id: str,
         run_index: int,
         agent_id: str,
+        tools: list[dict[str, Any]] | None = None,
+        max_tool_iterations: int = 8,
         temperature: float = 0.0,
     ) -> LLMResult:
         model = self.model_for_agent_type(agent_type)
+        tool_defs, tool_handlers = self._normalize_tools(tools or [])
 
         if self.client is not None:
             try:
@@ -76,6 +81,16 @@ class OpenRouterLLMClient:
                     messages = prompt
                 else:
                     messages = [{"role": "user", "content": str(prompt)}]
+
+                if tool_defs:
+                    return self._generate_with_tools(
+                        model=model,
+                        messages=messages,
+                        tool_defs=tool_defs,
+                        tool_handlers=tool_handlers,
+                        max_tool_iterations=max_tool_iterations,
+                        temperature=temperature,
+                    )
 
                 completion = self.client.chat.completions.create(
                     model=model,
@@ -108,6 +123,7 @@ class OpenRouterLLMClient:
                     agent_id=agent_id,
                     model=model,
                     fallback_reason=str(exc),
+                    tools_available=bool(tool_defs),
                 )
 
         return self._mock_result(
@@ -118,6 +134,162 @@ class OpenRouterLLMClient:
             agent_id=agent_id,
             model=model,
             fallback_reason="OpenRouter client unavailable or API key missing",
+            tools_available=bool(tool_defs),
+        )
+
+    def _generate_with_tools(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tool_defs: list[dict[str, Any]],
+        tool_handlers: dict[str, Callable[[dict[str, Any]], Any]],
+        max_tool_iterations: int,
+        temperature: float,
+    ) -> LLMResult:
+        working_messages = [dict(item) for item in messages]
+        total_token_in = 0
+        total_token_out = 0
+        tool_call_records: list[dict[str, Any]] = []
+        final_text = ""
+        stopped_early = False
+
+        for _ in range(max(1, int(max_tool_iterations))):
+            completion = self.client.chat.completions.create(
+                model=model,
+                messages=working_messages,
+                temperature=temperature,
+                tools=tool_defs,
+                tool_choice="auto",
+            )
+            usage = getattr(completion, "usage", None)
+            total_token_in += int(getattr(usage, "prompt_tokens", 0))
+            total_token_out += int(getattr(usage, "completion_tokens", 0))
+
+            if not total_token_in:
+                total_token_in = self._estimate_tokens(working_messages)
+
+            choice = completion.choices[0] if getattr(completion, "choices", None) else None
+            message = getattr(choice, "message", None)
+            if message is None:
+                final_text = ""
+                break
+
+            message_content = getattr(message, "content", "")
+            if isinstance(message_content, list):
+                parts = []
+                for item in message_content:
+                    text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text)
+                assistant_text = "\n".join(parts).strip()
+            else:
+                assistant_text = str(message_content or "")
+            if assistant_text:
+                final_text = assistant_text
+
+            raw_tool_calls = list(getattr(message, "tool_calls", None) or [])
+            serialized_tool_calls: list[dict[str, Any]] = []
+            for tool_call in raw_tool_calls:
+                function = getattr(tool_call, "function", None)
+                name = str(getattr(function, "name", "") or "")
+                arguments_raw = str(getattr(function, "arguments", "") or "{}")
+                serialized_tool_calls.append(
+                    {
+                        "id": str(getattr(tool_call, "id", "")),
+                        "type": str(getattr(tool_call, "type", "function") or "function"),
+                        "function": {
+                            "name": name,
+                            "arguments": arguments_raw,
+                        },
+                    }
+                )
+
+            assistant_msg: dict[str, Any] = {
+                "role": "assistant",
+                "content": assistant_text,
+            }
+            if serialized_tool_calls:
+                assistant_msg["tool_calls"] = serialized_tool_calls
+            working_messages.append(assistant_msg)
+
+            if not serialized_tool_calls:
+                break
+
+            for tool_call in serialized_tool_calls:
+                fn = tool_call["function"]
+                tool_name = str(fn.get("name") or "")
+                tool_id = str(tool_call.get("id") or "")
+                args_text = str(fn.get("arguments") or "{}")
+                try:
+                    args = json.loads(args_text) if args_text.strip() else {}
+                    if not isinstance(args, dict):
+                        args = {"value": args}
+                except Exception:
+                    args = {}
+
+                status = "completed"
+                error = None
+                output: Any
+                handler = tool_handlers.get(tool_name)
+                if handler is None:
+                    status = "error"
+                    error = f"Unknown tool: {tool_name}"
+                    output = {"error": error}
+                else:
+                    try:
+                        output = handler(args)
+                    except Exception as exc:
+                        status = "error"
+                        error = str(exc)
+                        output = {"error": error}
+
+                tool_call_records.append(
+                    {
+                        "tool_name": tool_name,
+                        "arguments": args,
+                        "status": status,
+                        "error": error,
+                        "output": output,
+                    }
+                )
+
+                if isinstance(output, str):
+                    output_payload = output
+                else:
+                    output_payload = json.dumps(output, ensure_ascii=False)
+                working_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_id,
+                        "name": tool_name,
+                        "content": output_payload,
+                    }
+                )
+        else:
+            stopped_early = True
+
+        if not total_token_out:
+            total_token_out = self._estimate_tokens(final_text)
+
+        metadata = {
+            "provider": "openrouter",
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+        }
+        if stopped_early:
+            metadata["tool_loop_stopped_reason"] = (
+                f"Reached max_tool_iterations={max(1, int(max_tool_iterations))}"
+            )
+
+        return LLMResult(
+            text=final_text,
+            token_in=total_token_in,
+            token_out=total_token_out,
+            cost_usd=0.0,
+            model=model,
+            mock_used=False,
+            metadata=metadata,
+            tool_calls=tool_call_records,
         )
 
     def _mock_result(
@@ -130,6 +302,7 @@ class OpenRouterLLMClient:
         agent_id: str,
         model: str,
         fallback_reason: str,
+        tools_available: bool,
     ) -> LLMResult:
         prompt_str = (
             prompt
@@ -161,8 +334,37 @@ class OpenRouterLLMClient:
                 "provider": "mock",
                 "fallback_reason": fallback_reason,
                 "seed": seed_value,
+                "tools_available": tools_available,
             },
         )
+
+    @staticmethod
+    def _normalize_tools(
+        tools: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], dict[str, Callable[[dict[str, Any]], Any]]]:
+        defs: list[dict[str, Any]] = []
+        handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
+        for tool in tools:
+            name = str(tool.get("name", "")).strip()
+            handler = tool.get("handler")
+            if not name or not callable(handler):
+                continue
+            description = str(tool.get("description", "")).strip() or f"Call {name}"
+            params = tool.get("parameters")
+            if not isinstance(params, dict):
+                params = {"type": "object", "properties": {}, "required": []}
+            defs.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": description,
+                        "parameters": params,
+                    },
+                }
+            )
+            handlers[name] = handler
+        return defs, handlers
 
     @staticmethod
     def _extract_text(completion: Any) -> str:

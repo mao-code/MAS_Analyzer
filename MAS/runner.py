@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import random
 import re
 import time
@@ -39,10 +40,19 @@ class MASRunner:
         self.config = config
         self.llm_client = llm_client
 
-    def run_task(self, task: Any, run_index: int, seed: int) -> MASRunResult:
+    def run_task(
+        self,
+        task: Any,
+        run_index: int,
+        seed: int,
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        max_tool_iterations: int = 8,
+    ) -> MASRunResult:
         mas_cfg = self.config.mas
         topology = build_topology(mas_cfg, seed=seed)
         rng = random.Random(seed)
+        tools = tools or []
 
         events: list[TraceEvent] = []
         clock = _EventClock()
@@ -53,6 +63,9 @@ class MASRunner:
         }
         sent_by_agent = {agent.agent_id: 0 for agent in topology.agents}
         agent_outputs: dict[str, str] = {}
+        tool_call_counts: dict[str, int] = {}
+        retrieved_docids_set: set[str] = set()
+        tool_event_index = 0
 
         events.append(
             self._event(
@@ -66,6 +79,7 @@ class MASRunner:
                     "turn_mode": mas_cfg.turn_mode,
                     "max_turns": mas_cfg.max_turns,
                     "message_budget_per_agent": mas_cfg.communication_count_internally,
+                    "available_tools": [str(item.get("name", "")) for item in tools],
                     "topology": self._topology_payload(topology),
                 },
                 token_in=0,
@@ -111,9 +125,78 @@ class MASRunner:
                     task_id=task.task_id,
                     run_index=run_index,
                     agent_id=spec.agent_id,
+                    tools=tools,
+                    max_tool_iterations=max_tool_iterations,
                     temperature=0.0,
                 )
                 latency_ms = max((time.perf_counter() - t0) * 1000.0, 1.0)
+
+                tool_records = list(llm.tool_calls)
+                if tools and llm.mock_used and not tool_records:
+                    tool_records = self._mock_tool_plan(prompt, tools)
+
+                if tool_records:
+                    for record in tool_records:
+                        tool_name = str(record.get("tool_name") or "")
+                        if not tool_name:
+                            continue
+                        tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + 1
+                        tool_event_index += 1
+                        call_state = (
+                            f"run_{run_index}_turn_{turn}_{spec.agent_id}_tool_{tool_event_index}_call"
+                        )
+                        result_state = (
+                            f"run_{run_index}_turn_{turn}_{spec.agent_id}_tool_{tool_event_index}_result"
+                        )
+                        args = record.get("arguments")
+                        if not isinstance(args, dict):
+                            args = {}
+                        status = str(record.get("status") or "completed")
+                        error = record.get("error")
+                        output = record.get("output")
+
+                        events.append(
+                            self._event(
+                                clock,
+                                actor=spec.agent_id,
+                                event_type="tool_call",
+                                payload={
+                                    "tool_name": tool_name,
+                                    "arguments": args,
+                                    "status": status,
+                                    "turn": turn,
+                                },
+                                token_in=0,
+                                token_out=0,
+                                latency_ms=1.0,
+                                cost_usd=0.0,
+                                state_id=call_state,
+                            )
+                        )
+                        events.append(
+                            self._event(
+                                clock,
+                                actor=spec.agent_id,
+                                event_type="tool_result",
+                                payload={
+                                    "tool_name": tool_name,
+                                    "status": status,
+                                    "error": error,
+                                    "turn": turn,
+                                    "output_preview": self._tool_output_preview(output),
+                                },
+                                token_in=0,
+                                token_out=0,
+                                latency_ms=1.0,
+                                cost_usd=0.0,
+                                state_id=result_state,
+                            )
+                        )
+
+                        if self._is_retrieval_tool(tool_name):
+                            retrieved_docids_set.update(
+                                self._extract_docids_from_tool_output(output, args, tool_name)
+                            )
 
                 agent_outputs[spec.agent_id] = llm.text
                 events.append(
@@ -150,6 +233,9 @@ class MASRunner:
                         )
                         message_budget[spec.agent_id] -= 1
                         sent_by_agent[spec.agent_id] += 1
+                        tool_call_counts["inter_agent_send"] = (
+                            tool_call_counts.get("inter_agent_send", 0) + 1
+                        )
 
                         events.append(
                             self._event(
@@ -207,7 +293,11 @@ class MASRunner:
             )
 
         final_answer = self._final_answer(topology.agents, agent_outputs)
-        retrieved_docids = self._extract_docids(final_answer)
+        retrieved_docids = (
+            sorted(retrieved_docids_set)
+            if retrieved_docids_set
+            else self._extract_docids(final_answer)
+        )
 
         events.append(
             self._event(
@@ -236,6 +326,8 @@ class MASRunner:
             "turn_mode": mas_cfg.turn_mode,
             "messages_sent_total": sum(sent_by_agent.values()),
             "messages_sent_by_agent": sent_by_agent,
+            "tool_call_counts": tool_call_counts,
+            "tool_calls_total": int(sum(tool_call_counts.values())),
             "remaining_message_budget": message_budget,
             "topology": self._topology_payload(topology),
             "agent_outputs": agent_outputs,
@@ -318,6 +410,123 @@ class MASRunner:
     def _message_snippet(text: str) -> str:
         snippet = re.sub(r"\s+", " ", text.strip())
         return snippet[:220]
+
+    @staticmethod
+    def _tool_output_preview(output: Any) -> str:
+        if isinstance(output, str):
+            text = output
+        else:
+            try:
+                text = json.dumps(output, ensure_ascii=False)
+            except Exception:
+                text = str(output)
+        text = re.sub(r"\s+", " ", text.strip())
+        return text[:240]
+
+    @staticmethod
+    def _is_retrieval_tool(tool_name: str) -> bool:
+        name = tool_name.lower().strip()
+        return "search" in name or "retriev" in name or "document" in name
+
+    @classmethod
+    def _extract_docids_from_tool_output(
+        cls,
+        output: Any,
+        arguments: dict[str, Any],
+        tool_name: str,
+    ) -> list[str]:
+        out: set[str] = set()
+        if "docid" in arguments:
+            out.add(str(arguments.get("docid")))
+
+        if isinstance(output, dict):
+            if "docid" in output:
+                out.add(str(output["docid"]))
+            payload = [output]
+        elif isinstance(output, list):
+            payload = output
+        elif isinstance(output, str):
+            payload = []
+            try:
+                parsed = json.loads(output)
+                if isinstance(parsed, dict):
+                    payload = [parsed]
+                elif isinstance(parsed, list):
+                    payload = parsed
+            except Exception:
+                for docid in re.findall(r'"docid"\s*:\s*"([^"]+)"', output):
+                    out.add(str(docid))
+                for docid in re.findall(r'"docid"\s*:\s*(\d+)', output):
+                    out.add(str(docid))
+        else:
+            payload = []
+
+        for item in payload:
+            if isinstance(item, dict) and "docid" in item:
+                out.add(str(item["docid"]))
+
+        if not out and cls._is_retrieval_tool(tool_name):
+            text = output if isinstance(output, str) else ""
+            out.update(cls._extract_docids(text))
+        return sorted(docid for docid in out if docid and docid != "None")
+
+    @classmethod
+    def _mock_tool_plan(
+        cls,
+        prompt: Any,
+        tools: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        by_name: dict[str, dict[str, Any]] = {}
+        for tool in tools:
+            name = str(tool.get("name", "")).strip()
+            if name and callable(tool.get("handler")):
+                by_name[name] = tool
+        if not by_name:
+            return []
+
+        def _execute(name: str, args: dict[str, Any]) -> dict[str, Any]:
+            handler = by_name[name]["handler"]
+            status = "completed"
+            error = None
+            try:
+                output = handler(args)
+            except Exception as exc:
+                status = "error"
+                error = str(exc)
+                output = {"error": error}
+            return {
+                "tool_name": name,
+                "arguments": args,
+                "status": status,
+                "error": error,
+                "output": output,
+            }
+
+        if isinstance(prompt, list):
+            prompt_text = " ".join(str(item.get("content", "")) for item in prompt if isinstance(item, dict))
+        else:
+            prompt_text = str(prompt)
+        query = re.sub(r"\s+", " ", prompt_text).strip()[:600]
+        if not query:
+            query = "Find relevant documents for the task."
+
+        records: list[dict[str, Any]] = []
+        if "search" in by_name:
+            search_record = _execute("search", {"query": query})
+            records.append(search_record)
+
+            candidate_docids = cls._extract_docids_from_tool_output(
+                search_record.get("output"),
+                {"query": query},
+                "search",
+            )
+            if "get_document" in by_name and candidate_docids:
+                records.append(_execute("get_document", {"docid": candidate_docids[0]}))
+        else:
+            first_name = next(iter(by_name))
+            records.append(_execute(first_name, {}))
+
+        return records
 
     @staticmethod
     def _final_answer(agents: list[AgentSpec], outputs: dict[str, str]) -> str:

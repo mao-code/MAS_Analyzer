@@ -170,7 +170,13 @@ Model routing is controlled by `[models]` in config:
 
 Preferred setup:
 
-- Provide local decrypted JSONL path via `browsecomp.decrypted_path`.
+- BrowseComp assets are organized under `benchmark/browsecomp/`:
+  - `benchmark/browsecomp/data/browsecomp_plus_decrypted.jsonl`
+  - `benchmark/browsecomp/topics-qrels/qrel_evidence.txt`
+  - `benchmark/browsecomp/topics-qrels/qrel_golds.txt`
+- Provide local decrypted JSONL path via `browsecomp.decrypted_path` (optional if the default file above exists).
+- Pull official benchmark assets (qrels + repo) via:
+  - `bash scripts/pull_browsecomp_plus.sh`
 
 Optional auto-download/decrypt mode:
 
@@ -182,6 +188,14 @@ Quick smoke-test setup (no judge API cost):
 - Set `browsecomp.auto_download = true`
 - Set `browsecomp.eval_mode = "substring"`
 - Run with small limits, e.g. `--task-limit 2 --runs-per-task 1`
+
+Tooling setup (official-style retrieval tool interface):
+
+- `browsecomp.enable_tools = true` enables `search` and optional `get_document` tools.
+- `browsecomp.tool_k` controls top-k retrieval results (default `5`, aligned with BrowseComp-Plus paper setup).
+- `browsecomp.tool_snippet_max_tokens` controls snippet truncation budget (default `512` words/tokens approximation).
+- `browsecomp.include_get_document = true` registers the document fetch tool in addition to search.
+- `browsecomp.max_tool_iterations` controls per-agent tool-calling loop depth.
 
 SAS vs MAS setup:
 

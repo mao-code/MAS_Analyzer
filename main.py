@@ -5,6 +5,7 @@ import csv
 import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,116 @@ def _write_summary_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
             writer.writerow(row)
 
 
+def _redact_secrets(data: Any, *, parent_key: str = "") -> Any:
+    secret_markers = ("api_key", "token", "secret", "password")
+    key_lower = parent_key.lower()
+
+    if isinstance(data, dict):
+        return {
+            key: _redact_secrets(value, parent_key=str(key))
+            for key, value in data.items()
+        }
+    if isinstance(data, list):
+        return [_redact_secrets(value, parent_key=parent_key) for value in data]
+    if isinstance(data, tuple):
+        return tuple(_redact_secrets(value, parent_key=parent_key) for value in data)
+    if isinstance(data, str) and any(marker in key_lower for marker in secret_markers):
+        return "***REDACTED***" if data else ""
+    return data
+
+
+def _mas_mode_label(config: Any) -> str:
+    return "SAS" if config.mas.total_agents == 1 else "MAS"
+
+
+def _runtime_tools(config: Any, benchmark_name: str, benchmark_cfg: dict[str, Any]) -> list[str]:
+    tools: list[str] = []
+
+    # Current MAS runtime only emits this synthetic coordination tool.
+    if config.mas.communication_count_internally > 0 and config.mas.total_agents > 1:
+        tools.append("inter_agent_send")
+
+    if benchmark_name == "browsecomp":
+        if bool(benchmark_cfg.get("enable_tools", True)):
+            tools.append("search")
+            if bool(benchmark_cfg.get("include_get_document", True)):
+                tools.append("get_document")
+        return tools
+    return tools
+
+
+def _experiment_settings_payload(
+    *,
+    args: argparse.Namespace,
+    config: Any,
+    benchmark_name: str,
+    benchmark_cfg: dict[str, Any],
+    task_limit: int | None,
+    runs_per_task: int,
+    seed: int,
+    task_count: int,
+    run_root: Path,
+) -> dict[str, Any]:
+    mas_cfg = config.mas
+    benchmark_cfg_redacted = _redact_secrets(benchmark_cfg)
+
+    return {
+        "timestamp": run_root.name,
+        "run_root": str(run_root),
+        "config_path": str(Path(args.config).resolve()),
+        "benchmark": {
+            "name": benchmark_name,
+            "task_count": task_count,
+            "task_limit": task_limit,
+            "config": benchmark_cfg_redacted,
+        },
+        "runtime": {
+            "runs_per_task": runs_per_task,
+            "seed": seed,
+            "output_dir": str(run_root.parent),
+        },
+        "system": {
+            "mode": _mas_mode_label(config),
+            "mas": {
+                "levels": mas_cfg.levels,
+                "number_of_agents": mas_cfg.total_agents,
+                "agents_per_level": mas_cfg.resolved_agents_per_level(),
+                "agent_types": list(mas_cfg.agent_types),
+                "turn_mode": mas_cfg.turn_mode,
+                "max_turns": mas_cfg.max_turns,
+                "communication_count_internally": mas_cfg.communication_count_internally,
+                "intra_level_link_ratio": mas_cfg.intra_level_link_ratio,
+                "full_linked": mas_cfg.full_linked,
+                "topology_notes": (
+                    "Intra-level edges are random unless full_linked=true. "
+                    "Cross-level edges are full bipartite between adjacent levels."
+                ),
+            },
+        },
+        "models": dict(config.models),
+        "openrouter": {
+            "base_url": config.openrouter.base_url,
+            "timeout_s": config.openrouter.timeout_s,
+            "http_referer": config.openrouter.http_referer or "",
+            "x_title": config.openrouter.x_title or "",
+            "api_key_present": bool(config.openrouter.api_key),
+        },
+        "tools": {
+            "agent_runtime_tools": _runtime_tools(config, benchmark_name, benchmark_cfg),
+            "benchmark_eval_mode": str(benchmark_cfg.get("eval_mode", "")),
+            "benchmark_judge_model": str(benchmark_cfg.get("judge_model", "")),
+        },
+        "raw_config_snapshot": _redact_secrets(asdict(config) if is_dataclass(config) else {}),
+    }
+
+
+def _write_experiment_settings(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
 def run_command(args: argparse.Namespace) -> int:
     # 1) Load runtime knobs (OpenRouter, MAS topology, model routing, benchmark settings).
     config = load_experiment_config(args.config)
@@ -94,6 +205,19 @@ def run_command(args: argparse.Namespace) -> int:
     if not tasks:
         raise RuntimeError(f"No tasks loaded for benchmark '{benchmark_name}'")
 
+    experiment_settings = _experiment_settings_payload(
+        args=args,
+        config=config,
+        benchmark_name=benchmark_name,
+        benchmark_cfg=benchmark_cfg,
+        task_limit=task_limit,
+        runs_per_task=runs_per_task,
+        seed=seed,
+        task_count=len(tasks),
+        run_root=run_root,
+    )
+    _write_experiment_settings(run_root / "experiment_settings.json", experiment_settings)
+
     summary_rows: list[dict[str, Any]] = []
     summary_json: dict[str, Any] = {
         "timestamp": timestamp,
@@ -101,6 +225,7 @@ def run_command(args: argparse.Namespace) -> int:
         "config_path": str(Path(args.config).resolve()),
         "runs_per_task": runs_per_task,
         "task_count": len(tasks),
+        "experiment_settings_path": str((run_root / "experiment_settings.json").resolve()),
         "tasks": [],
     }
 
