@@ -13,6 +13,14 @@ from .pareto import ideal_point_distance, normalize_objectives, pareto_frontier
 from .scaling import RobustScaler, robust_scale
 from .schema import EVENT_TYPES, TraceEvent, validate_event_dict, validate_trace_events
 from .stages import EVENT_STAGE_MAP, STAGES, compute_stage_metrics, stage_for_event
+from .topology_analysis import (
+    TopologyAnalysisResult,
+    TopologyRun,
+    aggregate_topology_metrics,
+    analyze_topology_experiment,
+    discover_topology_runs,
+    load_task_metrics,
+)
 
 __all__ = [
     "DescriptorResult",
@@ -45,4 +53,10 @@ __all__ = [
     "EVENT_STAGE_MAP",
     "compute_stage_metrics",
     "stage_for_event",
+    "TopologyRun",
+    "TopologyAnalysisResult",
+    "discover_topology_runs",
+    "load_task_metrics",
+    "aggregate_topology_metrics",
+    "analyze_topology_experiment",
 ]

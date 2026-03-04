@@ -111,6 +111,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Conda option (environment name: `agents`):
+
+```bash
+conda env create -f environment.yml
+conda activate agents
+```
+
 ### 2. Create experiment config
 
 ```bash
@@ -157,6 +164,47 @@ Model routing is controlled by `[models]` in config:
 
 - `models.default` is required.
 - Per-agent-type model selection uses `models.<agent_type>` when present.
+
+## LangGraph Topology Experiments
+
+`MAS.runner.MASRunner` now executes through **LangGraph** with a topology-aware relay layer.
+Supported topology names:
+
+- `sas`
+- `orchestrator_tree_structure`
+- `orchestrator_no_discussion`
+- `orchestrator_with_discussion`
+- `only_voting`
+- `fully_linked_debate`
+- `group_chat_debate`
+
+### Python API
+
+```python
+from MAS import run_experiment
+
+run_experiment(topology="sas", agents=1, prompt="Solve: 2+2")
+run_experiment(topology="fully_linked_debate", agents=5, rounds=3, prompt="Solve: 2+2")
+run_experiment(topology="orchestrator_no_discussion", agents=4, rounds=2, prompt="Solve: 2+2")
+```
+
+You can inject a descriptor hook (monitor/evaluation node) via `descriptor=...`.
+Each run records:
+
+- inter-agent relay messages
+- per-agent message views
+- full trace events (`TraceEvent` JSONL compatible)
+
+### CLI / Shell Scripts
+
+```bash
+bash scripts/run_langgraph_experiment.sh --topology sas --agents 1 --rounds 1 --prompt "Solve: 2+2"
+bash scripts/run_all_topologies.sh
+```
+
+The shell wrappers run `python -m MAS.experiment_cli` through `conda run -n agents` when Conda is available.
+
+Artifacts are written under `outputs/langgraph_topologies*` (trace JSONL, metadata JSON, final answer text).
 
 ## Benchmark Notes
 

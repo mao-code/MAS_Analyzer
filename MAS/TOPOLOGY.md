@@ -114,16 +114,3 @@
 **Definition:** One agent solves end-to-end; no inter-agent communication.
 **Message flow:** `User → Agent → User`  
 **Relay mechanics:** none.
-
-<!-- --- -->
-
-<!-- ### 8) Partially Linked Debate
-**Definition:** A sparse debate graph between agents (some edges removed). This includes “sparse MAD” styles, which aim to keep some debate benefits while reducing cost; some research analyzes how performance/safety change as you remove edges toward chain-like graphs. 
-**Message flow (round-based, sparse):**
-- Round t: each agent only reads neighbors’ messages (not everyone)
-- Agents revise based on local neighborhood
-- Final: aggregator/judge decides, or a convergence rule is used
-
-**Diagram:** sparse graph (ring, star-within-group, random sparse, etc.).
-
-**Relay mechanics:** neighbor-to-neighbor relaying; lower bandwidth than fully linked; topology design becomes a tuning knob (X in your table). -->

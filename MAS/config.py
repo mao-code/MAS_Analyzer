@@ -8,6 +8,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from .relay import auto_topology_for_agents, normalize_topology_name
+
 load_dotenv()  # auto-load .env (OPENROUTER_API_KEY, HF_TOKEN, etc.)
 
 
@@ -31,12 +33,15 @@ class MASConfig:
     levels: int
     intra_level_link_ratio: float
     full_linked: bool
+    topology: str = "auto"
     number_of_agents: int | None = None
     agents_per_level: list[int] | None = None
+    group_sizes: list[int] | None = None
     agent_types: list[str] = field(default_factory=lambda: ["general"])
     communication_count_internally: int = 1
     turn_mode: str = "single_turn"
     max_turns: int = 1
+    discussion_rounds: int = 1
 
     def validate(self) -> None:
         if self.levels < 1:
@@ -53,6 +58,9 @@ class MASConfig:
 
         if self.max_turns < 1:
             raise ValueError("mas.max_turns must be >= 1")
+
+        if self.discussion_rounds < 1:
+            raise ValueError("mas.discussion_rounds must be >= 1")
 
         if self.agents_per_level is not None:
             if len(self.agents_per_level) != self.levels:
@@ -82,6 +90,29 @@ class MASConfig:
             raise ValueError("mas.agent_types must contain at least one agent type")
         if any(not item.strip() for item in self.agent_types):
             raise ValueError("mas.agent_types entries must be non-empty strings")
+
+        normalized_topology = normalize_topology_name(self.topology)
+        if normalized_topology == "auto" and self.total_agents == 1:
+            self.topology = auto_topology_for_agents(self.total_agents)
+        elif normalized_topology != "auto":
+            self.topology = normalized_topology
+
+        if self.group_sizes is not None:
+            if not self.group_sizes:
+                raise ValueError("mas.group_sizes must not be empty")
+            if any(int(item) < 1 for item in self.group_sizes):
+                raise ValueError("mas.group_sizes entries must be >= 1")
+            if sum(int(item) for item in self.group_sizes) != self.total_agents:
+                raise ValueError(
+                    "sum(mas.group_sizes) must match total agents "
+                    f"({sum(int(item) for item in self.group_sizes)} != {self.total_agents})"
+                )
+
+    def resolved_topology(self) -> str:
+        normalized = normalize_topology_name(self.topology)
+        if normalized == "auto":
+            return auto_topology_for_agents(self.total_agents)
+        return normalized
 
     @property
     def total_agents(self) -> int:
@@ -186,14 +217,21 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         levels=int(mas_raw.get("levels", 1)),
         intra_level_link_ratio=float(mas_raw.get("intra_level_link_ratio", 1.0)),
         full_linked=bool(mas_raw.get("full_linked", True)),
+        topology=str(mas_raw.get("topology", "auto")),
         number_of_agents=(
             int(mas_raw["number_of_agents"]) if "number_of_agents" in mas_raw else None
         ),
         agents_per_level=parsed_agents_per_level,
+        group_sizes=(
+            [int(value) for value in mas_raw.get("group_sizes", [])]
+            if "group_sizes" in mas_raw
+            else None
+        ),
         agent_types=[str(item) for item in agent_types],
         communication_count_internally=int(mas_raw.get("communication_count_internally", 1)),
         turn_mode=str(mas_raw.get("turn_mode", "single_turn")),
         max_turns=int(mas_raw.get("max_turns", 1)),
+        discussion_rounds=int(mas_raw.get("discussion_rounds", 1)),
     )
 
     experiment = ExperimentRuntimeConfig(
