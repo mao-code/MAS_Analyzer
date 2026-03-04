@@ -166,6 +166,13 @@ Model routing is controlled by `[models]` in config:
 - Uses a rubric proxy score (`correctness` hit ratio minus `contradiction` hit ratio).
 - This is intentionally lightweight and not leaderboard-parity with the full upstream tool harness.
 
+### SciCode adapter
+
+- Replicates the official multi-step reasoning and evaluation pipeline.
+- Automatically attempts to download the 1.0GB `test_data.h5` from a Hugging Face mirror if it's not present in `data/test_data.h5`.
+- Manual download (if auto-download fails): [Google Drive Link](https://drive.google.com/drive/folders/1W5GZW6_bdiDAiipuFMqdUhvUaHIj6-pR?usp=drive_link).
+- Place the file at `data/test_data.h5` before running evaluation.
+
 ### BrowseComp adapter
 
 Preferred setup:

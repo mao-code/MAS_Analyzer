@@ -5,11 +5,13 @@ from typing import Any
 from .browsecomp import BrowseCompBenchmark
 from .finance_agent import FinanceAgentBenchmark
 from .plancraft import PlancraftBenchmark
+from .scicode import SciCodeBenchmark
 
 BENCHMARK_REGISTRY = {
     "finance_agent": FinanceAgentBenchmark,
     "browsecomp": BrowseCompBenchmark,
     "plancraft": PlancraftBenchmark,
+    "scicode": SciCodeBenchmark,
 }
 
 

@@ -25,6 +25,8 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any
         cfg = dict(config.browsecomp)
     elif benchmark_name == "plancraft":
         return dict(config.plancraft)
+    elif benchmark_name == "scicode":
+        return dict(config.scicode)
     else:
         return {}
 
@@ -238,6 +240,7 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
+
 
             run = benchmark.run(
                 task=task,
