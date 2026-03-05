@@ -28,7 +28,7 @@ Because `x(task)` is derived from traces and repeated runs, it captures uncertai
 ## Repository layout
 
 - `benchmark/`
-  - Task sets and benchmark runners.
+  - Task sets and benchmark runners, each packaged as a Python module.
   - Each benchmark provides tasks plus (optional) evaluation hooks (exact-match, unit tests, judge stubs).
 - `MAS/`
   - Agent systems and MAS topologies.
@@ -37,6 +37,10 @@ Because `x(task)` is derived from traces and repeated runs, it captures uncertai
   - Trace schema, trace IO, metric extraction, descriptor construction.
   - Robust scaling, Mahalanobis distance, Pareto frontier, ideal-point selection.
   - Optional: stage-level bottlenecks and 2D embeddings.
+- `scripts/`
+  - Shell helpers, test scripts, and testing configuration files.
+- `config/`
+  - User-specific experiment configs (gitignored). See `config/experiment.example.toml` for a template.
 - `main.py`
   - CLI entrypoint. Choose benchmark, MAS candidates, probe system, number of runs, seeds, outputs.
 
@@ -57,7 +61,7 @@ This schema is designed so metrics are fully recomputable from logs.
 
 ## Metrics (minimum viable set)
 
-The descriptor implements the following trace-derived metrics (grouped by Q/C/R/P). :contentReference[oaicite:2]{index=2}
+The descriptor implements the following trace-derived metrics (grouped by Q/C/R/P).
 
 ### Q: Success and Quality
 - `Q1 success_rate`: successes / N
@@ -100,22 +104,19 @@ Traces can be segmented into stages (plan/retrieve/act/verify/revise/finalize) a
 - verify is sparse → hallucination risk
 - retrieve has tool failures → repeated retries and latency spikes
 - revise dominates tokens → unstable planning/execution loop
-## Quickstart (Current Runnable Slice)
 
-### 1. Install core dependencies
+## Quickstart
+
+### 1. Install dependencies
 
 ```bash
 # Python 3.11+ is required (pyproject: requires-python >=3.11)
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+# Using uv (recommended):
+uv sync
 
-Conda option (environment name: `agents`):
-
-```bash
-conda env create -f environment.yml
-conda activate agents
+# Or using pip:
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
 ```
 
 ### 2. Create experiment config
@@ -286,20 +287,30 @@ AgentBench evaluates LLMs as autonomous agents in interactive environments (OS s
 # In a separate directory (not inside MAS_Analyzer)
 git clone https://github.com/THUDM/AgentBench
 cd AgentBench
+git checkout v0.2          # main branch removed start_task; v0.2 is required
 pip install -r requirements.txt
+
+# Build Docker images for OS tasks
+docker build -f data/os_interaction/res/dockerfiles/default data/os_interaction/res/dockerfiles --tag local-os/default
+docker build -f data/os_interaction/res/dockerfiles/packages data/os_interaction/res/dockerfiles --tag local-os/packages
+docker build -f data/os_interaction/res/dockerfiles/ubuntu data/os_interaction/res/dockerfiles --tag local-os/ubuntu
 ```
 
 **Start the Task Server (keep running in a separate terminal):**
 
 ```bash
-# Option A: start controller + workers for a specific task
-python -m src.start_task -a -s os 1
-
-# Option B: start with a config file
-python -m src.start_task -a -c configs/tasks/os.yaml
+# Start controller + 1 OS worker
+python -m src.start_task -a -s os-std 1
 ```
 
 The `-a` flag auto-starts the Controller (Flask API on `http://localhost:5000/api`). Once started, Docker containers will be created for the task environment.
+
+> **Note (macOS):** Port 5000 is often occupied by AirPlay Receiver. If you get an `address already in use` error, either disable AirPlay Receiver in System Settings → General → AirDrop & Handoff, or start the controller manually on a different port:
+> ```bash
+> python -m src.server.task_controller --port 5555 &
+> python -m src.start_task --controller http://localhost:5555/api -s os-std 1
+> ```
+> Then update `controller_address` in your config accordingly.
 
 **Run from MAS_Analyzer:**
 
@@ -315,19 +326,18 @@ uv run python main.py run \
 | Key | Default | Description |
 |-----|---------|-------------|
 | `controller_address` | `http://localhost:5000/api` | AgentBench Controller URL |
-| `task_name` | `os` | Task to run: `os`, `dbbench`, `ltp`, `alfworld`, `webshop`, `card_game`, `knowledgegraph` |
+| `task_name` | `os-std` | Task to run (must match a registered worker name, e.g. `os-std`, `os-dev`, `dbbench-std`) |
 | `max_turns` | `30` | Maximum interaction rounds per task |
 | `timeout` | `120` | HTTP request timeout in seconds |
 
 **Available tasks and resource requirements:**
 
-| Task | Environment | Docker Size |
-|------|-------------|-------------|
-| `os` | Ubuntu shell | ~500 MB |
-| `dbbench` | MySQL database | ~1 GB |
-| `ltp` | Lateral thinking puzzle | Lightweight |
-| `alfworld` | Virtual household | ~2 GB |
-| `webshop` | Online shopping | ~4 GB |
+| Task | Environment | Memory |
+|------|-------------|--------|
+| `os-std` / `os-dev` | Ubuntu shell | < 500 MB |
+| `dbbench-std` | MySQL database | < 500 MB |
+| `alfworld` | Virtual household | < 500 MB |
+| `webshop` | Online shopping | ~15 GB ⚠️ |
 | `knowledgegraph` | Freebase SPARQL | ~27 GB ⚠️ |
 
 **Execution flow:**
