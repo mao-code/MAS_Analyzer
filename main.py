@@ -4,8 +4,8 @@ import argparse
 import csv
 import json
 from collections.abc import Sequence
-from datetime import UTC, datetime
 from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +27,8 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any
         return dict(config.plancraft)
     elif benchmark_name == "scicode":
         return dict(config.scicode)
+    elif benchmark_name == "agentbench":
+        return dict(config.agentbench)
     else:
         return {}
 
@@ -74,10 +76,7 @@ def _redact_secrets(data: Any, *, parent_key: str = "") -> Any:
     key_lower = parent_key.lower()
 
     if isinstance(data, dict):
-        return {
-            key: _redact_secrets(value, parent_key=str(key))
-            for key, value in data.items()
-        }
+        return {key: _redact_secrets(value, parent_key=str(key)) for key, value in data.items()}
     if isinstance(data, list):
         return [_redact_secrets(value, parent_key=parent_key) for value in data]
     if isinstance(data, tuple):
@@ -243,7 +242,6 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
-
 
             run = benchmark.run(
                 task=task,

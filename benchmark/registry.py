@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .agentbench import AgentBenchBenchmark
 from .browsecomp import BrowseCompBenchmark
 from .finance_agent import FinanceAgentBenchmark
 from .plancraft import PlancraftBenchmark
@@ -12,6 +13,7 @@ BENCHMARK_REGISTRY = {
     "browsecomp": BrowseCompBenchmark,
     "plancraft": PlancraftBenchmark,
     "scicode": SciCodeBenchmark,
+    "agentbench": AgentBenchBenchmark,
 }
 
 
