@@ -9,11 +9,11 @@ from .plancraft import PlancraftBenchmark
 from .scicode import SciCodeBenchmark
 
 BENCHMARK_REGISTRY = {
+    "agentbench": AgentBenchBenchmark,
     "finance_agent": FinanceAgentBenchmark,
     "browsecomp": BrowseCompBenchmark,
     "plancraft": PlancraftBenchmark,
     "scicode": SciCodeBenchmark,
-    "agentbench": AgentBenchBenchmark,
 }
 
 

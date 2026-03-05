@@ -139,15 +139,12 @@ def _experiment_settings_payload(
         "system": {
             "mode": _mas_mode_label(config),
             "mas": {
-                "topology": mas_cfg.resolved_topology(),
                 "levels": mas_cfg.levels,
                 "number_of_agents": mas_cfg.total_agents,
                 "agents_per_level": mas_cfg.resolved_agents_per_level(),
-                "group_sizes": list(mas_cfg.group_sizes or []),
                 "agent_types": list(mas_cfg.agent_types),
                 "turn_mode": mas_cfg.turn_mode,
                 "max_turns": mas_cfg.max_turns,
-                "discussion_rounds": mas_cfg.discussion_rounds,
                 "communication_count_internally": mas_cfg.communication_count_internally,
                 "intra_level_link_ratio": mas_cfg.intra_level_link_ratio,
                 "full_linked": mas_cfg.full_linked,
