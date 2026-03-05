@@ -269,6 +269,76 @@ Official heavy-parity components (not required for this lightweight adapter):
 - `faiss` + `tevatron` for dense retrieval parity.
 - `vllm` + GPU for official LLM-judge parity.
 
+### AgentBench adapter
+
+Source: [THUDM/AgentBench](https://github.com/THUDM/AgentBench) · Paper: [arXiv 2308.03688](https://arxiv.org/abs/2308.03688)
+
+AgentBench evaluates LLMs as autonomous agents in interactive environments (OS shell, database, web browsing, etc.). Each task runs inside a Docker container managed by the official AgentBench Task Server; our adapter replaces the official `AgentClient` with `MASRunner` so that all LLM calls flow through our trace system.
+
+**Prerequisites:**
+
+- Docker Desktop running
+- AgentBench repo cloned and dependencies installed
+
+**Setup (one-time):**
+
+```bash
+# In a separate directory (not inside MAS_Analyzer)
+git clone https://github.com/THUDM/AgentBench
+cd AgentBench
+pip install -r requirements.txt
+```
+
+**Start the Task Server (keep running in a separate terminal):**
+
+```bash
+# Option A: start controller + workers for a specific task
+python -m src.start_task -a -s os 1
+
+# Option B: start with a config file
+python -m src.start_task -a -c configs/tasks/os.yaml
+```
+
+The `-a` flag auto-starts the Controller (Flask API on `http://localhost:5000/api`). Once started, Docker containers will be created for the task environment.
+
+**Run from MAS_Analyzer:**
+
+```bash
+uv run python main.py run \
+  --config scripts/test_agentbench.toml \
+  --benchmark agentbench \
+  --task-limit 3
+```
+
+**Config reference (`[agentbench]` section in TOML):**
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `controller_address` | `http://localhost:5000/api` | AgentBench Controller URL |
+| `task_name` | `os` | Task to run: `os`, `dbbench`, `ltp`, `alfworld`, `webshop`, `card_game`, `knowledgegraph` |
+| `max_turns` | `30` | Maximum interaction rounds per task |
+| `timeout` | `120` | HTTP request timeout in seconds |
+
+**Available tasks and resource requirements:**
+
+| Task | Environment | Docker Size |
+|------|-------------|-------------|
+| `os` | Ubuntu shell | ~500 MB |
+| `dbbench` | MySQL database | ~1 GB |
+| `ltp` | Lateral thinking puzzle | Lightweight |
+| `alfworld` | Virtual household | ~2 GB |
+| `webshop` | Online shopping | ~4 GB |
+| `knowledgegraph` | Freebase SPARQL | ~27 GB ⚠️ |
+
+**Execution flow:**
+
+1. `load_tasks()` → `GET /get_indices` to fetch available sample indices from the Task Server
+2. `run()` → For each task:
+   - `POST /start_sample` to initialize a Docker session
+   - Loop while `status == "running"`: pass environment history to `MASRunner`, send agent response via `POST /interact`
+   - Environment validates the answer and returns final status
+3. `evaluate()` → `status == "completed"` means success (score 1.0); other statuses mean failure (score 0.0)
+
 ## Package Naming
 
 - Canonical benchmark package is `benchmark/`.
