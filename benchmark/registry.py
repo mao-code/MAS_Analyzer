@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from .agentbench import AgentBenchBenchmark
 from .browsecomp import BrowseCompBenchmark
 from .finance_agent import FinanceAgentBenchmark
 from .plancraft import PlancraftBenchmark
 from .scicode import SciCodeBenchmark
 
 BENCHMARK_REGISTRY = {
+    "agentbench": AgentBenchBenchmark,
     "finance_agent": FinanceAgentBenchmark,
     "browsecomp": BrowseCompBenchmark,
     "plancraft": PlancraftBenchmark,

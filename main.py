@@ -4,8 +4,8 @@ import argparse
 import csv
 import json
 from collections.abc import Sequence
-from datetime import UTC, datetime
 from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +27,8 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any
         return dict(config.plancraft)
     elif benchmark_name == "scicode":
         return dict(config.scicode)
+    elif benchmark_name == "agentbench":
+        return dict(config.agentbench)
     else:
         return {}
 
@@ -74,10 +76,7 @@ def _redact_secrets(data: Any, *, parent_key: str = "") -> Any:
     key_lower = parent_key.lower()
 
     if isinstance(data, dict):
-        return {
-            key: _redact_secrets(value, parent_key=str(key))
-            for key, value in data.items()
-        }
+        return {key: _redact_secrets(value, parent_key=str(key)) for key, value in data.items()}
     if isinstance(data, list):
         return [_redact_secrets(value, parent_key=parent_key) for value in data]
     if isinstance(data, tuple):
@@ -140,15 +139,12 @@ def _experiment_settings_payload(
         "system": {
             "mode": _mas_mode_label(config),
             "mas": {
-                "topology": mas_cfg.resolved_topology(),
                 "levels": mas_cfg.levels,
                 "number_of_agents": mas_cfg.total_agents,
                 "agents_per_level": mas_cfg.resolved_agents_per_level(),
-                "group_sizes": list(mas_cfg.group_sizes or []),
                 "agent_types": list(mas_cfg.agent_types),
                 "turn_mode": mas_cfg.turn_mode,
                 "max_turns": mas_cfg.max_turns,
-                "discussion_rounds": mas_cfg.discussion_rounds,
                 "communication_count_internally": mas_cfg.communication_count_internally,
                 "intra_level_link_ratio": mas_cfg.intra_level_link_ratio,
                 "full_linked": mas_cfg.full_linked,
@@ -243,7 +239,6 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
-
 
             run = benchmark.run(
                 task=task,

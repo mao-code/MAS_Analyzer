@@ -1,0 +1,67 @@
+# ============================================================================
+# MAS_Analyzer Experiment Configuration (Example)
+# ============================================================================
+# Copy this file to config/experiment.toml and fill in your API key:
+#   cp config/experiment.example.toml config/experiment.toml
+#
+# config/*.toml is gitignored, so your keys stay local.
+# ============================================================================
+
+[openrouter]
+api_key = ""                # Set your OpenRouter API key here, or use OPENROUTER_API_KEY env var
+base_url = "https://openrouter.ai/api/v1"
+
+[experiment]
+output_dir = "outputs"
+runs_per_task = 1           # How many times to repeat each task (for stability metrics)
+seed = 42
+task_limit = 5              # Max tasks to run (remove or set to null for all tasks)
+
+[models]
+default = "google/gemini-3-flash-preview"
+# Per-agent-type overrides (optional):
+# planner = "openai/gpt-4.1"
+# verifier = "anthropic/claude-sonnet-4"
+
+# ============================================================================
+# MAS Configuration
+# ============================================================================
+[mas]
+levels = 1
+intra_level_link_ratio = 1.0
+full_linked = true
+number_of_agents = 1
+agent_types = ["general"]
+communication_count_internally = 0
+turn_mode = "single_turn"   # "single_turn" or "multi_turn"
+max_turns = 1               # Only used when turn_mode = "multi_turn"
+
+# ============================================================================
+# Benchmark-specific sections
+# Uncomment/fill the section matching your --benchmark flag
+# ============================================================================
+
+# --- FinanceAgent ---
+# [finance_agent]
+# (no special config needed)
+
+# --- SciCode ---
+# [scicode]
+# split = "test"
+# with_background = false
+# h5py_file = "data/test_data.h5"   # Auto-downloaded if missing
+
+# --- BrowseComp ---
+# [browsecomp]
+# auto_download = true
+# eval_mode = "substring"           # "substring" (free) or "llm_judge" (needs API)
+# judge_model = "openai/gpt-4.1"
+# enable_tools = true
+# tool_k = 5
+
+# --- AgentBench ---
+# [agentbench]
+# controller_address = "http://localhost:5000/api"
+# task_name = "os"                  # os | dbbench | ltp | alfworld | webshop | knowledgegraph
+# max_turns = 30
+# timeout = 120
