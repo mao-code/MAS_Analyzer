@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import re
 import subprocess
+import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -359,7 +360,7 @@ class SciCodeBenchmark:
 
                 try:
                     res = subprocess.run(
-                        ["python", str(assert_file)],
+                        [sys.executable, str(assert_file)],
                         capture_output=True,
                         text=True,
                         timeout=1800,  # official uses 1800s
