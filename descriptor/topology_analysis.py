@@ -16,7 +16,6 @@ from .scaling import robust_scale
 DEFAULT_DESCRIPTOR_COLUMNS = [
     "Q1_success_rate",
     "Q2_completion_rate",
-    "Q3_faithfulness",
     "Q4_context_relevancy",
     "C1_latency_p95",
     "C2_tokens_total",

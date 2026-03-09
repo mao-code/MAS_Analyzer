@@ -24,8 +24,6 @@ class Evaluator(Protocol):
 
     def evaluate_completion(self, events: Iterable[TraceEvent]) -> bool | None: ...
 
-    def evaluate_faithfulness(self, events: Iterable[TraceEvent]) -> float | None: ...
-
     def evaluate_context_relevancy(self, events: Iterable[TraceEvent]) -> float | None: ...
 
 
@@ -34,9 +32,6 @@ class NullEvaluator:
         return None
 
     def evaluate_completion(self, events: Iterable[TraceEvent]) -> bool | None:
-        return None
-
-    def evaluate_faithfulness(self, events: Iterable[TraceEvent]) -> float | None:
         return None
 
     def evaluate_context_relevancy(self, events: Iterable[TraceEvent]) -> float | None:
@@ -71,7 +66,6 @@ def compute_run_metrics(
     if completion is None:
         completion = infer_completion(events)
 
-    faithfulness = evaluator.evaluate_faithfulness(events)
     context_relevancy = evaluator.evaluate_context_relevancy(events)
 
     steps_total = len(events)
@@ -95,7 +89,6 @@ def compute_run_metrics(
     run_metrics: dict[str, Any] = {
         "success": bool(success),
         "completion": bool(completion),
-        "faithfulness": float(faithfulness) if faithfulness is not None else np.nan,
         "context_relevancy": float(context_relevancy) if context_relevancy is not None else np.nan,
         "latency_total": float(latency_total),
         "tokens_total": float(token_total),
@@ -160,7 +153,6 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
 
     successes = np.array([1.0 if rm["success"] else 0.0 for rm in run_metrics])
     completions = np.array([1.0 if rm["completion"] else 0.0 for rm in run_metrics])
-    faithfulness = [float(rm.get("faithfulness", np.nan)) for rm in run_metrics]
     context_rel = [float(rm.get("context_relevancy", np.nan)) for rm in run_metrics]
 
     latencies = np.array([float(rm["latency_total"]) for rm in run_metrics])
@@ -180,7 +172,6 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
     metrics: dict[str, Any] = {
         "Q1_success_rate": float(successes.mean()),
         "Q2_completion_rate": float(completions.mean()),
-        "Q3_faithfulness": _nanmean(faithfulness),
         "Q4_context_relevancy": _nanmean(context_rel),
         "C1_latency_p95": float(np.percentile(latencies, 95)),
         "C2_tokens_total": float(tokens.sum()),
