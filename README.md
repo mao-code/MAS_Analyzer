@@ -66,7 +66,6 @@ The descriptor implements the following trace-derived metrics (grouped by Q/C/R/
 ### Q: Success and Quality
 - `Q1 success_rate`: successes / N
 - `Q2 completion_rate`: produced final artifact / N
-- `Q4 context_relevancy`: evaluator hook (LLM-judge or IR metrics), optional stub
 
 ### C: Cost and Efficiency
 - `C1 latency_p95`: p95 over run latencies
