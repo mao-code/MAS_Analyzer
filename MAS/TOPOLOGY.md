@@ -16,7 +16,7 @@
 | 6 | Group Chat + Debate | 1 | Grouped (intra-group links, limited/no inter-group links) | No | 3 (1,2); 4 (2,2); 5 (1,4 / 2,3) | Multi-turn | 4 |
 | 7 | SAS (Single Agent System) | 1 | None (`0`) | N/A | 1 | Single-turn | 1 |
 
-**Total configurations: 26**
+**Total configurations: 20**
 
 
 ## MAS Topologies (Definitions + Message Flow)

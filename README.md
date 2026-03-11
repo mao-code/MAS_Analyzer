@@ -133,6 +133,7 @@ cp config/experiment.example.toml config/experiment.toml
 python main.py list-benchmarks
 python main.py benchmark-info --benchmark finance_agent --config config/experiment.toml
 python main.py benchmark-info --benchmark browsecomp --config config/experiment.toml
+python main.py benchmark-info --benchmark stabletoolbench --config config/experiment.toml
 ```
 
 ### 4. Run an experiment
@@ -267,6 +268,18 @@ Official heavy-parity components (not required for this lightweight adapter):
 - `pyserini` + Java 21 for BM25 parity.
 - `faiss` + `tevatron` for dense retrieval parity.
 - `vllm` + GPU for official LLM-judge parity.
+
+### StableToolBench adapter
+
+- Wraps the upstream StableToolBench solvable-query split and GPT-based virtual server.
+- Each task's `api_list` is exposed as OpenAI-compatible tools to MAS agents.
+- Tool calls are proxied to the upstream `/virtual` endpoint; the server itself must be started separately.
+- Evaluation modes:
+  - `heuristic`: cheap local smoke test
+  - `llm_judge`: SoPR-style solve-status grading on solvable queries
+- Small query assets can auto-download into `benchmark/stabletoolbench/data/solvable_queries/`.
+- Large `tools/` and `tool_response_cache/` assets can auto-download when `stabletoolbench.auto_download_server_assets = true`.
+- Setup details: [`benchmark/stabletoolbench/README.md`](benchmark/stabletoolbench/README.md)
 
 ### AgentBench adapter
 

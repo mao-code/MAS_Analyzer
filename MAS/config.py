@@ -163,6 +163,7 @@ class ExperimentConfig:
     experiment: ExperimentRuntimeConfig
     models: dict[str, str] = field(default_factory=dict)
     browsecomp: dict[str, Any] = field(default_factory=dict)
+    stabletoolbench: dict[str, Any] = field(default_factory=dict)
     finance_agent: dict[str, Any] = field(default_factory=dict)
     plancraft: dict[str, Any] = field(default_factory=dict)
     scicode: dict[str, Any] = field(default_factory=dict)
@@ -250,6 +251,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         experiment=experiment,
         models=models,
         browsecomp=_as_dict(data.get("browsecomp", {}), "[browsecomp]"),
+        stabletoolbench=_as_dict(data.get("stabletoolbench", {}), "[stabletoolbench]"),
         finance_agent=_as_dict(data.get("finance_agent", {}), "[finance_agent]"),
         plancraft=_as_dict(data.get("plancraft", {}), "[plancraft]"),
         scicode=_as_dict(data.get("scicode", {}), "[scicode]"),

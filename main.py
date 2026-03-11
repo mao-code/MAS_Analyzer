@@ -23,6 +23,8 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any
         cfg = dict(config.finance_agent)
     elif benchmark_name == "browsecomp":
         cfg = dict(config.browsecomp)
+    elif benchmark_name == "stabletoolbench":
+        cfg = dict(config.stabletoolbench)
     elif benchmark_name == "plancraft":
         return dict(config.plancraft)
     elif benchmark_name == "scicode":
@@ -102,6 +104,10 @@ def _runtime_tools(config: Any, benchmark_name: str, benchmark_cfg: dict[str, An
             tools.append("search")
             if bool(benchmark_cfg.get("include_get_document", True)):
                 tools.append("get_document")
+        return tools
+    if benchmark_name == "stabletoolbench":
+        if bool(benchmark_cfg.get("enable_tools", True)):
+            tools.append("stabletoolbench_virtual_api")
         return tools
     return tools
 

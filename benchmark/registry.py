@@ -7,11 +7,13 @@ from .browsecomp import BrowseCompBenchmark
 from .finance_agent import FinanceAgentBenchmark
 from .plancraft import PlancraftBenchmark
 from .scicode import SciCodeBenchmark
+from .stabletoolbench import StableToolBenchBenchmark
 
 BENCHMARK_REGISTRY = {
     "agentbench": AgentBenchBenchmark,
     "finance_agent": FinanceAgentBenchmark,
     "browsecomp": BrowseCompBenchmark,
+    "stabletoolbench": StableToolBenchBenchmark,
     "plancraft": PlancraftBenchmark,
     "scicode": SciCodeBenchmark,
 }
