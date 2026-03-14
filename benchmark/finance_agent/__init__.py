@@ -23,6 +23,7 @@ import ast
 import csv
 import json
 import logging
+import os
 import re
 import urllib.request
 from collections.abc import Sequence
@@ -30,7 +31,7 @@ from pathlib import Path
 from statistics import mode
 from typing import TYPE_CHECKING, Any
 
-from .base import BenchmarkEvaluation, BenchmarkTask
+from benchmark.base import BenchmarkEvaluation, BenchmarkTask
 
 if TYPE_CHECKING:
     from MAS.runner import MASRunResult
@@ -113,6 +114,19 @@ class FinanceAgentBenchmark:
         self._llm_client: Any | None = None
         self._llm_config: dict[str, Any] = dict(cfg.get("openrouter", {}))
 
+        # Tool API keys — fall back to env vars (mirrors official repo)
+        self.serpapi_key: str = str(
+            cfg.get("serpapi_api_key") or os.environ.get("SERPAPI_API_KEY", "")
+        )
+        self.sec_api_key: str = str(
+            cfg.get("sec_api_key") or os.environ.get("SEC_EDGAR_API_KEY", "")
+        )
+        # Tool options
+        self.max_tool_iterations: int = int(cfg.get("max_tool_iterations", 8))
+        self.web_search_top_n: int = int(cfg.get("web_search_top_n", 5))
+        # In-session HTML store shared across tool calls within one run
+        self._html_store: dict[str, str] = {}
+
     # ------------------------------------------------------------------
     # BenchmarkAdapter interface
     # ------------------------------------------------------------------
@@ -152,8 +166,25 @@ class FinanceAgentBenchmark:
         run_index: int,
         seed: int,
     ) -> MASRunResult:
-        """One-shot benchmark: delegate entirely to the runner."""
-        return runner.run_task(task=task, run_index=run_index, seed=seed)
+        """Run with the four official finance-agent tools wired in.
+
+        Tools follow the MAS tool-handler format::
+
+            {"name": str, "description": str, "parameters": {...}, "handler": callable}
+
+        Tool calls are recorded in trace_events (tool_call + tool_result events)
+        by the LangGraph engine automatically.
+        """
+        # Reset per-run state
+        self._html_store = {}
+        tools = self._build_tools()
+        return runner.run_task(
+            task=task,
+            run_index=run_index,
+            seed=seed,
+            tools=tools,
+            max_tool_iterations=self.max_tool_iterations,
+        )
 
     def evaluate(
         self,
@@ -201,6 +232,237 @@ class FinanceAgentBenchmark:
             ],
             "notes": notes,
         }
+
+    # ------------------------------------------------------------------
+    # Tool builders — mirrors official vals-ai/finance-agent tools.py
+    # ------------------------------------------------------------------
+
+    def _build_tools(self) -> list[dict[str, Any]]:
+        """Return MAS-compatible tool dicts for the four official tools."""
+        tools: list[dict[str, Any]] = []
+
+        # 1. google_web_search
+        serpapi_key = self.serpapi_key
+        top_n = self.web_search_top_n
+
+        def google_web_search(args: dict[str, Any]) -> Any:
+            query = str(args.get("search_query", "")).strip()
+            if not query:
+                return {"success": False, "result": "search_query is required"}
+            if not serpapi_key:
+                return {
+                    "success": False,
+                    "result": "SERPAPI_API_KEY not configured. Set serpapi_api_key in config or SERPAPI_API_KEY env var.",
+                }
+            try:
+                import urllib.parse
+
+                params = urllib.parse.urlencode(
+                    {
+                        "api_key": serpapi_key,
+                        "engine": "google",
+                        "q": query,
+                        "num": top_n,
+                    }
+                )
+                url = f"https://serpapi.com/search.json?{params}"
+                with urllib.request.urlopen(url, timeout=20) as resp:  # noqa: S310
+                    data = json.loads(resp.read().decode())
+                results = data.get("organic_results", [])[:top_n]
+                return {"success": True, "result": json.dumps(results)}
+            except Exception as exc:
+                return {"success": False, "result": str(exc)}
+
+        tools.append(
+            {
+                "name": "google_web_search",
+                "description": "Search the web for information.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "search_query": {"type": "string", "description": "The query to search for"}
+                    },
+                    "required": ["search_query"],
+                },
+                "handler": google_web_search,
+            }
+        )
+
+        # 2. edgar_search
+        sec_key = self.sec_api_key
+
+        def edgar_search(args: dict[str, Any]) -> Any:
+            if not sec_key:
+                return {
+                    "success": False,
+                    "result": "SEC_EDGAR_API_KEY not configured. Set sec_api_key in config or SEC_EDGAR_API_KEY env var.",
+                }
+            try:
+                payload = {
+                    "query": str(args.get("query", "")),
+                    "formTypes": args.get("form_types") or [],
+                    "ciks": args.get("ciks") or [],
+                    "startDate": str(args.get("start_date", "")),
+                    "endDate": str(args.get("end_date", "")),
+                    "page": str(args.get("page", "1")),
+                }
+                top_n_results = int(args.get("top_n_results", 5))
+                data = json.dumps(payload).encode()
+                req = urllib.request.Request(
+                    "https://api.sec-api.io/full-text-search",
+                    data=data,
+                    headers={"Content-Type": "application/json", "Authorization": sec_key},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
+                    result = json.loads(resp.read().decode())
+                filings = result.get("filings", [])[:top_n_results]
+                return {"success": True, "result": json.dumps(filings)}
+            except Exception as exc:
+                return {"success": False, "result": str(exc)}
+
+        tools.append(
+            {
+                "name": "edgar_search",
+                "description": (
+                    "Search the SEC EDGAR database for filings. "
+                    "Provide query, form_types, ciks, start_date, end_date, page, top_n_results."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Keyword or phrase to search"},
+                        "form_types": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of SEC form types (e.g. ['10-K', '10-Q'])",
+                        },
+                        "ciks": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of CIK numbers to filter",
+                        },
+                        "start_date": {"type": "string", "description": "Start date yyyy-mm-dd"},
+                        "end_date": {"type": "string", "description": "End date yyyy-mm-dd"},
+                        "page": {"type": "string", "description": "Page number (default '1')"},
+                        "top_n_results": {
+                            "type": "integer",
+                            "description": "Max results to return",
+                        },
+                    },
+                    "required": [
+                        "query",
+                        "form_types",
+                        "ciks",
+                        "start_date",
+                        "end_date",
+                        "page",
+                        "top_n_results",
+                    ],
+                },
+                "handler": edgar_search,
+            }
+        )
+
+        # 3. parse_html_page
+        html_store = self._html_store
+
+        def parse_html_page(args: dict[str, Any]) -> Any:
+            url = str(args.get("url", "")).strip()
+            key = str(args.get("key", "default")).strip()
+            if not url:
+                return {"success": False, "result": "url is required"}
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "MAS_Analyzer/finance-agent-benchmark"},
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+                    html = resp.read().decode(errors="replace")
+                # Simple HTML-to-text without BS4 dependency
+                text = re.sub(
+                    r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE
+                )
+                text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+                text = re.sub(r"<[^>]+>", " ", text)
+                text = re.sub(r"\s+", "\n", text).strip()
+                # Truncate to 8000 chars to fit context
+                if len(text) > 8000:
+                    text = text[:8000] + "\n[truncated]"
+                html_store[key] = text
+                return {
+                    "success": True,
+                    "result": f"Parsed and stored under key='{key}'. Preview: {text[:300]}",
+                }
+            except Exception as exc:
+                return {"success": False, "result": str(exc)}
+
+        tools.append(
+            {
+                "name": "parse_html_page",
+                "description": (
+                    "Parse an HTML page and extract its text content. "
+                    "The result is stored in an in-session store under `key` and can be retrieved with retrieve_information."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "URL of the HTML page to parse"},
+                        "key": {
+                            "type": "string",
+                            "description": "Key to store the result under for later retrieval",
+                        },
+                    },
+                    "required": ["url", "key"],
+                },
+                "handler": parse_html_page,
+            }
+        )
+
+        # 4. retrieve_information
+        def retrieve_information(args: dict[str, Any]) -> Any:
+            key = str(args.get("key", "")).strip()
+            if not key:
+                # Return all keys if none specified
+                if not html_store:
+                    return {
+                        "success": False,
+                        "result": "No information has been stored yet. Use parse_html_page first.",
+                    }
+                return {
+                    "success": True,
+                    "result": json.dumps({"available_keys": list(html_store.keys())}),
+                }
+            content = html_store.get(key)
+            if content is None:
+                return {
+                    "success": False,
+                    "result": f"No content stored under key='{key}'. Available keys: {list(html_store.keys())}",
+                }
+            return {"success": True, "result": content}
+
+        tools.append(
+            {
+                "name": "retrieve_information",
+                "description": (
+                    "Retrieve previously parsed HTML page content stored by parse_html_page. "
+                    "Pass the same key used when parsing. Omit key to list available keys."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "key": {
+                            "type": "string",
+                            "description": "Key used when the page was parsed",
+                        }
+                    },
+                    "required": [],
+                },
+                "handler": retrieve_information,
+            }
+        )
+
+        return tools
 
     # ------------------------------------------------------------------
     # Evaluation: LLM-as-Judge (mirrors Vals methodology)
