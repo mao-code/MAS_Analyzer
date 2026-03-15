@@ -1,18 +1,23 @@
 # Benchmark Adapters
 
-This directory contains documentation and notes for the various benchmark adapters supported in MAS_Analyzer.
+This directory contains documentation and notes for the benchmark adapters
+supported in MAS_Analyzer.
 
 ## FinanceAgent adapter
 
 - Loads the pinned public CSV from the referenced commit and caches it locally.
-- Uses a rubric proxy score (`correctness` hit ratio minus `contradiction` hit ratio).
-- This is intentionally lightweight and not leaderboard-parity with the full upstream tool harness.
+- Uses a rubric proxy score (`correctness` hit ratio minus `contradiction` hit
+  ratio).
+- This is intentionally lightweight and not leaderboard-parity with the full
+  upstream tool harness.
 
 ## SciCode adapter
 
 - Replicates the official multi-step reasoning and evaluation pipeline.
-- Automatically attempts to download the 1.0GB `test_data.h5` from a Hugging Face mirror if it's not present in `data/test_data.h5`.
-- Manual download (if auto-download fails): [Google Drive Link](https://drive.google.com/drive/folders/1W5GZW6_bdiDAiipuFMqdUhvUaHIj6-pR?usp=drive_link).
+- Automatically attempts to download the `test_data.h5` file from a Hugging
+  Face mirror if it is not present in `data/test_data.h5`.
+- Manual download fallback:
+  [Google Drive Link](https://drive.google.com/drive/folders/1W5GZW6_bdiDAiipuFMqdUhvUaHIj6-pR?usp=drive_link)
 - Place the file at `data/test_data.h5` before running evaluation.
 
 ## BrowseComp adapter
@@ -153,3 +158,19 @@ uv run python main.py run \
    - Loop while `status == "running"`: pass environment history to `MASRunner`, send agent response via `POST /interact`
    - Environment validates the answer and returns final status
 3. `evaluate()` → `status == "completed"` means success (score 1.0); other statuses mean failure (score 0.0)
+
+## PlanCraft adapter
+
+- Uses the official `plancraft` package and MAS-owned interactive run loop.
+- Supports official split names such as `val`, `test`, `val.small`, and `test.small`.
+- Uses the current official action string format:
+  `move: from [I2] to [A1] with quantity 3`
+- This adapter is MAS-compatible but is not a 1:1 copy of the upstream `Evaluator` harness.
+
+## WorkBench adapter
+
+- Loads the official processed CSV task files and sandbox state from the upstream WorkBench repository into `.cache/workbench`.
+- Exposes the workplace tools as OpenAI-compatible tools to MAS agents.
+- Evaluation follows the upstream state-change semantics instead of grading the final natural-language answer.
+- `company_directory.find_email_address` is always included, matching upstream toolkit behavior.
+- The MAS runtime sanitizes dotted tool names before sending them to OpenAI-compatible providers, then restores the original names for traces and evaluation.
