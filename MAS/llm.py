@@ -279,6 +279,16 @@ class OpenRouterLLMClient:
         else:
             stopped_early = True
 
+        if stopped_early and not final_text:
+            final_text, extra_in, extra_out = self._force_final_response(
+                model=model,
+                messages=working_messages,
+                temperature=temperature,
+                max_tool_iterations=max_tool_iterations,
+            )
+            total_token_in += extra_in
+            total_token_out += extra_out
+
         if not total_token_out:
             total_token_out = self._estimate_tokens(final_text)
 
@@ -290,6 +300,8 @@ class OpenRouterLLMClient:
             metadata["tool_loop_stopped_reason"] = (
                 f"Reached max_tool_iterations={max(1, int(max_tool_iterations))}"
             )
+            if final_text:
+                metadata["tool_loop_forced_final_answer"] = True
 
         return LLMResult(
             text=final_text,
@@ -383,6 +395,37 @@ class OpenRouterLLMClient:
             handlers[api_name] = handler
             original_names[api_name] = original_name
         return defs, handlers, original_names
+
+    def _force_final_response(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float,
+        max_tool_iterations: int,
+    ) -> tuple[str, int, int]:
+        follow_up_messages = [dict(item) for item in messages]
+        follow_up_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "You have reached the maximum number of tool calls "
+                    f"({max(1, int(max_tool_iterations))}). "
+                    "Based only on the information already gathered, provide your best final answer now. "
+                    "Do not call any more tools."
+                ),
+            }
+        )
+        completion = self.client.chat.completions.create(
+            model=model,
+            messages=follow_up_messages,
+            temperature=temperature,
+        )
+        text = self._extract_text(completion).strip()
+        usage = getattr(completion, "usage", None)
+        token_in = int(getattr(usage, "prompt_tokens", self._estimate_tokens(follow_up_messages)))
+        token_out = int(getattr(usage, "completion_tokens", self._estimate_tokens(text)))
+        return text, token_in, token_out
 
     @staticmethod
     def _sanitize_tool_name(name: str, used_names: set[str]) -> str:
