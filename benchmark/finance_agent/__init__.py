@@ -255,21 +255,31 @@ class FinanceAgentBenchmark:
                     "result": "SERPAPI_API_KEY not configured. Set serpapi_api_key in config or SERPAPI_API_KEY env var.",
                 }
             try:
-                import urllib.parse
+                import requests
 
-                params = urllib.parse.urlencode(
-                    {
-                        "api_key": serpapi_key,
-                        "engine": "google",
-                        "q": query,
-                        "num": top_n,
-                    }
-                )
-                url = f"https://serpapi.com/search.json?{params}"
-                with urllib.request.urlopen(url, timeout=20) as resp:  # noqa: S310
-                    data = json.loads(resp.read().decode())
-                results = data.get("organic_results", [])[:top_n]
-                return {"success": True, "result": json.dumps(results)}
+                params = {
+                    "api_key": serpapi_key,
+                    "engine": "google",
+                    "q": query,
+                    "num": top_n,
+                }
+                # Simple retry for 429
+                for attempt in range(3):
+                    resp = requests.get(
+                        "https://serpapi.com/search.json",
+                        params=params,
+                        timeout=20,
+                    )
+                    if resp.status_code == 429:
+                        import time
+
+                        time.sleep(2**attempt)
+                        continue
+                    resp.raise_for_status()
+                    data = resp.json()
+                    results = data.get("organic_results", [])[:top_n]
+                    return {"success": True, "result": json.dumps(results)}
+                return {"success": False, "result": "Max retries reached for SerpAPI"}
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 
@@ -298,6 +308,8 @@ class FinanceAgentBenchmark:
                     "result": "SEC_EDGAR_API_KEY not configured. Set sec_api_key in config or SEC_EDGAR_API_KEY env var.",
                 }
             try:
+                import requests
+
                 payload = {
                     "query": str(args.get("query", "")),
                     "formTypes": args.get("form_types") or [],
@@ -307,17 +319,25 @@ class FinanceAgentBenchmark:
                     "page": str(args.get("page", "1")),
                 }
                 top_n_results = int(args.get("top_n_results", 5))
-                data = json.dumps(payload).encode()
-                req = urllib.request.Request(
-                    "https://api.sec-api.io/full-text-search",
-                    data=data,
-                    headers={"Content-Type": "application/json", "Authorization": sec_key},
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
-                    result = json.loads(resp.read().decode())
-                filings = result.get("filings", [])[:top_n_results]
-                return {"success": True, "result": json.dumps(filings)}
+
+                # Simple retry for 429
+                for attempt in range(3):
+                    resp = requests.post(
+                        "https://api.sec-api.io/full-text-search",
+                        json=payload,
+                        headers={"Authorization": sec_key},
+                        timeout=20,
+                    )
+                    if resp.status_code == 429:
+                        import time
+
+                        time.sleep(2**attempt)
+                        continue
+                    resp.raise_for_status()
+                    result = resp.json()
+                    filings = result.get("filings", [])[:top_n_results]
+                    return {"success": True, "result": json.dumps(filings)}
+                return {"success": False, "result": "Max retries reached for SEC API"}
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 
@@ -373,22 +393,31 @@ class FinanceAgentBenchmark:
             if not url:
                 return {"success": False, "result": "url is required"}
             try:
-                req = urllib.request.Request(
-                    url,
-                    headers={"User-Agent": "MAS_Analyzer/finance-agent-benchmark"},
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
-                    html = resp.read().decode(errors="replace")
-                # Simple HTML-to-text without BS4 dependency
-                text = re.sub(
-                    r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE
-                )
-                text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
-                text = re.sub(r"<[^>]+>", " ", text)
-                text = re.sub(r"\s+", "\n", text).strip()
-                # Truncate to 8000 chars to fit context
-                if len(text) > 8000:
-                    text = text[:8000] + "\n[truncated]"
+                import requests
+                from bs4 import BeautifulSoup
+
+                # Use exact same UA as official repo which SEC typically allows
+                headers = {"User-Agent": "ValsAI/antoine@vals.ai"}
+                resp = requests.get(url, headers=headers, timeout=30)
+                resp.raise_for_status()
+                html = resp.text
+
+                soup = BeautifulSoup(html, "html.parser")
+                # Remove script and style elements
+                for script_or_style in soup(["script", "style"]):
+                    script_or_style.decompose()
+
+                # Get text
+                text = soup.get_text(separator="\n")
+                # Clean up whitespace
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                text = "\n".join(chunk for chunk in chunks if chunk)
+
+                # Truncate to 10000 chars to fit context better
+                if len(text) > 10000:
+                    text = text[:10000] + "\n[truncated]"
+
                 html_store[key] = text
                 return {
                     "success": True,
