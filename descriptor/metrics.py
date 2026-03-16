@@ -10,7 +10,9 @@ from .schema import TraceEvent
 from .stages import compute_stage_metrics
 from .utils import (
     compute_avg_branching,
+    compute_communication_count,
     compute_failure_mode_hist,
+    compute_handoff_count,
     compute_loop_score,
     extract_tool_name,
     infer_completion,
@@ -78,6 +80,8 @@ def compute_run_metrics(
     verification_density = verify_count / steps_total if steps_total else 0.0
 
     loop_score = compute_loop_score(events)
+    communication_count = compute_communication_count(events)
+    handoff_count = compute_handoff_count(events)
 
     run_metrics: dict[str, Any] = {
         "success": bool(success),
@@ -91,6 +95,8 @@ def compute_run_metrics(
         "backtrack_rate": float(backtrack_rate),
         "loop_score": float(loop_score),
         "verification_density": float(verification_density),
+        "communication_count": float(communication_count),
+        "handoff_count": float(handoff_count),
     }
 
     if extensions.include_stage_metrics:
@@ -156,6 +162,8 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
     backtrack = np.array([float(rm["backtrack_rate"]) for rm in run_metrics])
     loop_scores = np.array([float(rm["loop_score"]) for rm in run_metrics])
     verify_density = np.array([float(rm["verification_density"]) for rm in run_metrics])
+    communication_counts = np.array([float(rm.get("communication_count", 0.0)) for rm in run_metrics])
+    handoff_counts = np.array([float(rm.get("handoff_count", 0.0)) for rm in run_metrics])
 
     total_tool_calls = tool_calls.sum()
     total_tool_fails = tool_fails.sum()
@@ -170,6 +178,8 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
         "C5_tool_error_rate": float(total_tool_fails / total_tool_calls)
         if total_tool_calls
         else 0.0,
+        "C6_communication_count": float(communication_counts.sum()),
+        "C7_handoff_count": float(handoff_counts.sum()),
         "R1_success_var": _nanvar(successes.tolist()),
         "R2_latency_var": _nanvar(latencies.tolist()),
         "R3_tokens_var": _nanvar(tokens.tolist()),

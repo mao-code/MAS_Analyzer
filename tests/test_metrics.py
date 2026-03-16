@@ -14,11 +14,12 @@ class TestMetrics(unittest.TestCase):
         cost_usd: float,
         payload: dict | None = None,
         state_id: str | None = None,
+        actor: str = "agent",
     ) -> TraceEvent:
         return TraceEvent(
             timestamp_start=0.0,
             timestamp_end=1.0,
-            actor="agent",
+            actor=actor,
             event_type=event_type,
             payload=payload or {},
             token_in=token_in,
@@ -41,6 +42,26 @@ class TestMetrics(unittest.TestCase):
                 0.005,
                 {"status": "error", "error_code": "FAIL"},
             ),
+            self._make_event(
+                "tool_call",
+                0,
+                0,
+                1.0,
+                0.0,
+                {"tool_name": "inter_agent_send", "to": ["agent_b", "agent_c"]},
+                actor="agent_a",
+            ),
+            self._make_event(
+                "tool_result",
+                0,
+                0,
+                1.0,
+                0.0,
+                {"tool_name": "inter_agent_send", "status": "ok"},
+                actor="system",
+            ),
+            self._make_event("act", 1, 1, 2.0, 0.0, actor="agent_a"),
+            self._make_event("act", 1, 1, 2.0, 0.0, actor="agent_b"),
             self._make_event("verify", 1, 1, 3.0, 0.003, state_id="s2"),
             self._make_event("revise", 1, 1, 4.0, 0.004, {"redo": True}),
             self._make_event("finalize", 1, 1, 2.0, 0.002, {"success": True}),
@@ -51,18 +72,21 @@ class TestMetrics(unittest.TestCase):
         )
         self.assertTrue(run_metrics["success"])
         self.assertTrue(run_metrics["completion"])
-        self.assertEqual(run_metrics["tool_calls_total"], 1.0)
+        self.assertEqual(run_metrics["tool_calls_total"], 2.0)
         self.assertEqual(run_metrics["tool_fail_total"], 1.0)
-        self.assertAlmostEqual(run_metrics["backtrack_rate"], 1.0 / 7.0, places=6)
-        self.assertAlmostEqual(run_metrics["loop_score"], 1.0 / 3.0, places=6)
+        self.assertAlmostEqual(run_metrics["backtrack_rate"], 1.0 / 11.0, places=6)
+        self.assertEqual(run_metrics["communication_count"], 2.0)
+        self.assertEqual(run_metrics["handoff_count"], 3.0)
         self.assertEqual(run_metrics["stage_plan_events"], 1.0)
 
         task_metrics = compute_task_metrics([run_metrics])
         self.assertEqual(task_metrics["Q1_success_rate"], 1.0)
         self.assertEqual(task_metrics["Q2_completion_rate"], 1.0)
-        self.assertEqual(task_metrics["C5_tool_error_rate"], 1.0)
-        self.assertEqual(task_metrics["P1_steps_total"], 7.0)
-        self.assertAlmostEqual(task_metrics["P4_verification_density"], 1.0 / 7.0, places=6)
+        self.assertEqual(task_metrics["C5_tool_error_rate"], 0.5)
+        self.assertEqual(task_metrics["C6_communication_count"], 2.0)
+        self.assertEqual(task_metrics["C7_handoff_count"], 3.0)
+        self.assertEqual(task_metrics["P1_steps_total"], 11.0)
+        self.assertAlmostEqual(task_metrics["P4_verification_density"], 1.0 / 11.0, places=6)
 
 
 if __name__ == "__main__":

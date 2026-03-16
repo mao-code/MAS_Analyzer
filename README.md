@@ -73,6 +73,8 @@ The descriptor implements the following trace-derived metrics (grouped by Q/C/R/
 - `C3 cost_total`: sum(cost_usd)
 - `C4 tool_calls_total`: count(tool_call)
 - `C5 tool_error_rate`: tool_fail / tool_calls
+- `C6 communication_count`: total directed inter-agent edges (for each message, count each sender→recipient pair; broadcasts count multiple)
+- `C7 handoff_count`: count of active-agent transitions across events, excluding `system` actor events
 
 ### R: Stability and Reliability
 - `R1 success_var`: Bernoulli variance across repeated runs (or bootstrap)
