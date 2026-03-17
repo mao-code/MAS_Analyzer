@@ -33,6 +33,8 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any
         return dict(config.scicode)
     elif benchmark_name == "agentbench":
         return dict(config.agentbench)
+    elif benchmark_name == "webshop":
+        return dict(config.webshop)
     else:
         return {}
 
