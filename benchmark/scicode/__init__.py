@@ -143,6 +143,9 @@ class SciCodeBenchmark:
         self.split: str = str(cfg.get("split", "test"))
         self.with_background: bool = bool(cfg.get("with_background", False))
         self.h5py_file: str = str(cfg.get("h5py_file", "data/test_data.h5"))
+        # Match upstream gencode.py mapping:
+        #   with_background=True  -> multistep template
+        #   with_background=False -> background-comment template
         self.template = MULTISTEP_TEMPLATE if self.with_background else BACKGROUND_COMMENT_TEMPLATE
         self._ensure_data_exists()
 

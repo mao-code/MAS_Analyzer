@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import inspect
 import json
 import random
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from .config import OpenRouterConfig
 
@@ -73,7 +76,7 @@ class OpenRouterLLMClient:
         temperature: float = 0.0,
     ) -> LLMResult:
         model = self.model_for_agent_type(agent_type)
-        tool_defs, tool_handlers = self._normalize_tools(tools or [])
+        tool_defs, tool_handlers, original_tool_names = self._normalize_tools(tools or [])
 
         if self.client is not None:
             try:
@@ -88,6 +91,7 @@ class OpenRouterLLMClient:
                         messages=messages,
                         tool_defs=tool_defs,
                         tool_handlers=tool_handlers,
+                        original_tool_names=original_tool_names,
                         max_tool_iterations=max_tool_iterations,
                         temperature=temperature,
                     )
@@ -144,6 +148,7 @@ class OpenRouterLLMClient:
         messages: list[dict[str, Any]],
         tool_defs: list[dict[str, Any]],
         tool_handlers: dict[str, Callable[[dict[str, Any]], Any]],
+        original_tool_names: dict[str, str],
         max_tool_iterations: int,
         temperature: float,
     ) -> LLMResult:
@@ -179,7 +184,9 @@ class OpenRouterLLMClient:
             if isinstance(message_content, list):
                 parts = []
                 for item in message_content:
-                    text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
+                    text = (
+                        item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
+                    )
                     if isinstance(text, str) and text.strip():
                         parts.append(text)
                 assistant_text = "\n".join(parts).strip()
@@ -218,7 +225,8 @@ class OpenRouterLLMClient:
 
             for tool_call in serialized_tool_calls:
                 fn = tool_call["function"]
-                tool_name = str(fn.get("name") or "")
+                api_tool_name = str(fn.get("name") or "")
+                tool_name = original_tool_names.get(api_tool_name, api_tool_name)
                 tool_id = str(tool_call.get("id") or "")
                 args_text = str(fn.get("arguments") or "{}")
                 try:
@@ -231,7 +239,7 @@ class OpenRouterLLMClient:
                 status = "completed"
                 error = None
                 output: Any
-                handler = tool_handlers.get(tool_name)
+                handler = tool_handlers.get(api_tool_name)
                 if handler is None:
                     status = "error"
                     error = f"Unknown tool: {tool_name}"
@@ -239,6 +247,8 @@ class OpenRouterLLMClient:
                 else:
                     try:
                         output = handler(args)
+                        if inspect.isawaitable(output):
+                            output = asyncio.run(output)
                     except Exception as exc:
                         status = "error"
                         error = str(exc)
@@ -262,12 +272,22 @@ class OpenRouterLLMClient:
                     {
                         "role": "tool",
                         "tool_call_id": tool_id,
-                        "name": tool_name,
+                        "name": api_tool_name,
                         "content": output_payload,
                     }
                 )
         else:
             stopped_early = True
+
+        if stopped_early and not final_text:
+            final_text, extra_in, extra_out = self._force_final_response(
+                model=model,
+                messages=working_messages,
+                temperature=temperature,
+                max_tool_iterations=max_tool_iterations,
+            )
+            total_token_in += extra_in
+            total_token_out += extra_out
 
         if not total_token_out:
             total_token_out = self._estimate_tokens(final_text)
@@ -280,6 +300,8 @@ class OpenRouterLLMClient:
             metadata["tool_loop_stopped_reason"] = (
                 f"Reached max_tool_iterations={max(1, int(max_tool_iterations))}"
             )
+            if final_text:
+                metadata["tool_loop_forced_final_answer"] = True
 
         return LLMResult(
             text=final_text,
@@ -341,15 +363,22 @@ class OpenRouterLLMClient:
     @staticmethod
     def _normalize_tools(
         tools: list[dict[str, Any]],
-    ) -> tuple[list[dict[str, Any]], dict[str, Callable[[dict[str, Any]], Any]]]:
+    ) -> tuple[
+        list[dict[str, Any]],
+        dict[str, Callable[[dict[str, Any]], Any]],
+        dict[str, str],
+    ]:
         defs: list[dict[str, Any]] = []
         handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
+        original_names: dict[str, str] = {}
+        used_names: set[str] = set()
         for tool in tools:
-            name = str(tool.get("name", "")).strip()
+            original_name = str(tool.get("name", "")).strip()
             handler = tool.get("handler")
-            if not name or not callable(handler):
+            if not original_name or not callable(handler):
                 continue
-            description = str(tool.get("description", "")).strip() or f"Call {name}"
+            api_name = OpenRouterLLMClient._sanitize_tool_name(original_name, used_names)
+            description = str(tool.get("description", "")).strip() or f"Call {original_name}"
             params = tool.get("parameters")
             if not isinstance(params, dict):
                 params = {"type": "object", "properties": {}, "required": []}
@@ -357,14 +386,59 @@ class OpenRouterLLMClient:
                 {
                     "type": "function",
                     "function": {
-                        "name": name,
+                        "name": api_name,
                         "description": description,
                         "parameters": params,
                     },
                 }
             )
-            handlers[name] = handler
-        return defs, handlers
+            handlers[api_name] = handler
+            original_names[api_name] = original_name
+        return defs, handlers, original_names
+
+    def _force_final_response(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float,
+        max_tool_iterations: int,
+    ) -> tuple[str, int, int]:
+        follow_up_messages = [dict(item) for item in messages]
+        follow_up_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "You have reached the maximum number of tool calls "
+                    f"({max(1, int(max_tool_iterations))}). "
+                    "Based only on the information already gathered, provide your best final answer now. "
+                    "Do not call any more tools."
+                ),
+            }
+        )
+        completion = self.client.chat.completions.create(
+            model=model,
+            messages=follow_up_messages,
+            temperature=temperature,
+        )
+        text = self._extract_text(completion).strip()
+        usage = getattr(completion, "usage", None)
+        token_in = int(getattr(usage, "prompt_tokens", self._estimate_tokens(follow_up_messages)))
+        token_out = int(getattr(usage, "completion_tokens", self._estimate_tokens(text)))
+        return text, token_in, token_out
+
+    @staticmethod
+    def _sanitize_tool_name(name: str, used_names: set[str]) -> str:
+        sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name).strip("_")
+        if not sanitized:
+            sanitized = "tool"
+        candidate = sanitized
+        suffix = 2
+        while candidate in used_names:
+            candidate = f"{sanitized}_{suffix}"
+            suffix += 1
+        used_names.add(candidate)
+        return candidate
 
     @staticmethod
     def _extract_text(completion: Any) -> str:

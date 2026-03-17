@@ -24,7 +24,9 @@ import csv
 import json
 import logging
 import os
+import random
 import re
+import time
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
@@ -43,6 +45,7 @@ PUBLIC_CSV_URL = (
     "https://raw.githubusercontent.com/vals-ai/finance-agent/"
     "aad00743ce54b348678a2073aac51fba825ca901/data/public.csv"
 )
+MAX_END_DATE = "2025-04-07"
 
 # ---------------------------------------------------------------------------
 # LLM-as-Judge prompt template
@@ -81,6 +84,24 @@ CRITERION ({operator}):
 {criteria}
 """
 
+_OFFICIAL_INSTRUCTIONS_PROMPT = """You are a financial agent. Today is April 07, 2025. You are given a question and you need to answer it using the tools provided.
+You may not interract with the user.
+When you have the answer, you should respond with 'FINAL ANSWER:' followed by your answer.
+At the end of your answer, you should provide your sources in a dictionary with the following format:
+{{
+    "sources": [
+        {{
+            "url": "https://example.com",
+            "name": "Name of the source"
+        }},
+        ...
+    ]
+}}
+
+Question:
+{question}
+"""
+
 
 class FinanceAgentBenchmark:
     """Adapter for the Vals Finance Agent public benchmark CSV.
@@ -109,6 +130,8 @@ class FinanceAgentBenchmark:
         self.judge_model: str = str(cfg.get("judge_model", "openai/gpt-4o"))
         self.judge_repeats: int = int(cfg.get("judge_repeats", 3))
         self.judge_temperature: float = float(cfg.get("judge_temperature", 0.0))
+        self.retrieve_model: str = str(cfg.get("retrieve_model", self.judge_model))
+        self.retrieve_temperature: float = float(cfg.get("retrieve_temperature", 0.0))
 
         # Lazily initialised LLM client (only if eval_mode == "llm_judge")
         self._llm_client: Any | None = None
@@ -123,7 +146,7 @@ class FinanceAgentBenchmark:
         )
         # Tool options
         self.max_tool_iterations: int = int(cfg.get("max_tool_iterations", 8))
-        self.web_search_top_n: int = int(cfg.get("web_search_top_n", 5))
+        self.web_search_top_n: int = int(cfg.get("web_search_top_n", 10))
         # In-session HTML store shared across tool calls within one run
         self._html_store: dict[str, str] = {}
 
@@ -178,8 +201,15 @@ class FinanceAgentBenchmark:
         # Reset per-run state
         self._html_store = {}
         tools = self._build_tools()
+        prompt = _OFFICIAL_INSTRUCTIONS_PROMPT.format(question=task.prompt)
+        wrapped_task = BenchmarkTask(
+            task_id=task.task_id,
+            prompt=[{"role": "user", "content": prompt}],
+            reference_answer=task.reference_answer,
+            metadata=dict(task.metadata),
+        )
         return runner.run_task(
-            task=task,
+            task=wrapped_task,
             run_index=run_index,
             seed=seed,
             tools=tools,
@@ -202,7 +232,7 @@ class FinanceAgentBenchmark:
 
     def requirements(self) -> dict[str, Any]:
         notes = [
-            "Data: public CSV from vals-ai/finance-agent (537 questions).",
+            "Data: public CSV from vals-ai/finance-agent (50 questions).",
             f"Eval mode: {self.eval_mode}.",
         ]
         if self.eval_mode == "llm_judge":
@@ -245,7 +275,7 @@ class FinanceAgentBenchmark:
         serpapi_key = self.serpapi_key
         top_n = self.web_search_top_n
 
-        def google_web_search(args: dict[str, Any]) -> Any:
+        async def google_web_search(args: dict[str, Any]) -> Any:
             query = str(args.get("search_query", "")).strip()
             if not query:
                 return {"success": False, "result": "search_query is required"}
@@ -255,28 +285,51 @@ class FinanceAgentBenchmark:
                     "result": "SERPAPI_API_KEY not configured. Set serpapi_api_key in config or SERPAPI_API_KEY env var.",
                 }
             try:
-                import urllib.parse
+                params = {
+                    "api_key": serpapi_key,
+                    "engine": "google",
+                    "q": query,
+                    "num": top_n,
+                    "tbs": f"cdr:1,cd_max:{self._google_max_date()}",
+                }
 
-                params = urllib.parse.urlencode(
-                    {
-                        "api_key": serpapi_key,
-                        "engine": "google",
-                        "q": query,
-                        "num": top_n,
-                    }
-                )
-                url = f"https://serpapi.com/search.json?{params}"
-                with urllib.request.urlopen(url, timeout=20) as resp:  # noqa: S310
-                    data = json.loads(resp.read().decode())
-                results = data.get("organic_results", [])[:top_n]
-                return {"success": True, "result": json.dumps(results)}
+                import aiohttp
+
+                for attempt in range(8):
+                    try:
+                        async with (
+                            aiohttp.ClientSession() as session,
+                            session.get(
+                                "https://serpapi.com/search.json",
+                                params=params,
+                                timeout=20,
+                            ) as response,
+                        ):
+                            if response.status == 429:
+                                raise aiohttp.ClientResponseError(
+                                    request_info=response.request_info,
+                                    history=response.history,
+                                    status=429,
+                                    message="429",
+                                    headers=response.headers,
+                                )
+                            response.raise_for_status()
+                            data = await response.json()
+                            results = data.get("organic_results", [])[:top_n]
+                            return {"success": True, "result": json.dumps(results)}
+                    except aiohttp.ClientResponseError as exc:
+                        if exc.status == 429 and attempt < 7:
+                            time.sleep(min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0)))
+                            continue
+                        raise
+                return {"success": False, "result": "Max retries reached for SerpAPI"}
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 
         tools.append(
             {
                 "name": "google_web_search",
-                "description": "Search the web for information.",
+                "description": "Search the web for information",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -291,7 +344,7 @@ class FinanceAgentBenchmark:
         # 2. edgar_search
         sec_key = self.sec_api_key
 
-        def edgar_search(args: dict[str, Any]) -> Any:
+        async def edgar_search(args: dict[str, Any]) -> Any:
             if not sec_key:
                 return {
                     "success": False,
@@ -300,24 +353,48 @@ class FinanceAgentBenchmark:
             try:
                 payload = {
                     "query": str(args.get("query", "")),
-                    "formTypes": args.get("form_types") or [],
-                    "ciks": args.get("ciks") or [],
+                    "formTypes": self._parse_list_arg(args.get("form_types")),
+                    "ciks": self._parse_list_arg(args.get("ciks")),
                     "startDate": str(args.get("start_date", "")),
-                    "endDate": str(args.get("end_date", "")),
+                    "endDate": self._clamp_end_date(str(args.get("end_date", ""))),
                     "page": str(args.get("page", "1")),
                 }
                 top_n_results = int(args.get("top_n_results", 5))
-                data = json.dumps(payload).encode()
-                req = urllib.request.Request(
-                    "https://api.sec-api.io/full-text-search",
-                    data=data,
-                    headers={"Content-Type": "application/json", "Authorization": sec_key},
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
-                    result = json.loads(resp.read().decode())
-                filings = result.get("filings", [])[:top_n_results]
-                return {"success": True, "result": json.dumps(filings)}
+
+                import aiohttp
+
+                for attempt in range(8):
+                    try:
+                        async with (
+                            aiohttp.ClientSession() as session,
+                            session.post(
+                                "https://api.sec-api.io/full-text-search",
+                                json=payload,
+                                headers={
+                                    "Authorization": sec_key,
+                                    "Content-Type": "application/json",
+                                },
+                                timeout=20,
+                            ) as response,
+                        ):
+                            if response.status == 429:
+                                raise aiohttp.ClientResponseError(
+                                    request_info=response.request_info,
+                                    history=response.history,
+                                    status=429,
+                                    message="429",
+                                    headers=response.headers,
+                                )
+                            response.raise_for_status()
+                            result = await response.json()
+                            filings = result.get("filings", [])[:top_n_results]
+                            return {"success": True, "result": json.dumps(filings)}
+                    except aiohttp.ClientResponseError as exc:
+                        if exc.status == 429 and attempt < 7:
+                            time.sleep(min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0)))
+                            continue
+                        raise
+                return {"success": False, "result": "Max retries reached for SEC API"}
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 
@@ -325,29 +402,42 @@ class FinanceAgentBenchmark:
             {
                 "name": "edgar_search",
                 "description": (
-                    "Search the SEC EDGAR database for filings. "
-                    "Provide query, form_types, ciks, start_date, end_date, page, top_n_results."
+                    "Search the EDGAR Database through the SEC API. "
+                    "You should provide a query, a list of form types, a list of CIKs, a start date, an end date, a page number, and a top N results. "
+                    "The results are returned as a list of dictionaries, each containing the metadata for a filing. It does not contain the full text of the filing."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "Keyword or phrase to search"},
+                        "query": {
+                            "type": "string",
+                            "description": "The keyword or phrase to search, such as 'substantial doubt' OR 'material weakness'",
+                        },
                         "form_types": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "List of SEC form types (e.g. ['10-K', '10-Q'])",
+                            "description": "Limits search to specific SEC form types (e.g., ['8-K', '10-Q']) list of strings. Default is None (all form types)",
                         },
                         "ciks": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "List of CIK numbers to filter",
+                            "description": "Filters results to filings by specified CIKs, type list of strings. Default is None (all filers).",
                         },
-                        "start_date": {"type": "string", "description": "Start date yyyy-mm-dd"},
-                        "end_date": {"type": "string", "description": "End date yyyy-mm-dd"},
-                        "page": {"type": "string", "description": "Page number (default '1')"},
+                        "start_date": {
+                            "type": "string",
+                            "description": "Start date for the search range in yyyy-mm-dd format. Used with endDate to define the date range. Example: '2024-01-01'. Default is 30 days ago",
+                        },
+                        "end_date": {
+                            "type": "string",
+                            "description": "End date for the search range, in the same format as startDate. Default is today",
+                        },
+                        "page": {
+                            "type": "string",
+                            "description": "Pagination for results. Default is '1'",
+                        },
                         "top_n_results": {
                             "type": "integer",
-                            "description": "Max results to return",
+                            "description": "The top N results to return after the query. Useful if you are not sure the result you are loooking for is ranked first after your query.",
                         },
                     },
                     "required": [
@@ -367,33 +457,49 @@ class FinanceAgentBenchmark:
         # 3. parse_html_page
         html_store = self._html_store
 
-        def parse_html_page(args: dict[str, Any]) -> Any:
+        async def parse_html_page(args: dict[str, Any]) -> Any:
             url = str(args.get("url", "")).strip()
-            key = str(args.get("key", "default")).strip()
-            if not url:
-                return {"success": False, "result": "url is required"}
+            key = str(args.get("key", "")).strip()
+            if not url or not key:
+                return {"success": False, "result": "url and key are required"}
             try:
-                req = urllib.request.Request(
-                    url,
-                    headers={"User-Agent": "MAS_Analyzer/finance-agent-benchmark"},
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
-                    html = resp.read().decode(errors="replace")
-                # Simple HTML-to-text without BS4 dependency
-                text = re.sub(
-                    r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE
-                )
-                text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
-                text = re.sub(r"<[^>]+>", " ", text)
-                text = re.sub(r"\s+", "\n", text).strip()
-                # Truncate to 8000 chars to fit context
-                if len(text) > 8000:
-                    text = text[:8000] + "\n[truncated]"
+                import aiohttp
+                from bs4 import BeautifulSoup
+
+                # Use exact same UA as official repo which SEC typically allows
+                headers = {"User-Agent": "ValsAI/antoine@vals.ai"}
+                async with (
+                    aiohttp.ClientSession() as session,
+                    session.get(url, headers=headers, timeout=60) as response,
+                ):
+                    response.raise_for_status()
+                    html = await response.text()
+
+                soup = BeautifulSoup(html, "html.parser")
+                # Remove script and style elements
+                for script_or_style in soup(["script", "style"]):
+                    script_or_style.extract()
+
+                # Get text
+                text = soup.get_text()
+                # Clean up whitespace
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                text = "\n".join(chunk for chunk in chunks if chunk)
+                existed = key in html_store
                 html_store[key] = text
-                return {
-                    "success": True,
-                    "result": f"Parsed and stored under key='{key}'. Preview: {text[:300]}",
-                }
+                lines_out: list[str] = []
+                if existed:
+                    lines_out.append(
+                        "WARNING: The key already exists in the data storage. The new result overwrites the old one."
+                    )
+                lines_out.append(
+                    f"SUCCESS: The result has been saved to the data storage under the key: {key}."
+                )
+                keys_list = "\n".join(html_store.keys())
+                lines_out.append("The data_storage currently contains the following keys:")
+                lines_out.append(keys_list)
+                return {"success": True, "result": "\n".join(lines_out)}
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 
@@ -401,16 +507,20 @@ class FinanceAgentBenchmark:
             {
                 "name": "parse_html_page",
                 "description": (
-                    "Parse an HTML page and extract its text content. "
-                    "The result is stored in an in-session store under `key` and can be retrieved with retrieve_information."
+                    "Parse an HTML page. This tool is used to parse the HTML content of a page and saves the content outside of the conversation to avoid context window issues. "
+                    "You should provide both the URL of the page to parse, as well as the key you want to use to save the result in the agent's data structure. "
+                    "The data structure is a dictionary."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "url": {"type": "string", "description": "URL of the HTML page to parse"},
+                        "url": {
+                            "type": "string",
+                            "description": "The URL of the HTML page to parse",
+                        },
                         "key": {
                             "type": "string",
-                            "description": "Key to store the result under for later retrieval",
+                            "description": "The key to use when saving the result in the conversation's data structure (dict).",
                         },
                     },
                     "required": ["url", "key"],
@@ -420,43 +530,121 @@ class FinanceAgentBenchmark:
         )
 
         # 4. retrieve_information
-        def retrieve_information(args: dict[str, Any]) -> Any:
-            key = str(args.get("key", "")).strip()
-            if not key:
-                # Return all keys if none specified
-                if not html_store:
-                    return {
-                        "success": False,
-                        "result": "No information has been stored yet. Use parse_html_page first.",
-                    }
-                return {
-                    "success": True,
-                    "result": json.dumps({"available_keys": list(html_store.keys())}),
-                }
-            content = html_store.get(key)
-            if content is None:
+        async def retrieve_information(args: dict[str, Any]) -> Any:
+            prompt = str(args.get("prompt", ""))
+            if not re.search(r"{{[^{}]+}}", prompt):
                 return {
                     "success": False,
-                    "result": f"No content stored under key='{key}'. Available keys: {list(html_store.keys())}",
+                    "result": (
+                        "ERROR: Your prompt must include at least one key from data storage "
+                        "in the format {{key_name}}. Please try again with the correct format."
+                    ),
                 }
-            return {"success": True, "result": content}
+            input_character_ranges = args.get("input_character_ranges", {}) or {}
+            keys = re.findall(r"{{([^{}]+)}}", prompt)
+
+            formatted_data: dict[str, str] = {}
+            for key in keys:
+                if key not in html_store:
+                    return {
+                        "success": False,
+                        "result": (
+                            f"ERROR: The key '{key}' was not found in the data storage. "
+                            f"Available keys are: {', '.join(html_store.keys())}"
+                        ),
+                    }
+                doc_content = html_store[key]
+                if key in input_character_ranges:
+                    char_range = input_character_ranges[key]
+                    if not isinstance(char_range, list):
+                        return {
+                            "success": False,
+                            "result": (
+                                f"ERROR: The character range for key '{key}' must be an list "
+                                "with two elements or an empty list. Please try again with the correct format."
+                            ),
+                        }
+                    if len(char_range) == 0:
+                        formatted_data[key] = doc_content
+                    elif len(char_range) == 2:
+                        start_idx = int(char_range[0])
+                        end_idx = int(char_range[1])
+                        formatted_data[key] = doc_content[start_idx:end_idx]
+                    else:
+                        return {
+                            "success": False,
+                            "result": (
+                                f"ERROR: The character range for key '{key}' must be an list "
+                                "with two elements or an empty list. Please try again with the correct format."
+                            ),
+                        }
+                else:
+                    formatted_data[key] = doc_content
+
+            formatted_prompt = re.sub(r"{{([^{}]+)}}", r"{\1}", prompt)
+            try:
+                model_prompt = formatted_prompt.format(**formatted_data)
+            except KeyError as exc:
+                return {
+                    "success": False,
+                    "result": (
+                        f"ERROR: The key {str(exc)} was not found in the data storage. "
+                        f"Available keys are: {', '.join(html_store.keys())}"
+                    ),
+                }
+
+            try:
+                client = self._get_llm_client()
+                response = client.chat.completions.create(
+                    model=self.retrieve_model,
+                    temperature=self.retrieve_temperature,
+                    messages=[{"role": "user", "content": model_prompt}],
+                )
+                content = response.choices[0].message.content or ""
+                usage_payload = self._extract_usage_payload(getattr(response, "usage", None))
+                return {"success": True, "result": content, "usage": usage_payload}
+            except Exception as exc:
+                return {"success": False, "result": str(exc)}
 
         tools.append(
             {
                 "name": "retrieve_information",
-                "description": (
-                    "Retrieve previously parsed HTML page content stored by parse_html_page. "
-                    "Pass the same key used when parsing. Omit key to list available keys."
-                ),
+                "description": """Retrieve information from the conversation's data structure (dict) and allow character range extraction.
+
+IMPORTANT: Your prompt MUST include at least one key from the data storage using the exact format: {{key_name}}
+
+For example, if you want to analyze data stored under the key "financial_report", your prompt should look like:
+"Analyze the following financial report and extract the revenue figures: {{financial_report}}"
+
+The {{key_name}} will be replaced with the actual content stored under that key before being sent to the LLM.
+If you don't use this exact format with double braces, the tool will fail to retrieve the information.
+
+You can optionally specify character ranges for each document key to extract only portions of documents. That can be useful to avoid token limit errors or improve efficiency by selecting only part of the document.
+For example, if "financial_report" contains "Annual Report 2023" and you specify a range [1, 5] for that key,
+only "nnual" will be inserted into the prompt.
+
+The output is the result from the LLM that receives the prompt with the inserted data.""",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "key": {
+                        "prompt": {
                             "type": "string",
-                            "description": "Key used when the page was parsed",
-                        }
+                            "description": (
+                                "The prompt that will be passed to the LLM. You MUST include at least one data storage key in the format {{key_name}} "
+                                "- for example: 'Summarize this 10-K filing: {{company_10k}}'. The content stored under each key will replace the {{key_name}} placeholder."
+                            ),
+                        },
+                        "input_character_ranges": {
+                            "type": "object",
+                            "description": (
+                                "A dictionary mapping document keys to their character ranges. Each range should be an array where the first element is the start index "
+                                "and the second element is the end index. Can be used to only read portions of documents. By default, the full document is used. "
+                                "To use the full document, set the range to an empty list []."
+                            ),
+                            "additionalProperties": {"type": "array", "items": {"type": "integer"}},
+                        },
                     },
-                    "required": [],
+                    "required": ["prompt"],
                 },
                 "handler": retrieve_information,
             }
@@ -760,6 +948,47 @@ class FinanceAgentBenchmark:
             data = response.read()
         cached.write_bytes(data)
         return cached
+
+    @staticmethod
+    def _google_max_date() -> str:
+        parts = MAX_END_DATE.split("-")
+        return f"{parts[1]}/{parts[2]}/{parts[0]}"
+
+    @staticmethod
+    def _clamp_end_date(end_date: str) -> str:
+        if end_date and end_date > MAX_END_DATE:
+            return MAX_END_DATE
+        return end_date
+
+    @staticmethod
+    def _extract_usage_payload(usage: Any) -> dict[str, Any]:
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        total_tokens = int(getattr(usage, "total_tokens", prompt_tokens + completion_tokens) or 0)
+        return {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "cost": {"total": 0.0},
+        }
+
+    @staticmethod
+    def _parse_list_arg(value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        if isinstance(value, str):
+            text = value.strip()
+            if text.startswith("[") and text.endswith("]"):
+                try:
+                    parsed = json.loads(text.replace("'", '"'))
+                    if isinstance(parsed, list):
+                        return [str(item) for item in parsed]
+                except json.JSONDecodeError:
+                    items = [item.strip(" \"'") for item in text[1:-1].split(",")]
+                    return [item for item in items if item]
+        return [str(value)]
 
     @staticmethod
     def _parse_rubric(value: str) -> list[dict[str, Any]]:

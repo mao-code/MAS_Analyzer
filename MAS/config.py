@@ -166,6 +166,7 @@ class ExperimentConfig:
     stabletoolbench: dict[str, Any] = field(default_factory=dict)
     finance_agent: dict[str, Any] = field(default_factory=dict)
     plancraft: dict[str, Any] = field(default_factory=dict)
+    workbench: dict[str, Any] = field(default_factory=dict)
     scicode: dict[str, Any] = field(default_factory=dict)
     agentbench: dict[str, Any] = field(default_factory=dict)
 
@@ -254,6 +255,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         stabletoolbench=_as_dict(data.get("stabletoolbench", {}), "[stabletoolbench]"),
         finance_agent=_as_dict(data.get("finance_agent", {}), "[finance_agent]"),
         plancraft=_as_dict(data.get("plancraft", {}), "[plancraft]"),
+        workbench=_as_dict(data.get("workbench", {}), "[workbench]"),
         scicode=_as_dict(data.get("scicode", {}), "[scicode]"),
         agentbench=_as_dict(data.get("agentbench", {}), "[agentbench]"),
     )

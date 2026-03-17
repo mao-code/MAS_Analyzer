@@ -8,6 +8,7 @@ from .finance_agent import FinanceAgentBenchmark
 from .plancraft import PlancraftBenchmark
 from .scicode import SciCodeBenchmark
 from .stabletoolbench import StableToolBenchBenchmark
+from .workbench import WorkBenchBenchmark
 
 BENCHMARK_REGISTRY = {
     "agentbench": AgentBenchBenchmark,
@@ -16,6 +17,7 @@ BENCHMARK_REGISTRY = {
     "stabletoolbench": StableToolBenchBenchmark,
     "plancraft": PlancraftBenchmark,
     "scicode": SciCodeBenchmark,
+    "workbench": WorkBenchBenchmark,
 }
 
 

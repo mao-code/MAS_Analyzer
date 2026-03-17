@@ -4,7 +4,11 @@ Source repo : https://github.com/gautierdag/plancraft
 Paper       : https://arxiv.org/abs/2412.21033
 Package     : pip install plancraft
 
-PlanCraft is a Minecraft crafting benchmark with 570 val / 1023 test examples.
+PlanCraft is a Minecraft crafting benchmark.
+In the current upstream `main` dataset (plancraft 0.4.9):
+    - val: 570 examples
+    - test: 580 examples
+    - additional splits exist (e.g. val.small, test.small, *.easy)
 Each example has:
     - A target item to craft (e.g. "cyan_stained_glass_pane")
     - An initial inventory with items in specific slots
@@ -14,7 +18,9 @@ Each example has:
 
 The agent interacts via text:
     - Observation: text inventory + target item description
-    - Action: "move I<from> C<to> <qty>" | "smelt I<from> C<to> <qty>" | "impossible"
+    - Action: "move: from [I2] to [A1] with quantity 3"
+            | "smelt: from [I5] to [I6] with quantity 1"
+            | "impossible: <reason>"
 
 Evaluation:
     - Success = agent crafts the target item (or correctly identifies impossible)
@@ -30,7 +36,7 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from .base import BenchmarkEvaluation, BenchmarkTask
+from benchmark.base import BenchmarkEvaluation, BenchmarkTask
 
 if TYPE_CHECKING:
     from MAS.runner import MASRunResult
@@ -42,7 +48,8 @@ class PlancraftBenchmark:
     """PlanCraft adapter for MAS_Analyzer.
 
     Config keys (all optional):
-        split           "val" or "test" (default: "val")
+        split           Dataset split name (default: "val"), e.g.
+                        "val", "test", "val.small", "test.small"
         max_steps       Max steps per episode (default: 30)
         resolution      Image resolution "high" or "low" (default: "high")
     """
@@ -250,7 +257,7 @@ class PlancraftBenchmark:
     def requirements(self) -> dict[str, Any]:
         return {
             "benchmark": "plancraft",
-            "version": "0.4.x",
+            "version": "0.4.9",
             "package": "pip install plancraft",
             "dataset": f"Built-in ({self.split} split)",
             "metrics": [
@@ -261,6 +268,8 @@ class PlancraftBenchmark:
             "notes": [
                 "PlanCraft is a multi-step interactive environment.",
                 "The runner must call get_environment() and drive the step loop.",
+                "Adapter uses PlancraftGymWrapper + official prompt helpers (not full Evaluator parity).",
                 "Agent actions: move, smelt, impossible.",
+                "Upstream README (2025-11-07) notes original paper baseline scores were underreported; re-run baselines for fair comparison.",
             ],
         }
