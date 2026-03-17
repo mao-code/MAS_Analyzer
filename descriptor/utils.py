@@ -120,3 +120,57 @@ def compute_failure_mode_hist(events: Iterable[TraceEvent]) -> dict[str, int]:
             code_str = str(code) if code is not None else "unknown"
             hist[code_str] = hist.get(code_str, 0) + 1
     return hist
+
+
+def _extract_recipients(payload: dict[str, object], *, sender: str) -> set[str]:
+    recipients: set[str] = set()
+    for key in (
+        "to",
+        "recipients",
+        "receiver",
+        "recipient",
+        "target_agent",
+        "to_agent",
+    ):
+        value = payload.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            candidate = value.strip()
+            if candidate and candidate != sender:
+                recipients.add(candidate)
+            continue
+        if isinstance(value, (list, tuple, set)):
+            for item in value:
+                candidate = str(item).strip()
+                if candidate and candidate != sender:
+                    recipients.add(candidate)
+            continue
+    return recipients
+
+
+def compute_communication_count(events: Iterable[TraceEvent]) -> int:
+    total = 0
+    for event in events:
+        payload = event.payload or {}
+        if event.event_type != "tool_call":
+            continue
+        if str(payload.get("tool_name", "")) != "inter_agent_send":
+            continue
+        sender = str(event.actor or "").strip()
+        if not sender or sender == "system":
+            continue
+        recipients = _extract_recipients(payload, sender=sender)
+        total += len(recipients)
+    return total
+
+
+def compute_handoff_count(events: Iterable[TraceEvent]) -> int:
+    actors = [
+        str(event.actor).strip()
+        for event in events
+        if str(event.actor).strip() and str(event.actor).strip() != "system"
+    ]
+    if len(actors) < 2:
+        return 0
+    return sum(1 for idx in range(1, len(actors)) if actors[idx] != actors[idx - 1])
