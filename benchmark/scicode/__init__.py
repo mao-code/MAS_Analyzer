@@ -143,6 +143,7 @@ class SciCodeBenchmark:
         self.split: str = str(cfg.get("split", "test"))
         self.with_background: bool = bool(cfg.get("with_background", False))
         self.h5py_file: str = str(cfg.get("h5py_file", "data/test_data.h5"))
+        self.execution_timeout_s: int = max(1, int(cfg.get("execution_timeout_s", 1800)))
         # Match upstream gencode.py mapping:
         #   with_background=True  -> multistep template
         #   with_background=False -> background-comment template
@@ -366,7 +367,7 @@ class SciCodeBenchmark:
                         [sys.executable, str(assert_file)],
                         capture_output=True,
                         text=True,
-                        timeout=1800,  # official uses 1800s
+                        timeout=self.execution_timeout_s,
                     )
                     if res.returncode == 0:
                         total_correct += 1

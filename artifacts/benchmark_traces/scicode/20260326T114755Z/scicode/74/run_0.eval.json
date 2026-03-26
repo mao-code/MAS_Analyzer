@@ -1,0 +1,16 @@
+{
+  "details": {
+    "Main Problem Resolve Rate": 1.0,
+    "Subproblem Resolve Rate": 1.0,
+    "Total Correct": 1,
+    "Total Steps": 1,
+    "prediction": "import numpy as np\n\n\n\n# Background: QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. \n# Householder reflections are a numerically stable method to achieve this. A Householder reflection is defined \n# by a vector v such that H = I - 2(vv^T)/(v^T v) zeroes out the entries below the diagonal in a column. \n# For each column k of the matrix A, we find a reflection that transforms the vector A[k:m, k] into a \n# vector [c, 0, ..., 0]^T, where c is the",
+    "step_results": {
+      "74.1": "pass"
+    }
+  },
+  "prediction": "import numpy as np\n\n\n\n# Background: QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. \n# Householder reflections are a numerically stable method to achieve this. A Householder reflection is defined \n# by a vector v such that H = I - 2(vv^T)/(v^T v) zeroes out the entries below the diagonal in a column. \n# For each column k of the matrix A, we find a reflection that transforms the vector A[k:m, k] into a \n# vector [c, 0, ..., 0]^T, where c is the norm of the original vector. By applying these reflections \n# successively to the matrix, we transform A into an upper triangular matrix R. In this implementation, \n# the matrix A is modified in-place to store the resulting R in its upper triangular part.\n\n\ndef householder(A):\n    '''Inputs:\n    A : Matrix of size m*n, m>=n\n    Outputs:\n    A : Matrix of size m*n, where the upper triangular part is R\n    '''\n    m, n = A.shape\n    A = A.astype(float)\n    \n    for k in range(n):\n        # Define the vector x as the part of the k-th column from the diagonal downwards\n        x = A[k:m, k]\n        \n        # Calculate the norm of x\n        norm_x = np.linalg.norm(x)\n        \n        # To avoid division by zero and improve stability, choose the sign of rho\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\n        \n        # Construct the Householder vector v\n        # v = x - rho * ||x|| * e1\n        u1 = x[0] - rho * norm_x\n        v = x / u1\n        v[0] = 1.0\n        \n        # Compute the constant h = 2 / (v^T v)\n        h = 2.0 / np.dot(v, v)\n        \n        # Apply the Householder transformation to the remaining submatrix A[k:m, k:n]\n        # A[k:m, k:n] = (I - h * v * v^T) * A[k:m, k:n]\n        A[k:m, k:n] = A[k:m, k:n] - h * np.outer(v, np.dot(v, A[k:m, k:n]))\n        \n    return A\n",
+  "score": 1.0,
+  "success": true,
+  "task_id": "74"
+}
