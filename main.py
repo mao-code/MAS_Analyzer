@@ -125,6 +125,14 @@ def _write_eval(
     _write_json(path, payload)
 
 
+def _write_raw_output(path: Path, *, final_answer: str, run_metadata: dict[str, Any]) -> None:
+    payload = {
+        "final_answer": final_answer,
+        "run_metadata": _redact_secrets(run_metadata),
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def _write_summary_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
     if not rows:
         path.write_text("", encoding="utf-8")
@@ -1388,6 +1396,13 @@ def run_command(args: argparse.Namespace) -> int:
             trace_path = task_dir / f"run_{run_index}.trace.jsonl"
             write_run_trace(run.trace_events, trace_path)
             run_traces.append(run.trace_events)
+
+            raw_output_path = task_dir / f"run_{run_index}.raw.json"
+            _write_raw_output(
+                raw_output_path,
+                final_answer=run.final_answer,
+                run_metadata=run.run_metadata,
+            )
 
             # 4) Let the benchmark score the model output.
             evaluation = benchmark.evaluate(

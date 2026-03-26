@@ -232,6 +232,7 @@ class SciCodeBenchmark:
         # Stores the *full runnable file* for each step (deps + all prev code + this step code).
         # This is what gets tested.  Mirrors official `save_response_with_steps`.
         full_code_per_step: list[str] = [""] * tot_steps
+        raw_responses_per_step: list[str] = [""] * tot_steps
 
         for idx in range(tot_steps):
             num_steps = idx + 1  # 1-based
@@ -293,6 +294,7 @@ class SciCodeBenchmark:
 
             # -- Extract and store code (mirrors official logic) --
             raw_response = mas_result.final_answer
+            raw_responses_per_step[idx] = raw_response
             python_code = _extract_python_script(raw_response)
 
             # Store the extracted *function only* for use in future prompts
@@ -313,6 +315,7 @@ class SciCodeBenchmark:
             run_metadata={
                 "full_code_per_step": full_code_per_step,
                 "previous_llm_code": [c or "" for c in previous_llm_code],
+                "raw_responses_per_step": raw_responses_per_step,
                 **aggregate_metadata,
             },
         )

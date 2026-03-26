@@ -164,6 +164,7 @@ class PlancraftBenchmark:
         final_action = ""
         done = terminated or truncated
         aggregate_metadata = init_run_metadata_aggregate()
+        raw_outputs: list[str] = []
 
         # Build a persistent history matching official dialogue layout
         dialogue_history = []
@@ -197,6 +198,7 @@ class PlancraftBenchmark:
                 step_task_id=step_task.task_id,
                 final_answer=mas_result.final_answer,
             )
+            raw_outputs.append(str(mas_result.final_answer or ""))
 
             final_action = mas_result.final_answer.strip()
 
@@ -216,6 +218,7 @@ class PlancraftBenchmark:
                 "terminated": terminated,
                 "truncated": truncated,
                 "info": info,
+                "raw_outputs": raw_outputs,
                 **aggregate_metadata,
             },
         )
