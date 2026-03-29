@@ -5,11 +5,13 @@ import operator
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Annotated, Any
 
+from langchain_core.runnables.graph import Edge, Graph, Node
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
-from typing_extensions import Annotated, TypedDict
+from typing_extensions import TypedDict
 
 from descriptor.schema import TraceEvent
 
@@ -63,6 +65,7 @@ class RuntimeState(TypedDict, total=False):
     trace_payloads: Annotated[list[dict[str, Any]], operator.add]
     phase_history: Annotated[list[dict[str, Any]], operator.add]
     descriptor_records: Annotated[list[dict[str, Any]], operator.add]
+    interaction_logs: Annotated[list[dict[str, Any]], operator.add]
 
     latest_outputs: dict[str, str]
     final_answer: str
@@ -194,6 +197,7 @@ class LangGraphMASEngine:
             "trace_payloads": [],
             "phase_history": [],
             "descriptor_records": [],
+            "interaction_logs": [],
             "latest_outputs": {},
             "final_answer": "",
             "final_reason": "",
@@ -226,12 +230,14 @@ class LangGraphMASEngine:
             "tool_call_counts": dict(end_state.get("tool_call_counts", {})),
             "tool_calls_total": int(sum(end_state.get("tool_call_counts", {}).values())),
             "remaining_message_budget": dict(end_state.get("message_budget", {})),
+            "tool_definitions": self._serialize_tools(list(end_state.get("tools", []))),
             "retrieved_docids": list(end_state.get("retrieved_docids", [])),
             "agent_outputs": dict(end_state.get("latest_outputs", {})),
             "vote_tally": dict(end_state.get("vote_tally", {})),
             "phase_history": list(end_state.get("phase_history", [])),
             "relay_messages": list(end_state.get("messages", [])),
             "message_views": list(end_state.get("message_views", [])),
+            "interaction_logs": list(end_state.get("interaction_logs", [])),
             "descriptor_records": list(end_state.get("descriptor_records", [])),
             "descriptor_summary": dict(end_state.get("descriptor_summary", {})),
             "topology_layout": layout.to_payload(),
@@ -290,6 +296,7 @@ class LangGraphMASEngine:
                 "discussion_rounds": state["discussion_rounds"],
                 "layout": state["layout"].to_payload(),
                 "tools": [str(item.get("name", "")) for item in state.get("tools", [])],
+                "tool_definitions": self._serialize_tools(list(state.get("tools", []))),
             },
             token_in=0,
             token_out=0,
@@ -388,6 +395,7 @@ class LangGraphMASEngine:
             round_index=round_index,
             visible_messages=visible_messages,
         )
+        prompt_messages = self._normalize_prompt_messages(prompt)
 
         agent_type = state["agent_type_by_agent"].get(agent_id, "general")
 
@@ -437,6 +445,8 @@ class LangGraphMASEngine:
                     "visible_message_ids": [
                         str(item.get("message_id", "")) for item in visible_messages
                     ][:20],
+                    "visible_messages": self._serialize_for_json(visible_messages),
+                    "prompt_messages": prompt_messages,
                 },
                 token_in=0,
                 token_out=0,
@@ -532,6 +542,7 @@ class LangGraphMASEngine:
                     "mock_used": llm.mock_used,
                     "agent_type": agent_type,
                     "response_preview": self._message_snippet(text),
+                    "response_text": text,
                     "metadata": dict(llm.metadata),
                 },
                 token_in=int(llm.token_in),
@@ -568,11 +579,32 @@ class LangGraphMASEngine:
             "tool_records": tool_records,
             "retrieved_docids": sorted(retrieved_docids),
         }
+        interaction_log = {
+            "dispatch_id": dispatch_id,
+            "agent_id": agent_id,
+            "agent_role": role,
+            "agent_type": agent_type,
+            "phase": phase,
+            "round_index": round_index,
+            "prompt_messages": prompt_messages,
+            "visible_messages": self._serialize_for_json(visible_messages),
+            "assistant_message": {"role": "assistant", "content": text},
+            "tool_calls": self._serialize_tool_records(tool_records),
+            "llm": {
+                "model": llm.model,
+                "mock_used": bool(llm.mock_used),
+                "token_in": int(llm.token_in),
+                "token_out": int(llm.token_out),
+                "cost_usd": float(llm.cost_usd),
+                "metadata": self._serialize_for_json(dict(llm.metadata)),
+            },
+        }
 
         return {
             "outputs": [output_record],
             "message_views": [view_record],
             "trace_payloads": event_payloads,
+            "interaction_logs": [interaction_log],
         }
 
     def _collect_node(self, state: RuntimeState) -> dict[str, Any]:
@@ -1327,6 +1359,117 @@ class LangGraphMASEngine:
             "cost_usd": max(0.0, float(cost_usd)),
             "state_id": state_id,
         }
+
+    @staticmethod
+    def _normalize_prompt_messages(prompt: Any) -> list[dict[str, Any]]:
+        if isinstance(prompt, list):
+            normalized = []
+            for item in prompt:
+                if not isinstance(item, dict):
+                    normalized.append({"role": "user", "content": str(item)})
+                    continue
+                normalized.append(
+                    {
+                        "role": str(item.get("role", "user")),
+                        "content": item.get("content", ""),
+                    }
+                )
+            return normalized
+        return [{"role": "user", "content": str(prompt)}]
+
+    @classmethod
+    def _serialize_tools(cls, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        serialized: list[dict[str, Any]] = []
+        for tool in tools:
+            serialized.append(
+                {
+                    "name": str(tool.get("name", "")),
+                    "description": str(tool.get("description", "")),
+                    "parameters": cls._serialize_for_json(tool.get("parameters", {})),
+                }
+            )
+        return serialized
+
+    @classmethod
+    def _serialize_tool_records(cls, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        serialized: list[dict[str, Any]] = []
+        for record in records:
+            serialized.append(
+                {
+                    "tool_name": str(record.get("tool_name", "")),
+                    "arguments": cls._serialize_for_json(record.get("arguments", {})),
+                    "status": str(record.get("status", "")),
+                    "error": cls._serialize_for_json(record.get("error")),
+                    "output_preview": cls._tool_output_preview(record.get("output")),
+                }
+            )
+        return serialized
+
+    @classmethod
+    def _serialize_for_json(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, dict):
+            return {str(key): cls._serialize_for_json(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [cls._serialize_for_json(item) for item in value]
+        try:
+            json.dumps(value)
+            return value
+        except Exception:
+            return str(value)
+
+    @classmethod
+    def build_topology_visual_graph(cls, spec: ExperimentSpec) -> tuple[TopologyLayout, Graph]:
+        resolved = spec.normalized()
+        layout = build_layout(
+            topology=resolved.topology,
+            num_agents=resolved.num_agents,
+            agents_per_level=resolved.agents_per_level,
+            group_sizes=resolved.group_sizes,
+        )
+        nodes = {
+            agent_id: Node(
+                id=agent_id,
+                name=f"{agent_id}\\n{layout.roles.get(agent_id, 'agent')}",
+                data=None,
+                metadata={"role": layout.roles.get(agent_id, "agent")},
+            )
+            for agent_id in layout.agent_ids
+        }
+        edges: list[Edge] = []
+        seen: set[tuple[str, str]] = set()
+        for source, neighbors in layout.adjacency.items():
+            for target in neighbors:
+                key = tuple(sorted((source, target)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                label = cls._topology_edge_label(layout, source, target)
+                edges.append(Edge(source=source, target=target, data=label))
+        return layout, Graph(nodes=nodes, edges=edges)
+
+    @classmethod
+    def render_topology_mermaid(cls, spec: ExperimentSpec) -> tuple[TopologyLayout, str]:
+        layout, graph = cls.build_topology_visual_graph(spec)
+        return layout, graph.draw_mermaid()
+
+    @staticmethod
+    def _topology_edge_label(layout: TopologyLayout, source: str, target: str) -> str:
+        if layout.parent_by_agent.get(source) == target or layout.parent_by_agent.get(target) == source:
+            return "hierarchy"
+        if source == layout.orchestrator_id or target == layout.orchestrator_id:
+            return "relay"
+        if layout.groups:
+            left_group = LangGraphMASEngine._group_for_agent(layout, source)
+            right_group = LangGraphMASEngine._group_for_agent(layout, target)
+            if left_group and right_group and left_group == right_group:
+                return "group"
+        return "peer"
 
     @staticmethod
     def _materialize_trace_events(payloads: list[dict[str, Any]]) -> list[TraceEvent]:

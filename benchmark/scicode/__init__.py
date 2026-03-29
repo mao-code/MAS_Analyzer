@@ -18,7 +18,12 @@ from typing import Any
 
 from loguru import logger
 
-from benchmark.base import BenchmarkEvaluation, BenchmarkTask
+from benchmark.base import (
+    BenchmarkEvaluation,
+    BenchmarkTask,
+    init_run_metadata_aggregate,
+    merge_step_run_metadata,
+)
 from MAS import MASRunner, MASRunResult
 
 with contextlib.suppress(ImportError):
@@ -214,6 +219,7 @@ class SciCodeBenchmark:
         seed: int,
     ) -> MASRunResult:
         all_events: list = []
+        aggregate_metadata = init_run_metadata_aggregate()
         sub_steps = task.metadata["sub_steps"]
         dependencies: str = task.metadata["required_dependencies"]
         prob_id = task.task_id
@@ -277,6 +283,13 @@ class SciCodeBenchmark:
 
             mas_result = runner.run_task(task=step_task, run_index=run_index, seed=seed)
             all_events.extend(mas_result.trace_events)
+            merge_step_run_metadata(
+                aggregate_metadata,
+                dict(mas_result.run_metadata),
+                outer_step_index=idx,
+                step_task_id=step_task.task_id,
+                final_answer=mas_result.final_answer,
+            )
 
             # -- Extract and store code (mirrors official logic) --
             raw_response = mas_result.final_answer
@@ -300,6 +313,7 @@ class SciCodeBenchmark:
             run_metadata={
                 "full_code_per_step": full_code_per_step,
                 "previous_llm_code": [c or "" for c in previous_llm_code],
+                **aggregate_metadata,
             },
         )
 

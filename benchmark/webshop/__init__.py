@@ -11,7 +11,6 @@ benchmarks.
 
 from __future__ import annotations
 
-import json
 import time
 from collections import Counter
 from collections.abc import Sequence
@@ -19,7 +18,12 @@ from typing import Any
 
 from descriptor.schema import TraceEvent
 
-from ..base import BenchmarkEvaluation, BenchmarkTask
+from ..base import (
+    BenchmarkEvaluation,
+    BenchmarkTask,
+    init_run_metadata_aggregate,
+    merge_step_run_metadata,
+)
 from .runtime import WebShopDataStore, parse_action
 
 WEBSHOP_ACTION_SYSTEM_PROMPT = """\
@@ -100,6 +104,7 @@ class WebShopBenchmark:
         aggregate_retrieved_docids: set[str] = set()
         total_messages_sent = 0
         action_history: list[dict[str, Any]] = []
+        aggregate_metadata = init_run_metadata_aggregate()
 
         last_raw_output = ""
         last_action = ""
@@ -132,6 +137,13 @@ class WebShopBenchmark:
             trace_events.extend(result.trace_events)
 
             run_metadata = dict(result.run_metadata)
+            merge_step_run_metadata(
+                aggregate_metadata,
+                run_metadata,
+                outer_step_index=step_index,
+                step_task_id=step_task.task_id,
+                final_answer=result.final_answer,
+            )
             aggregate_tool_counts.update(
                 {str(name): int(count) for name, count in run_metadata.get("tool_call_counts", {}).items()}
             )
@@ -204,6 +216,7 @@ class WebShopBenchmark:
                 "retrieved_docids": sorted(aggregate_retrieved_docids),
                 "reward_info": dict(final_info.get("reward_info", {})),
                 "action_history": action_history,
+                **aggregate_metadata,
             },
         )
 

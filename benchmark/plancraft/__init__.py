@@ -36,7 +36,12 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from benchmark.base import BenchmarkEvaluation, BenchmarkTask
+from benchmark.base import (
+    BenchmarkEvaluation,
+    BenchmarkTask,
+    init_run_metadata_aggregate,
+    merge_step_run_metadata,
+)
 
 if TYPE_CHECKING:
     from MAS.runner import MASRunResult
@@ -158,6 +163,7 @@ class PlancraftBenchmark:
         all_events = []
         final_action = ""
         done = terminated or truncated
+        aggregate_metadata = init_run_metadata_aggregate()
 
         # Build a persistent history matching official dialogue layout
         dialogue_history = []
@@ -184,6 +190,13 @@ class PlancraftBenchmark:
             # Delegate exactly one step of generation to the MAS
             mas_result = runner.run_task(task=step_task, run_index=run_index, seed=seed)
             all_events.extend(mas_result.trace_events)
+            merge_step_run_metadata(
+                aggregate_metadata,
+                dict(mas_result.run_metadata),
+                outer_step_index=len(dialogue_history) // 2,
+                step_task_id=step_task.task_id,
+                final_answer=mas_result.final_answer,
+            )
 
             final_action = mas_result.final_answer.strip()
 
@@ -203,6 +216,7 @@ class PlancraftBenchmark:
                 "terminated": terminated,
                 "truncated": truncated,
                 "info": info,
+                **aggregate_metadata,
             },
         )
 

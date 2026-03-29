@@ -57,7 +57,12 @@ from loguru import logger
 # Re-use our runner types
 from MAS import MASRunner, MASRunResult
 
-from ..base import BenchmarkEvaluation, BenchmarkTask
+from ..base import (
+    BenchmarkEvaluation,
+    BenchmarkTask,
+    init_run_metadata_aggregate,
+    merge_step_run_metadata,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +168,7 @@ class AgentBenchBenchmark:
         """
         index = task.metadata["agentbench_index"]
         all_events: list = []
+        aggregate_metadata = init_run_metadata_aggregate()
 
         # 1. POST /start_sample  ------------------------------------------
         start_payload = {"name": self.task_name, "index": index}
@@ -180,6 +186,7 @@ class AgentBenchBenchmark:
                 run_metadata={
                     "agentbench_error": "NETWORK_ERROR",
                     "agentbench_info": str(e),
+                    **aggregate_metadata,
                 },
             )
 
@@ -191,6 +198,7 @@ class AgentBenchBenchmark:
                 run_metadata={
                     "agentbench_error": "NOT_AVAILABLE",
                     "agentbench_info": resp.text,
+                    **aggregate_metadata,
                 },
             )
         if resp.status_code != 200:
@@ -201,6 +209,7 @@ class AgentBenchBenchmark:
                 run_metadata={
                     "agentbench_error": "START_FAILED",
                     "agentbench_info": resp.text,
+                    **aggregate_metadata,
                 },
             )
 
@@ -239,6 +248,13 @@ class AgentBenchBenchmark:
             try:
                 mas_result = runner.run_task(task=step_task, run_index=run_index, seed=seed)
                 all_events.extend(mas_result.trace_events)
+                merge_step_run_metadata(
+                    aggregate_metadata,
+                    dict(mas_result.run_metadata),
+                    outer_step_index=turn - 1,
+                    step_task_id=step_task.task_id,
+                    final_answer=mas_result.final_answer,
+                )
                 agent_content = mas_result.final_answer
                 agent_response = {
                     "status": _AgentOutputStatus.NORMAL,
@@ -256,6 +272,7 @@ class AgentBenchBenchmark:
                         "agentbench_info": str(e),
                         "agentbench_status": task_output.get("status"),
                         "agentbench_history": history,
+                        **aggregate_metadata,
                     },
                 )
 
@@ -282,6 +299,7 @@ class AgentBenchBenchmark:
                         "agentbench_info": str(e),
                         "agentbench_status": task_output.get("status"),
                         "agentbench_history": history,
+                        **aggregate_metadata,
                     },
                 )
 
@@ -296,6 +314,7 @@ class AgentBenchBenchmark:
                         "agentbench_info": resp.text,
                         "agentbench_status": task_output.get("status"),
                         "agentbench_history": history,
+                        **aggregate_metadata,
                     },
                 )
 
@@ -316,6 +335,7 @@ class AgentBenchBenchmark:
                 "agentbench_history": final_history,
                 "agentbench_turns": turn,
                 "agentbench_session_id": session_id,
+                **aggregate_metadata,
             },
         )
 

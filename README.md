@@ -147,10 +147,17 @@ python main.py run --config config/experiment.toml --benchmark finance_agent --t
 Outputs are written to:
 
 - `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.trace.jsonl`
+- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.answer.txt`
+- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.metadata.json`
+- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.result.json`
+- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.trajectory.json`
+- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.trajectory.md`
 - `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.eval.json`
 - `outputs/<timestamp>/<benchmark>/<task_id>/descriptor.json`
 - `outputs/<timestamp>/<benchmark>/<task_id>/descriptor.csv`
 - `outputs/<timestamp>/<benchmark>/<task_id>/analysis.json`
+- `outputs/<timestamp>/<benchmark>/<task_id>/task.json`
+- `outputs/<timestamp>/<benchmark>/<task_id>/task_summary.json`
 - `outputs/<timestamp>/summary.json`
 - `outputs/<timestamp>/summary.csv`
 
@@ -200,13 +207,50 @@ Each run records:
 ### CLI / Shell Scripts
 
 ```bash
-bash scripts/run_langgraph_experiment.sh --topology sas --agents 1 --rounds 1 --prompt "Solve: 2+2"
-bash scripts/run_all_topologies.sh
+bash scripts/full_experiment.sh --topology sas --agents 1 --rounds 1 --prompt "Solve: 2+2"
+bash scripts/full_experiment.sh --experiment-id 20260328T120000Z --task-limit 3
+bash scripts/full_experiment.sh --setup-only --benchmarks agentbench,stabletoolbench
 ```
 
-The shell wrappers run `python -m MAS.experiment_cli` through `conda run -n agents` when Conda is available.
+`scripts/full_experiment.sh` now supports two modes:
 
-Artifacts are written under `outputs/langgraph_topologies*` (trace JSONL, metadata JSON, final answer text).
+- Legacy single-run passthrough:
+  - `bash scripts/full_experiment.sh --topology sas --agents 1 --rounds 1 --prompt "Solve: 2+2"`
+  - This still calls `python -m MAS.experiment_cli`.
+- Batch benchmark mode:
+  - Runs every benchmark config under `config/benchmarks/*.toml` across the defined MAS systems.
+  - First bootstraps benchmark dependencies, data, and local services from a Python orchestrator.
+  - AgentBench setup clones `THUDM/AgentBench` into `.cache/external/AgentBench`, installs its v0.2 requirements in an isolated venv, builds the OS Docker images, and starts the local controller/worker for the configured task.
+  - StableToolBench setup ensures query/cache assets exist and starts a lightweight local cache-backed `/virtual` server from this repo when the configured URL is local.
+  - BrowseComp setup repairs the decrypted dataset path automatically when the repo-local dataset exists, or downloads it when needed.
+  - Writes artifacts as `artifacts/full_experiment/<experiment-id>/<benchmark>/<system>/<task_id>/`.
+  - Each system folder contains `mas_graph.png`, `mas_graph.mmd`, `mas_graph.json`, `experiment_settings.json`, `summary.json`, and `summary.csv`.
+  - Each task folder contains the raw trace plus compact result, metadata, and full trajectory files.
+  - `--setup-only` prepares everything without launching experiments.
+  - It enforces live LLM execution by setting `MAS_REQUIRE_LIVE_LLM=1`, so provider failures abort the run instead of falling back to the local mock client.
+  - The shell wrapper accepts environment-variable defaults for common knobs:
+    `TASK_LIMIT`, `RUNS_PER_TASK`, `BENCHMARKS`, `EXPERIMENT_ID`, `OUTPUT_ROOT`,
+    `CONFIG_DIR`, `SKIP_SETUP=1`, and `SETUP_ONLY=1`.
+
+Recommended batch invocation:
+
+```bash
+TASK_LIMIT=2 RUNS_PER_TASK=1 bash scripts/full_experiment.sh
+```
+
+You can also request the hierarchical layout directly from `main.py`:
+
+```bash
+python main.py run \
+  --config config/benchmarks/browsecomp_10.toml \
+  --benchmark browsecomp \
+  --output-layout hierarchical \
+  --experiment-id 20260328T120000Z \
+  --system-label sas \
+  --topology sas \
+  --agents 1 \
+  --mas-rounds 1
+```
 
 ## Benchmark Notes
 

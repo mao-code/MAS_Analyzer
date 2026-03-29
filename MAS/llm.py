@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+import os
 import random
 import re
 from collections.abc import Callable
@@ -32,13 +33,27 @@ class OpenRouterLLMClient:
         self.config = config
         self.models = dict(models)
         self.client = None
+        self.require_live = os.getenv("MAS_REQUIRE_LIVE_LLM", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
 
         if not config.api_key:
+            if self.require_live:
+                raise RuntimeError(
+                    "MAS_REQUIRE_LIVE_LLM is enabled but OPENROUTER_API_KEY is missing."
+                )
             return
 
         try:
             import openai  # type: ignore
-        except Exception:
+        except Exception as exc:
+            if self.require_live:
+                raise RuntimeError(
+                    "MAS_REQUIRE_LIVE_LLM is enabled but the 'openai' package is unavailable."
+                ) from exc
             return
 
         headers: dict[str, str] = {}
@@ -57,8 +72,10 @@ class OpenRouterLLMClient:
 
         try:
             self.client = openai.OpenAI(**kwargs)
-        except Exception:
+        except Exception as exc:
             self.client = None
+            if self.require_live:
+                raise RuntimeError("Failed to initialize the OpenRouter client.") from exc
 
     def model_for_agent_type(self, agent_type: str) -> str:
         return self.models.get(agent_type, self.models.get("default", "qwen/qwen3-8b"))
@@ -119,6 +136,8 @@ class OpenRouterLLMClient:
                     },
                 )
             except Exception as exc:
+                if self.require_live:
+                    raise RuntimeError(f"Live OpenRouter generation failed: {exc}") from exc
                 return self._mock_result(
                     prompt=prompt,
                     agent_type=agent_type,
@@ -129,6 +148,9 @@ class OpenRouterLLMClient:
                     fallback_reason=str(exc),
                     tools_available=bool(tool_defs),
                 )
+
+        if self.require_live:
+            raise RuntimeError("Live OpenRouter generation is required but the client is unavailable.")
 
         return self._mock_result(
             prompt=prompt,
@@ -267,7 +289,7 @@ class OpenRouterLLMClient:
                 if isinstance(output, str):
                     output_payload = output
                 else:
-                    output_payload = json.dumps(output, ensure_ascii=False)
+                    output_payload = self._safe_json_dumps(output)
                 working_messages.append(
                     {
                         "role": "tool",
@@ -476,6 +498,42 @@ class OpenRouterLLMClient:
         if not text or not str(text).strip():
             return 0
         return max(1, int(len(re.findall(r"\S+", str(text))) * 1.3))
+
+    @staticmethod
+    def _safe_json_dumps(value: Any) -> str:
+        return json.dumps(OpenRouterLLMClient._to_jsonable(value), ensure_ascii=False)
+
+    @staticmethod
+    def _to_jsonable(value: Any) -> Any:
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict):
+            return {str(key): OpenRouterLLMClient._to_jsonable(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [OpenRouterLLMClient._to_jsonable(item) for item in value]
+
+        to_dict = getattr(value, "to_dict", None)
+        if callable(to_dict):
+            try:
+                return OpenRouterLLMClient._to_jsonable(to_dict())
+            except Exception:
+                pass
+
+        to_list = getattr(value, "tolist", None)
+        if callable(to_list):
+            try:
+                return OpenRouterLLMClient._to_jsonable(to_list())
+            except Exception:
+                pass
+
+        item = getattr(value, "item", None)
+        if callable(item):
+            try:
+                return OpenRouterLLMClient._to_jsonable(item())
+            except Exception:
+                pass
+
+        return str(value)
 
     @staticmethod
     def _stable_seed(*parts: str) -> int:
