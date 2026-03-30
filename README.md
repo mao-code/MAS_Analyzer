@@ -1,262 +1,440 @@
-# Trace-Derived Task Descriptors for MAS Architecture Selection
+# Economic Analysis Framework for Multi-Agent Collaboration
 
-This repo implements an engineering-first research framework that turns agent interaction traces into a reproducible **Task Descriptor** vector, then uses that descriptor to support **Multi-Agent System (MAS) architecture selection** and explainable failure-boundary analysis.
+This repo is the experiment harness behind [PAPER.md](PAPER.md). It runs single-agent systems (SAS) and multi-agent systems (MAS) on a shared benchmark suite, records structured execution traces, and converts repeated runs into a trace-derived descriptor that supports:
 
-## Why this project exists
+- quality vs cost analysis
+- MAS vs SAS gain/cost comparison
+- coordination diagnostics
+- topology-level summary and Pareto analysis
 
-Recent controlled studies show MAS gains are not stable: performance depends on task structure, topology, and model/system behavior. The missing piece is not "can MAS be better", but an operational way to answer:
+The core goal is not only to ask whether MAS can help, but to measure when collaboration improves task outcomes enough to justify its execution and coordination cost.
 
-1. For a given agentic task, when does MAS outperform a strong single-agent system?
-2. If MAS helps, which topology is best (centralized, decentralized, hybrid, independent)?
-3. When MAS becomes negative-return, what is the failure mechanism and boundary?
+## Core idea
 
-This repo focuses on the **Task-side**: we compute a portable, trace-derived descriptor `x(task)` as a standard input to architecture selection, rather than relying on ad-hoc heuristics.
+Each task is executed one or more times under a fixed system configuration. For every run, the repo stores:
 
-## Key idea
+- benchmark-native evaluation output
+- structured trace events
+- run-level trace metrics
+- a task-level descriptor aggregated over repeated runs
 
-For each task, we run a fixed **probe system P** a small number of times (typically 3 to 5), log structured traces, then compute a high-dimensional descriptor vector:
+The descriptor follows the paper’s `Q / C / D / R / P` split:
 
-`x(task) = [xQ, xC, xR, xP]`
+- `Q`: outcome quality
+- `C`: direct execution cost
+- `D`: coordination diagnostics
+- `R`: run-to-run reliability
+- `P`: process structure
 
-- `xQ`: success and quality signals
-- `xC`: cost and efficiency signals
-- `xR`: stability and reliability signals
-- `xP`: process and structure signals
+The paper defines higher-level economic quantities such as utility `U = Q - C`, collaboration gain `G`, and coordination cost `K`. This repo produces the trace-derived ingredients needed for those analyses.
 
-Because `x(task)` is derived from traces and repeated runs, it captures uncertainty and failure modes as first-class properties.
+## Exact metric contract
+
+The metric contract is intentionally strict and reproducible.
+
+### Run-level outcome variables
+
+For one run `r`:
+
+- `success_r = 1` iff `benchmark.evaluate(...).success` is `True`
+- `completion_r = 1` iff the run produced a final artifact / final answer and did not terminate with an explicit runtime failure signal
+
+Important:
+
+- `success` is benchmark correctness
+- `completion` is execution completion
+- `completion` does **not** imply correctness
+
+So a wrong answer can still have `completion = 1` and `success = 0`.
+
+At the benchmark level for a fixed MAS:
+
+- `success_rate` means: among all benchmark sample runs, what fraction were solved correctly
+- `completion_rate` means: among all benchmark sample runs, what fraction finished execution and produced a final answer/artifact without an explicit runtime failure
+
+Equivalently:
+
+- `success_rate`: "How many samples did this MAS actually solve?"
+- `completion_rate`: "How many sample runs did this MAS complete successfully as executions?"
+
+### Run-level trace totals
+
+For one run `r`, the trace code computes:
+
+- `latency_total_r = sum(event.latency_ms)`
+- `tokens_total_r = sum(event.token_in + event.token_out)`
+- `cost_total_r = sum(event.cost_usd)`
+- `tool_calls_total_r = count(event_type == "tool_call")`
+- `tool_fail_total_r = count(tool failures)`
+- `steps_total_r = number of trace events`
+- `backtrack_rate_r = (#revise events + payload.redo) / steps_total_r`
+- `loop_score_r = repeated-state or repeated-pattern ratio from the trace`
+- `verification_density_r = #verify / steps_total_r`
+- `communication_count_r = directed inter-agent send edges`
+- `handoff_count_r = actor switches across consecutive non-system events`
+
+### Task-level descriptor aggregation
+
+Given `N` repeated runs for the same task and system:
+
+**Quality**
+
+- `Q1_success_rate = mean_r(success_r)`
+- `Q2_completion_rate = mean_r(completion_r)`
+
+**Execution cost**
+
+- `C1_latency_p95 = p95_r(latency_total_r)`
+- `C2_tokens_total = mean_r(tokens_total_r)`
+- `C3_cost_total = mean_r(cost_total_r)`
+- `C4_tool_calls_total = mean_r(tool_calls_total_r)`
+
+**Coordination diagnostics**
+
+- `D1_tool_error_rate = sum_r(tool_fail_total_r) / sum_r(tool_calls_total_r)`
+- `D2_communication_count = mean_r(communication_count_r)`
+- `D3_handoff_count = mean_r(handoff_count_r)`
+
+These `D*` metrics are logged as coordination diagnostics. They are not part of the paper’s direct execution-cost definition `C`.
+
+**Reliability**
+
+- `R1_success_var = Var_r(success_r)`
+- `R2_latency_var = Var_r(latency_total_r)`
+- `R3_tokens_var = Var_r(tokens_total_r)`
+
+**Process**
+
+- `P1_steps_total = mean_r(steps_total_r)`
+- `P2_backtrack_rate = mean_r(backtrack_rate_r)`
+- `P3_loop_score = mean_r(loop_score_r)`
+- `P4_verification_density = mean_r(verification_density_r)`
+
+### What appears in `summary.csv`
+
+Per task and system, `summary.csv` includes:
+
+- `eval_avg_score`: benchmark-native mean score across runs
+- `eval_success_rate`: benchmark-native mean boolean success across runs
+- `eval_completion_rate`: runtime completion rate across runs
+- descriptor fields such as `Q1_success_rate`, `C2_tokens_total`, `D2_communication_count`, `P3_loop_score`, etc.
+
+By design:
+
+- `Q1_success_rate` should match `eval_success_rate`
+- `Q2_completion_rate` should match `eval_completion_rate`
+
+If those pairs disagree, that indicates a bug in the artifact pipeline.
+
+Interpretation by level:
+
+- per run: `success` and `completion` are binary `0/1`
+- per task with repeated runs: `Q1_success_rate` and `Q2_completion_rate` are proportions over that task's repeated runs
+- per benchmark for one MAS: average those task-level values across all samples in the benchmark to get the benchmark-level success/completion rates
+
+## Workflow termination logic
+
+Looped MAS stages such as debate, representative exchange, and orchestrator cycles do not stop implicitly. A controller node calls `_termination_decision(...)` in `MAS/langgraph_engine.py` and computes explicit stop statistics from the current stage artifacts.
+
+### Inputs
+
+For one controller decision:
+
+- `candidate_artifacts`: the current artifacts that would be revised if the loop continues
+- `previous_candidate_artifacts`: the previous-step artifacts for the same agents, used to measure change
+- `consensus_artifacts`: the artifacts whose answers are compared for agreement
+- `expected_count`: how many active branches or agents were expected to produce an artifact
+
+### Valid artifact count
+
+The code first counts:
+
+- `valid_artifact_count = count(artifact.answer.strip() != "")`
+
+If `valid_artifact_count < ceil(expected_count / 2)`, the stage stops with `invalid_or_failed_branch`.
+
+Interpretation:
+
+- this is a branch-survival check
+- if fewer than half of the expected branches produced a non-empty answer, the collaboration stage is considered too broken to continue
+
+### Consensus ratio
+
+By default, the repo computes termination consensus with an LLM judge:
+
+- `mas.termination_consensus_mode = "llm_judge"` by default
+- the judge uses the system model route `models.judge` if provided, otherwise `models.default`
+- the controller sends the current task prompt plus the candidate answers to the judge
+- the judge returns JSON groups of semantically equivalent answers
+
+The JSON schema is:
+
+- `groups`: lists of artifact indices that express the same final answer
+- `invalid_indices`: indices the judge considers unusable or non-answers
+- `explanation`: short rationale
+
+The controller then computes:
+
+- `winner_count = size of the largest judged equivalence group`
+- `valid_count = number of valid answers after removing invalid_indices`
+- `consensus_ratio = winner_count / valid_count`
+
+The stage stops with `consensus_reached` when:
+
+- `valid_count > 1`
+- `consensus_ratio >= 0.75`
+
+Interpretation:
+
+- consensus here is semantic agreement as judged by the termination judge, not exact string identity
+- if the judge clusters 3 of 4 valid answers together, `consensus_ratio = 0.75`
+- this consensus check is still a workflow-control heuristic, not the benchmark evaluator and not the final correctness decision
+
+Fallback behavior:
+
+- if `mas.termination_consensus_mode = "lexical"`, the repo uses deterministic normalized-string voting
+- if `mas.termination_consensus_mode = "llm_judge"` but the judge is unavailable, running in mock mode, or returns unusable JSON, the controller falls back to lexical consensus
+
+The lexical fallback canonicalizes each answer by lowercasing, removing non-alphanumeric characters, and collapsing whitespace, then computes the same `winner_count / valid_count` ratio over exact normalized matches.
+
+Final answer aggregation is separate from this stop-condition ratio. Several topologies still use a deterministic voter such as `vote_artifacts(...)` to choose the final answer after the loop ends.
+
+### Average confidence
+
+Each artifact carries a `confidence` field produced by the agent JSON output schema. During artifact construction:
+
+- the parsed value is converted to `float`
+- it is clipped into `[0, 1]`
+- if missing or unparsable, it defaults to `0.5`
+
+Then:
+
+- `average_confidence = mean(artifact.confidence)`
+
+across the current `candidate_artifacts` (or `consensus_artifacts` if needed).
+
+The stage stops with `confidence_threshold_reached` when:
+
+- `average_confidence >= 0.85`
+
+Interpretation:
+
+- this is self-reported model confidence averaged over the active artifacts
+- it is not calibrated against benchmark correctness
+
+### Mean artifact change
+
+Change is measured per agent by comparing the current answer with that same agent's previous answer.
+
+For each agent with both a previous and current artifact:
+
+- canonicalize both answers with the repo's normalized-string signature
+- if both are empty, delta is `0`
+- if the canonicalized strings are identical, delta is `0`
+- otherwise compute string similarity with `difflib.SequenceMatcher`
+- `delta_agent = 1 - similarity(previous_signature, current_signature)`
+
+Then:
+
+- `mean_delta = mean(delta_agent)`
+
+over all comparable agents.
+
+The stage stops with `no_meaningful_change` when:
+
+- `mean_delta <= 0.05`
+
+Interpretation:
+
+- this is a lexical revision-size test, not a semantic-improvement test
+- if agents keep making only tiny textual changes, the loop is treated as converged or stalled
+
+### Max-round stop
+
+The stage stops with `max_rounds_reached` when the topology-specific configured round or discussion limit has been exhausted.
+
+### Stop order
+
+The checks are applied in this order:
+
+1. `invalid_or_failed_branch`
+2. `consensus_reached`
+3. `no_meaningful_change`
+4. `confidence_threshold_reached`
+5. `max_rounds_reached`
+
+So if multiple conditions are true, the first one in this list is the recorded stop reason.
+
+### What gets logged
+
+Each termination decision logs:
+
+- `reason`
+- `reason_detail`
+- `consensus_mode`
+- `consensus_source`
+- `consensus_ratio`
+- `consensus_groups`
+- `consensus_explanation`
+- `average_confidence`
+- `mean_delta`
+- `valid_artifact_count`
+- control-step `token_in`, `token_out`, `latency_ms`, `cost_usd` when an LLM judge call is used
+
+These values are workflow-control diagnostics. They determine whether a collaboration loop continues, but they are not benchmark quality metrics like `success_rate`.
+
+## Trace schema
+
+Each run writes a JSONL trace. A trace event contains:
+
+- `timestamp_start`, `timestamp_end`
+- `actor`
+- `event_type`
+- `payload`
+- `token_in`, `token_out`
+- `latency_ms`, `cost_usd`
+- optional `state_id`
+
+Supported event types:
+
+- `plan`
+- `act`
+- `tool_call`
+- `tool_result`
+- `verify`
+- `revise`
+- `finalize`
+- `error`
+
+The schema is designed so all run-level trace metrics are recomputable from logs.
+
+## Artifact semantics
+
+For each run:
+
+- `run_<n>.trace.jsonl`: raw trace events
+- `run_<n>.answer.txt`: final answer text
+- `run_<n>.metadata.json`: runtime metadata from the MAS execution
+- `run_<n>.eval.json`: benchmark-native score and correctness
+- `run_<n>.trace_metrics.json`: run-level outcome + trace totals + stage metrics
+- `run_<n>.result.json`: compact run summary
+- `run_<n>.trajectory.json` / `.md`: communication trajectory export
+
+For each task:
+
+- `descriptor.json`: aggregated task descriptor
+- `descriptor.csv`: flat CSV version of the descriptor
+- `analysis.json`: evaluation summary, descriptor, stage bottleneck hints
+- `task_summary.json`: task-level summary across runs
+
+For each system:
+
+- `mas_graph.png` / `.mmd`: agent-topology graph
+- `workflow_graph.png` / `.mmd`: workflow/control-flow graph
+- `summary.json`: task summaries for the system
+- `summary.csv`: one row per task for the system
+
+For a hierarchical batch experiment:
+
+- `artifacts/full_experiment/<experiment-id>/<benchmark>/<system>/<task_id>/...`
+- benchmark/system rollups under the same root
+- `experiment_summary.json` and `experiment_summary.csv` at the experiment root
 
 ## Repository layout
 
-- `benchmark/`
-  - Task sets and benchmark runners, each packaged as a Python module.
-  - Each benchmark provides tasks plus (optional) evaluation hooks (exact-match, unit tests, judge stubs).
-- `MAS/`
-  - Agent systems and MAS topologies.
-  - Each system must emit trace events following the shared schema.
-- `descriptor/`
-  - Trace schema, trace IO, metric extraction, descriptor construction.
-  - Robust scaling, Mahalanobis distance, Pareto frontier, ideal-point selection.
-  - Optional: stage-level bottlenecks and 2D embeddings.
-- `scripts/`
-  - Shell helpers, test scripts, and testing configuration files.
-- `config/`
-  - User-specific experiment configs (gitignored). See `config/experiment.example.toml` for a template.
-- `main.py`
-  - CLI entrypoint. Choose benchmark, MAS candidates, probe system, number of runs, seeds, outputs.
-
-All modules are connected through small interfaces so you can swap benchmarks and MAS implementations without touching descriptor code.
-
-## Trace schema (stable contract)
-
-Each run writes a JSONL trace: an ordered event sequence `e1..eT`. Each event includes:
-
-- `timestamp_start`, `timestamp_end`
-- `actor` (LLM role, tool, env, evaluator)
-- `event_type`: `plan | act | tool_call | tool_result | verify | revise | finalize | error`
-- `payload` (minimal summaries: tool name, error code, artifact hash)
-- `token_in`, `token_out`, `latency_ms`, `cost_usd`
-- `state_id` (optional but recommended for loop detection)
-
-This schema is designed so metrics are fully recomputable from logs.
-
-## Metrics (minimum viable set)
-
-The descriptor implements the following trace-derived metrics (grouped by Q/C/R/P).
-
-### Q: Success and Quality
-- `Q1 success_rate`: successes / N
-- `Q2 completion_rate`: produced final artifact / N
-
-### C: Cost and Efficiency
-- `C1 latency_p95`: p95 over run latencies
-- `C2 tokens_total`: sum(token_in + token_out)
-- `C3 cost_total`: sum(cost_usd)
-- `C4 tool_calls_total`: count(tool_call)
-- `C5 tool_error_rate`: tool_fail / tool_calls
-- `C6 communication_count`: total directed inter-agent edges (for each message, count each sender→recipient pair; broadcasts count multiple)
-- `C7 handoff_count`: count of active-agent transitions across events, excluding `system` actor events
-
-### R: Stability and Reliability
-- `R1 success_var`: Bernoulli variance across repeated runs (or bootstrap)
-- `R2 latency_var`: variance or IQR across runs
-- `R3 tokens_var`: variance or IQR across runs
-
-### P: Process and Structure
-- `P1 steps_total`: total events `T`
-- `P2 backtrack_rate`: (#revise + #redo) / T
-- `P3 loop_score`: repeated `state_id` ratio or repeated event-pattern ratio (defined in code)
-- `P4 verification_density`: #verify / T
-
-Optional extensions behind flags:
-- `avg_branching`, `unique_tools`, `failure_mode_hist`, `executability_score`
-
-## Selection utilities
-This repo provides reusable utilities for architecture selection:
-
-1. **Robust scaling**: `(x - median) / IQR` per dimension to reduce outlier sensitivity.
-2. **Mahalanobis distance**: distance with correlation awareness across descriptor dimensions.
-3. **Pareto frontier**: compute non-dominated candidate topologies under multi-objective trade-offs.
-4. **Ideal point selection**: pick best on Pareto set by weighted distance to an ideal point:
-   `d_ideal(x) = || W (x - x*) ||_2`
-
-## Stage-level bottlenecks
-Traces can be segmented into stages (plan/retrieve/act/verify/revise/finalize) and per-stage metrics computed to surface bottlenecks:
-- verify is sparse → hallucination risk
-- retrieve has tool failures → repeated retries and latency spikes
-- revise dominates tokens → unstable planning/execution loop
+- `benchmark/`: benchmark adapters and evaluation logic
+- `benchmarks/`: benchmark overview docs
+- `MAS/`: SAS/MAS runtimes and LangGraph topologies
+- `descriptor/`: trace schema, run metrics, task descriptor aggregation, topology analysis
+- `scripts/`: experiment and analysis helpers
+- `config/`: experiment configs
+- `main.py`: CLI entrypoint
 
 ## Quickstart
 
-### 1. Install dependencies
+### 1. Install
 
 ```bash
-# Python 3.11+ is required (pyproject: requires-python >=3.11)
-# Using uv (recommended):
 uv sync
+```
 
-# Or using pip:
-python -m venv .venv && source .venv/bin/activate
+or
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
-### 2. Create experiment config
+### 2. Create a config
 
 ```bash
 cp config/experiment.example.toml config/experiment.toml
 ```
 
-- `openrouter.api_key` can be set in `config/experiment.toml`.
-- `OPENROUTER_API_KEY` environment variable overrides the config value when both are set.
-- If no valid key is present, MAS runtime uses deterministic local mock fallback so experiments remain runnable.
+OpenRouter credentials can be set in `config/experiment.toml` or through `OPENROUTER_API_KEY`.
 
-### 3. Inspect benchmark adapters
+### 3. Inspect available benchmarks
 
 ```bash
 python main.py list-benchmarks
-python main.py benchmark-info --benchmark finance_agent --config config/experiment.toml
 python main.py benchmark-info --benchmark browsecomp --config config/experiment.toml
-python main.py benchmark-info --benchmark stabletoolbench --config config/experiment.toml
 ```
 
-### 4. Run an experiment
-
-```bash
-python main.py run --config config/experiment.toml --benchmark finance_agent --task-limit 1 --runs-per-task 1
-```
-
-Outputs are written to:
-
-- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.trace.jsonl`
-- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.answer.txt`
-- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.metadata.json`
-- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.result.json`
-- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.trajectory.json`
-- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.trajectory.md`
-- `outputs/<timestamp>/<benchmark>/<task_id>/run_<n>.eval.json`
-- `outputs/<timestamp>/<benchmark>/<task_id>/descriptor.json`
-- `outputs/<timestamp>/<benchmark>/<task_id>/descriptor.csv`
-- `outputs/<timestamp>/<benchmark>/<task_id>/analysis.json`
-- `outputs/<timestamp>/<benchmark>/<task_id>/task.json`
-- `outputs/<timestamp>/<benchmark>/<task_id>/task_summary.json`
-- `outputs/<timestamp>/summary.json`
-- `outputs/<timestamp>/summary.csv`
-
-## OpenRouter Setup
-
-The client uses OpenRouter via the OpenAI-compatible endpoint:
-
-- Base URL: `https://openrouter.ai/api/v1`
-- Chat endpoint: `https://openrouter.ai/api/v1/chat/completions`
-- Optional attribution headers: `HTTP-Referer`, `X-Title`
-
-Model routing is controlled by `[models]` in config:
-
-- `models.default` is required.
-- Per-agent-type model selection uses `models.<agent_type>` when present.
-
-## LangGraph Topology Experiments
-
-`MAS.runner.MASRunner` now executes through **LangGraph** with a topology-aware relay layer.
-Supported topology names:
-
-- `sas`
-- `orchestrator_tree_structure`
-- `orchestrator_no_discussion`
-- `orchestrator_with_discussion`
-- `only_voting`
-- `fully_linked_debate`
-- `group_chat_debate`
-
-### Python API
-
-```python
-from MAS import run_experiment
-
-run_experiment(topology="sas", agents=1, prompt="Solve: 2+2")
-run_experiment(topology="fully_linked_debate", agents=5, rounds=3, prompt="Solve: 2+2")
-run_experiment(topology="orchestrator_no_discussion", agents=4, rounds=2, prompt="Solve: 2+2")
-```
-
-You can inject a descriptor hook (monitor/evaluation node) via `descriptor=...`.
-Each run records:
-
-- inter-agent relay messages
-- per-agent message views
-- full trace events (`TraceEvent` JSONL compatible)
-
-### CLI / Shell Scripts
-
-```bash
-bash scripts/full_experiment.sh --topology sas --agents 1 --rounds 1 --prompt "Solve: 2+2"
-bash scripts/full_experiment.sh --experiment-id 20260328T120000Z --task-limit 3
-bash scripts/full_experiment.sh --setup-only --benchmarks agentbench,stabletoolbench
-```
-
-`scripts/full_experiment.sh` now supports two modes:
-
-- Legacy single-run passthrough:
-  - `bash scripts/full_experiment.sh --topology sas --agents 1 --rounds 1 --prompt "Solve: 2+2"`
-  - This still calls `python -m MAS.experiment_cli`.
-- Batch benchmark mode:
-  - Runs every benchmark config under `config/benchmarks/*.toml` across the defined MAS systems.
-  - First bootstraps benchmark dependencies, data, and local services from a Python orchestrator.
-  - AgentBench setup clones `THUDM/AgentBench` into `.cache/external/AgentBench`, installs its v0.2 requirements in an isolated venv, builds the OS Docker images, and starts the local controller/worker for the configured task.
-  - StableToolBench setup ensures query/cache assets exist and starts a lightweight local cache-backed `/virtual` server from this repo when the configured URL is local.
-  - BrowseComp setup repairs the decrypted dataset path automatically when the repo-local dataset exists, or downloads it when needed.
-  - Writes artifacts as `artifacts/full_experiment/<experiment-id>/<benchmark>/<system>/<task_id>/`.
-  - Each system folder contains `mas_graph.png`, `mas_graph.mmd`, `mas_graph.json`, `experiment_settings.json`, `summary.json`, and `summary.csv`.
-  - Each task folder contains the raw trace plus compact result, metadata, and full trajectory files.
-  - `--setup-only` prepares everything without launching experiments.
-  - It enforces live LLM execution by setting `MAS_REQUIRE_LIVE_LLM=1`, so provider failures abort the run instead of falling back to the local mock client.
-  - The shell wrapper accepts environment-variable defaults for common knobs:
-    `TASK_LIMIT`, `RUNS_PER_TASK`, `BENCHMARKS`, `EXPERIMENT_ID`, `OUTPUT_ROOT`,
-    `CONFIG_DIR`, `SKIP_SETUP=1`, and `SETUP_ONLY=1`.
-
-Recommended batch invocation:
-
-```bash
-TASK_LIMIT=2 RUNS_PER_TASK=1 bash scripts/full_experiment.sh
-```
-
-You can also request the hierarchical layout directly from `main.py`:
+### 4. Run one experiment
 
 ```bash
 python main.py run \
-  --config config/benchmarks/browsecomp_10.toml \
+  --config config/experiment.toml \
   --benchmark browsecomp \
-  --output-layout hierarchical \
-  --experiment-id 20260328T120000Z \
-  --system-label sas \
-  --topology sas \
-  --agents 1 \
-  --mas-rounds 1
+  --task-limit 1 \
+  --runs-per-task 1
 ```
 
-## Benchmark Notes
+### 5. Summarize a hierarchical experiment
 
-See [benchmarks/README.md](benchmarks/README.md) for detailed setup and configuration notes for each supported benchmark adapter.
+```bash
+python main.py summarize-experiment --experiment-root artifacts/full_experiment/<experiment-id>
+```
 
-## Package Naming
+## Batch experiments
 
-- Canonical benchmark package is `benchmark/`.
-- `benchmarks/` is kept as a compatibility shim that re-exports from `benchmark/`.
+The main batch wrapper is:
+
+```bash
+bash scripts/full_experiment.sh
+```
+
+Useful environment variables:
+
+- `TASK_LIMIT`
+- `RUNS_PER_TASK`
+- `BENCHMARKS`
+- `EXPERIMENT_ID`
+- `OUTPUT_ROOT`
+
+Hierarchical outputs are written under:
+
+```text
+artifacts/full_experiment/<experiment-id>/<benchmark>/<system>/<task_id>/
+```
+
+## Topology analysis
+
+`descriptor/topology_analysis.py` provides:
+
+- descriptor scaling
+- Mahalanobis distance
+- Pareto frontier extraction
+- PCA / optional UMAP embeddings
+
+This is useful when comparing SAS and multiple MAS topologies over the same task set.
+
+## Benchmark notes
+
+See [benchmarks/README.md](benchmarks/README.md) for the paper-aligned benchmark map, benchmark-specific success definitions, and setup notes.
+
+## Package naming
+
+- Canonical benchmark package: `benchmark/`
+- `benchmarks/` is a documentation / compatibility shim

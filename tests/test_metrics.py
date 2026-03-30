@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from descriptor.metrics import ExtensionOptions, compute_run_metrics, compute_task_metrics
 from descriptor.schema import TraceEvent
@@ -72,6 +73,7 @@ class TestMetrics(unittest.TestCase):
         )
         self.assertTrue(run_metrics["success"])
         self.assertTrue(run_metrics["completion"])
+        self.assertEqual(run_metrics["success_source"], "trace_inference")
         self.assertEqual(run_metrics["tool_calls_total"], 2.0)
         self.assertEqual(run_metrics["tool_fail_total"], 1.0)
         self.assertAlmostEqual(run_metrics["backtrack_rate"], 1.0 / 11.0, places=6)
@@ -82,11 +84,30 @@ class TestMetrics(unittest.TestCase):
         task_metrics = compute_task_metrics([run_metrics])
         self.assertEqual(task_metrics["Q1_success_rate"], 1.0)
         self.assertEqual(task_metrics["Q2_completion_rate"], 1.0)
-        self.assertEqual(task_metrics["C5_tool_error_rate"], 0.5)
-        self.assertEqual(task_metrics["C6_communication_count"], 2.0)
-        self.assertEqual(task_metrics["C7_handoff_count"], 3.0)
+        self.assertEqual(task_metrics["D1_tool_error_rate"], 0.5)
+        self.assertEqual(task_metrics["D2_communication_count"], 2.0)
+        self.assertEqual(task_metrics["D3_handoff_count"], 3.0)
         self.assertEqual(task_metrics["P1_steps_total"], 11.0)
         self.assertAlmostEqual(task_metrics["P4_verification_density"], 1.0 / 11.0, places=6)
+
+    def test_benchmark_evaluation_overrides_trace_success(self) -> None:
+        events = [
+            self._make_event("act", 2, 3, 10.0, 0.0),
+            self._make_event("finalize", 0, 5, 1.0, 0.0, {"status": "completed"}),
+        ]
+
+        evaluation = SimpleNamespace(score=0.0, success=False)
+        run_metrics = compute_run_metrics(
+            events,
+            evaluation=evaluation,
+            final_answer="wrong answer",
+            extensions=ExtensionOptions(include_stage_metrics=False),
+        )
+
+        self.assertFalse(run_metrics["success"])
+        self.assertTrue(run_metrics["completion"])
+        self.assertEqual(run_metrics["success_source"], "benchmark_evaluation")
+        self.assertEqual(run_metrics["completion_source"], "final_answer")
 
 
 if __name__ == "__main__":

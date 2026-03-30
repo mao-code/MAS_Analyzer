@@ -1,0 +1,145 @@
+{
+  "layout": {
+    "adjacency": {
+      "agent_0": [
+        "agent_1"
+      ],
+      "agent_1": [
+        "agent_0"
+      ],
+      "agent_2": [
+        "agent_3"
+      ],
+      "agent_3": [
+        "agent_2"
+      ]
+    },
+    "agent_ids": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "agents_per_level": [
+      2,
+      2
+    ],
+    "children_by_agent": {},
+    "groups": [
+      [
+        "agent_0",
+        "agent_1"
+      ],
+      [
+        "agent_2",
+        "agent_3"
+      ]
+    ],
+    "leaves": [],
+    "level_by_agent": {
+      "agent_0": 0,
+      "agent_1": 0,
+      "agent_2": 1,
+      "agent_3": 1
+    },
+    "managers": [],
+    "orchestrator_id": null,
+    "parent_by_agent": {},
+    "representatives": [
+      "agent_0",
+      "agent_2"
+    ],
+    "roles": {
+      "agent_0": "group_0_representative",
+      "agent_1": "group_0_member",
+      "agent_2": "group_1_representative",
+      "agent_3": "group_1_member"
+    },
+    "specialists": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "topological_order": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "topology": "group_chat_debate"
+  },
+  "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/group_chat_debate/mas_graph.mmd",
+  "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/group_chat_debate/mas_graph.png",
+  "render_backend": "langgraph_mermaid_api",
+  "render_error": "",
+  "topology": "group_chat_debate",
+  "workflow": {
+    "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/group_chat_debate/workflow_graph.mmd",
+    "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/group_chat_debate/workflow_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "group_chat_debate",
+    "workflow": {
+      "aggregation_logic": "Group members debate locally, representatives merge group summaries, and a shared final judge selects the final answer.",
+      "conditional_edges": [
+        "group_dispatch -> group_debate_round (parallel Send fan-out) else group_controller",
+        "group_controller -> group_dispatch | representative_dispatch",
+        "representative_dispatch -> representative_merge (parallel Send fan-out) else final_judge",
+        "representative_controller -> representative_dispatch | final_judge"
+      ],
+      "dispatch_logic": "Debate is local to groups until the controller emits representative-only summaries. Inter-group traffic is restricted to representative packets.",
+      "edges": [
+        "START -> group_dispatch",
+        "group_debate_round -> group_controller",
+        "representative_merge -> representative_controller",
+        "final_judge -> descriptor_monitor",
+        "descriptor_monitor -> finalize",
+        "finalize -> END"
+      ],
+      "logging_outputs": [
+        "trace_events",
+        "relay_messages",
+        "message_views",
+        "interaction_logs",
+        "descriptor_records",
+        "termination_history"
+      ],
+      "nodes": {
+        "descriptor_monitor": "Shared descriptor hook.",
+        "final_judge": "Deterministic final judge.",
+        "finalize": "Finalize the run.",
+        "group_controller": "Intra-group controller plus stop/merge logic.",
+        "group_debate_round": "Parallel group debate workers.",
+        "group_dispatch": "Fan out the intra-group debate stage.",
+        "representative_controller": "Representative-level controller plus stopping logic.",
+        "representative_dispatch": "Representative fan-out.",
+        "representative_merge": "Representative merge/debate stage."
+      },
+      "state_fields": [
+        "task_id",
+        "task_prompt",
+        "topology",
+        "layout",
+        "rounds",
+        "discussion_rounds",
+        "round_index",
+        "discussion_index",
+        "messages",
+        "artifacts",
+        "termination_decision",
+        "vote_tally",
+        "descriptor_records"
+      ],
+      "stopping_criteria": [
+        "Max group rounds reached",
+        "Consensus inside groups",
+        "No meaningful change between group or representative revisions",
+        "Confidence threshold reached",
+        "Invalid or failed branch fallback",
+        "Max representative rounds reached"
+      ],
+      "topology": "group_chat_debate"
+    }
+  }
+}

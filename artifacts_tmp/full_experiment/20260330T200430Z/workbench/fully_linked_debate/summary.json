@@ -1,0 +1,679 @@
+{
+  "benchmark": "workbench",
+  "config_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/config/benchmarks/workbench_10.toml",
+  "experiment_id": "20260330T200430Z",
+  "experiment_settings_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_1": [
+          "agent_0",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_2": [
+          "agent_0",
+          "agent_1",
+          "agent_3"
+        ],
+        "agent_3": [
+          "agent_0",
+          "agent_1",
+          "agent_2"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        4
+      ],
+      "children_by_agent": {},
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 0,
+        "agent_2": 0,
+        "agent_3": 0
+      },
+      "managers": [],
+      "orchestrator_id": null,
+      "parent_by_agent": {},
+      "representatives": [],
+      "roles": {
+        "agent_0": "debater",
+        "agent_1": "debater",
+        "agent_2": "debater",
+        "agent_3": "debater"
+      },
+      "specialists": [],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "fully_linked_debate"
+    },
+    "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/mas_graph.mmd",
+    "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "fully_linked_debate",
+    "workflow": {
+      "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/workflow_graph.mmd",
+      "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "fully_linked_debate",
+      "workflow": {
+        "aggregation_logic": "Debaters revise in parallel; the final judge performs deterministic voting over the latest debate artifacts.",
+        "conditional_edges": [
+          "debate_controller -> debate_dispatch | judge",
+          "debate_dispatch -> debate_round (parallel Send fan-out) else debate_controller"
+        ],
+        "dispatch_logic": "The controller sends bounded summaries of each debater artifact to all peers for the next round.",
+        "edges": [
+          "START -> debate_init",
+          "debate_init -> debate_controller",
+          "debate_round -> debate_controller",
+          "judge -> descriptor_monitor",
+          "descriptor_monitor -> finalize",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "debate_controller": "Round controller plus explicit stopping logic.",
+          "debate_dispatch": "Fan out the next debate round.",
+          "debate_init": "Initialize the debate controller.",
+          "debate_round": "Parallel debater revision stage.",
+          "descriptor_monitor": "Shared descriptor hook.",
+          "finalize": "Finalize the run.",
+          "judge": "Deterministic final judge."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max rounds reached",
+          "Consensus across debater artifacts",
+          "No meaningful change between debate rounds",
+          "Confidence threshold reached",
+          "Invalid or failed branch fallback"
+        ],
+        "topology": "fully_linked_debate"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "fully_linked_debate",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "fully_linked_debate"
+  },
+  "system_label": "fully_linked_debate",
+  "task_count": 5,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_0/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_0/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 18166.518207060173,
+        "C2_tokens_total": 6986.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 6.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 27.0,
+        "P2_backtrack_rate": 0.037037037037037035,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.2962962962962963,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 16515.50787407905,
+        "stage_act_tokens": 5797.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 73.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 12.0,
+        "stage_retrieve_latency_ms": 12.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1636.0103329811245,
+        "stage_verify_tokens": 1116.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Cameron Anderson\", participant_email=\"sofia.santos@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_0"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_0",
+      "task_id": "multi_domain_0"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_1/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_1/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 17010.41591705382,
+        "C2_tokens_total": 7147.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 7.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 29.0,
+        "P2_backtrack_rate": 0.034482758620689655,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.27586206896551724,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 15264.039875008166,
+        "stage_act_tokens": 6128.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 140.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 14.0,
+        "stage_retrieve_latency_ms": 14.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1729.3760420456529,
+        "stage_verify_tokens": 879.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Riley Brown\", participant_email=\"lena.schmidt@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_1"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_1",
+      "task_id": "multi_domain_1"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_2/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 41065.221126118675,
+        "C2_tokens_total": 23992.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 19.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 12.0,
+        "D3_handoff_count": 13.0,
+        "P1_steps_total": 63.0,
+        "P2_backtrack_rate": 0.031746031746031744,
+        "P3_loop_score": 0.2698412698412698,
+        "P4_verification_density": 0.20634920634920634,
+        "Q1_success_rate": 1.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 8.0,
+        "stage_act_latency_ms": 37698.06354213506,
+        "stage_act_tokens": 22387.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 93.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 38.0,
+        "stage_retrieve_latency_ms": 38.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 13.0,
+        "stage_verify_latency_ms": 3325.157583983615,
+        "stage_verify_tokens": 1512.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 1.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": true,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": true,
+              "ground_truth": [],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(query=\"Jessie Thomas\", time_min=\"2023-11-16 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "company_directory.find_email_address.func(name=\"Jessie\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jessie\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Thomas\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 1.0,
+            "success": true,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_2"
+          }
+        ],
+        "success_rate": 1.0
+      },
+      "prompt_preview": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_2",
+      "task_id": "multi_domain_2"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_3/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_3/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 14859.078750927001,
+        "C2_tokens_total": 6188.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 13198.157791979611,
+        "stage_act_tokens": 4891.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 47.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1647.9209589473903,
+        "stage_verify_tokens": 1250.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Quinn Thomas\", participant_email=\"akira.sato@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", query=\"Quinn Thomas\")",
+                "company_directory.find_email_address.func(name=\"Quinn Thomas\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "I haven't spoken to Quinn Thomas in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Thomas' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_3"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "I haven't spoken to Quinn Thomas in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Thomas' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_3",
+      "task_id": "multi_domain_3"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_4/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_4/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 34906.477750543505,
+        "C2_tokens_total": 19343.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 13.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 12.0,
+        "D3_handoff_count": 13.0,
+        "P1_steps_total": 51.0,
+        "P2_backtrack_rate": 0.0392156862745098,
+        "P3_loop_score": 0.3333333333333333,
+        "P4_verification_density": 0.2549019607843137,
+        "Q1_success_rate": 1.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 8.0,
+        "stage_act_latency_ms": 32167.53545962274,
+        "stage_act_tokens": 17524.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 62.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 26.0,
+        "stage_retrieve_latency_ms": 26.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 13.0,
+        "stage_verify_latency_ms": 2708.942290920764,
+        "stage_verify_tokens": 1757.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 1.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": true,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": true,
+              "ground_truth": [],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Quinn Harris\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Quinn Harris in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Harris' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 1.0,
+            "success": true,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_4"
+          }
+        ],
+        "success_rate": 1.0
+      },
+      "prompt_preview": "If we haven't spoke to Quinn Harris in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Harris' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/fully_linked_debate/multi_domain_4",
+      "task_id": "multi_domain_4"
+    }
+  ],
+  "timestamp": "20260330T200430Z"
+}

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import random
 from dataclasses import dataclass
 
 from .config import MASConfig
+from .relay import build_layout
 
 
 @dataclass(frozen=True)
@@ -11,10 +11,13 @@ class AgentSpec:
     agent_id: str
     level: int
     agent_type: str
+    role: str = "agent"
 
 
 @dataclass
 class Topology:
+    """Topology view derived from the named MAS layout configuration."""
+
     agents: list[AgentSpec]
     adjacency: dict[str, list[str]]
 
@@ -29,52 +32,35 @@ class Topology:
 
 
 def build_topology(config: MASConfig, seed: int) -> Topology:
-    """Build a deterministic topology from config knobs and a seed."""
+    """Build the deterministic named topology used by the LangGraph runtime.
 
-    rng = random.Random(seed)
-    agents_per_level = config.resolved_agents_per_level()
+    `seed` is retained for API compatibility. The current topology layouts are
+    declarative and deterministic, so the seed does not affect the result.
+    """
+
+    _ = seed
+    layout = build_layout(
+        topology=config.resolved_topology(),
+        num_agents=config.total_agents,
+        agents_per_level=(
+            list(config.agents_per_level) if config.agents_per_level is not None else None
+        ),
+        group_sizes=(list(config.group_sizes) if config.group_sizes is not None else None),
+    )
 
     agents: list[AgentSpec] = []
-    level_to_agents: dict[int, list[str]] = {}
     agent_type_count = len(config.agent_types)
-    agent_index = 0
+    for index, agent_id in enumerate(layout.agent_ids):
+        agents.append(
+            AgentSpec(
+                agent_id=agent_id,
+                level=int(layout.level_by_agent.get(agent_id, 0)),
+                agent_type=config.agent_types[index % agent_type_count],
+                role=str(layout.roles.get(agent_id, "agent")),
+            )
+        )
 
-    for level in range(config.levels):
-        level_to_agents[level] = []
-        for _ in range(agents_per_level[level]):
-            agent_id = f"agent_{agent_index}"
-            agent_type = config.agent_types[agent_index % agent_type_count]
-            spec = AgentSpec(agent_id=agent_id, level=level, agent_type=agent_type)
-            agents.append(spec)
-            level_to_agents[level].append(agent_id)
-            agent_index += 1
-
-    adjacency_sets: dict[str, set[str]] = {agent.agent_id: set() for agent in agents}
-
-    # Intra-level connectivity.
-    for level_agents in level_to_agents.values():
-        for i, src in enumerate(level_agents):
-            for j in range(i + 1, len(level_agents)):
-                dst = level_agents[j]
-                if config.full_linked:
-                    selected = True
-                else:
-                    selected = rng.random() <= config.intra_level_link_ratio
-                if selected:
-                    adjacency_sets[src].add(dst)
-                    adjacency_sets[dst].add(src)
-
-    # Cross-level connectivity: adjacent levels only, full bipartite links.
-    for level in range(config.levels - 1):
-        current_level_agents = level_to_agents.get(level, [])
-        next_level_agents = level_to_agents.get(level + 1, [])
-        for src in current_level_agents:
-            for dst in next_level_agents:
-                adjacency_sets[src].add(dst)
-                adjacency_sets[dst].add(src)
-
-    adjacency = {
-        agent_id: sorted(list(neighbors)) for agent_id, neighbors in adjacency_sets.items()
-    }
-
-    return Topology(agents=agents, adjacency=adjacency)
+    return Topology(
+        agents=agents,
+        adjacency={agent_id: list(neighbors) for agent_id, neighbors in layout.adjacency.items()},
+    )

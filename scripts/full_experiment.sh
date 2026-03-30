@@ -6,14 +6,73 @@ set -euo pipefail
 #   TASK_LIMIT=2 RUNS_PER_TASK=1 bash scripts/full_experiment.sh
 #   BENCHMARKS=workbench,scicode SKIP_SETUP=1 bash scripts/full_experiment.sh
 
-TASK_LIMIT="${TASK_LIMIT:-}"
+TASK_LIMIT="${TASK_LIMIT:-5}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
-BENCHMARKS="${BENCHMARKS:-}"
+BENCHMARKS="${BENCHMARKS:-browsecomp,workbench}"
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"
 SKIP_SETUP="${SKIP_SETUP:-0}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
+
+# ============================================================================
+# Global MAS override args
+# These are appended to every `main.py run ...` command launched by
+# `scripts/full_experiment.py`.
+#
+# Example:
+# MAS_GLOBAL_ARGS="--default-model google/gemini-3-flash-preview --judge-model google/gemini-3-flash-preview --peer-artifact-max-chars 240"
+# ============================================================================
+MAS_GLOBAL_ARGS="${MAS_GLOBAL_ARGS:---default-model google/gemini-3-flash-preview --judge-model google/gemini-3-flash-preview}"
+
+# ============================================================================
+# SAS
+# Example:
+# SAS_ARGS="--judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 200"
+# ============================================================================
+SAS_ARGS="${SAS_ARGS:-}"
+
+# ============================================================================
+# Orchestrator Tree Structure
+# Example:
+# ORCHESTRATOR_TREE_STRUCTURE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 240"
+# ============================================================================
+ORCHESTRATOR_TREE_STRUCTURE_ARGS="${ORCHESTRATOR_TREE_STRUCTURE_ARGS:-}"
+
+# ============================================================================
+# Orchestrator No Discussion
+# Example:
+# ORCHESTRATOR_NO_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 240"
+# ============================================================================
+ORCHESTRATOR_NO_DISCUSSION_ARGS="${ORCHESTRATOR_NO_DISCUSSION_ARGS:-}"
+
+# ============================================================================
+# Orchestrator With Discussion
+# Example:
+# ORCHESTRATOR_WITH_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 220"
+# ============================================================================
+ORCHESTRATOR_WITH_DISCUSSION_ARGS="${ORCHESTRATOR_WITH_DISCUSSION_ARGS:-}"
+
+# ============================================================================
+# Only Voting
+# Example:
+# ONLY_VOTING_ARGS="--judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 200"
+# ============================================================================
+ONLY_VOTING_ARGS="${ONLY_VOTING_ARGS:-}"
+
+# ============================================================================
+# Fully Linked Debate
+# Example:
+# FULLY_LINKED_DEBATE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1 --peer-artifact-max-chars 220"
+# ============================================================================
+FULLY_LINKED_DEBATE_ARGS="${FULLY_LINKED_DEBATE_ARGS:-}"
+
+# ============================================================================
+# Group Chat Debate
+# Example:
+# GROUP_CHAT_DEBATE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1 --peer-artifact-max-chars 220"
+# ============================================================================
+GROUP_CHAT_DEBATE_ARGS="${GROUP_CHAT_DEBATE_ARGS:-}"
 
 args=()
 
@@ -41,6 +100,15 @@ fi
 if [[ "${SETUP_ONLY}" == "1" ]]; then
   args+=(--setup-only)
 fi
+
+export MAS_GLOBAL_ARGS
+export SAS_ARGS
+export ORCHESTRATOR_TREE_STRUCTURE_ARGS
+export ORCHESTRATOR_NO_DISCUSSION_ARGS
+export ORCHESTRATOR_WITH_DISCUSSION_ARGS
+export ONLY_VOTING_ARGS
+export FULLY_LINKED_DEBATE_ARGS
+export GROUP_CHAT_DEBATE_ARGS
 
 if command -v conda >/dev/null 2>&1; then
   exec conda run -n agents python scripts/full_experiment.py "${args[@]}" "$@"

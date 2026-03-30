@@ -47,6 +47,7 @@ class TestMASConfig(unittest.TestCase):
         self.assertEqual(cfg.mas.total_agents, 4)
         self.assertEqual(cfg.mas.turn_mode, "multi_turn")
         self.assertEqual(cfg.models["default"], "openai/gpt-4o-mini")
+        self.assertEqual(cfg.mas.termination_consensus_mode, "llm_judge")
 
     def test_env_override_api_key(self) -> None:
         path = self._write(
@@ -103,6 +104,35 @@ class TestMASConfig(unittest.TestCase):
             communication_count_internally = 0
             turn_mode = "single_turn"
             max_turns = 1
+
+            [models]
+            default = "openai/gpt-4o-mini"
+            """
+        )
+
+        with self.assertRaises(ValueError):
+            load_experiment_config(path)
+
+    def test_invalid_termination_consensus_mode(self) -> None:
+        path = self._write(
+            """
+            [openrouter]
+            api_key = ""
+
+            [experiment]
+            runs_per_task = 1
+            seed = 1
+
+            [mas]
+            levels = 1
+            intra_level_link_ratio = 1.0
+            full_linked = true
+            number_of_agents = 1
+            agent_types = ["general"]
+            communication_count_internally = 0
+            turn_mode = "single_turn"
+            max_turns = 1
+            termination_consensus_mode = "semantic_magic"
 
             [models]
             default = "openai/gpt-4o-mini"

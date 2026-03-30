@@ -1,25 +1,17 @@
 from __future__ import annotations
 
+import importlib
 from typing import Any
 
-from .agentbench import AgentBenchBenchmark
-from .browsecomp import BrowseCompBenchmark
-from .finance_agent import FinanceAgentBenchmark
-from .plancraft import PlancraftBenchmark
-from .scicode import SciCodeBenchmark
-from .stabletoolbench import StableToolBenchBenchmark
-from .webshop import WebShopBenchmark
-from .workbench import WorkBenchBenchmark
-
 BENCHMARK_REGISTRY = {
-    "agentbench": AgentBenchBenchmark,
-    "finance_agent": FinanceAgentBenchmark,
-    "browsecomp": BrowseCompBenchmark,
-    "stabletoolbench": StableToolBenchBenchmark,
-    "plancraft": PlancraftBenchmark,
-    "scicode": SciCodeBenchmark,
-    "webshop": WebShopBenchmark,
-    "workbench": WorkBenchBenchmark,
+    "agentbench": ("benchmark.agentbench", "AgentBenchBenchmark"),
+    "finance_agent": ("benchmark.finance_agent", "FinanceAgentBenchmark"),
+    "browsecomp": ("benchmark.browsecomp", "BrowseCompBenchmark"),
+    "stabletoolbench": ("benchmark.stabletoolbench", "StableToolBenchBenchmark"),
+    "plancraft": ("benchmark.plancraft", "PlancraftBenchmark"),
+    "scicode": ("benchmark.scicode", "SciCodeBenchmark"),
+    "webshop": ("benchmark.webshop", "WebShopBenchmark"),
+    "workbench": ("benchmark.workbench", "WorkBenchBenchmark"),
 }
 
 
@@ -31,4 +23,8 @@ def get_benchmark(name: str, config: dict[str, Any] | None = None):
     if name not in BENCHMARK_REGISTRY:
         available = ", ".join(list_benchmarks())
         raise ValueError(f"Unknown benchmark '{name}'. Available benchmarks: {available}")
-    return BENCHMARK_REGISTRY[name](config=config)
+
+    module_name, class_name = BENCHMARK_REGISTRY[name]
+    module = importlib.import_module(module_name)
+    benchmark_cls = getattr(module, class_name)
+    return benchmark_cls(config=config)

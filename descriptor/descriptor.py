@@ -10,6 +10,7 @@ import pandas as pd
 
 from .metrics import (
     ExtensionOptions,
+    RunOutcome,
     aggregate_failure_modes,
     compute_run_metrics,
     compute_task_metrics,
@@ -41,14 +42,19 @@ class DescriptorResult:
 def compute_descriptor_from_runs(
     runs: Sequence[Sequence[TraceEvent]],
     *,
-    evaluator: Any | None = None,
+    run_outcomes: Sequence[RunOutcome | None] | None = None,
     extensions: ExtensionOptions | None = None,
 ) -> DescriptorResult:
     if extensions is None:
         extensions = ExtensionOptions()
+    if run_outcomes is None:
+        run_outcomes = [None] * len(runs)
+    if len(run_outcomes) != len(runs):
+        raise ValueError("run_outcomes must have the same length as runs")
 
     run_metrics = [
-        compute_run_metrics(run, evaluator=evaluator, extensions=extensions) for run in runs
+        compute_run_metrics(run, outcome=outcome, extensions=extensions)
+        for run, outcome in zip(runs, run_outcomes, strict=True)
     ]
     metrics = compute_task_metrics(run_metrics)
     extensions_out: dict[str, Any] = {}

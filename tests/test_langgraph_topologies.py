@@ -1,6 +1,35 @@
 import unittest
 
-from MAS import run_experiment
+from MAS import ExperimentSpec, LangGraphMASEngine, run_experiment
+from MAS.llm import LLMResult, OpenRouterLLMClient
+
+
+class _TerminationJudgeLLM(OpenRouterLLMClient):
+    def __init__(self, *, mock_used: bool = False, text: str = "") -> None:
+        self._mock_used = mock_used
+        self._text = text
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        return LLMResult(
+            text=self._text,
+            token_in=11,
+            token_out=7,
+            cost_usd=0.0,
+            model="judge-model",
+            mock_used=self._mock_used,
+            metadata={},
+        )
 
 
 class TestLangGraphTopologies(unittest.TestCase):
@@ -43,7 +72,8 @@ class TestLangGraphTopologies(unittest.TestCase):
         specialist_views = [
             view
             for view in views
-            if view["phase"] == "specialist_solve" and view["viewer"].startswith("agent_")
+            if view["phase"] in {"specialist_worker", "specialist_solve"}
+            and view["viewer"].startswith("agent_")
         ]
         self.assertTrue(specialist_views)
         for view in specialist_views:
@@ -85,6 +115,89 @@ class TestLangGraphTopologies(unittest.TestCase):
             recipients = set(message["recipients"])
             sender_group = next(group for group in groups if sender in group)
             self.assertTrue(recipients.issubset(sender_group - {sender}))
+
+    def test_workflow_visual_graph_includes_control_flow_nodes(self) -> None:
+        workflow, graph = LangGraphMASEngine.build_workflow_visual_graph(
+            ExperimentSpec(
+                topology="fully_linked_debate",
+                num_agents=4,
+                rounds=2,
+                discussion_rounds=1,
+            )
+        )
+
+        self.assertIn("debate_controller", workflow.nodes)
+        self.assertIn("judge", workflow.nodes)
+        self.assertIn("finalize", workflow.nodes)
+
+        mermaid = graph.draw_mermaid()
+        self.assertIn("debate_controller", mermaid)
+        self.assertIn("judge", mermaid)
+        self.assertIn("finalize", mermaid)
+
+    def test_termination_consensus_uses_llm_judge_when_available(self) -> None:
+        engine = LangGraphMASEngine(
+            _TerminationJudgeLLM(
+                text='{"groups":[[0,1],[2]],"invalid_indices":[],"explanation":"0 and 1 match"}'
+            )
+        )
+        state = {
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris is the capital of France."},
+            {"agent_id": "agent_1", "answer": "The capital of France is Paris."},
+            {"agent_id": "agent_2", "answer": "London"},
+        ]
+
+        consensus = engine._compute_termination_consensus(
+            state=state,
+            stage_name="debate_controller",
+            round_index=0,
+            discussion_index=0,
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(consensus["source"], "llm_judge")
+        self.assertAlmostEqual(consensus["ratio"], 2 / 3)
+        self.assertEqual(consensus["groups"], [[0, 1], [2]])
+        self.assertEqual(consensus["token_in"], 11)
+        self.assertEqual(consensus["token_out"], 7)
+
+    def test_termination_consensus_falls_back_to_lexical_in_mock_mode(self) -> None:
+        engine = LangGraphMASEngine(
+            _TerminationJudgeLLM(
+                mock_used=True,
+                text='{"groups":[[0,1]],"invalid_indices":[],"explanation":"unused in mock"}',
+            )
+        )
+        state = {
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris is the capital of France."},
+            {"agent_id": "agent_1", "answer": "The capital of France is Paris."},
+        ]
+
+        consensus = engine._compute_termination_consensus(
+            state=state,
+            stage_name="debate_controller",
+            round_index=0,
+            discussion_index=0,
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(consensus["source"], "lexical_fallback_mock")
+        self.assertEqual(consensus["mode"], "llm_judge")
+        self.assertEqual(consensus["valid_count"], 2)
 
 
 if __name__ == "__main__":

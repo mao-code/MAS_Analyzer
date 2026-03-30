@@ -69,8 +69,22 @@ class TestMainHierarchicalOutput(unittest.TestCase):
                 graph_path = run_root / "mas_graph.png"
                 mermaid_path = run_root / "mas_graph.mmd"
                 metadata_path = run_root / "mas_graph.json"
+                workflow_graph_path = run_root / "workflow_graph.png"
+                workflow_mermaid_path = run_root / "workflow_graph.mmd"
+                workflow_metadata_path = run_root / "workflow_graph.json"
                 graph_path.write_bytes(b"fake-png")
                 mermaid_path.write_text("graph TD;\n", encoding="utf-8")
+                workflow_graph_path.write_bytes(b"fake-workflow-png")
+                workflow_mermaid_path.write_text("graph TD;\nSTART-->finalize;\n", encoding="utf-8")
+                workflow_payload = {
+                    "topology": config.mas.resolved_topology(),
+                    "render_backend": "test",
+                    "render_error": "",
+                    "png_path": str(workflow_graph_path.resolve()),
+                    "mermaid_path": str(workflow_mermaid_path.resolve()),
+                    "workflow": {"topology": config.mas.resolved_topology(), "nodes": {}},
+                }
+                workflow_metadata_path.write_text(json.dumps(workflow_payload), encoding="utf-8")
                 payload = {
                     "topology": config.mas.resolved_topology(),
                     "render_backend": "test",
@@ -78,6 +92,7 @@ class TestMainHierarchicalOutput(unittest.TestCase):
                     "png_path": str(graph_path.resolve()),
                     "mermaid_path": str(mermaid_path.resolve()),
                     "layout": {},
+                    "workflow": workflow_payload,
                 }
                 metadata_path.write_text(json.dumps(payload), encoding="utf-8")
                 return payload
@@ -121,6 +136,9 @@ class TestMainHierarchicalOutput(unittest.TestCase):
             task_dir = system_dir / "q1"
 
             self.assertTrue((system_dir / "mas_graph.png").exists())
+            self.assertTrue((system_dir / "workflow_graph.png").exists())
+            self.assertTrue((system_dir / "workflow_graph.mmd").exists())
+            self.assertTrue((system_dir / "workflow_graph.json").exists())
             self.assertTrue((system_dir / "experiment_settings.json").exists())
             self.assertTrue((system_dir / "summary.json").exists())
             self.assertTrue((system_dir / "summary.csv").exists())
@@ -130,21 +148,30 @@ class TestMainHierarchicalOutput(unittest.TestCase):
             self.assertTrue((task_dir / "run_0.metadata.json").exists())
             self.assertTrue((task_dir / "run_0.result.json").exists())
             self.assertTrue((task_dir / "run_0.eval.json").exists())
+            self.assertTrue((task_dir / "run_0.trace_metrics.json").exists())
             self.assertTrue((task_dir / "run_0.trajectory.json").exists())
             self.assertTrue((task_dir / "run_0.trajectory.md").exists())
             self.assertTrue((task_dir / "task_summary.json").exists())
 
             trajectory = json.loads((task_dir / "run_0.trajectory.json").read_text(encoding="utf-8"))
             self.assertTrue(trajectory["tool_definitions"])
+            self.assertTrue(trajectory["prompt_catalog"])
             self.assertTrue(trajectory["steps"])
             first_step = trajectory["steps"][0]
-            prompt_roles = {item.get("role") for item in first_step["prompt_messages"]}
+            self.assertIn("agents", first_step)
+            self.assertTrue(first_step["agents"])
+            first_agent = first_step["agents"][0]
+            self.assertIn("response", first_agent)
+            prompt_roles = {item.get("role") for item in trajectory["prompt_catalog"]}
             self.assertIn("user", prompt_roles)
-            self.assertEqual(first_step["assistant_message"]["role"], "assistant")
 
             eval_payload = json.loads((task_dir / "run_0.eval.json").read_text(encoding="utf-8"))
             self.assertIn("run_metadata_path", eval_payload["details"])
             self.assertIn("tool_call_counts", eval_payload["details"]["run_metadata"])
+
+            result_payload = json.loads((task_dir / "run_0.result.json").read_text(encoding="utf-8"))
+            self.assertIn("trace_metrics", result_payload)
+            self.assertIn("trace_metrics_path", result_payload["artifacts"])
 
             summarize_exit_code = main_module.main(
                 [

@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .artifacts import ArtifactRecord, answer_signature
+
 TOPOLOGY_SAS = "sas"
 TOPOLOGY_ORCHESTRATOR_TREE = "orchestrator_tree_structure"
 TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION = "orchestrator_no_discussion"
@@ -51,10 +53,14 @@ _TOPOLOGY_ALIASES = {
 
 @dataclass(frozen=True)
 class TopologyLayout:
+    """Deterministic communication layout for one named topology."""
+
     topology: str
     agent_ids: list[str]
     adjacency: dict[str, list[str]]
     roles: dict[str, str]
+    level_by_agent: dict[str, int]
+    topological_order: list[str]
     orchestrator_id: str | None
     specialists: list[str]
     managers: list[str]
@@ -71,6 +77,8 @@ class TopologyLayout:
             "agent_ids": list(self.agent_ids),
             "adjacency": {key: list(value) for key, value in self.adjacency.items()},
             "roles": dict(self.roles),
+            "level_by_agent": dict(self.level_by_agent),
+            "topological_order": list(self.topological_order),
             "orchestrator_id": self.orchestrator_id,
             "specialists": list(self.specialists),
             "managers": list(self.managers),
@@ -106,6 +114,8 @@ def build_layout(
     agents_per_level: list[int] | None = None,
     group_sizes: list[int] | None = None,
 ) -> TopologyLayout:
+    """Build the deterministic communication structure for one topology."""
+
     if num_agents < 1:
         raise ValueError("num_agents must be >= 1")
 
@@ -116,6 +126,7 @@ def build_layout(
     agent_ids = [f"agent_{idx}" for idx in range(num_agents)]
     adjacency: dict[str, set[str]] = {agent_id: set() for agent_id in agent_ids}
     roles = {agent_id: "agent" for agent_id in agent_ids}
+    level_by_agent = {agent_id: 0 for agent_id in agent_ids}
     orchestrator_id: str | None = None
     specialists: list[str] = []
     managers: list[str] = []
@@ -125,6 +136,7 @@ def build_layout(
     parent_by_agent: dict[str, str] = {}
     children_by_agent: dict[str, list[str]] = {agent_id: [] for agent_id in agent_ids}
     per_level: list[int] = [num_agents]
+    topological_order = list(agent_ids)
 
     if topo == TOPOLOGY_SAS:
         roles[agent_ids[0]] = "single_agent"
@@ -140,35 +152,40 @@ def build_layout(
         specialists = list(managers + leaves)
 
         roles[orchestrator_id] = "root_orchestrator"
+        level_by_agent[orchestrator_id] = 0
         for manager in managers:
             roles[manager] = "manager"
+            level_by_agent[manager] = 1
         for leaf in leaves:
             roles[leaf] = "leaf_worker"
+            level_by_agent[leaf] = 2
 
         for manager in managers:
             _link(adjacency, orchestrator_id, manager)
             parent_by_agent[manager] = orchestrator_id
             children_by_agent[orchestrator_id].append(manager)
 
-        if not managers and leaves:
-            managers = [orchestrator_id]
-
         for index, leaf in enumerate(leaves):
             manager = managers[index % len(managers)]
             _link(adjacency, manager, leaf)
             parent_by_agent[leaf] = manager
-            children_by_agent.setdefault(manager, []).append(leaf)
+            children_by_agent[manager].append(leaf)
+
+        topological_order = [orchestrator_id] + managers + leaves
 
     elif topo in {TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION, TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION}:
         orchestrator_id = agent_ids[0]
         roles[orchestrator_id] = "orchestrator"
+        level_by_agent[orchestrator_id] = 0
         specialists = agent_ids[1:]
         per_level = [1, max(0, num_agents - 1)]
         for specialist in specialists:
             roles[specialist] = "specialist"
+            level_by_agent[specialist] = 1
             _link(adjacency, orchestrator_id, specialist)
             parent_by_agent[specialist] = orchestrator_id
             children_by_agent[orchestrator_id].append(specialist)
+        topological_order = [orchestrator_id] + specialists
 
     elif topo == TOPOLOGY_ONLY_VOTING:
         for agent_id in agent_ids:
@@ -185,6 +202,7 @@ def build_layout(
         representatives = [group[0] for group in groups if group]
         for group_idx, group in enumerate(groups):
             for member_idx, member in enumerate(group):
+                level_by_agent[member] = group_idx
                 if member_idx == 0:
                     roles[member] = f"group_{group_idx}_representative"
                 else:
@@ -193,6 +211,7 @@ def build_layout(
                 for dst in group[i + 1 :]:
                     _link(adjacency, src, dst)
         specialists = list(agent_ids)
+        per_level = [len(group) for group in groups]
 
     else:
         raise ValueError(f"Unhandled topology '{topo}'")
@@ -209,6 +228,8 @@ def build_layout(
         agent_ids=agent_ids,
         adjacency=adjacency_sorted,
         roles=roles,
+        level_by_agent=level_by_agent,
+        topological_order=topological_order,
         orchestrator_id=orchestrator_id,
         specialists=specialists,
         managers=managers,
@@ -219,6 +240,68 @@ def build_layout(
         children_by_agent=children_payload,
         agents_per_level=per_level,
     )
+
+
+def vote_majority(candidates: list[str]) -> tuple[str, dict[str, int]]:
+    """Deterministic majority vote over raw candidate strings."""
+
+    tally: dict[str, int] = {}
+    surface: dict[str, str] = {}
+    for text in candidates:
+        signature = answer_signature(text)
+        if not signature:
+            continue
+        tally[signature] = tally.get(signature, 0) + 1
+        surface.setdefault(signature, str(text))
+
+    if not tally:
+        return ("", {})
+
+    ranked = sorted(tally.items(), key=lambda item: (-item[1], item[0]))
+    winner = ranked[0][0]
+    return (surface[winner], dict(tally))
+
+
+def vote_artifacts(artifacts: list[ArtifactRecord]) -> tuple[str, dict[str, int]]:
+    """Deterministic vote over structured artifacts.
+
+    Tie-break order:
+    1. Higher vote count
+    2. Higher mean confidence
+    3. Lexicographically smaller canonical answer
+    """
+
+    groups: dict[str, list[ArtifactRecord]] = {}
+    for artifact in artifacts:
+        signature = answer_signature(artifact.get("answer", ""))
+        if not signature:
+            continue
+        groups.setdefault(signature, []).append(artifact)
+
+    if not groups:
+        return ("", {})
+
+    ranked = sorted(
+        groups.items(),
+        key=lambda item: (
+            -len(item[1]),
+            -(
+                sum(float(artifact.get("confidence", 0.5)) for artifact in item[1])
+                / len(item[1])
+            ),
+            item[0],
+        ),
+    )
+    winner_signature, winner_group = ranked[0]
+    best_artifact = sorted(
+        winner_group,
+        key=lambda artifact: (
+            -float(artifact.get("confidence", 0.5)),
+            str(artifact.get("agent_id", "")),
+        ),
+    )[0]
+    tally = {signature: len(items) for signature, items in groups.items()}
+    return (str(best_artifact.get("answer", "")), tally)
 
 
 def _resolve_tree_levels(num_agents: int, agents_per_level: list[int] | None) -> list[int]:
@@ -244,11 +327,8 @@ def _resolve_tree_levels(num_agents: int, agents_per_level: list[int] | None) ->
     manager_count = 1 if num_agents <= 4 else 2
     max_managers = num_agents - 2
     manager_count = max(1, min(manager_count, max_managers))
-    leaves = num_agents - 1 - manager_count
-    if leaves < 1:
-        leaves = 1
-        manager_count = num_agents - 2
-    return [1, manager_count, leaves]
+    leaves_count = num_agents - 1 - manager_count
+    return [1, manager_count, leaves_count]
 
 
 def _resolve_groups(agent_ids: list[str], group_sizes: list[int] | None) -> list[list[str]]:
@@ -262,14 +342,13 @@ def _resolve_groups(agent_ids: list[str], group_sizes: list[int] | None) -> list
             return [list(agent_ids)]
         group_sizes = [left, right]
 
-    if not group_sizes:
-        raise ValueError("group_sizes must not be empty")
     if sum(group_sizes) != len(agent_ids):
         raise ValueError(
-            f"sum(group_sizes) must equal number of agents ({sum(group_sizes)} != {len(agent_ids)})"
+            "sum(group_sizes) must match num_agents "
+            f"({sum(group_sizes)} != {len(agent_ids)})"
         )
     if any(size < 1 for size in group_sizes):
-        raise ValueError("All group_sizes entries must be >= 1")
+        raise ValueError("group_sizes entries must be >= 1")
 
     groups: list[list[str]] = []
     cursor = 0
@@ -279,75 +358,6 @@ def _resolve_groups(agent_ids: list[str], group_sizes: list[int] | None) -> list
     return groups
 
 
-def _link(adjacency: dict[str, set[str]], a: str, b: str) -> None:
-    adjacency[a].add(b)
-    adjacency[b].add(a)
-
-
-def extract_topology_messages_for_agent(
-    *,
-    topology: str,
-    phase: str,
-    round_index: int,
-    agent_id: str,
-    messages: list[dict[str, Any]],
-    layout: TopologyLayout,
-) -> list[dict[str, Any]]:
-    topo = normalize_topology_name(topology)
-    if topo == TOPOLOGY_AUTO:
-        topo = auto_topology_for_agents(len(layout.agent_ids))
-
-    visible = [item for item in messages if agent_id in item.get("recipients", [])]
-
-    if topo == TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION and phase == "specialist_solve":
-        # Specialists only receive orchestrator directives, no peer outputs.
-        visible = [item for item in visible if item.get("sender") == layout.orchestrator_id]
-
-    if topo == TOPOLOGY_ORCHESTRATOR_TREE and phase == "leaf_work":
-        # Leaves only consume direct parent manager instructions.
-        parent = layout.parent_by_agent.get(agent_id)
-        if parent is not None:
-            visible = [item for item in visible if item.get("sender") == parent]
-
-    if topo == TOPOLOGY_GROUP_CHAT_DEBATE and phase == "group_debate":
-        group = _group_for_agent(layout, agent_id)
-        if group:
-            allowed = set(group)
-            visible = [item for item in visible if item.get("sender") in allowed]
-
-    if topo == TOPOLOGY_FULLY_LINKED_DEBATE and phase == "debate":
-        visible = [
-            item
-            for item in visible
-            if item.get("round", -1) == round_index - 1 or item.get("phase") == "seed"
-        ]
-
-    return sorted(visible, key=lambda item: str(item.get("message_id", "")))
-
-
-def _group_for_agent(layout: TopologyLayout, agent_id: str) -> list[str]:
-    for group in layout.groups:
-        if agent_id in group:
-            return group
-    return []
-
-
-def vote_majority(candidates: list[str]) -> tuple[str, dict[str, int]]:
-    tally: dict[str, int] = {}
-    canonical_to_original: dict[str, str] = {}
-
-    for text in candidates:
-        canonical = _canonical_vote(text)
-        tally[canonical] = tally.get(canonical, 0) + 1
-        canonical_to_original.setdefault(canonical, text)
-
-    if not tally:
-        return "", {}
-
-    winner = sorted(tally.items(), key=lambda item: (-item[1], item[0]))[0][0]
-    return canonical_to_original[winner], tally
-
-
-def _canonical_vote(text: str) -> str:
-    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
-    return normalized[:280]
+def _link(adjacency: dict[str, set[str]], left: str, right: str) -> None:
+    adjacency[left].add(right)
+    adjacency[right].add(left)

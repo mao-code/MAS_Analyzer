@@ -7,14 +7,20 @@ import json
 import math
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from benchmark import BenchmarkEvaluation, get_benchmark, list_benchmarks
 from descriptor.experiment import analyze_task_runs, write_run_trace
+from descriptor.metrics import RunOutcome, compute_run_metrics, resolve_run_outcome
 from MAS import MASRunner, OpenRouterLLMClient, load_experiment_config
-from MAS.langgraph_engine import ExperimentSpec
+from MAS.langgraph_engine import ExperimentSpec, LangGraphMASEngine
+
+try:
+    from datetime import UTC
+except ImportError:  # pragma: no cover - Python < 3.11 fallback
+    UTC = timezone.utc
 
 
 def _now_stamp() -> str:
@@ -94,6 +100,7 @@ def _write_eval(
     evaluation: BenchmarkEvaluation,
     prediction: str,
     *,
+    run_outcome: RunOutcome | None = None,
     metadata_summary: dict[str, Any] | None = None,
     metadata_path: Path | None = None,
 ) -> None:
@@ -109,9 +116,12 @@ def _write_eval(
         "task_id": evaluation.task_id,
         "score": evaluation.score,
         "success": evaluation.success,
+        "completion": bool(run_outcome.completion) if run_outcome is not None else None,
         "details": details,
         "prediction": prediction,
     }
+    if run_outcome is not None:
+        payload["outcome"] = run_outcome.to_dict()
     _write_json(path, payload)
 
 
@@ -195,6 +205,14 @@ def _apply_mas_overrides(config: Any, args: argparse.Namespace) -> None:
         mas_cfg.turn_mode = "single_turn" if mas_cfg.max_turns <= 1 else "multi_turn"
     if args.discussion_rounds is not None:
         mas_cfg.discussion_rounds = max(1, int(args.discussion_rounds))
+    if args.termination_consensus_mode is not None:
+        mas_cfg.termination_consensus_mode = str(args.termination_consensus_mode)
+    if args.peer_artifact_max_chars is not None:
+        mas_cfg.peer_artifact_max_chars = max(32, int(args.peer_artifact_max_chars))
+    if args.default_model is not None:
+        config.models["default"] = str(args.default_model)
+    if args.judge_model is not None:
+        config.models["judge"] = str(args.judge_model)
     if agent_types is not None:
         mas_cfg.agent_types = list(agent_types)
 
@@ -311,6 +329,219 @@ def _task_manifest_payload(
     }
 
 
+def _normalized_int(value: Any) -> int:
+    if value in (None, ""):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _text_preview(text: Any, *, limit: int = 220) -> str:
+    collapsed = " ".join(str(text or "").split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[: limit - 3] + "..."
+
+
+def _stage_metric_payload(run_metrics: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    metric_suffixes = (
+        "events",
+        "latency_ms",
+        "tokens",
+        "tool_errors",
+        "verify_density",
+    )
+    core_metrics: dict[str, Any] = {}
+    stage_metrics: dict[str, dict[str, Any]] = {}
+
+    for key, value in run_metrics.items():
+        if not key.startswith("stage_"):
+            core_metrics[key] = value
+            continue
+
+        remainder = key[len("stage_") :]
+        matched = False
+        for suffix in metric_suffixes:
+            marker = f"_{suffix}"
+            if not remainder.endswith(marker):
+                continue
+            stage_name = remainder[: -len(marker)]
+            stage_metrics.setdefault(stage_name, {})[suffix] = value
+            matched = True
+            break
+        if not matched:
+            core_metrics[key] = value
+
+    return core_metrics, stage_metrics
+
+
+def _trace_metrics_payload(
+    *,
+    task: Any,
+    benchmark_name: str,
+    run_index: int,
+    final_answer: str,
+    evaluation: BenchmarkEvaluation,
+    run_outcome: RunOutcome,
+    run_metadata: dict[str, Any],
+    trace_events: Sequence[Any],
+) -> dict[str, Any]:
+    run_metrics = compute_run_metrics(
+        trace_events,
+        outcome=run_outcome,
+        final_answer=final_answer,
+        run_metadata=run_metadata,
+    )
+    core_metrics, stage_metrics = _stage_metric_payload(run_metrics)
+    termination_history = list(run_metadata.get("termination_history", []))
+
+    return {
+        "task_id": str(task.task_id),
+        "benchmark": benchmark_name,
+        "run_index": int(run_index),
+        "evaluation": {
+            "score": float(evaluation.score),
+            "success": bool(evaluation.success),
+            "details": {
+                key: value
+                for key, value in dict(evaluation.details).items()
+                if key != "run_metadata"
+            },
+        },
+        "outcome": run_outcome.to_dict(),
+        "final_answer_preview": _text_preview(final_answer, limit=320),
+        "metrics": core_metrics,
+        "stages": stage_metrics,
+        "runtime": _compact_run_metadata(run_metadata),
+        "termination": termination_history[-1] if termination_history else None,
+    }
+
+
+def _fallback_interaction_logs(
+    *,
+    task: Any,
+    system_info: dict[str, Any],
+    final_answer: str,
+) -> list[dict[str, Any]]:
+    prompt = getattr(task, "prompt", "")
+    if isinstance(prompt, list):
+        prompt_messages = list(prompt)
+    else:
+        prompt_messages = [{"role": "user", "content": str(prompt)}]
+
+    return [
+        {
+            "outer_step_index": 0,
+            "dispatch_id": 0,
+            "agent_id": "agent_0",
+            "agent_role": system_info.get("mode", "agent"),
+            "agent_type": "",
+            "phase": "solve",
+            "round_index": 0,
+            "discussion_index": 0,
+            "prompt_messages": prompt_messages,
+            "visible_messages": [],
+            "assistant_message": {"role": "assistant", "content": final_answer},
+            "tool_calls": [],
+        }
+    ]
+
+
+def _build_prompt_catalog(
+    interaction_logs: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, str], dict[str, int]]:
+    catalog: list[dict[str, Any]] = []
+    prompt_id_by_key: dict[str, str] = {}
+    prompt_order: dict[str, int] = {}
+
+    for log in interaction_logs:
+        for message in log.get("prompt_messages", []):
+            role = str(message.get("role", "user"))
+            content = str(message.get("content", ""))
+            key = json.dumps(
+                {"role": role, "content": content},
+                sort_keys=True,
+                ensure_ascii=False,
+            )
+            prompt_id = prompt_id_by_key.get(key)
+            if prompt_id is None:
+                prompt_id = f"p_{len(catalog) + 1}"
+                prompt_id_by_key[key] = prompt_id
+                prompt_order[prompt_id] = len(catalog)
+                catalog.append(
+                    {
+                        "prompt_id": prompt_id,
+                        "role": role,
+                        "content": content,
+                        "usage_count": 1,
+                    }
+                )
+                continue
+
+            catalog[prompt_order[prompt_id]]["usage_count"] = (
+                int(catalog[prompt_order[prompt_id]].get("usage_count", 0)) + 1
+            )
+
+    return catalog, prompt_id_by_key, prompt_order
+
+
+def _collect_message_catalog(
+    *,
+    run_metadata: dict[str, Any],
+    interaction_logs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    messages_by_id: dict[str, dict[str, Any]] = {}
+
+    def register(raw_message: dict[str, Any], *, outer_step_index: int) -> None:
+        message_id = str(raw_message.get("message_id", ""))
+        if not message_id:
+            return
+        recipients_value = raw_message.get("recipients", raw_message.get("to", []))
+        if isinstance(recipients_value, str):
+            recipients = [recipients_value]
+        else:
+            recipients = [str(item) for item in recipients_value]
+        messages_by_id[message_id] = {
+            "message_id": message_id,
+            "outer_step_index": _normalized_int(raw_message.get("outer_step_index", outer_step_index)),
+            "dispatch_id": _normalized_int(raw_message.get("dispatch_id", 0)),
+            "from": str(raw_message.get("sender", raw_message.get("from", "system"))),
+            "to": recipients,
+            "kind": str(raw_message.get("kind", "")),
+            "phase": str(raw_message.get("phase", "")),
+            "round_index": _normalized_int(raw_message.get("round", raw_message.get("round_index", 0))),
+            "discussion_index": _normalized_int(
+                raw_message.get("discussion_index", raw_message.get("discussion", 0))
+            ),
+            "artifact_id": str(raw_message.get("artifact_id", "")) if raw_message.get("artifact_id") else "",
+            "content": str(raw_message.get("content", "")),
+        }
+
+    for raw_message in run_metadata.get("relay_messages", []):
+        if isinstance(raw_message, dict):
+            register(raw_message, outer_step_index=_normalized_int(raw_message.get("outer_step_index", 0)))
+
+    for log in interaction_logs:
+        outer_step_index = _normalized_int(log.get("outer_step_index", 0))
+        for raw_message in log.get("visible_messages", []):
+            if not isinstance(raw_message, dict):
+                continue
+            register(raw_message, outer_step_index=outer_step_index)
+
+    return sorted(
+        messages_by_id.values(),
+        key=lambda item: (
+            int(item.get("outer_step_index", 0)),
+            int(item.get("dispatch_id", 0)),
+            int(item.get("round_index", 0)),
+            int(item.get("discussion_index", 0)),
+            str(item.get("message_id", "")),
+        ),
+    )
+
+
 def _trajectory_payload(
     *,
     task: Any,
@@ -320,36 +551,162 @@ def _trajectory_payload(
     final_answer: str,
     run_metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    steps = list(run_metadata.get("interaction_logs", []))
-    if not steps:
-        prompt = getattr(task, "prompt", "")
-        if isinstance(prompt, list):
-            prompt_messages = list(prompt)
-        else:
-            prompt_messages = [{"role": "user", "content": str(prompt)}]
-        steps = [
-            {
-                "dispatch_id": 0,
-                "agent_id": "agent_0",
-                "agent_role": system_info.get("mode", "agent"),
-                "agent_type": "",
-                "phase": "solve",
-                "round_index": 0,
-                "prompt_messages": prompt_messages,
-                "visible_messages": [],
-                "assistant_message": {"role": "assistant", "content": final_answer},
-                "tool_calls": [],
-                "llm": {},
-            }
-        ]
+    interaction_logs = list(run_metadata.get("interaction_logs", []))
+    if not interaction_logs:
+        interaction_logs = _fallback_interaction_logs(
+            task=task,
+            system_info=system_info,
+            final_answer=final_answer,
+        )
 
+    prompt_catalog, prompt_id_by_key, prompt_order = _build_prompt_catalog(interaction_logs)
+    message_catalog = _collect_message_catalog(
+        run_metadata=run_metadata,
+        interaction_logs=interaction_logs,
+    )
+    messages_by_group: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    for message in message_catalog:
+        group_key = (
+            int(message.get("outer_step_index", 0)),
+            int(message.get("dispatch_id", 0)),
+        )
+        messages_by_group.setdefault(group_key, []).append(message)
+
+    termination_by_group: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    for raw_item in run_metadata.get("termination_history", []):
+        if not isinstance(raw_item, dict):
+            continue
+        entry = {
+            "outer_step_index": _normalized_int(raw_item.get("outer_step_index", 0)),
+            "dispatch_id": _normalized_int(raw_item.get("dispatch_id", 0)),
+            "stage_name": str(raw_item.get("stage_name", "")),
+            "next_step": str(raw_item.get("next_step", "")),
+            "should_stop": bool(raw_item.get("should_stop", False)),
+            "reason": str(raw_item.get("reason", "")),
+            "reason_detail": str(raw_item.get("reason_detail", "")),
+            "consensus_ratio": raw_item.get("consensus_ratio"),
+            "average_confidence": raw_item.get("average_confidence"),
+            "mean_delta": raw_item.get("mean_delta"),
+            "valid_artifact_count": raw_item.get("valid_artifact_count"),
+        }
+        group_key = (entry["outer_step_index"], entry["dispatch_id"])
+        termination_by_group.setdefault(group_key, []).append(entry)
+
+    grouped_logs: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    for log in interaction_logs:
+        group_key = (
+            _normalized_int(log.get("outer_step_index", 0)),
+            _normalized_int(log.get("dispatch_id", 0)),
+        )
+        grouped_logs.setdefault(group_key, []).append(log)
+
+    steps: list[dict[str, Any]] = []
+    for step_index, group_key in enumerate(sorted(grouped_logs), start=1):
+        logs = sorted(
+            grouped_logs[group_key],
+            key=lambda item: (
+                str(item.get("agent_id", "")),
+                str(item.get("phase", "")),
+            ),
+        )
+        outer_step_index, dispatch_id = group_key
+        phases = sorted({str(log.get("phase", "")) for log in logs if str(log.get("phase", ""))})
+        round_index = _normalized_int(logs[0].get("round_index", 0))
+        discussion_index = _normalized_int(logs[0].get("discussion_index", 0))
+
+        agent_entries: list[dict[str, Any]] = []
+        prompt_sets: list[set[str]] = []
+        for log in logs:
+            prompt_ids: list[str] = []
+            for message in log.get("prompt_messages", []):
+                role = str(message.get("role", "user"))
+                content = str(message.get("content", ""))
+                key = json.dumps(
+                    {"role": role, "content": content},
+                    sort_keys=True,
+                    ensure_ascii=False,
+                )
+                prompt_id = prompt_id_by_key[key]
+                prompt_ids.append(prompt_id)
+
+            prompt_sets.append(set(prompt_ids))
+            tool_calls: list[dict[str, Any]] = []
+            for call in log.get("tool_calls", []):
+                entry = {
+                    "tool_name": str(call.get("tool_name", "")),
+                    "status": str(call.get("status", "")),
+                    "arguments": call.get("arguments", {}),
+                    "output_preview": str(call.get("output_preview", "")),
+                }
+                if call.get("error") is not None:
+                    entry["error"] = call.get("error")
+                tool_calls.append(entry)
+
+            agent_entries.append(
+                {
+                    "agent_id": str(log.get("agent_id", "")),
+                    "role": str(log.get("agent_role", "")),
+                    "agent_type": str(log.get("agent_type", "")),
+                    "prompt_ids": prompt_ids,
+                    "inbox_message_ids": [
+                        str(message.get("message_id", ""))
+                        for message in log.get("visible_messages", [])
+                        if str(message.get("message_id", ""))
+                    ],
+                    "tool_calls": tool_calls,
+                    "response": str(log.get("assistant_message", {}).get("content", "")),
+                    "llm": dict(log.get("llm", {})) if isinstance(log.get("llm"), dict) else {},
+                }
+            )
+
+        shared_prompt_ids: set[str] = set()
+        if prompt_sets:
+            shared_prompt_ids = set.intersection(*prompt_sets)
+        ordered_shared_prompt_ids = sorted(
+            shared_prompt_ids,
+            key=lambda prompt_id: prompt_order[prompt_id],
+        )
+
+        for entry in agent_entries:
+            entry["prompt_ids"] = [
+                prompt_id
+                for prompt_id in entry["prompt_ids"]
+                if prompt_id not in shared_prompt_ids
+            ]
+
+        steps.append(
+            {
+                "step_index": step_index,
+                "outer_step_index": outer_step_index,
+                "dispatch_id": dispatch_id,
+                "phase": phases[0] if len(phases) == 1 else "",
+                "phases": phases,
+                "round_index": round_index,
+                "discussion_index": discussion_index,
+                "parallel": len(agent_entries) > 1,
+                "shared_prompt_ids": ordered_shared_prompt_ids,
+                "agents": agent_entries,
+                "messages_sent": messages_by_group.get(group_key, []),
+                "termination": termination_by_group.get(group_key, []),
+            }
+        )
+
+    termination_history = list(run_metadata.get("termination_history", []))
     return {
         "task_id": str(task.task_id),
         "benchmark": benchmark_name,
         "run_index": int(run_index),
         "system": system_info,
         "tool_definitions": list(run_metadata.get("tool_definitions", [])),
+        "prompt_catalog": prompt_catalog,
         "steps": steps,
+        "final": {
+            "answer": final_answer,
+            "answer_preview": _text_preview(final_answer, limit=320),
+            "final_reason": str(run_metadata.get("final_reason", "")),
+            "vote_tally": dict(run_metadata.get("vote_tally", {})),
+            "last_termination": termination_history[-1] if termination_history else None,
+        },
     }
 
 
@@ -361,6 +718,15 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
         f"- System: {payload.get('system', {}).get('system_label', '')}",
         f"- Topology: {payload.get('system', {}).get('topology', '')}",
         f"- Run Index: {payload.get('run_index', 0)}",
+        "",
+        "## Final",
+        "",
+        f"- Final Reason: {payload.get('final', {}).get('final_reason', '') or '_None_'}",
+        f"- Vote Tally: `{json.dumps(payload.get('final', {}).get('vote_tally', {}), sort_keys=True, ensure_ascii=False)}`",
+        "",
+        "### Final Answer",
+        "",
+        str(payload.get("final", {}).get("answer", "")),
         "",
         "## Tool Definitions",
         "",
@@ -385,42 +751,103 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
             lines.append("```")
             lines.append("")
 
-    for index, step in enumerate(payload.get("steps", []), start=1):
+    lines.extend(["## Prompt Catalog", ""])
+    prompt_catalog = list(payload.get("prompt_catalog", []))
+    if not prompt_catalog:
+        lines.append("_None_")
+        lines.append("")
+    else:
+        for prompt in prompt_catalog:
+            lines.append(
+                f"### {prompt.get('prompt_id', '')} [{str(prompt.get('role', '')).upper()}] x{prompt.get('usage_count', 0)}"
+            )
+            lines.append(str(prompt.get("content", "")))
+            lines.append("")
+
+    lines.extend(["## Communication Steps", ""])
+    steps = list(payload.get("steps", []))
+    if not steps:
+        lines.append("_None_")
+        lines.append("")
+        return "\n".join(lines).strip() + "\n"
+
+    for step in steps:
+        step_header = (
+            f"### Step {step.get('step_index', 0)}"
+            f" · outer {step.get('outer_step_index', 0)}"
+            f" · dispatch {step.get('dispatch_id', 0)}"
+            f" · round {step.get('round_index', 0)}"
+        )
+        lines.append(step_header)
+        lines.append("")
+        phase = str(step.get("phase", "")).strip()
+        if phase:
+            lines.append(f"- Phase: {phase}")
+        elif step.get("phases"):
+            lines.append(f"- Phases: {', '.join(step.get('phases', []))}")
+        lines.append(f"- Parallel: {bool(step.get('parallel', False))}")
+        shared_prompt_ids = list(step.get("shared_prompt_ids", []))
         lines.append(
-            f"## Step {index}: {step.get('agent_id', '')} ({step.get('phase', '')} / round {step.get('round_index', 0)})"
+            f"- Shared Prompt IDs: {', '.join(shared_prompt_ids) if shared_prompt_ids else '_None_'}"
         )
         lines.append("")
-        lines.append("### Prompt Messages")
-        lines.append("")
-        for message in step.get("prompt_messages", []):
-            role = str(message.get("role", "user")).upper()
-            lines.append(f"#### {role}")
-            lines.append(str(message.get("content", "")))
+
+        for agent in step.get("agents", []):
+            lines.append(
+                f"#### {agent.get('agent_id', '')} ({agent.get('role', '') or 'agent'})"
+            )
+            lines.append(
+                f"- Unique Prompt IDs: {', '.join(agent.get('prompt_ids', [])) if agent.get('prompt_ids') else '_None_'}"
+            )
+            lines.append(
+                f"- Inbox Message IDs: {', '.join(agent.get('inbox_message_ids', [])) if agent.get('inbox_message_ids') else '_None_'}"
+            )
+            tool_calls = list(agent.get("tool_calls", []))
+            if tool_calls:
+                tool_summaries = [
+                    f"{call.get('tool_name', '')} ({call.get('status', '')})"
+                    for call in tool_calls
+                ]
+                lines.append(f"- Tool Calls: {', '.join(tool_summaries)}")
+            else:
+                lines.append("- Tool Calls: _None_")
             lines.append("")
-        tool_calls = step.get("tool_calls", [])
-        lines.append("### Tool Calls")
+            lines.append("```text")
+            lines.append(str(agent.get("response", "")))
+            lines.append("```")
+            lines.append("")
+
+        lines.append("#### Messages Sent")
         lines.append("")
-        if not tool_calls:
+        messages_sent = list(step.get("messages_sent", []))
+        if not messages_sent:
             lines.append("_None_")
             lines.append("")
         else:
-            for call in tool_calls:
-                lines.append(f"- `{call.get('tool_name', '')}` ({call.get('status', '')})")
+            for message in messages_sent:
                 lines.append(
-                    f"  args: `{json.dumps(call.get('arguments', {}), sort_keys=True, ensure_ascii=False, default=str)}`"
+                    f"- {message.get('message_id', '')}: {message.get('from', '')} -> {', '.join(message.get('to', []))} [{message.get('kind', '')}]"
                 )
-                preview = str(call.get("output_preview", "")).strip()
-                if preview:
-                    lines.append(f"  output: {preview}")
+                lines.append(f"  {message.get('content', '')}")
             lines.append("")
-        lines.append("### Assistant Message")
+
+        lines.append("#### Termination")
         lines.append("")
-        lines.append(str(step.get("assistant_message", {}).get("content", "")))
-        lines.append("")
+        terminations = list(step.get("termination", []))
+        if not terminations:
+            lines.append("_None_")
+            lines.append("")
+        else:
+            for termination in terminations:
+                lines.append(
+                    f"- {termination.get('stage_name', '')}: stop={termination.get('should_stop', False)} reason={termination.get('reason', '')}"
+                )
+                detail = str(termination.get("reason_detail", "")).strip()
+                if detail:
+                    lines.append(f"  {detail}")
+            lines.append("")
 
     return "\n".join(lines).strip() + "\n"
-
-
 def _matplotlib_positions(layout: Any) -> dict[str, tuple[float, float]]:
     topology = str(layout.topology)
     positions: dict[str, tuple[float, float]] = {}
@@ -522,6 +949,51 @@ def _write_matplotlib_graph_png(path: Path, layout: Any) -> None:
     plt.close(fig)
 
 
+def _write_workflow_matplotlib_graph_png(path: Path, workflow: Any) -> None:
+    import matplotlib.pyplot as plt
+
+    node_ids = ["START", *list(workflow.nodes.keys()), "END"]
+    positions = {node_id: (index, 0.0) for index, node_id in enumerate(node_ids)}
+    edges = LangGraphMASEngine._workflow_edges_from_documentation(workflow)
+
+    fig, ax = plt.subplots(figsize=(max(10.0, len(node_ids) * 1.8), 3.8))
+    ax.axis("off")
+
+    for edge in edges:
+        if edge.source not in positions or edge.target not in positions:
+            continue
+        x1, y1 = positions[edge.source]
+        x2, y2 = positions[edge.target]
+        ax.annotate(
+            "",
+            xy=(x2, y2),
+            xytext=(x1, y1),
+            arrowprops={"arrowstyle": "->", "color": "#7c8695", "linewidth": 1.4},
+            zorder=1,
+        )
+
+    for node_id, (x, y) in positions.items():
+        if node_id in {"START", "END"}:
+            color = "#d0d7de"
+        elif "dispatch" in node_id:
+            color = "#ecb939"
+        elif "controller" in node_id or "checker" in node_id:
+            color = "#f28c8c"
+        elif "judge" in node_id or "voter" in node_id:
+            color = "#b38bfa"
+        elif node_id == "finalize":
+            color = "#50c878"
+        else:
+            color = "#6cc4c4"
+        ax.scatter([x], [y], s=2200, c=color, edgecolors="#243447", linewidths=1.2, zorder=2)
+        ax.text(x, y, node_id, ha="center", va="center", fontsize=8.5, color="#111827", zorder=3)
+
+    ax.set_title(f"Workflow: {workflow.topology}", fontsize=14, pad=12)
+    fig.tight_layout()
+    fig.savefig(path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+
+
 def _write_system_graph_artifact(
     *,
     runner: MASRunner,
@@ -534,6 +1006,8 @@ def _write_system_graph_artifact(
         rounds=max(1, int(config.mas.max_turns)),
         discussion_rounds=max(1, int(config.mas.discussion_rounds)),
         communication_budget_per_agent=int(config.mas.communication_count_internally),
+        termination_consensus_mode=str(config.mas.termination_consensus_mode),
+        peer_artifact_max_chars=int(config.mas.peer_artifact_max_chars),
         agents_per_level=(
             list(config.mas.agents_per_level) if config.mas.agents_per_level is not None else None
         ),
@@ -543,6 +1017,9 @@ def _write_system_graph_artifact(
     graph_path = run_root / "mas_graph.png"
     mermaid_path = run_root / "mas_graph.mmd"
     metadata_path = run_root / "mas_graph.json"
+    workflow_graph_path = run_root / "workflow_graph.png"
+    workflow_mermaid_path = run_root / "workflow_graph.mmd"
+    workflow_metadata_path = run_root / "workflow_graph.json"
 
     layout, visual_graph = runner.engine.build_topology_visual_graph(spec)
     mermaid_text = visual_graph.draw_mermaid()
@@ -568,6 +1045,40 @@ def _write_system_graph_artifact(
         render_error = str(exc)
         _write_matplotlib_graph_png(graph_path, layout)
 
+    workflow_definition, workflow_graph = runner.engine.build_workflow_visual_graph(spec)
+    workflow_mermaid_text = workflow_graph.draw_mermaid()
+    workflow_mermaid_path.write_text(workflow_mermaid_text, encoding="utf-8")
+
+    workflow_render_backend = "langgraph_mermaid_api"
+    workflow_render_error = ""
+    try:
+        workflow_png_bytes = workflow_graph.draw_mermaid_png(
+            output_file_path=str(workflow_graph_path),
+            background_color="white",
+            max_retries=0,
+        )
+        with contextlib.suppress(Exception):
+            from IPython.display import Image as IPythonImage
+
+            rendered = IPythonImage(data=workflow_png_bytes)
+            if isinstance(getattr(rendered, "data", None), (bytes, bytearray)):
+                workflow_png_bytes = bytes(rendered.data)
+        workflow_graph_path.write_bytes(workflow_png_bytes)
+    except Exception as exc:
+        workflow_render_backend = "matplotlib_fallback"
+        workflow_render_error = str(exc)
+        _write_workflow_matplotlib_graph_png(workflow_graph_path, workflow_definition)
+
+    workflow_payload = {
+        "topology": workflow_definition.topology,
+        "render_backend": workflow_render_backend,
+        "render_error": workflow_render_error,
+        "png_path": str(workflow_graph_path.resolve()),
+        "mermaid_path": str(workflow_mermaid_path.resolve()),
+        "workflow": workflow_definition.to_payload(),
+    }
+    _write_json(workflow_metadata_path, workflow_payload)
+
     payload = {
         "topology": layout.topology,
         "render_backend": render_backend,
@@ -575,6 +1086,7 @@ def _write_system_graph_artifact(
         "png_path": str(graph_path.resolve()),
         "mermaid_path": str(mermaid_path.resolve()),
         "layout": layout.to_payload(),
+        "workflow": workflow_payload,
     }
     _write_json(metadata_path, payload)
     return payload
@@ -587,7 +1099,9 @@ def _write_run_artifacts(
     task: Any,
     run_index: int,
     final_answer: str,
+    trace_events: Sequence[Any],
     evaluation: BenchmarkEvaluation,
+    run_outcome: RunOutcome,
     run_metadata: dict[str, Any],
     system_info: dict[str, Any],
 ) -> dict[str, str]:
@@ -606,11 +1120,24 @@ def _write_run_artifacts(
     answer_path = task_dir / f"run_{run_index}.answer.txt"
     metadata_path = task_dir / f"run_{run_index}.metadata.json"
     result_path = task_dir / f"run_{run_index}.result.json"
+    trace_metrics_path = task_dir / f"run_{run_index}.trace_metrics.json"
     trajectory_json_path = task_dir / f"run_{run_index}.trajectory.json"
     trajectory_md_path = task_dir / f"run_{run_index}.trajectory.md"
 
     answer_path.write_text(final_answer, encoding="utf-8")
     _write_json(metadata_path, run_metadata)
+
+    trace_metrics = _trace_metrics_payload(
+        task=task,
+        benchmark_name=benchmark_name,
+        run_index=run_index,
+        final_answer=final_answer,
+        evaluation=evaluation,
+        run_outcome=run_outcome,
+        run_metadata=run_metadata,
+        trace_events=trace_events,
+    )
+    _write_json(trace_metrics_path, trace_metrics)
 
     trajectory_payload = _trajectory_payload(
         task=task,
@@ -641,11 +1168,15 @@ def _write_run_artifacts(
                 if key != "run_metadata"
             },
         },
-        "run_summary": _compact_run_metadata(run_metadata),
+        "outcome": run_outcome.to_dict(),
+        "trace_metrics": trace_metrics["metrics"],
+        "termination": trace_metrics["termination"],
+        "run_summary": trace_metrics["runtime"],
         "artifacts": {
             "task_manifest_path": str(task_manifest_path.resolve()),
             "answer_path": str(answer_path.resolve()),
             "metadata_path": str(metadata_path.resolve()),
+            "trace_metrics_path": str(trace_metrics_path.resolve()),
             "trajectory_json_path": str(trajectory_json_path.resolve()),
             "trajectory_md_path": str(trajectory_md_path.resolve()),
         },
@@ -657,6 +1188,7 @@ def _write_run_artifacts(
         "answer_path": str(answer_path.resolve()),
         "metadata_path": str(metadata_path.resolve()),
         "result_path": str(result_path.resolve()),
+        "trace_metrics_path": str(trace_metrics_path.resolve()),
         "trajectory_json_path": str(trajectory_json_path.resolve()),
         "trajectory_md_path": str(trajectory_md_path.resolve()),
     }
@@ -711,6 +1243,8 @@ def _experiment_settings_payload(
                 "turn_mode": mas_cfg.turn_mode,
                 "max_turns": mas_cfg.max_turns,
                 "discussion_rounds": mas_cfg.discussion_rounds,
+                "termination_consensus_mode": mas_cfg.termination_consensus_mode,
+                "peer_artifact_max_chars": mas_cfg.peer_artifact_max_chars,
                 "communication_count_internally": mas_cfg.communication_count_internally,
                 "intra_level_link_ratio": mas_cfg.intra_level_link_ratio,
                 "full_linked": mas_cfg.full_linked,
@@ -806,6 +1340,8 @@ def run_command(args: argparse.Namespace) -> int:
         "agent_types": list(config.mas.agent_types),
         "max_turns": int(config.mas.max_turns),
         "discussion_rounds": int(config.mas.discussion_rounds),
+        "termination_consensus_mode": str(config.mas.termination_consensus_mode),
+        "peer_artifact_max_chars": int(config.mas.peer_artifact_max_chars),
         "communication_budget": int(config.mas.communication_count_internally),
     }
 
@@ -836,6 +1372,7 @@ def run_command(args: argparse.Namespace) -> int:
 
         run_traces = []
         evaluations = []
+        run_outcomes: list[RunOutcome] = []
         run_artifacts: list[dict[str, Any]] = []
 
         for run_index in range(runs_per_task):
@@ -858,7 +1395,14 @@ def run_command(args: argparse.Namespace) -> int:
                 run.final_answer,
                 run_metadata=run.run_metadata,
             )
+            run_outcome = resolve_run_outcome(
+                run.trace_events,
+                evaluation=evaluation,
+                final_answer=run.final_answer,
+                run_metadata=run.run_metadata,
+            )
             evaluations.append(evaluation)
+            run_outcomes.append(run_outcome)
 
             artifact_paths = _write_run_artifacts(
                 task_dir=task_dir,
@@ -866,7 +1410,9 @@ def run_command(args: argparse.Namespace) -> int:
                 task=task,
                 run_index=run_index,
                 final_answer=run.final_answer,
+                trace_events=run.trace_events,
                 evaluation=evaluation,
+                run_outcome=run_outcome,
                 run_metadata=run.run_metadata,
                 system_info=system_info,
             )
@@ -875,6 +1421,7 @@ def run_command(args: argparse.Namespace) -> int:
                 eval_path,
                 evaluation,
                 run.final_answer,
+                run_outcome=run_outcome,
                 metadata_summary=_compact_run_metadata(run.run_metadata),
                 metadata_path=Path(artifact_paths["metadata_path"]),
             )
@@ -885,6 +1432,7 @@ def run_command(args: argparse.Namespace) -> int:
                     "eval_path": str(eval_path.resolve()),
                     "score": float(evaluation.score),
                     "success": bool(evaluation.success),
+                    "completion": bool(run_outcome.completion),
                 }
             )
 
@@ -894,6 +1442,7 @@ def run_command(args: argparse.Namespace) -> int:
             benchmark_name=benchmark_name,
             run_traces=run_traces,
             evaluations=evaluations,
+            run_outcomes=run_outcomes,
             output_dir=task_dir,
         )
 
@@ -940,6 +1489,7 @@ def run_command(args: argparse.Namespace) -> int:
             "runs": analysis["evaluation"].get("count", 0),
             "eval_avg_score": analysis["evaluation"].get("avg_score", 0.0),
             "eval_success_rate": analysis["evaluation"].get("success_rate", 0.0),
+            "eval_completion_rate": analysis["evaluation"].get("completion_rate", 0.0),
             "task_dir": str(task_dir.resolve()),
         }
         row.update(analysis["descriptor"])
@@ -1014,6 +1564,11 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
                 for task in tasks
                 if isinstance(task, dict)
             ]
+            completion_rates = [
+                float(task.get("evaluation", {}).get("completion_rate", 0.0))
+                for task in tasks
+                if isinstance(task, dict)
+            ]
 
             row = {
                 "benchmark": benchmark_dir.name,
@@ -1024,6 +1579,7 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
                 "runs_per_task": int(summary.get("runs_per_task", 0)),
                 "avg_task_score": _mean(scores),
                 "avg_task_success_rate": _mean(success_rates),
+                "avg_task_completion_rate": _mean(completion_rates),
                 "system_root": str(system_dir.resolve()),
                 "summary_json_path": str(summary_json_path.resolve()),
                 "summary_csv_path": str((system_dir / "summary.csv").resolve()),
@@ -1075,6 +1631,14 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--mas-rounds", type=int, default=None)
     run_parser.add_argument("--discussion-rounds", type=int, default=None)
     run_parser.add_argument("--communication-budget", type=int, default=None)
+    run_parser.add_argument(
+        "--termination-consensus-mode",
+        choices=["llm_judge", "lexical"],
+        default=None,
+    )
+    run_parser.add_argument("--default-model", default=None)
+    run_parser.add_argument("--judge-model", default=None)
+    run_parser.add_argument("--peer-artifact-max-chars", type=int, default=None)
     run_parser.add_argument("--agents-per-level", default=None)
     run_parser.add_argument("--group-sizes", default=None)
     run_parser.add_argument("--agent-types", default=None)

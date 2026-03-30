@@ -32,6 +32,7 @@ class TestTopology(unittest.TestCase):
             levels=3,
             intra_level_link_ratio=0.0,
             full_linked=False,
+            topology="orchestrator_tree_structure",
             agents_per_level=[1, 1, 1],
             number_of_agents=3,
             agent_types=["x"],

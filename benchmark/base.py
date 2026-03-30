@@ -61,13 +61,32 @@ class BenchmarkAdapter(Protocol):
 
 def init_run_metadata_aggregate() -> dict[str, Any]:
     return {
+        "task_id": None,
+        "run_index": None,
+        "seed": None,
+        "topology": None,
+        "rounds_configured": 0,
+        "discussion_rounds": 0,
+        "turns_executed": 0,
+        "messages_sent_by_agent": {},
         "tool_call_counts": {},
         "tool_calls_total": 0,
         "messages_sent_total": 0,
+        "remaining_message_budget": {},
         "retrieved_docids": [],
         "tool_definitions": [],
         "interaction_logs": [],
         "phase_history": [],
+        "relay_messages": [],
+        "message_views": [],
+        "descriptor_records": [],
+        "termination_history": [],
+        "agent_outputs": {},
+        "vote_tally": {},
+        "descriptor_summary": {},
+        "topology_layout": {},
+        "workflow_definition": {},
+        "final_reason": "",
         "step_runs": [],
     }
 
@@ -83,10 +102,31 @@ def merge_step_run_metadata(
     if not step_metadata:
         return
 
+    for key in ("task_id", "run_index", "seed", "topology"):
+        if aggregate.get(key) is None and step_metadata.get(key) is not None:
+            aggregate[key] = step_metadata.get(key)
+
+    aggregate["rounds_configured"] = max(
+        int(aggregate.get("rounds_configured", 0)),
+        int(step_metadata.get("rounds_configured", 0) or 0),
+    )
+    aggregate["discussion_rounds"] = max(
+        int(aggregate.get("discussion_rounds", 0)),
+        int(step_metadata.get("discussion_rounds", 0) or 0),
+    )
+    aggregate["turns_executed"] = int(aggregate.get("turns_executed", 0)) + int(
+        step_metadata.get("turns_executed", 0) or 0
+    )
+
     tool_call_counts = aggregate.setdefault("tool_call_counts", {})
     for name, count in dict(step_metadata.get("tool_call_counts", {})).items():
         tool_name = str(name)
         tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + int(count)
+
+    messages_sent_by_agent = aggregate.setdefault("messages_sent_by_agent", {})
+    for agent_id, count in dict(step_metadata.get("messages_sent_by_agent", {})).items():
+        agent_key = str(agent_id)
+        messages_sent_by_agent[agent_key] = messages_sent_by_agent.get(agent_key, 0) + int(count)
 
     aggregate["tool_calls_total"] = int(aggregate.get("tool_calls_total", 0)) + int(
         step_metadata.get("tool_calls_total", 0)
@@ -94,6 +134,8 @@ def merge_step_run_metadata(
     aggregate["messages_sent_total"] = int(aggregate.get("messages_sent_total", 0)) + int(
         step_metadata.get("messages_sent_total", 0)
     )
+    if step_metadata.get("remaining_message_budget"):
+        aggregate["remaining_message_budget"] = dict(step_metadata.get("remaining_message_budget", {}))
 
     retrieved_docids = {
         str(docid)
@@ -108,7 +150,14 @@ def merge_step_run_metadata(
     if not aggregate.get("tool_definitions") and step_metadata.get("tool_definitions"):
         aggregate["tool_definitions"] = list(step_metadata.get("tool_definitions", []))
 
-    for key in ("interaction_logs", "phase_history"):
+    for key in (
+        "interaction_logs",
+        "phase_history",
+        "relay_messages",
+        "message_views",
+        "descriptor_records",
+        "termination_history",
+    ):
         entries = list(aggregate.get(key, []))
         for item in step_metadata.get(key, []):
             if isinstance(item, dict):
@@ -116,6 +165,19 @@ def merge_step_run_metadata(
             else:
                 entries.append({"outer_step_index": outer_step_index, "value": item})
         aggregate[key] = entries
+
+    if step_metadata.get("agent_outputs"):
+        aggregate["agent_outputs"] = dict(step_metadata.get("agent_outputs", {}))
+    if step_metadata.get("vote_tally"):
+        aggregate["vote_tally"] = dict(step_metadata.get("vote_tally", {}))
+    if step_metadata.get("descriptor_summary"):
+        aggregate["descriptor_summary"] = dict(step_metadata.get("descriptor_summary", {}))
+    if step_metadata.get("topology_layout"):
+        aggregate["topology_layout"] = step_metadata.get("topology_layout", {})
+    if step_metadata.get("workflow_definition"):
+        aggregate["workflow_definition"] = step_metadata.get("workflow_definition", {})
+    if step_metadata.get("final_reason"):
+        aggregate["final_reason"] = str(step_metadata.get("final_reason", ""))
 
     step_runs = list(aggregate.get("step_runs", []))
     step_runs.append(
@@ -127,6 +189,7 @@ def merge_step_run_metadata(
                 "topology": step_metadata.get("topology"),
                 "turns_executed": step_metadata.get("turns_executed", 0),
                 "messages_sent_total": step_metadata.get("messages_sent_total", 0),
+                "messages_sent_by_agent": dict(step_metadata.get("messages_sent_by_agent", {})),
                 "tool_calls_total": step_metadata.get("tool_calls_total", 0),
                 "tool_call_counts": dict(step_metadata.get("tool_call_counts", {})),
                 "final_reason": step_metadata.get("final_reason", ""),

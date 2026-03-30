@@ -9,6 +9,15 @@ from .embeddings import pca_2d, umap_2d
 from .experiment import analyze_task_runs, write_run_trace
 from .io import TraceLogger, read_trace_jsonl, write_trace_jsonl
 from .metrics import ExtensionOptions, compute_run_metrics, compute_task_metrics
+from .metrics import (
+    COST_METRICS,
+    DIAGNOSTIC_METRICS,
+    PROCESS_METRICS,
+    QUALITY_METRICS,
+    RELIABILITY_METRICS,
+    RunOutcome,
+    resolve_run_outcome,
+)
 from .pareto import ideal_point_distance, normalize_objectives, pareto_frontier
 from .scaling import RobustScaler, robust_scale
 from .schema import EVENT_TYPES, TraceEvent, validate_event_dict, validate_trace_events
@@ -38,8 +47,15 @@ __all__ = [
     "read_trace_jsonl",
     "write_trace_jsonl",
     "ExtensionOptions",
+    "RunOutcome",
     "compute_run_metrics",
     "compute_task_metrics",
+    "resolve_run_outcome",
+    "QUALITY_METRICS",
+    "COST_METRICS",
+    "DIAGNOSTIC_METRICS",
+    "RELIABILITY_METRICS",
+    "PROCESS_METRICS",
     "ideal_point_distance",
     "normalize_objectives",
     "pareto_frontier",

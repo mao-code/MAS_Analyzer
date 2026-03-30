@@ -38,6 +38,16 @@ SYSTEMS: list[tuple[str, str, int, int, int, int]] = [
     ("group_chat_debate", "group_chat_debate", 4, 2, 2, 2),
 ]
 
+SYSTEM_ARG_ENV_BY_LABEL: dict[str, str] = {
+    "sas": "SAS_ARGS",
+    "orchestrator_tree_structure": "ORCHESTRATOR_TREE_STRUCTURE_ARGS",
+    "orchestrator_no_discussion": "ORCHESTRATOR_NO_DISCUSSION_ARGS",
+    "orchestrator_with_discussion": "ORCHESTRATOR_WITH_DISCUSSION_ARGS",
+    "only_voting": "ONLY_VOTING_ARGS",
+    "fully_linked_debate": "FULLY_LINKED_DEBATE_ARGS",
+    "group_chat_debate": "GROUP_CHAT_DEBATE_ARGS",
+}
+
 DEFAULT_CONFIG_DIR = ROOT / "config" / "benchmarks"
 SERVICES_ROOT = ROOT / ".cache" / "services"
 EXTERNAL_ROOT = ROOT / ".cache" / "external"
@@ -723,6 +733,7 @@ def batch_run(options: BatchOptions) -> int:
                         "--communication-budget",
                         str(communication_budget),
                     ]
+                    cmd.extend(system_extra_args(system_label))
                     if options.task_limit is not None:
                         cmd.extend(["--task-limit", str(options.task_limit)])
                     if options.runs_per_task is not None:
@@ -777,6 +788,19 @@ def maybe_run_legacy(argv: list[str]) -> int | None:
         cmd = [sys.executable, "-m", "MAS.experiment_cli", *argv]
         return subprocess.run(cmd, cwd=ROOT, check=False).returncode
     return None
+
+
+def system_extra_args(system_label: str) -> list[str]:
+    args: list[str] = []
+    global_args = os.getenv("MAS_GLOBAL_ARGS", "").strip()
+    if global_args:
+        args.extend(shlex.split(global_args))
+    env_name = SYSTEM_ARG_ENV_BY_LABEL.get(system_label)
+    if env_name:
+        system_args = os.getenv(env_name, "").strip()
+        if system_args:
+            args.extend(shlex.split(system_args))
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import os
-import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
+    import tomli as tomllib
 
 from .relay import auto_topology_for_agents, normalize_topology_name
 
@@ -42,6 +46,8 @@ class MASConfig:
     turn_mode: str = "single_turn"
     max_turns: int = 1
     discussion_rounds: int = 1
+    termination_consensus_mode: str = "llm_judge"
+    peer_artifact_max_chars: int = 320
 
     def validate(self) -> None:
         if self.levels < 1:
@@ -61,6 +67,14 @@ class MASConfig:
 
         if self.discussion_rounds < 1:
             raise ValueError("mas.discussion_rounds must be >= 1")
+
+        if self.termination_consensus_mode not in {"llm_judge", "lexical"}:
+            raise ValueError(
+                "mas.termination_consensus_mode must be one of: llm_judge, lexical"
+            )
+
+        if self.peer_artifact_max_chars < 32:
+            raise ValueError("mas.peer_artifact_max_chars must be >= 32")
 
         if self.agents_per_level is not None:
             if len(self.agents_per_level) != self.levels:
@@ -236,6 +250,10 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         turn_mode=str(mas_raw.get("turn_mode", "single_turn")),
         max_turns=int(mas_raw.get("max_turns", 1)),
         discussion_rounds=int(mas_raw.get("discussion_rounds", 1)),
+        termination_consensus_mode=str(
+            mas_raw.get("termination_consensus_mode", "llm_judge")
+        ),
+        peer_artifact_max_chars=int(mas_raw.get("peer_artifact_max_chars", 320)),
     )
 
     experiment = ExperimentRuntimeConfig(

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 
@@ -20,19 +20,31 @@ from .utils import (
     is_tool_error,
 )
 
+QUALITY_METRICS = ("Q1_success_rate", "Q2_completion_rate")
+COST_METRICS = ("C1_latency_p95", "C2_tokens_total", "C3_cost_total", "C4_tool_calls_total")
+DIAGNOSTIC_METRICS = ("D1_tool_error_rate", "D2_communication_count", "D3_handoff_count")
+RELIABILITY_METRICS = ("R1_success_var", "R2_latency_var", "R3_tokens_var")
+PROCESS_METRICS = ("P1_steps_total", "P2_backtrack_rate", "P3_loop_score", "P4_verification_density")
 
-class Evaluator(Protocol):
-    def evaluate_success(self, events: Iterable[TraceEvent]) -> bool | None: ...
 
-    def evaluate_completion(self, events: Iterable[TraceEvent]) -> bool | None: ...
+@dataclass(frozen=True)
+class RunOutcome:
+    success: bool
+    completion: bool
+    score: float | None = None
+    success_source: str = "trace"
+    completion_source: str = "trace"
 
-
-class NullEvaluator:
-    def evaluate_success(self, events: Iterable[TraceEvent]) -> bool | None:
-        return None
-
-    def evaluate_completion(self, events: Iterable[TraceEvent]) -> bool | None:
-        return None
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "success": bool(self.success),
+            "completion": bool(self.completion),
+            "success_source": self.success_source,
+            "completion_source": self.completion_source,
+        }
+        if self.score is not None:
+            payload["score"] = float(self.score)
+        return payload
 
 
 @dataclass
@@ -44,24 +56,58 @@ class ExtensionOptions:
     executability_score: bool = False
 
 
+def resolve_run_outcome(
+    events: Sequence[TraceEvent],
+    *,
+    evaluation: Any | None = None,
+    final_answer: str | None = None,
+    run_metadata: Mapping[str, object] | None = None,
+) -> RunOutcome:
+    success_source = "trace_inference"
+    success = infer_success(events)
+    score: float | None = None
+
+    if evaluation is not None and getattr(evaluation, "success", None) is not None:
+        success = bool(getattr(evaluation, "success"))
+        success_source = "benchmark_evaluation"
+
+    if evaluation is not None and getattr(evaluation, "score", None) is not None:
+        score = float(getattr(evaluation, "score"))
+
+    completion_source = "trace_inference"
+    completion = infer_completion(events, final_answer=final_answer, run_metadata=run_metadata)
+    if run_metadata:
+        completion_source = "runtime_inference"
+    if completion and final_answer and str(final_answer).strip():
+        completion_source = "final_answer"
+
+    return RunOutcome(
+        success=bool(success),
+        completion=bool(completion),
+        score=score,
+        success_source=success_source,
+        completion_source=completion_source,
+    )
+
+
 def compute_run_metrics(
     events: Sequence[TraceEvent],
     *,
-    evaluator: Evaluator | None = None,
+    outcome: RunOutcome | None = None,
+    evaluation: Any | None = None,
+    final_answer: str | None = None,
+    run_metadata: Mapping[str, object] | None = None,
     extensions: ExtensionOptions | None = None,
 ) -> dict[str, Any]:
-    if evaluator is None:
-        evaluator = NullEvaluator()
     if extensions is None:
         extensions = ExtensionOptions()
-
-    success = evaluator.evaluate_success(events)
-    if success is None:
-        success = infer_success(events)
-
-    completion = evaluator.evaluate_completion(events)
-    if completion is None:
-        completion = infer_completion(events)
+    if outcome is None:
+        outcome = resolve_run_outcome(
+            events,
+            evaluation=evaluation,
+            final_answer=final_answer,
+            run_metadata=run_metadata,
+        )
 
     steps_total = len(events)
     token_total = sum(event.token_in + event.token_out for event in events)
@@ -84,8 +130,10 @@ def compute_run_metrics(
     handoff_count = compute_handoff_count(events)
 
     run_metrics: dict[str, Any] = {
-        "success": bool(success),
-        "completion": bool(completion),
+        "success": bool(outcome.success),
+        "completion": bool(outcome.completion),
+        "success_source": outcome.success_source,
+        "completion_source": outcome.completion_source,
         "latency_total": float(latency_total),
         "tokens_total": float(token_total),
         "cost_total": float(cost_total),
@@ -98,6 +146,8 @@ def compute_run_metrics(
         "communication_count": float(communication_count),
         "handoff_count": float(handoff_count),
     }
+    if outcome.score is not None:
+        run_metrics["score"] = float(outcome.score)
 
     if extensions.include_stage_metrics:
         run_metrics.update(compute_stage_metrics(events))
@@ -125,15 +175,6 @@ def compute_run_metrics(
             run_metrics["executability_score"] = 1.0
 
     return run_metrics
-
-
-def _nanmean(values: Sequence[float]) -> float:
-    if not values:
-        return float("nan")
-    arr = np.array(values, dtype=float)
-    if np.all(np.isnan(arr)):
-        return float("nan")
-    return float(np.nanmean(arr))
 
 
 def _nanvar(values: Sequence[float]) -> float:
@@ -172,14 +213,14 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
         "Q1_success_rate": float(successes.mean()),
         "Q2_completion_rate": float(completions.mean()),
         "C1_latency_p95": float(np.percentile(latencies, 95)),
-        "C2_tokens_total": float(tokens.sum()),
-        "C3_cost_total": float(costs.sum()),
-        "C4_tool_calls_total": float(total_tool_calls),
-        "C5_tool_error_rate": float(total_tool_fails / total_tool_calls)
+        "C2_tokens_total": float(tokens.mean()),
+        "C3_cost_total": float(costs.mean()),
+        "C4_tool_calls_total": float(tool_calls.mean()),
+        "D1_tool_error_rate": float(total_tool_fails / total_tool_calls)
         if total_tool_calls
         else 0.0,
-        "C6_communication_count": float(communication_counts.sum()),
-        "C7_handoff_count": float(handoff_counts.sum()),
+        "D2_communication_count": float(communication_counts.mean()),
+        "D3_handoff_count": float(handoff_counts.mean()),
         "R1_success_var": _nanvar(successes.tolist()),
         "R2_latency_var": _nanvar(latencies.tolist()),
         "R3_tokens_var": _nanvar(tokens.tolist()),

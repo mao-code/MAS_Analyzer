@@ -1,0 +1,73 @@
+{
+  "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/browsecomp/orchestrator_tree_structure/workflow_graph.mmd",
+  "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/browsecomp/orchestrator_tree_structure/workflow_graph.png",
+  "render_backend": "langgraph_mermaid_api",
+  "render_error": "",
+  "topology": "orchestrator_tree_structure",
+  "workflow": {
+    "aggregation_logic": "Leaf artifacts are refined upward one level at a time. Internal nodes aggregate only their direct children. No sibling or backflow exchange is allowed.",
+    "conditional_edges": [
+      "manager_dispatch -> manager_nodes (parallel Send fan-out) else worker_dispatch",
+      "worker_dispatch -> worker_nodes (parallel Send fan-out) else worker_relay",
+      "termination_checker -> manager_dispatch | finalize"
+    ],
+    "dispatch_logic": "Root routes only to managers, managers route only to their own children, and aggregation always follows the parent-child DAG upward.",
+    "edges": [
+      "START -> root_plan",
+      "root_plan -> manager_dispatch",
+      "manager_nodes -> worker_dispatch",
+      "worker_nodes -> worker_relay",
+      "worker_relay -> manager_reducers",
+      "manager_reducers -> manager_relay",
+      "manager_relay -> root_reducer",
+      "root_reducer -> descriptor_monitor",
+      "descriptor_monitor -> termination_checker",
+      "finalize -> END"
+    ],
+    "logging_outputs": [
+      "trace_events",
+      "relay_messages",
+      "message_views",
+      "interaction_logs",
+      "descriptor_records",
+      "termination_history"
+    ],
+    "nodes": {
+      "descriptor_monitor": "Shared descriptor hook.",
+      "finalize": "Finalize the run.",
+      "manager_dispatch": "Root-to-manager routing.",
+      "manager_nodes": "Manager decomposition stage.",
+      "manager_reducers": "Per-manager aggregation.",
+      "manager_relay": "Manager-to-root bounded reports.",
+      "root_plan": "Root planner artifact.",
+      "root_reducer": "Root aggregation.",
+      "termination_checker": "Explicit cycle stopper.",
+      "worker_dispatch": "Manager-to-leaf routing.",
+      "worker_nodes": "Leaf execution stage.",
+      "worker_relay": "Leaf-to-manager bounded reports."
+    },
+    "state_fields": [
+      "task_id",
+      "task_prompt",
+      "topology",
+      "layout",
+      "rounds",
+      "discussion_rounds",
+      "round_index",
+      "discussion_index",
+      "messages",
+      "artifacts",
+      "termination_decision",
+      "vote_tally",
+      "descriptor_records"
+    ],
+    "stopping_criteria": [
+      "Max rounds reached",
+      "Consensus across manager reducer artifacts",
+      "No meaningful change between root artifacts",
+      "Root confidence threshold reached",
+      "Invalid or failed branch fallback"
+    ],
+    "topology": "orchestrator_tree_structure"
+  }
+}

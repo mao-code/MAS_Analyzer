@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from .schema import TraceEvent
 
-SUCCESS_STATUSES = {"success", "ok", "pass", "passed", "complete", "completed"}
+SUCCESS_STATUSES = {"success", "ok", "pass", "passed"}
+COMPLETION_STATUSES = SUCCESS_STATUSES | {"complete", "completed", "done", "finalized"}
 FAIL_STATUSES = {"fail", "failed", "error", "timeout", "cancelled", "canceled"}
 
 
@@ -36,9 +37,51 @@ def extract_tool_name(event: TraceEvent) -> str | None:
     return None
 
 
-def infer_completion(events: Iterable[TraceEvent]) -> bool:
+def infer_completion(
+    events: Iterable[TraceEvent],
+    *,
+    final_answer: str | None = None,
+    run_metadata: Mapping[str, object] | None = None,
+) -> bool:
+    metadata = run_metadata or {}
+
+    explicit_completed = metadata.get("completed")
+    if isinstance(explicit_completed, bool):
+        return explicit_completed
+
+    terminated = metadata.get("terminated")
+    truncated = metadata.get("truncated")
+    if isinstance(terminated, bool) or isinstance(truncated, bool):
+        return bool(terminated) and not bool(truncated)
+
+    for key in ("error", "exception", "agentbench_error"):
+        value = metadata.get(key)
+        if value not in (None, "", False):
+            return False
+
+    for key in ("status", "final_status", "agentbench_status"):
+        value = metadata.get(key)
+        if value in (None, ""):
+            continue
+        status = str(value).strip().lower()
+        if status in FAIL_STATUSES:
+            return False
+        if status in COMPLETION_STATUSES:
+            return True
+
+    if str(final_answer or "").strip():
+        return True
+
     for event in events:
         if event.event_type == "finalize":
+            payload = event.payload or {}
+            status = str(payload.get("status", "")).strip().lower()
+            if status in FAIL_STATUSES:
+                return False
+            if status in COMPLETION_STATUSES:
+                return True
+            if str(payload.get("final_answer", "")).strip():
+                return True
             return True
         payload = event.payload or {}
         if payload.get("completed") is True:
@@ -67,7 +110,6 @@ def infer_success(events: Iterable[TraceEvent]) -> bool:
                 elif status_str in FAIL_STATUSES:
                     success = False
                 continue
-            success = True
     if success is None and error_seen:
         success = False
     if success is None:

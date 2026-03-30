@@ -12,7 +12,7 @@ from .descriptor import (
     write_descriptor_json,
 )
 from .io import write_trace_jsonl
-from .metrics import ExtensionOptions
+from .metrics import ExtensionOptions, RunOutcome
 from .schema import TraceEvent
 
 
@@ -28,6 +28,7 @@ def analyze_task_runs(
     benchmark_name: str,
     run_traces: Sequence[Sequence[TraceEvent]],
     evaluations: Sequence[Any],
+    run_outcomes: Sequence[RunOutcome],
     output_dir: str | Path,
     extensions: ExtensionOptions | None = None,
 ) -> dict[str, Any]:
@@ -38,7 +39,7 @@ def analyze_task_runs(
 
     descriptor_result: DescriptorResult = compute_descriptor_from_runs(
         run_traces,
-        evaluator=None,
+        run_outcomes=run_outcomes,
         extensions=extensions,
     )
 
@@ -47,7 +48,7 @@ def analyze_task_runs(
     write_descriptor_json(descriptor_result, descriptor_json_path)
     write_descriptor_csv(descriptor_result, descriptor_csv_path)
 
-    evaluation_summary = _summarize_evaluations(evaluations)
+    evaluation_summary = _summarize_runs(evaluations, run_outcomes)
     stage_bottleneck = _infer_stage_bottleneck(descriptor_result.metrics)
 
     analysis = {
@@ -69,12 +70,16 @@ def analyze_task_runs(
     return analysis
 
 
-def _summarize_evaluations(evaluations: Sequence[Any]) -> dict[str, Any]:
+def _summarize_runs(
+    evaluations: Sequence[Any],
+    run_outcomes: Sequence[RunOutcome],
+) -> dict[str, Any]:
     scores = []
     successes = []
+    completions = []
     items = []
 
-    for entry in evaluations:
+    for entry, outcome in zip(evaluations, run_outcomes, strict=True):
         score = float(getattr(entry, "score", 0.0))
         success = bool(getattr(entry, "success", False))
         task_id = str(getattr(entry, "task_id", ""))
@@ -82,11 +87,15 @@ def _summarize_evaluations(evaluations: Sequence[Any]) -> dict[str, Any]:
 
         scores.append(score)
         successes.append(1.0 if success else 0.0)
+        completions.append(1.0 if outcome.completion else 0.0)
         items.append(
             {
                 "task_id": task_id,
                 "score": score,
                 "success": success,
+                "completion": bool(outcome.completion),
+                "success_source": outcome.success_source,
+                "completion_source": outcome.completion_source,
                 "details": details,
             }
         )
@@ -96,6 +105,7 @@ def _summarize_evaluations(evaluations: Sequence[Any]) -> dict[str, Any]:
             "count": 0,
             "avg_score": 0.0,
             "success_rate": 0.0,
+            "completion_rate": 0.0,
             "runs": [],
         }
 
@@ -103,6 +113,7 @@ def _summarize_evaluations(evaluations: Sequence[Any]) -> dict[str, Any]:
         "count": len(scores),
         "avg_score": float(sum(scores) / len(scores)),
         "success_rate": float(sum(successes) / len(successes)),
+        "completion_rate": float(sum(completions) / len(completions)),
         "runs": items,
     }
 

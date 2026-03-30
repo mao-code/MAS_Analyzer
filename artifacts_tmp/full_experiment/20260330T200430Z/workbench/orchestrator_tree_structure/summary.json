@@ -1,0 +1,762 @@
+{
+  "benchmark": "workbench",
+  "config_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/config/benchmarks/workbench_10.toml",
+  "experiment_id": "20260330T200430Z",
+  "experiment_settings_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2"
+        ],
+        "agent_1": [
+          "agent_0",
+          "agent_3"
+        ],
+        "agent_2": [
+          "agent_0",
+          "agent_4"
+        ],
+        "agent_3": [
+          "agent_1"
+        ],
+        "agent_4": [
+          "agent_2"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3",
+        "agent_4"
+      ],
+      "agents_per_level": [
+        1,
+        2,
+        2
+      ],
+      "children_by_agent": {
+        "agent_0": [
+          "agent_1",
+          "agent_2"
+        ],
+        "agent_1": [
+          "agent_3"
+        ],
+        "agent_2": [
+          "agent_4"
+        ]
+      },
+      "groups": [],
+      "leaves": [
+        "agent_3",
+        "agent_4"
+      ],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 2,
+        "agent_4": 2
+      },
+      "managers": [
+        "agent_1",
+        "agent_2"
+      ],
+      "orchestrator_id": "agent_0",
+      "parent_by_agent": {
+        "agent_1": "agent_0",
+        "agent_2": "agent_0",
+        "agent_3": "agent_1",
+        "agent_4": "agent_2"
+      },
+      "representatives": [],
+      "roles": {
+        "agent_0": "root_orchestrator",
+        "agent_1": "manager",
+        "agent_2": "manager",
+        "agent_3": "leaf_worker",
+        "agent_4": "leaf_worker"
+      },
+      "specialists": [
+        "agent_1",
+        "agent_2",
+        "agent_3",
+        "agent_4"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3",
+        "agent_4"
+      ],
+      "topology": "orchestrator_tree_structure"
+    },
+    "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/mas_graph.mmd",
+    "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "orchestrator_tree_structure",
+    "workflow": {
+      "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/workflow_graph.mmd",
+      "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "orchestrator_tree_structure",
+      "workflow": {
+        "aggregation_logic": "Leaf artifacts are refined upward one level at a time. Internal nodes aggregate only their direct children. No sibling or backflow exchange is allowed.",
+        "conditional_edges": [
+          "manager_dispatch -> manager_nodes (parallel Send fan-out) else worker_dispatch",
+          "worker_dispatch -> worker_nodes (parallel Send fan-out) else worker_relay",
+          "termination_checker -> manager_dispatch | finalize"
+        ],
+        "dispatch_logic": "Root routes only to managers, managers route only to their own children, and aggregation always follows the parent-child DAG upward.",
+        "edges": [
+          "START -> root_plan",
+          "root_plan -> manager_dispatch",
+          "manager_nodes -> worker_dispatch",
+          "worker_nodes -> worker_relay",
+          "worker_relay -> manager_reducers",
+          "manager_reducers -> manager_relay",
+          "manager_relay -> root_reducer",
+          "root_reducer -> descriptor_monitor",
+          "descriptor_monitor -> termination_checker",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "descriptor_monitor": "Shared descriptor hook.",
+          "finalize": "Finalize the run.",
+          "manager_dispatch": "Root-to-manager routing.",
+          "manager_nodes": "Manager decomposition stage.",
+          "manager_reducers": "Per-manager aggregation.",
+          "manager_relay": "Manager-to-root bounded reports.",
+          "root_plan": "Root planner artifact.",
+          "root_reducer": "Root aggregation.",
+          "termination_checker": "Explicit cycle stopper.",
+          "worker_dispatch": "Manager-to-leaf routing.",
+          "worker_nodes": "Leaf execution stage.",
+          "worker_relay": "Leaf-to-manager bounded reports."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max rounds reached",
+          "Consensus across manager reducer artifacts",
+          "No meaningful change between root artifacts",
+          "Root confidence threshold reached",
+          "Invalid or failed branch fallback"
+        ],
+        "topology": "orchestrator_tree_structure"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 5,
+    "agents_per_level": [
+      5
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_tree_structure",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_tree_structure"
+  },
+  "system_label": "orchestrator_tree_structure",
+  "task_count": 5,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_0/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_0/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 33469.1087931823,
+        "C2_tokens_total": 20809.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 20.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 6.0,
+        "D3_handoff_count": 10.0,
+        "P1_steps_total": 61.0,
+        "P2_backtrack_rate": 0.03278688524590164,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.18032786885245902,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 7.0,
+        "stage_act_latency_ms": 33415.1087931823,
+        "stage_act_tokens": 20760.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 49.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 40.0,
+        "stage_retrieve_latency_ms": 40.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 11.0,
+        "stage_verify_latency_ms": 11.0,
+        "stage_verify_tokens": 0.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Cameron Anderson\", participant_email=\"sofia.santos@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_max=\"2023-11-16 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_max=\"2023-11-16 00:00:00\")",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_0"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_0",
+      "task_id": "multi_domain_0"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_1/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_1/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 37735.70125022717,
+        "C2_tokens_total": 25568.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 24.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 6.0,
+        "D3_handoff_count": 10.0,
+        "P1_steps_total": 69.0,
+        "P2_backtrack_rate": 0.028985507246376812,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.15942028985507245,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 7.0,
+        "stage_act_latency_ms": 37673.70125022717,
+        "stage_act_tokens": 25521.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 47.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 48.0,
+        "stage_retrieve_latency_ms": 48.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 11.0,
+        "stage_verify_latency_ms": 11.0,
+        "stage_verify_tokens": 0.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Riley Brown\", participant_email=\"lena.schmidt@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", query=\"Riley Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley\")",
+                "calendar.search_events.func(query=\"Brown\")",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Riley Brown\", time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley\")",
+                "calendar.search_events.func(query=\"Brown\")",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_1"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_1",
+      "task_id": "multi_domain_1"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_2/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 30676.881209710613,
+        "C2_tokens_total": 16371.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 20.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 6.0,
+        "D3_handoff_count": 10.0,
+        "P1_steps_total": 61.0,
+        "P2_backtrack_rate": 0.03278688524590164,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.18032786885245902,
+        "Q1_success_rate": 1.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 7.0,
+        "stage_act_latency_ms": 30622.881209710613,
+        "stage_act_tokens": 16297.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 74.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 40.0,
+        "stage_retrieve_latency_ms": 40.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 11.0,
+        "stage_verify_latency_ms": 11.0,
+        "stage_verify_tokens": 0.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 1.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": true,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": true,
+              "ground_truth": [],
+              "prediction": [
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jessie Thomas\")",
+                "company_directory.find_email_address.func(name=\"Jessie\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")"
+              ],
+              "query": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 1.0,
+            "success": true,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_2"
+          }
+        ],
+        "success_rate": 1.0
+      },
+      "prompt_preview": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_2",
+      "task_id": "multi_domain_2"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_3/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_3/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 33139.197499901056,
+        "C2_tokens_total": 22901.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 23.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 6.0,
+        "D3_handoff_count": 10.0,
+        "P1_steps_total": 67.0,
+        "P2_backtrack_rate": 0.029850746268656716,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.16417910447761194,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 7.0,
+        "stage_act_latency_ms": 33079.197499901056,
+        "stage_act_tokens": 22875.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 26.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 46.0,
+        "stage_retrieve_latency_ms": 46.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 11.0,
+        "stage_verify_latency_ms": 11.0,
+        "stage_verify_tokens": 0.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Quinn Thomas\", participant_email=\"akira.sato@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Quinn Thomas\")",
+                "calendar.search_events.func(query=\"Quinn Thomas\", time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(query=\"Quinn\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", time_min=\"2023-11-01 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 00:00:00\", time_min=\"2023-11-10 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 00:00:00\", query=\"Quinn Thomas\", time_min=\"2023-10-30 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Quinn Thomas\")",
+                "calendar.search_events.func(time_min=\"2023-10-30 00:00:00\", time_max=\"2023-11-30 00:00:00\", query=\"Quinn\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(time_min=\"2023-10-30 00:00:00\", query=\"Thomas\", time_max=\"2023-11-30 00:00:00\")",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "I haven't spoken to Quinn Thomas in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Thomas' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_3"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "I haven't spoken to Quinn Thomas in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Thomas' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_3",
+      "task_id": "multi_domain_3"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_4/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_4/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 67160.10795990005,
+        "C2_tokens_total": 43790.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 37.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 10.0,
+        "D3_handoff_count": 20.0,
+        "P1_steps_total": 113.0,
+        "P2_backtrack_rate": 0.035398230088495575,
+        "P3_loop_score": 0.2743362831858407,
+        "P4_verification_density": 0.18584070796460178,
+        "Q1_success_rate": 1.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 13.0,
+        "stage_act_latency_ms": 67060.10795990005,
+        "stage_act_tokens": 43709.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 81.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 74.0,
+        "stage_retrieve_latency_ms": 74.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 4.0,
+        "stage_revise_latency_ms": 4.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 21.0,
+        "stage_verify_latency_ms": 21.0,
+        "stage_verify_tokens": 0.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 1.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": true,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": true,
+              "ground_truth": [],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-11-16 00:00:00\", query=\"Quinn Harris\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Quinn Harris\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Quinn Harris\")",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\", time_max=\"2023-11-30 23:59:59\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(query=\"Quinn Harris\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Quinn Harris in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Harris' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 1.0,
+            "success": true,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_4"
+          }
+        ],
+        "success_rate": 1.0
+      },
+      "prompt_preview": "If we haven't spoke to Quinn Harris in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Harris' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260330T200430Z/workbench/orchestrator_tree_structure/multi_domain_4",
+      "task_id": "multi_domain_4"
+    }
+  ],
+  "timestamp": "20260330T200430Z"
+}

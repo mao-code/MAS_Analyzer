@@ -1,20 +1,32 @@
 from __future__ import annotations
 
 import json
-import operator
+import math
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any, Callable
 
 from langchain_core.runnables.graph import Edge, Graph, Node
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
-from typing_extensions import TypedDict
 
 from descriptor.schema import TraceEvent
 
+from .artifacts import (
+    ArtifactRecord,
+    RelayPacket,
+    TerminationDecision,
+    answer_signature,
+    average_confidence,
+    build_artifact,
+    compute_consensus,
+    compute_mean_delta,
+    latest_artifact_by_agent,
+    packet_content,
+    packet_payload_from_artifact,
+)
 from .llm import OpenRouterLLMClient
 from .monitor import DescriptorHook, NullDescriptor
 from .relay import (
@@ -27,60 +39,36 @@ from .relay import (
     TOPOLOGY_SAS,
     TopologyLayout,
     build_layout,
-    extract_topology_messages_for_agent,
     normalize_topology_name,
+    vote_artifacts,
     vote_majority,
 )
+from .state import WorkflowState
 
+COMMON_LOG_OUTPUTS = [
+    "trace_events",
+    "relay_messages",
+    "message_views",
+    "interaction_logs",
+    "descriptor_records",
+    "termination_history",
+]
 
-class RuntimeState(TypedDict, total=False):
-    task_id: str
-    task_prompt: Any
-    reference_answer: str
-    task_metadata: dict[str, Any]
-    run_index: int
-    seed: int
-
-    topology: str
-    rounds: int
-    discussion_rounds: int
-    phase: str
-    phase_iteration: int
-    round_index: int
-    done: bool
-
-    layout: TopologyLayout
-    dispatch_id: int
-    active_agents: list[str]
-    active_agent: str
-
-    llm_client: OpenRouterLLMClient
-    agent_type_by_agent: dict[str, str]
-    tools: list[dict[str, Any]]
-    max_tool_iterations: int
-
-    outputs: Annotated[list[dict[str, Any]], operator.add]
-    messages: Annotated[list[dict[str, Any]], operator.add]
-    message_views: Annotated[list[dict[str, Any]], operator.add]
-    trace_payloads: Annotated[list[dict[str, Any]], operator.add]
-    phase_history: Annotated[list[dict[str, Any]], operator.add]
-    descriptor_records: Annotated[list[dict[str, Any]], operator.add]
-    interaction_logs: Annotated[list[dict[str, Any]], operator.add]
-
-    latest_outputs: dict[str, str]
-    final_answer: str
-    final_reason: str
-    vote_tally: dict[str, int]
-
-    message_budget: dict[str, int]
-    sent_counts: dict[str, int]
-    message_seq: int
-
-    retrieved_docids: list[str]
-    tool_call_counts: dict[str, int]
-
-    descriptor: DescriptorHook
-    descriptor_summary: dict[str, Any]
+SHARED_STATE_FIELDS = [
+    "task_id",
+    "task_prompt",
+    "topology",
+    "layout",
+    "rounds",
+    "discussion_rounds",
+    "round_index",
+    "discussion_index",
+    "messages",
+    "artifacts",
+    "termination_decision",
+    "vote_tally",
+    "descriptor_records",
+]
 
 
 @dataclass(frozen=True)
@@ -90,6 +78,8 @@ class ExperimentSpec:
     rounds: int
     discussion_rounds: int = 1
     communication_budget_per_agent: int = 1
+    termination_consensus_mode: str = "llm_judge"
+    peer_artifact_max_chars: int = 320
     agents_per_level: list[int] | None = None
     group_sizes: list[int] | None = None
 
@@ -103,12 +93,22 @@ class ExperimentSpec:
         budget = int(self.communication_budget_per_agent)
         if budget < 0:
             raise ValueError("communication_budget_per_agent must be >= 0")
+        termination_consensus_mode = str(self.termination_consensus_mode or "llm_judge")
+        if termination_consensus_mode not in {"llm_judge", "lexical"}:
+            raise ValueError(
+                "termination_consensus_mode must be one of: llm_judge, lexical"
+            )
+        peer_artifact_max_chars = int(self.peer_artifact_max_chars)
+        if peer_artifact_max_chars < 32:
+            raise ValueError("peer_artifact_max_chars must be >= 32")
         return ExperimentSpec(
             topology=topology,
             num_agents=num_agents,
             rounds=rounds,
             discussion_rounds=discussion_rounds,
             communication_budget_per_agent=budget,
+            termination_consensus_mode=termination_consensus_mode,
+            peer_artifact_max_chars=peer_artifact_max_chars,
             agents_per_level=(
                 list(self.agents_per_level) if self.agents_per_level is not None else None
             ),
@@ -121,6 +121,32 @@ class LangGraphRunResult:
     final_answer: str
     trace_events: list[TraceEvent]
     run_metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class WorkflowDocumentation:
+    topology: str
+    nodes: dict[str, str]
+    edges: list[str]
+    conditional_edges: list[str]
+    dispatch_logic: str
+    aggregation_logic: str
+    stopping_criteria: list[str]
+    state_fields: list[str]
+    logging_outputs: list[str]
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "topology": self.topology,
+            "nodes": dict(self.nodes),
+            "edges": list(self.edges),
+            "conditional_edges": list(self.conditional_edges),
+            "dispatch_logic": self.dispatch_logic,
+            "aggregation_logic": self.aggregation_logic,
+            "stopping_criteria": list(self.stopping_criteria),
+            "state_fields": list(self.state_fields),
+            "logging_outputs": list(self.logging_outputs),
+        }
 
 
 class _EventClock:
@@ -136,11 +162,11 @@ class _EventClock:
 
 
 class LangGraphMASEngine:
-    """LangGraph-based MAS execution engine with topology-aware message relay."""
+    """LangGraph execution engine with one shared state schema across all MAS topologies."""
 
     def __init__(self, llm_client: OpenRouterLLMClient) -> None:
         self.llm_client = llm_client
-        self.graph = self._build_graph()
+        self._graph_cache: dict[tuple[Any, ...], Any] = {}
 
     def run(
         self,
@@ -164,13 +190,14 @@ class LangGraphMASEngine:
             agents_per_level=spec.agents_per_level,
             group_sizes=spec.group_sizes,
         )
+        graph = self._compiled_graph(layout)
+        workflow_definition = self._workflow_definition(layout.topology).to_payload()
         agent_type_by_agent = {
             agent_id: agent_types[idx % len(agent_types)] for idx, agent_id in enumerate(layout.agent_ids)
         }
 
-        phase = self._initial_phase(layout.topology)
         descriptor_hook = descriptor or NullDescriptor()
-        state: RuntimeState = {
+        state: WorkflowState = {
             "task_id": str(getattr(task, "task_id", "task")),
             "task_prompt": getattr(task, "prompt", ""),
             "reference_answer": str(getattr(task, "reference_answer", "")),
@@ -178,45 +205,58 @@ class LangGraphMASEngine:
             "run_index": int(run_index),
             "seed": int(seed),
             "topology": layout.topology,
+            "layout": layout,
+            "workflow_definition": workflow_definition,
             "rounds": int(spec.rounds),
             "discussion_rounds": int(spec.discussion_rounds),
-            "phase": phase,
-            "phase_iteration": 0,
+            "termination_consensus_mode": str(spec.termination_consensus_mode),
+            "peer_artifact_max_chars": int(spec.peer_artifact_max_chars),
             "round_index": 0,
-            "done": False,
-            "layout": layout,
+            "discussion_index": 0,
+            "phase": "init",
             "dispatch_id": -1,
             "active_agents": [],
+            "next_step": "",
+            "done": False,
             "llm_client": self.llm_client,
             "agent_type_by_agent": agent_type_by_agent,
             "tools": list(tools or []),
             "max_tool_iterations": max(1, int(max_tool_iterations)),
-            "outputs": [],
+            "descriptor": descriptor_hook,
             "messages": [],
             "message_views": [],
+            "artifacts": [],
             "trace_payloads": [],
             "phase_history": [],
             "descriptor_records": [],
             "interaction_logs": [],
-            "latest_outputs": {},
-            "final_answer": "",
-            "final_reason": "",
-            "vote_tally": {},
+            "tool_records_log": [],
+            "termination_history": [],
             "message_budget": {
                 agent_id: int(spec.communication_budget_per_agent) for agent_id in layout.agent_ids
             },
             "sent_counts": {agent_id: 0 for agent_id in layout.agent_ids},
             "message_seq": 0,
-            "retrieved_docids": [],
-            "tool_call_counts": {},
-            "descriptor": descriptor_hook,
+            "final_answer": "",
+            "final_reason": "",
+            "vote_tally": {},
+            "termination_decision": {},
             "descriptor_summary": {},
         }
 
-        end_state = self.graph.invoke(state)
+        end_state = graph.invoke(state)
 
         trace_events = self._materialize_trace_events(end_state.get("trace_payloads", []))
-        final_answer = str(end_state.get("final_answer") or "")
+        artifacts = list(end_state.get("artifacts", []))
+        messages = list(end_state.get("messages", []))
+        latest_outputs = {
+            agent_id: str(artifact.get("answer", ""))
+            for agent_id, artifact in latest_artifact_by_agent(artifacts).items()
+        }
+        tool_call_counts = self._count_tool_calls(end_state)
+        retrieved_docids = self._collect_retrieved_docids(end_state)
+        final_answer = str(end_state.get("final_answer") or self._resolve_final_answer(end_state))
+
         run_metadata = {
             "task_id": end_state.get("task_id"),
             "run_index": run_index,
@@ -224,23 +264,28 @@ class LangGraphMASEngine:
             "topology": layout.topology,
             "rounds_configured": spec.rounds,
             "discussion_rounds": spec.discussion_rounds,
-            "turns_executed": int(end_state.get("round_index", 0)) + 1,
+            "termination_consensus_mode": str(spec.termination_consensus_mode),
+            "peer_artifact_max_chars": int(spec.peer_artifact_max_chars),
+            "turns_executed": max(1, int(end_state.get("round_index", 0)) + 1),
             "messages_sent_total": sum(end_state.get("sent_counts", {}).values()),
             "messages_sent_by_agent": dict(end_state.get("sent_counts", {})),
-            "tool_call_counts": dict(end_state.get("tool_call_counts", {})),
-            "tool_calls_total": int(sum(end_state.get("tool_call_counts", {}).values())),
+            "tool_call_counts": tool_call_counts,
+            "tool_calls_total": int(sum(tool_call_counts.values())),
             "remaining_message_budget": dict(end_state.get("message_budget", {})),
             "tool_definitions": self._serialize_tools(list(end_state.get("tools", []))),
-            "retrieved_docids": list(end_state.get("retrieved_docids", [])),
-            "agent_outputs": dict(end_state.get("latest_outputs", {})),
+            "retrieved_docids": retrieved_docids,
+            "agent_outputs": latest_outputs,
             "vote_tally": dict(end_state.get("vote_tally", {})),
             "phase_history": list(end_state.get("phase_history", [])),
-            "relay_messages": list(end_state.get("messages", [])),
+            "relay_messages": messages,
             "message_views": list(end_state.get("message_views", [])),
             "interaction_logs": list(end_state.get("interaction_logs", [])),
             "descriptor_records": list(end_state.get("descriptor_records", [])),
             "descriptor_summary": dict(end_state.get("descriptor_summary", {})),
+            "termination_history": list(end_state.get("termination_history", [])),
             "topology_layout": layout.to_payload(),
+            "workflow_definition": workflow_definition,
+            "artifact_records": artifacts,
             "final_reason": str(end_state.get("final_reason", "")),
         }
 
@@ -250,153 +295,1454 @@ class LangGraphMASEngine:
             run_metadata=run_metadata,
         )
 
-    def _build_graph(self):
-        graph = StateGraph(RuntimeState)
+    def _compiled_graph(self, layout: TopologyLayout):
+        cache_key = (
+            layout.topology,
+            tuple(layout.agent_ids),
+            tuple(layout.managers),
+            tuple(layout.leaves),
+            tuple(tuple(group) for group in layout.groups),
+            tuple(layout.representatives),
+        )
+        compiled = self._graph_cache.get(cache_key)
+        if compiled is not None:
+            return compiled
+        compiled = self._build_graph(layout).compile()
+        self._graph_cache[cache_key] = compiled
+        return compiled
 
-        graph.add_node("plan", self._plan_node)
-        graph.add_node("dispatch", self._dispatch_node)
-        graph.add_node("agent_step", self._agent_step_node)
-        graph.add_node("collect", self._collect_node)
+    def _build_graph(self, layout: TopologyLayout):
+        if layout.topology == TOPOLOGY_SAS:
+            return self._build_sas_graph(layout)
+        if layout.topology == TOPOLOGY_ONLY_VOTING:
+            return self._build_only_voting_graph(layout)
+        if layout.topology == TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION:
+            return self._build_orchestrator_no_discussion_graph(layout)
+        if layout.topology == TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION:
+            return self._build_orchestrator_with_discussion_graph(layout)
+        if layout.topology == TOPOLOGY_ORCHESTRATOR_TREE:
+            return self._build_orchestrator_tree_graph(layout)
+        if layout.topology == TOPOLOGY_FULLY_LINKED_DEBATE:
+            return self._build_fully_linked_debate_graph(layout)
+        if layout.topology == TOPOLOGY_GROUP_CHAT_DEBATE:
+            return self._build_group_chat_debate_graph(layout)
+        raise ValueError(f"Unhandled topology '{layout.topology}'")
+
+    def _new_graph(self):
+        graph = StateGraph(WorkflowState)
         graph.add_node("descriptor_monitor", self._descriptor_monitor_node)
         graph.add_node("finalize", self._finalize_node)
+        return graph
 
-        graph.add_edge(START, "plan")
-        graph.add_edge("plan", "dispatch")
-        graph.add_conditional_edges(
-            "dispatch",
-            self._fan_out_or_collect,
-            ["agent_step", "collect"],
+    def _build_sas_graph(self, layout: TopologyLayout):
+        graph = self._new_graph()
+        graph.add_node(
+            "single_agent",
+            self._make_single_agent_stage_node(
+                node_name="single_agent",
+                stage_role="worker",
+                agent_id_resolver=lambda state: layout.agent_ids[0],
+                directive_builder=lambda state, agent_id: (
+                    "Solve the task end to end. There are no peer agents."
+                ),
+                message_selector=lambda state, agent_id: [],
+            ),
         )
-        graph.add_edge("agent_step", "collect")
-        graph.add_edge("collect", "descriptor_monitor")
+        graph.add_edge(START, "single_agent")
+        graph.add_edge("single_agent", "descriptor_monitor")
+        graph.add_edge("descriptor_monitor", "finalize")
+        graph.add_edge("finalize", END)
+        return graph
+
+    def _build_only_voting_graph(self, layout: TopologyLayout):
+        graph = self._new_graph()
+        graph.add_node(
+            "dispatch_independent_agents",
+            self._make_dispatch_node(
+                node_name="dispatch_independent_agents",
+                active_agents_resolver=lambda state: list(layout.agent_ids),
+            ),
+        )
+        graph.add_node(
+            "worker",
+            self._make_parallel_stage_node(
+                node_name="worker",
+                stage_role="worker",
+                directive_builder=lambda state, agent_id: (
+                    "Solve the task independently. Ignore any notion of peer context."
+                ),
+                message_selector=lambda state, agent_id: [],
+            ),
+        )
+        graph.add_node("voter", self._only_voting_voter_node)
+        graph.add_edge(START, "dispatch_independent_agents")
+        # Conditional fan-out: one independent worker branch per active agent.
         graph.add_conditional_edges(
-            "descriptor_monitor",
-            self._continue_or_finalize,
+            "dispatch_independent_agents",
+            self._make_parallel_router(worker_node="worker", fallback_node="voter"),
+            ["worker", "voter"],
+        )
+        graph.add_edge("worker", "voter")
+        graph.add_edge("voter", "descriptor_monitor")
+        graph.add_edge("descriptor_monitor", "finalize")
+        graph.add_edge("finalize", END)
+        return graph
+
+    def _build_orchestrator_no_discussion_graph(self, layout: TopologyLayout):
+        graph = self._new_graph()
+        graph.add_node(
+            "orchestrator_plan",
+            self._make_single_agent_stage_node(
+                node_name="orchestrator_plan",
+                stage_role="planner",
+                agent_id_resolver=lambda state: layout.orchestrator_id,
+                directive_builder=lambda state, agent_id: (
+                    "Produce a concise plan and a bounded task package for each specialist."
+                ),
+                message_selector=lambda state, agent_id: [],
+            ),
+        )
+        graph.add_node(
+            "dispatch_specialists",
+            self._make_dispatch_node(
+                node_name="dispatch_specialists",
+                active_agents_resolver=lambda state: list(layout.specialists),
+                packet_builder=lambda state, active_agents: self._build_orchestrator_task_packets(
+                    state,
+                    recipients=active_agents,
+                ),
+            ),
+        )
+        graph.add_node(
+            "specialist_worker",
+            self._make_parallel_stage_node(
+                node_name="specialist_worker",
+                stage_role="worker",
+                directive_builder=lambda state, agent_id: (
+                    "Work only from the orchestrator package. Do not infer or request peer outputs."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"task_package", "orchestrator_feedback"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "relay_specialist_reports",
+            self._make_packet_node(
+                node_name="relay_specialist_reports",
+                packet_builder=lambda state: self._build_report_packets(
+                    state,
+                    source_node_names={"specialist_worker"},
+                    recipients_by_sender=lambda artifact: [layout.orchestrator_id]
+                    if layout.orchestrator_id
+                    else [],
+                    kind="specialist_report",
+                ),
+            ),
+        )
+        graph.add_node(
+            "orchestrator_merge",
+            self._make_single_agent_stage_node(
+                node_name="orchestrator_merge",
+                stage_role="aggregator",
+                agent_id_resolver=lambda state: layout.orchestrator_id,
+                directive_builder=lambda state, agent_id: (
+                    "Merge the specialist reports into one best answer. Preserve unresolved issues explicitly."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"specialist_report"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "termination_checker",
+            self._make_cycle_termination_node(
+                node_name="termination_checker",
+                topology_label=layout.topology,
+                candidate_node_name="orchestrator_merge",
+                consensus_node_names={"specialist_worker"},
+                expected_count=len(layout.specialists),
+                continue_next_step="dispatch_specialists",
+                stop_next_step="finalize",
+            ),
+        )
+        graph.add_edge(START, "orchestrator_plan")
+        graph.add_edge("orchestrator_plan", "dispatch_specialists")
+        # Conditional fan-out: launch the selected specialists, or skip when none are active.
+        graph.add_conditional_edges(
+            "dispatch_specialists",
+            self._make_parallel_router(worker_node="specialist_worker", fallback_node="relay_specialist_reports"),
+            ["specialist_worker", "relay_specialist_reports"],
+        )
+        graph.add_edge("specialist_worker", "relay_specialist_reports")
+        graph.add_edge("relay_specialist_reports", "orchestrator_merge")
+        graph.add_edge("orchestrator_merge", "descriptor_monitor")
+        graph.add_edge("descriptor_monitor", "termination_checker")
+        # Conditional loop exit: either run another orchestrator cycle or finalize.
+        graph.add_conditional_edges(
+            "termination_checker",
+            self._route_next_step,
             {
-                "dispatch": "dispatch",
+                "dispatch_specialists": "dispatch_specialists",
                 "finalize": "finalize",
             },
         )
         graph.add_edge("finalize", END)
+        return graph
 
-        return graph.compile()
-
-    def _plan_node(self, state: RuntimeState) -> dict[str, Any]:
-        event = self._draft_event(
-            dispatch_id=-1,
-            node_order=0,
-            agent_order=-1,
-            event_order=0,
-            actor="system",
-            event_type="plan",
-            payload={
-                "task_id": state["task_id"],
-                "topology": state["topology"],
-                "rounds": state["rounds"],
-                "discussion_rounds": state["discussion_rounds"],
-                "layout": state["layout"].to_payload(),
-                "tools": [str(item.get("name", "")) for item in state.get("tools", [])],
-                "tool_definitions": self._serialize_tools(list(state.get("tools", []))),
-            },
-            token_in=0,
-            token_out=0,
-            latency_ms=1.0,
-            cost_usd=0.0,
-            state_id=f"run_{state['run_index']}_plan",
+    def _build_orchestrator_with_discussion_graph(self, layout: TopologyLayout):
+        graph = self._new_graph()
+        graph.add_node(
+            "orchestrator_plan",
+            self._make_single_agent_stage_node(
+                node_name="orchestrator_plan",
+                stage_role="planner",
+                agent_id_resolver=lambda state: layout.orchestrator_id,
+                directive_builder=lambda state, agent_id: (
+                    "Plan the specialist work and produce bounded task packages."
+                ),
+                message_selector=lambda state, agent_id: [],
+            ),
         )
-        return {"trace_payloads": [event]}
+        graph.add_node(
+            "dispatch_specialists",
+            self._make_dispatch_node(
+                node_name="dispatch_specialists",
+                active_agents_resolver=lambda state: list(layout.specialists),
+                packet_builder=lambda state, active_agents: self._build_orchestrator_task_packets(
+                    state,
+                    recipients=active_agents,
+                ),
+            ),
+        )
+        graph.add_node(
+            "specialists_initial_round",
+            self._make_parallel_stage_node(
+                node_name="specialists_initial_round",
+                stage_role="worker",
+                directive_builder=lambda state, agent_id: (
+                    "Produce an initial specialist artifact from the orchestrator task package."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"task_package", "orchestrator_feedback"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "dispatch_revision_round",
+            self._make_dispatch_node(
+                node_name="dispatch_revision_round",
+                active_agents_resolver=lambda state: list(layout.specialists),
+            ),
+        )
+        graph.add_node(
+            "specialists_revision_round",
+            self._make_parallel_stage_node(
+                node_name="specialists_revision_round",
+                stage_role="critic",
+                directive_builder=lambda state, agent_id: (
+                    "Revise your artifact using the orchestrator-provided peer summary bundle only."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"peer_summary"},
+                    round_index=int(state.get("round_index", 0)),
+                    discussion_index=int(state.get("discussion_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "relay_specialist_reports",
+            self._make_packet_node(
+                node_name="relay_specialist_reports",
+                packet_builder=lambda state: self._build_report_packets(
+                    state,
+                    source_node_names={self._current_specialist_stage_name(state)},
+                    recipients_by_sender=lambda artifact: [layout.orchestrator_id]
+                    if layout.orchestrator_id
+                    else [],
+                    kind="specialist_report",
+                ),
+            ),
+        )
+        graph.add_node("orchestrator_relay", self._orchestrator_relay_controller)
+        graph.add_node(
+            "orchestrator_merge",
+            self._make_single_agent_stage_node(
+                node_name="orchestrator_merge",
+                stage_role="aggregator",
+                agent_id_resolver=lambda state: layout.orchestrator_id,
+                directive_builder=lambda state, agent_id: (
+                    "Synthesize the latest specialist artifacts into the current best final answer."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"specialist_report"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "cycle_termination_checker",
+            self._make_cycle_termination_node(
+                node_name="cycle_termination_checker",
+                topology_label=layout.topology,
+                candidate_node_name="orchestrator_merge",
+                consensus_node_names={"specialists_initial_round", "specialists_revision_round"},
+                expected_count=len(layout.specialists),
+                continue_next_step="dispatch_specialists",
+                stop_next_step="finalize",
+            ),
+        )
+        graph.add_edge(START, "orchestrator_plan")
+        graph.add_edge("orchestrator_plan", "dispatch_specialists")
+        # Conditional fan-out: run the initial specialist round in parallel over the active specialist set.
+        graph.add_conditional_edges(
+            "dispatch_specialists",
+            self._make_parallel_router(
+                worker_node="specialists_initial_round",
+                fallback_node="relay_specialist_reports",
+            ),
+            ["specialists_initial_round", "relay_specialist_reports"],
+        )
+        graph.add_edge("specialists_initial_round", "relay_specialist_reports")
+        # Conditional fan-out: each revision round is another parallel specialist pass.
+        graph.add_conditional_edges(
+            "dispatch_revision_round",
+            self._make_parallel_router(
+                worker_node="specialists_revision_round",
+                fallback_node="orchestrator_merge",
+            ),
+            ["specialists_revision_round", "orchestrator_merge"],
+        )
+        graph.add_edge("specialists_revision_round", "relay_specialist_reports")
+        graph.add_edge("relay_specialist_reports", "orchestrator_relay")
+        # Conditional discussion routing: continue mediated discussion or move to final merge.
+        graph.add_conditional_edges(
+            "orchestrator_relay",
+            self._route_next_step,
+            {
+                "dispatch_revision_round": "dispatch_revision_round",
+                "orchestrator_merge": "orchestrator_merge",
+            },
+        )
+        graph.add_edge("orchestrator_merge", "descriptor_monitor")
+        graph.add_edge("descriptor_monitor", "cycle_termination_checker")
+        # Conditional outer-cycle routing: launch another orchestration cycle or finalize.
+        graph.add_conditional_edges(
+            "cycle_termination_checker",
+            self._route_next_step,
+            {
+                "dispatch_specialists": "dispatch_specialists",
+                "finalize": "finalize",
+            },
+        )
+        graph.add_edge("finalize", END)
+        return graph
 
-    def _dispatch_node(self, state: RuntimeState) -> dict[str, Any]:
-        dispatch_id = int(state.get("dispatch_id", -1)) + 1
-        active_agents = self._active_agents_for_phase(state)
+    def _build_orchestrator_tree_graph(self, layout: TopologyLayout):
+        graph = self._new_graph()
+        graph.add_node(
+            "root_plan",
+            self._make_single_agent_stage_node(
+                node_name="root_plan",
+                stage_role="planner",
+                agent_id_resolver=lambda state: layout.orchestrator_id,
+                directive_builder=lambda state, agent_id: (
+                    "Create manager-level task packages for the tree. Communication must remain parent-child only."
+                ),
+                message_selector=lambda state, agent_id: [],
+            ),
+        )
+        graph.add_node(
+            "manager_dispatch",
+            self._make_dispatch_node(
+                node_name="manager_dispatch",
+                active_agents_resolver=lambda state: list(layout.managers),
+                packet_builder=lambda state, active_agents: self._build_root_task_packets(
+                    state,
+                    recipients=active_agents,
+                ),
+            ),
+        )
+        graph.add_node(
+            "manager_nodes",
+            self._make_parallel_stage_node(
+                node_name="manager_nodes",
+                stage_role="planner",
+                directive_builder=lambda state, agent_id: (
+                    "Refine the parent task package into child-specific work packages. Do not use sibling information."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"root_task_package"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "worker_dispatch",
+            self._make_dispatch_node(
+                node_name="worker_dispatch",
+                active_agents_resolver=lambda state: list(layout.leaves),
+                packet_builder=lambda state, active_agents: self._build_manager_task_packets(
+                    state,
+                    recipients=active_agents,
+                ),
+            ),
+        )
+        graph.add_node(
+            "worker_nodes",
+            self._make_parallel_stage_node(
+                node_name="worker_nodes",
+                stage_role="worker",
+                directive_builder=lambda state, agent_id: (
+                    "Work only from your parent manager package. There is no sibling or backflow context."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"manager_task_package"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "worker_relay",
+            self._make_packet_node(
+                node_name="worker_relay",
+                packet_builder=lambda state: self._build_report_packets(
+                    state,
+                    source_node_names={"worker_nodes"},
+                    recipients_by_sender=lambda artifact: [
+                        layout.parent_by_agent[str(artifact.get("agent_id", ""))]
+                    ]
+                    if str(artifact.get("agent_id", "")) in layout.parent_by_agent
+                    else [],
+                    kind="child_report",
+                ),
+            ),
+        )
+        graph.add_node(
+            "manager_reducers",
+            self._make_parallel_stage_node(
+                node_name="manager_reducers",
+                stage_role="aggregator",
+                directive_builder=lambda state, agent_id: (
+                    "Aggregate only your child reports into a refined manager artifact."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"child_report"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "manager_relay",
+            self._make_packet_node(
+                node_name="manager_relay",
+                packet_builder=lambda state: self._build_report_packets(
+                    state,
+                    source_node_names={"manager_reducers"},
+                    recipients_by_sender=lambda artifact: [layout.orchestrator_id]
+                    if layout.orchestrator_id
+                    else [],
+                    kind="manager_report",
+                ),
+            ),
+        )
+        graph.add_node(
+            "root_reducer",
+            self._make_single_agent_stage_node(
+                node_name="root_reducer",
+                stage_role="aggregator",
+                agent_id_resolver=lambda state: layout.orchestrator_id,
+                directive_builder=lambda state, agent_id: (
+                    "Aggregate manager reports into the root artifact. Follow topological order and prevent backflow."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"manager_report"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node(
+            "termination_checker",
+            self._make_cycle_termination_node(
+                node_name="termination_checker",
+                topology_label=layout.topology,
+                candidate_node_name="root_reducer",
+                consensus_node_names={"manager_reducers"},
+                expected_count=len(layout.managers),
+                continue_next_step="manager_dispatch",
+                stop_next_step="finalize",
+            ),
+        )
+        graph.add_edge(START, "root_plan")
+        graph.add_edge("root_plan", "manager_dispatch")
+        # Conditional fan-out: one branch per active manager.
+        graph.add_conditional_edges(
+            "manager_dispatch",
+            self._make_parallel_router(worker_node="manager_nodes", fallback_node="worker_dispatch"),
+            ["manager_nodes", "worker_dispatch"],
+        )
+        graph.add_edge("manager_nodes", "worker_dispatch")
+        # Conditional fan-out: one branch per active leaf worker.
+        graph.add_conditional_edges(
+            "worker_dispatch",
+            self._make_parallel_router(worker_node="worker_nodes", fallback_node="worker_relay"),
+            ["worker_nodes", "worker_relay"],
+        )
+        graph.add_edge("worker_nodes", "worker_relay")
+        graph.add_edge("worker_relay", "manager_reducers")
+        graph.add_edge("manager_reducers", "manager_relay")
+        graph.add_edge("manager_relay", "root_reducer")
+        graph.add_edge("root_reducer", "descriptor_monitor")
+        graph.add_edge("descriptor_monitor", "termination_checker")
+        # Conditional tree-cycle routing: descend through the tree again or finalize.
+        graph.add_conditional_edges(
+            "termination_checker",
+            self._route_next_step,
+            {
+                "manager_dispatch": "manager_dispatch",
+                "finalize": "finalize",
+            },
+        )
+        graph.add_edge("finalize", END)
+        return graph
+
+    def _build_fully_linked_debate_graph(self, layout: TopologyLayout):
+        graph = self._new_graph()
+        graph.add_node("debate_init", self._debate_init_node)
+        graph.add_node("debate_controller", self._debate_controller_node)
+        graph.add_node(
+            "debate_dispatch",
+            self._make_dispatch_node(
+                node_name="debate_dispatch",
+                active_agents_resolver=lambda state: list(layout.agent_ids),
+            ),
+        )
+        graph.add_node(
+            "debate_round",
+            self._make_parallel_stage_node(
+                node_name="debate_round",
+                stage_role="critic",
+                directive_builder=lambda state, agent_id: (
+                    "Debate using only bounded peer summaries from the latest round. Revise your answer if warranted."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"debate_round"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node("judge", self._fully_linked_debate_judge_node)
+        graph.add_edge(START, "debate_init")
+        graph.add_edge("debate_init", "debate_controller")
+        # Conditional controller routing: either begin another debate round or hand off to the judge.
+        graph.add_conditional_edges(
+            "debate_controller",
+            self._route_next_step,
+            {
+                "debate_dispatch": "debate_dispatch",
+                "judge": "judge",
+            },
+        )
+        # Conditional fan-out: one debate branch per active debater.
+        graph.add_conditional_edges(
+            "debate_dispatch",
+            self._make_parallel_router(worker_node="debate_round", fallback_node="debate_controller"),
+            ["debate_round", "debate_controller"],
+        )
+        graph.add_edge("debate_round", "debate_controller")
+        graph.add_edge("judge", "descriptor_monitor")
+        graph.add_edge("descriptor_monitor", "finalize")
+        graph.add_edge("finalize", END)
+        return graph
+
+    def _build_group_chat_debate_graph(self, layout: TopologyLayout):
+        graph = self._new_graph()
+        graph.add_node(
+            "group_dispatch",
+            self._make_dispatch_node(
+                node_name="group_dispatch",
+                active_agents_resolver=lambda state: list(layout.agent_ids),
+            ),
+        )
+        graph.add_node(
+            "group_debate_round",
+            self._make_parallel_stage_node(
+                node_name="group_debate_round",
+                stage_role="critic",
+                directive_builder=lambda state, agent_id: (
+                    "Debate only inside your group, using bounded group summaries."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"group_debate_round"},
+                    round_index=int(state.get("round_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node("group_controller", self._group_controller_node)
+        graph.add_node(
+            "representative_dispatch",
+            self._make_dispatch_node(
+                node_name="representative_dispatch",
+                active_agents_resolver=lambda state: list(layout.representatives),
+            ),
+        )
+        graph.add_node(
+            "representative_merge",
+            self._make_parallel_stage_node(
+                node_name="representative_merge",
+                stage_role="aggregator",
+                directive_builder=lambda state, agent_id: (
+                    "Merge your group summary with representative-level peer summaries when present."
+                ),
+                message_selector=lambda state, agent_id: self._messages_for_recipient(
+                    state,
+                    recipient=agent_id,
+                    kinds={"group_summary", "representative_debate_round"},
+                    round_index=int(state.get("round_index", 0)),
+                    discussion_index=int(state.get("discussion_index", 0)),
+                    latest_only=True,
+                ),
+            ),
+        )
+        graph.add_node("representative_controller", self._representative_controller_node)
+        graph.add_node("final_judge", self._group_chat_final_judge_node)
+        graph.add_edge(START, "group_dispatch")
+        # Conditional fan-out: one intra-group debate branch per active group member.
+        graph.add_conditional_edges(
+            "group_dispatch",
+            self._make_parallel_router(worker_node="group_debate_round", fallback_node="group_controller"),
+            ["group_debate_round", "group_controller"],
+        )
+        graph.add_edge("group_debate_round", "group_controller")
+        # Conditional group routing: continue local debate or promote summaries to representatives.
+        graph.add_conditional_edges(
+            "group_controller",
+            self._route_next_step,
+            {
+                "group_dispatch": "group_dispatch",
+                "representative_dispatch": "representative_dispatch",
+            },
+        )
+        # Conditional fan-out: one representative branch per active representative.
+        graph.add_conditional_edges(
+            "representative_dispatch",
+            self._make_parallel_router(
+                worker_node="representative_merge",
+                fallback_node="final_judge",
+            ),
+            ["representative_merge", "final_judge"],
+        )
+        graph.add_edge("representative_merge", "representative_controller")
+        # Conditional representative routing: continue representative debate or hand off to the final judge.
+        graph.add_conditional_edges(
+            "representative_controller",
+            self._route_next_step,
+            {
+                "representative_dispatch": "representative_dispatch",
+                "final_judge": "final_judge",
+            },
+        )
+        graph.add_edge("final_judge", "descriptor_monitor")
+        graph.add_edge("descriptor_monitor", "finalize")
+        graph.add_edge("finalize", END)
+        return graph
+
+    def _make_single_agent_stage_node(
+        self,
+        *,
+        node_name: str,
+        stage_role: str,
+        agent_id_resolver: Callable[[WorkflowState], str | None],
+        directive_builder: Callable[[WorkflowState, str], str],
+        message_selector: Callable[[WorkflowState, str], list[RelayPacket]],
+    ) -> Callable[[WorkflowState], dict[str, Any]]:
+        def node(state: WorkflowState) -> dict[str, Any]:
+            agent_id = agent_id_resolver(state)
+            if not agent_id:
+                return {
+                    "phase": node_name,
+                    "phase_history": [self._phase_history_entry(state, node_name, active_agents=[])],
+                }
+            result = self._execute_agent_stage(
+                state,
+                agent_id=agent_id,
+                node_name=node_name,
+                stage_role=stage_role,
+                directive=directive_builder(state, agent_id),
+                visible_messages=message_selector(state, agent_id),
+            )
+            result["phase"] = node_name
+            result["phase_history"] = [self._phase_history_entry(state, node_name, active_agents=[agent_id])]
+            if node_name == "single_agent":
+                result["final_reason"] = f"{state['topology']}:single_agent"
+            return result
+
+        return node
+
+    def _make_parallel_stage_node(
+        self,
+        *,
+        node_name: str,
+        stage_role: str,
+        directive_builder: Callable[[WorkflowState, str], str],
+        message_selector: Callable[[WorkflowState, str], list[RelayPacket]],
+    ) -> Callable[[WorkflowState], dict[str, Any]]:
+        def node(state: WorkflowState) -> dict[str, Any]:
+            agent_id = str(state.get("active_agent", ""))
+            return self._execute_agent_stage(
+                state,
+                agent_id=agent_id,
+                node_name=node_name,
+                stage_role=stage_role,
+                directive=directive_builder(state, agent_id),
+                visible_messages=message_selector(state, agent_id),
+            )
+
+        return node
+
+    def _make_dispatch_node(
+        self,
+        *,
+        node_name: str,
+        active_agents_resolver: Callable[[WorkflowState], list[str]],
+        packet_builder: Callable[[WorkflowState, list[str]], list[dict[str, Any]]] | None = None,
+    ) -> Callable[[WorkflowState], dict[str, Any]]:
+        def node(state: WorkflowState) -> dict[str, Any]:
+            dispatch_id = int(state.get("dispatch_id", -1)) + 1
+            active_agents = [agent for agent in active_agents_resolver(state) if agent]
+            trace = [
+                self._draft_event(
+                    dispatch_id=dispatch_id,
+                    node_order=0,
+                    agent_order=-1,
+                    event_order=0,
+                    actor="system",
+                    event_type="revise",
+                    payload={
+                        "node": node_name,
+                        "phase": node_name,
+                        "round_index": int(state.get("round_index", 0)),
+                        "discussion_index": int(state.get("discussion_index", 0)),
+                        "active_agents": list(active_agents),
+                    },
+                    token_in=0,
+                    token_out=0,
+                    latency_ms=1.0,
+                    cost_usd=0.0,
+                    state_id=f"run_{state['run_index']}_dispatch_{dispatch_id}_{node_name}",
+                )
+            ]
+            updates: dict[str, Any] = {
+                "dispatch_id": dispatch_id,
+                "active_agents": active_agents,
+                "phase": node_name,
+                "phase_history": [self._phase_history_entry(state, node_name, active_agents=active_agents)],
+            }
+            if packet_builder is not None:
+                emitted = self._emit_packets(
+                    state,
+                    dispatch_id=dispatch_id,
+                    phase=node_name,
+                    packet_specs=packet_builder(state, active_agents),
+                )
+                trace.extend(emitted.pop("trace_payloads"))
+                updates.update(emitted)
+            updates["trace_payloads"] = trace
+            return updates
+
+        return node
+
+    def _make_packet_node(
+        self,
+        *,
+        node_name: str,
+        packet_builder: Callable[[WorkflowState], list[dict[str, Any]]],
+    ) -> Callable[[WorkflowState], dict[str, Any]]:
+        def node(state: WorkflowState) -> dict[str, Any]:
+            dispatch_id = int(state.get("dispatch_id", -1))
+            emitted = self._emit_packets(
+                state,
+                dispatch_id=dispatch_id,
+                phase=node_name,
+                packet_specs=packet_builder(state),
+            )
+            trace = [
+                self._draft_event(
+                    dispatch_id=dispatch_id,
+                    node_order=2,
+                    agent_order=-1,
+                    event_order=0,
+                    actor="system",
+                    event_type="verify",
+                    payload={
+                        "node": node_name,
+                        "phase": node_name,
+                        "round_index": int(state.get("round_index", 0)),
+                        "discussion_index": int(state.get("discussion_index", 0)),
+                        "messages_created": len(emitted.get("messages", [])),
+                    },
+                    token_in=0,
+                    token_out=0,
+                    latency_ms=1.0,
+                    cost_usd=0.0,
+                    state_id=f"run_{state['run_index']}_{node_name}_{dispatch_id}",
+                )
+            ]
+            trace.extend(emitted.pop("trace_payloads"))
+            return {
+                "phase": node_name,
+                "phase_history": [self._phase_history_entry(state, node_name)],
+                "trace_payloads": trace,
+                **emitted,
+            }
+
+        return node
+
+    def _make_cycle_termination_node(
+        self,
+        *,
+        node_name: str,
+        topology_label: str,
+        candidate_node_name: str,
+        consensus_node_names: set[str],
+        expected_count: int,
+        continue_next_step: str,
+        stop_next_step: str,
+    ) -> Callable[[WorkflowState], dict[str, Any]]:
+        """Build a reusable round-level termination node for orchestrator and tree cycles."""
+
+        def node(state: WorkflowState) -> dict[str, Any]:
+            current_round = int(state.get("round_index", 0))
+            candidate_artifacts = self._artifacts_for_nodes(
+                state,
+                node_names={candidate_node_name},
+                round_index=current_round,
+                latest_only=True,
+            )
+            previous_candidates = self._artifacts_for_nodes(
+                state,
+                node_names={candidate_node_name},
+                round_index=current_round - 1,
+                latest_only=True,
+            )
+            consensus_artifacts = self._artifacts_for_nodes(
+                state,
+                node_names=consensus_node_names,
+                round_index=current_round,
+                latest_only=True,
+            )
+            decision = self._termination_decision(
+                state,
+                stage_name=node_name,
+                round_index=current_round,
+                discussion_index=int(state.get("discussion_index", 0)),
+                candidate_artifacts=candidate_artifacts,
+                previous_candidate_artifacts=previous_candidates,
+                consensus_artifacts=consensus_artifacts,
+                expected_count=expected_count,
+                max_reached=current_round + 1 >= int(state.get("rounds", 1)),
+                continue_next_step=continue_next_step,
+                stop_next_step=stop_next_step,
+            )
+            updates: dict[str, Any] = {
+                "phase": node_name,
+                "termination_decision": decision,
+                "termination_history": [dict(decision)],
+                "next_step": str(decision.get("next_step", stop_next_step)),
+                "phase_history": [self._phase_history_entry(state, node_name)],
+                "trace_payloads": [
+                    self._termination_event(state, node_name, decision),
+                ],
+            }
+            if not bool(decision.get("should_stop", False)):
+                updates["round_index"] = current_round + 1
+                updates["discussion_index"] = 0
+            else:
+                updates["final_reason"] = f"{topology_label}:{decision.get('reason', 'stop')}"
+            return updates
+
+        return node
+
+    def _only_voting_voter_node(self, state: WorkflowState) -> dict[str, Any]:
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"worker"},
+            round_index=int(state.get("round_index", 0)),
+            latest_only=True,
+        )
+        final_answer, tally = vote_artifacts(artifacts)
+        return {
+            "phase": "voter",
+            "vote_tally": tally,
+            "final_answer": final_answer or self._fallback_answer_from_artifacts(artifacts),
+            "final_reason": f"{state['topology']}:majority_vote",
+            "phase_history": [self._phase_history_entry(state, "voter")],
+            "trace_payloads": [
+                self._draft_event(
+                    dispatch_id=int(state.get("dispatch_id", -1)),
+                    node_order=3,
+                    agent_order=-1,
+                    event_order=0,
+                    actor="judge",
+                    event_type="verify",
+                    payload={
+                        "node": "voter",
+                        "candidate_count": len(artifacts),
+                        "vote_tally": tally,
+                    },
+                    token_in=0,
+                    token_out=0,
+                    latency_ms=1.0,
+                    cost_usd=0.0,
+                    state_id=f"run_{state['run_index']}_voter",
+                )
+            ],
+        }
+
+    def _debate_init_node(self, state: WorkflowState) -> dict[str, Any]:
+        return {
+            "phase": "debate_init",
+            "next_step": "debate_dispatch",
+            "phase_history": [self._phase_history_entry(state, "debate_init")],
+            "trace_payloads": [
+                self._draft_event(
+                    dispatch_id=-1,
+                    node_order=0,
+                    agent_order=-1,
+                    event_order=0,
+                    actor="system",
+                    event_type="plan",
+                    payload={
+                        "node": "debate_init",
+                        "topology": state["topology"],
+                        "rounds": state["rounds"],
+                    },
+                    token_in=0,
+                    token_out=0,
+                    latency_ms=1.0,
+                    cost_usd=0.0,
+                    state_id=f"run_{state['run_index']}_debate_init",
+                )
+            ],
+        }
+
+    def _debate_controller_node(self, state: WorkflowState) -> dict[str, Any]:
+        """Evaluate fully-linked debate stopping criteria and prepare the next bounded peer broadcast."""
+
+        current_round = int(state.get("round_index", 0))
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"debate_round"},
+            round_index=current_round,
+            latest_only=True,
+        )
+        if not artifacts:
+            return {
+                "phase": "debate_controller",
+                "next_step": "debate_dispatch",
+                "phase_history": [self._phase_history_entry(state, "debate_controller")],
+                "trace_payloads": [
+                    self._draft_event(
+                        dispatch_id=int(state.get("dispatch_id", -1)),
+                        node_order=2,
+                        agent_order=-1,
+                        event_order=0,
+                        actor="system",
+                        event_type="verify",
+                        payload={"node": "debate_controller", "status": "awaiting_round_zero"},
+                        token_in=0,
+                        token_out=0,
+                        latency_ms=1.0,
+                        cost_usd=0.0,
+                        state_id=f"run_{state['run_index']}_debate_controller_init",
+                    )
+                ],
+            }
+
+        previous_artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"debate_round"},
+            round_index=current_round - 1,
+            latest_only=True,
+        )
+        decision = self._termination_decision(
+            state,
+            stage_name="debate_controller",
+            round_index=current_round,
+            discussion_index=0,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=previous_artifacts,
+            consensus_artifacts=artifacts,
+            expected_count=len(state["layout"].agent_ids),
+            max_reached=current_round + 1 >= int(state.get("rounds", 1)),
+            continue_next_step="debate_dispatch",
+            stop_next_step="judge",
+        )
+        updates: dict[str, Any] = {
+            "phase": "debate_controller",
+            "termination_decision": decision,
+            "termination_history": [dict(decision)],
+            "phase_history": [self._phase_history_entry(state, "debate_controller")],
+            "trace_payloads": [self._termination_event(state, "debate_controller", decision)],
+        }
+        if bool(decision.get("should_stop", False)):
+            updates["next_step"] = "judge"
+            updates["final_reason"] = f"{state['topology']}:{decision.get('reason', 'judge')}"
+            return updates
+
+        emitted = self._emit_packets(
+            state,
+            dispatch_id=int(state.get("dispatch_id", -1)),
+            phase="debate_controller",
+            packet_specs=self._build_peer_summary_packets(
+                state,
+                artifacts=artifacts,
+                recipients_resolver=lambda artifact: [
+                    agent_id
+                    for agent_id in state["layout"].agent_ids
+                    if agent_id != str(artifact.get("agent_id", ""))
+                ],
+                kind="debate_round",
+                next_round=current_round + 1,
+                next_discussion=0,
+            ),
+        )
+        relay_trace = emitted.pop("trace_payloads", [])
+        updates.update(emitted)
+        updates["trace_payloads"].extend(relay_trace)
+        updates["round_index"] = current_round + 1
+        updates["next_step"] = "debate_dispatch"
+        return updates
+
+    def _fully_linked_debate_judge_node(self, state: WorkflowState) -> dict[str, Any]:
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"debate_round"},
+            round_index=int(state.get("round_index", 0)),
+            latest_only=True,
+        )
+        final_answer, tally = vote_artifacts(artifacts)
+        return {
+            "phase": "judge",
+            "vote_tally": tally,
+            "final_answer": final_answer or self._fallback_answer_from_artifacts(artifacts),
+            "final_reason": str(state.get("final_reason") or f"{state['topology']}:judge_vote"),
+            "phase_history": [self._phase_history_entry(state, "judge")],
+            "trace_payloads": [
+                self._draft_event(
+                    dispatch_id=int(state.get("dispatch_id", -1)),
+                    node_order=3,
+                    agent_order=-1,
+                    event_order=0,
+                    actor="judge",
+                    event_type="verify",
+                    payload={"node": "judge", "vote_tally": tally},
+                    token_in=0,
+                    token_out=0,
+                    latency_ms=1.0,
+                    cost_usd=0.0,
+                    state_id=f"run_{state['run_index']}_debate_judge",
+                )
+            ],
+        }
+
+    def _group_controller_node(self, state: WorkflowState) -> dict[str, Any]:
+        """Control the intra-group debate loop and decide when to promote group summaries upward."""
+
+        current_round = int(state.get("round_index", 0))
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"group_debate_round"},
+            round_index=current_round,
+            latest_only=True,
+        )
+        previous_artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"group_debate_round"},
+            round_index=current_round - 1,
+            latest_only=True,
+        )
+        decision = self._termination_decision(
+            state,
+            stage_name="group_controller",
+            round_index=current_round,
+            discussion_index=0,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=previous_artifacts,
+            consensus_artifacts=artifacts,
+            expected_count=len(state["layout"].agent_ids),
+            max_reached=current_round + 1 >= int(state.get("rounds", 1)),
+            continue_next_step="group_dispatch",
+            stop_next_step="representative_dispatch",
+        )
+        updates: dict[str, Any] = {
+            "phase": "group_controller",
+            "termination_decision": decision,
+            "termination_history": [dict(decision)],
+            "phase_history": [self._phase_history_entry(state, "group_controller")],
+            "trace_payloads": [self._termination_event(state, "group_controller", decision)],
+        }
+        if bool(decision.get("should_stop", False)):
+            emitted = self._emit_packets(
+                state,
+                dispatch_id=int(state.get("dispatch_id", -1)),
+                phase="group_controller",
+                packet_specs=self._build_group_summary_packets(state, artifacts),
+            )
+            relay_trace = emitted.pop("trace_payloads", [])
+            updates.update(emitted)
+            updates["trace_payloads"].extend(relay_trace)
+            updates["next_step"] = "representative_dispatch"
+            updates["discussion_index"] = 0
+            return updates
+
+        emitted = self._emit_packets(
+            state,
+            dispatch_id=int(state.get("dispatch_id", -1)),
+            phase="group_controller",
+            packet_specs=self._build_group_peer_packets(
+                state,
+                artifacts=artifacts,
+                next_round=current_round + 1,
+            ),
+        )
+        relay_trace = emitted.pop("trace_payloads", [])
+        updates.update(emitted)
+        updates["trace_payloads"].extend(relay_trace)
+        updates["round_index"] = current_round + 1
+        updates["next_step"] = "group_dispatch"
+        return updates
+
+    def _representative_controller_node(self, state: WorkflowState) -> dict[str, Any]:
+        """Control the representative-level debate loop before the shared final judge."""
+
+        current_discussion = int(state.get("discussion_index", 0))
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"representative_merge"},
+            round_index=int(state.get("round_index", 0)),
+            discussion_index=current_discussion,
+            latest_only=True,
+        )
+        previous_artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"representative_merge"},
+            round_index=int(state.get("round_index", 0)),
+            discussion_index=current_discussion - 1,
+            latest_only=True,
+        )
+        decision = self._termination_decision(
+            state,
+            stage_name="representative_controller",
+            round_index=int(state.get("round_index", 0)),
+            discussion_index=current_discussion,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=previous_artifacts,
+            consensus_artifacts=artifacts,
+            expected_count=len(state["layout"].representatives),
+            max_reached=current_discussion >= int(state.get("discussion_rounds", 1)),
+            continue_next_step="representative_dispatch",
+            stop_next_step="final_judge",
+        )
+        updates: dict[str, Any] = {
+            "phase": "representative_controller",
+            "termination_decision": decision,
+            "termination_history": [dict(decision)],
+            "phase_history": [self._phase_history_entry(state, "representative_controller")],
+            "trace_payloads": [self._termination_event(state, "representative_controller", decision)],
+        }
+        if bool(decision.get("should_stop", False)) or len(state["layout"].representatives) <= 1:
+            updates["next_step"] = "final_judge"
+            if bool(decision.get("should_stop", False)):
+                updates["final_reason"] = f"{state['topology']}:{decision.get('reason', 'judge')}"
+            return updates
+
+        emitted = self._emit_packets(
+            state,
+            dispatch_id=int(state.get("dispatch_id", -1)),
+            phase="representative_controller",
+            packet_specs=self._build_peer_summary_packets(
+                state,
+                artifacts=artifacts,
+                recipients_resolver=lambda artifact: [
+                    agent_id
+                    for agent_id in state["layout"].representatives
+                    if agent_id != str(artifact.get("agent_id", ""))
+                ],
+                kind="representative_debate_round",
+                next_round=int(state.get("round_index", 0)),
+                next_discussion=current_discussion + 1,
+            ),
+        )
+        relay_trace = emitted.pop("trace_payloads", [])
+        updates.update(emitted)
+        updates["trace_payloads"].extend(relay_trace)
+        updates["discussion_index"] = current_discussion + 1
+        updates["next_step"] = "representative_dispatch"
+        return updates
+
+    def _group_chat_final_judge_node(self, state: WorkflowState) -> dict[str, Any]:
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"representative_merge"},
+            round_index=int(state.get("round_index", 0)),
+            latest_only=True,
+        )
+        final_answer, tally = vote_artifacts(artifacts)
+        return {
+            "phase": "final_judge",
+            "vote_tally": tally,
+            "final_answer": final_answer or self._fallback_answer_from_artifacts(artifacts),
+            "final_reason": str(state.get("final_reason") or f"{state['topology']}:judge_vote"),
+            "phase_history": [self._phase_history_entry(state, "final_judge")],
+            "trace_payloads": [
+                self._draft_event(
+                    dispatch_id=int(state.get("dispatch_id", -1)),
+                    node_order=3,
+                    agent_order=-1,
+                    event_order=0,
+                    actor="judge",
+                    event_type="verify",
+                    payload={"node": "final_judge", "vote_tally": tally},
+                    token_in=0,
+                    token_out=0,
+                    latency_ms=1.0,
+                    cost_usd=0.0,
+                    state_id=f"run_{state['run_index']}_group_judge",
+                )
+            ],
+        }
+
+    def _orchestrator_relay_controller(self, state: WorkflowState) -> dict[str, Any]:
+        """Run mediated specialist discussion and decide whether another revision round is necessary."""
+
+        current_round = int(state.get("round_index", 0))
+        current_discussion = int(state.get("discussion_index", 0))
+        artifacts = self._current_specialist_cycle_artifacts(state, round_index=current_round)
+        if not artifacts:
+            decision: TerminationDecision = {
+                "should_stop": True,
+                "next_step": "orchestrator_merge",
+                "reason": "invalid_or_failed_branch",
+                "reason_detail": "No specialist artifacts were available for relay.",
+                "stage_name": "orchestrator_relay",
+                "round_index": current_round,
+                "discussion_index": current_discussion,
+                "consensus_ratio": 0.0,
+                "average_confidence": 0.0,
+                "mean_delta": None,
+                "valid_artifact_count": 0,
+            }
+        else:
+            previous_artifacts = self._current_specialist_cycle_artifacts(
+                state,
+                round_index=current_round,
+                discussion_index=current_discussion - 1,
+            )
+            decision = self._termination_decision(
+                state,
+                stage_name="orchestrator_relay",
+                round_index=current_round,
+                discussion_index=current_discussion,
+                candidate_artifacts=artifacts,
+                previous_candidate_artifacts=previous_artifacts,
+                consensus_artifacts=artifacts,
+                expected_count=len(state["layout"].specialists),
+                max_reached=current_discussion >= int(state.get("discussion_rounds", 1)),
+                continue_next_step="dispatch_revision_round",
+                stop_next_step="orchestrator_merge",
+            )
+
+        updates: dict[str, Any] = {
+            "phase": "orchestrator_relay",
+            "termination_decision": decision,
+            "termination_history": [dict(decision)],
+            "phase_history": [self._phase_history_entry(state, "orchestrator_relay")],
+            "trace_payloads": [self._termination_event(state, "orchestrator_relay", decision)],
+        }
+        if bool(decision.get("should_stop", False)):
+            updates["next_step"] = "orchestrator_merge"
+            return updates
+
+        emitted = self._emit_packets(
+            state,
+            dispatch_id=int(state.get("dispatch_id", -1)),
+            phase="orchestrator_relay",
+            packet_specs=self._build_orchestrator_peer_packets(state, artifacts),
+        )
+        relay_trace = emitted.pop("trace_payloads", [])
+        updates.update(emitted)
+        updates["trace_payloads"].extend(relay_trace)
+        updates["discussion_index"] = current_discussion + 1
+        updates["next_step"] = "dispatch_revision_round"
+        return updates
+
+    def _descriptor_monitor_node(self, state: WorkflowState) -> dict[str, Any]:
+        descriptor = state.get("descriptor")
+        dispatch_id = int(state.get("dispatch_id", -1))
+        snapshot = {
+            "task_id": state.get("task_id"),
+            "topology": state.get("topology"),
+            "phase": state.get("phase"),
+            "round_index": int(state.get("round_index", 0)),
+            "discussion_index": int(state.get("discussion_index", 0)),
+            "dispatch_id": dispatch_id,
+            "message_count": len(state.get("messages", [])),
+            "artifact_count": len(state.get("artifacts", [])),
+            "done": bool(state.get("done", False)),
+        }
+
+        record: dict[str, Any] = {}
+        if descriptor is not None and hasattr(descriptor, "on_monitor"):
+            emitted = descriptor.on_monitor(dict(snapshot))
+            if isinstance(emitted, dict):
+                record = dict(emitted)
 
         event = self._draft_event(
             dispatch_id=dispatch_id,
-            node_order=0,
+            node_order=4,
             agent_order=-1,
             event_order=0,
-            actor="system",
-            event_type="revise",
-            payload={
-                "phase": state.get("phase"),
-                "phase_iteration": int(state.get("phase_iteration", 0)),
-                "round_index": int(state.get("round_index", 0)),
-                "active_agents": list(active_agents),
-            },
+            actor="descriptor",
+            event_type="verify",
+            payload={"phase": snapshot["phase"], "record": record},
             token_in=0,
             token_out=0,
             latency_ms=1.0,
             cost_usd=0.0,
-            state_id=(
-                f"run_{state['run_index']}_dispatch_{dispatch_id}_"
-                f"{state.get('phase')}_{state.get('round_index')}"
-            ),
+            state_id=f"run_{state['run_index']}_descriptor_{dispatch_id}",
         )
+        if not record:
+            record = {
+                "phase": snapshot["phase"],
+                "round_index": snapshot["round_index"],
+                "dispatch_id": dispatch_id,
+            }
 
         return {
-            "dispatch_id": dispatch_id,
-            "active_agents": active_agents,
+            "phase": "descriptor_monitor",
+            "descriptor_records": [record],
             "trace_payloads": [event],
+            "phase_history": [self._phase_history_entry(state, "descriptor_monitor")],
         }
 
-    def _fan_out_or_collect(self, state: RuntimeState):
-        active_agents = list(state.get("active_agents", []))
-        if not active_agents:
-            return "collect"
-        dispatch_id = int(state.get("dispatch_id", -1))
-        shared = {
-            "task_id": state.get("task_id"),
-            "task_prompt": state.get("task_prompt"),
-            "run_index": state.get("run_index"),
-            "topology": state.get("topology"),
-            "phase": state.get("phase"),
-            "round_index": state.get("round_index"),
-            "layout": state.get("layout"),
-            "messages": list(state.get("messages", [])),
-            "llm_client": state.get("llm_client"),
-            "agent_type_by_agent": dict(state.get("agent_type_by_agent", {})),
-            "tools": list(state.get("tools", [])),
-            "max_tool_iterations": state.get("max_tool_iterations", 8),
-        }
-        return [
-            Send(
-                "agent_step",
+    def _finalize_node(self, state: WorkflowState) -> dict[str, Any]:
+        final_answer = str(state.get("final_answer") or self._resolve_final_answer(state))
+        final_reason = str(state.get("final_reason") or f"{state['topology']}:finalize")
+
+        descriptor_summary: dict[str, Any] = {}
+        descriptor = state.get("descriptor")
+        if descriptor is not None and hasattr(descriptor, "on_finalize"):
+            emitted = descriptor.on_finalize(
                 {
-                    **shared,
-                    "active_agent": agent_id,
-                    "dispatch_id": dispatch_id,
-                },
+                    "task_id": state.get("task_id"),
+                    "topology": state.get("topology"),
+                    "phase": state.get("phase"),
+                    "round_index": state.get("round_index"),
+                    "final_answer": final_answer,
+                    "message_count": len(state.get("messages", [])),
+                    "view_count": len(state.get("message_views", [])),
+                    "artifact_count": len(state.get("artifacts", [])),
+                }
             )
-            for agent_id in active_agents
-        ]
+            if isinstance(emitted, dict):
+                descriptor_summary = emitted
 
-    def _agent_step_node(self, state: RuntimeState) -> dict[str, Any]:
-        agent_id = str(state.get("active_agent", ""))
-        dispatch_id = int(state.get("dispatch_id", -1))
+        return {
+            "phase": "finalize",
+            "done": True,
+            "final_answer": final_answer,
+            "final_reason": final_reason,
+            "descriptor_summary": descriptor_summary,
+            "phase_history": [self._phase_history_entry(state, "finalize")],
+            "trace_payloads": [
+                self._draft_event(
+                    dispatch_id=int(state.get("dispatch_id", -1)) + 1,
+                    node_order=5,
+                    agent_order=-1,
+                    event_order=0,
+                    actor="system",
+                    event_type="finalize",
+                    payload={
+                        "status": "completed",
+                        "final_answer": final_answer,
+                        "final_reason": final_reason,
+                    },
+                    token_in=0,
+                    token_out=max(1, len(final_answer.split())) if final_answer else 0,
+                    latency_ms=1.0,
+                    cost_usd=0.0,
+                    state_id=f"run_{state['run_index']}_finalize",
+                )
+            ],
+        }
+
+    def _execute_agent_stage(
+        self,
+        state: WorkflowState,
+        *,
+        agent_id: str,
+        node_name: str,
+        stage_role: str,
+        directive: str,
+        visible_messages: list[RelayPacket],
+    ) -> dict[str, Any]:
         layout = state["layout"]
         role = layout.roles.get(agent_id, "agent")
-        phase = str(state.get("phase", ""))
+        dispatch_id = int(state.get("dispatch_id", -1))
         round_index = int(state.get("round_index", 0))
-
-        visible_messages = extract_topology_messages_for_agent(
-            topology=state["topology"],
-            phase=phase,
-            round_index=round_index,
-            agent_id=agent_id,
-            messages=list(state.get("messages", [])),
-            layout=layout,
-        )
+        discussion_index = int(state.get("discussion_index", 0))
+        prior_artifact = self._latest_agent_artifact(state, agent_id)
 
         prompt = self._build_agent_prompt(
+            state=state,
             task_prompt=state.get("task_prompt"),
             agent_id=agent_id,
             role=role,
-            phase=phase,
+            stage_role=stage_role,
+            directive=directive,
             round_index=round_index,
+            discussion_index=discussion_index,
             visible_messages=visible_messages,
+            prior_artifact=prior_artifact,
         )
         prompt_messages = self._normalize_prompt_messages(prompt)
-
         agent_type = state["agent_type_by_agent"].get(agent_id, "general")
 
         t0 = time.perf_counter()
@@ -416,179 +1762,157 @@ class LangGraphMASEngine:
         if state.get("tools") and not tool_records:
             tool_records = self._mock_tool_plan(prompt, list(state.get("tools", [])))
 
-        agent_order = self._agent_order(layout, agent_id)
-        event_payloads: list[dict[str, Any]] = []
+        source_artifact_ids = [
+            str(message.get("artifact_id", "")) for message in visible_messages if message.get("artifact_id")
+        ]
+        if prior_artifact is not None and prior_artifact.get("artifact_id"):
+            source_artifact_ids.append(str(prior_artifact.get("artifact_id")))
 
-        view_record = {
-            "dispatch_id": dispatch_id,
-            "viewer": agent_id,
-            "role": role,
-            "phase": phase,
-            "round_index": round_index,
-            "visible_message_ids": [str(item.get("message_id", "")) for item in visible_messages],
-            "visible_senders": sorted({str(item.get("sender", "")) for item in visible_messages}),
-            "visible_count": len(visible_messages),
-        }
+        artifact = build_artifact(
+            text=str(llm.text or ""),
+            artifact_id=f"{node_name}:{agent_id}:{round_index}:{discussion_index}:{dispatch_id}",
+            dispatch_id=dispatch_id,
+            node_name=node_name,
+            stage_role=stage_role,
+            round_index=round_index,
+            discussion_index=discussion_index,
+            agent_id=agent_id,
+            role=role,
+            source_artifact_ids=source_artifact_ids,
+            tool_records=tool_records,
+            llm_payload={
+                "model": llm.model,
+                "mock_used": bool(llm.mock_used),
+                "token_in": int(llm.token_in),
+                "token_out": int(llm.token_out),
+                "cost_usd": float(llm.cost_usd),
+                "metadata": self._serialize_for_json(dict(llm.metadata)),
+            },
+        )
 
-        event_payloads.append(
+        tool_log_records: list[dict[str, Any]] = []
+        for record in tool_records:
+            tool_log_records.append(
+                {
+                    "agent_id": agent_id,
+                    "node_name": node_name,
+                    "round_index": round_index,
+                    "discussion_index": discussion_index,
+                    "tool_name": str(record.get("tool_name", "")),
+                    "arguments": self._serialize_for_json(record.get("arguments", {})),
+                    "status": str(record.get("status", "")),
+                    "error": self._serialize_for_json(record.get("error")),
+                    "output": self._serialize_for_json(record.get("output")),
+                }
+            )
+
+        event_payloads = [
             self._draft_event(
                 dispatch_id=dispatch_id,
                 node_order=1,
-                agent_order=agent_order,
+                agent_order=self._agent_order(layout, agent_id),
                 event_order=0,
                 actor=agent_id,
                 event_type="verify",
                 payload={
-                    "phase": phase,
-                    "round_index": round_index,
+                    "node": node_name,
+                    "visible_message_ids": [item.get("message_id") for item in visible_messages],
                     "visible_message_count": len(visible_messages),
-                    "visible_message_ids": [
-                        str(item.get("message_id", "")) for item in visible_messages
-                    ][:20],
-                    "visible_messages": self._serialize_for_json(visible_messages),
                     "prompt_messages": prompt_messages,
                 },
                 token_in=0,
                 token_out=0,
                 latency_ms=1.0,
                 cost_usd=0.0,
-                state_id=(
-                    f"run_{state['run_index']}_dispatch_{dispatch_id}_"
-                    f"{agent_id}_view"
-                ),
+                state_id=f"run_{state['run_index']}_{node_name}_{agent_id}_view",
             )
-        )
+        ]
 
-        event_index = 1
+        event_order = 1
         for record in tool_records:
             tool_name = str(record.get("tool_name") or "")
             if not tool_name:
                 continue
-            arguments = record.get("arguments")
-            if not isinstance(arguments, dict):
-                arguments = {}
-            status = str(record.get("status") or "completed")
-            error = record.get("error")
-            output = record.get("output")
-
             event_payloads.append(
                 self._draft_event(
                     dispatch_id=dispatch_id,
                     node_order=1,
-                    agent_order=agent_order,
-                    event_order=event_index,
+                    agent_order=self._agent_order(layout, agent_id),
+                    event_order=event_order,
                     actor=agent_id,
                     event_type="tool_call",
                     payload={
+                        "node": node_name,
                         "tool_name": tool_name,
-                        "arguments": arguments,
-                        "status": status,
-                        "phase": phase,
-                        "round_index": round_index,
+                        "arguments": self._serialize_for_json(record.get("arguments", {})),
                     },
                     token_in=0,
                     token_out=0,
                     latency_ms=1.0,
                     cost_usd=0.0,
-                    state_id=(
-                        f"run_{state['run_index']}_dispatch_{dispatch_id}_"
-                        f"{agent_id}_tool_{event_index}_call"
-                    ),
+                    state_id=f"run_{state['run_index']}_{node_name}_{agent_id}_tool_{event_order}",
                 )
             )
-            event_index += 1
-
+            event_order += 1
             event_payloads.append(
                 self._draft_event(
                     dispatch_id=dispatch_id,
                     node_order=1,
-                    agent_order=agent_order,
-                    event_order=event_index,
-                    actor=agent_id,
+                    agent_order=self._agent_order(layout, agent_id),
+                    event_order=event_order,
+                    actor="system",
                     event_type="tool_result",
                     payload={
+                        "node": node_name,
                         "tool_name": tool_name,
-                        "status": status,
-                        "error": error,
-                        "output_preview": self._tool_output_preview(output),
-                        "phase": phase,
-                        "round_index": round_index,
+                        "status": str(record.get("status", "")),
+                        "output_preview": self._tool_output_preview(record.get("output")),
                     },
                     token_in=0,
                     token_out=0,
                     latency_ms=1.0,
                     cost_usd=0.0,
-                    state_id=(
-                        f"run_{state['run_index']}_dispatch_{dispatch_id}_"
-                        f"{agent_id}_tool_{event_index}_result"
-                    ),
+                    state_id=f"run_{state['run_index']}_{node_name}_{agent_id}_tool_{event_order}",
                 )
             )
-            event_index += 1
+            event_order += 1
 
-        text = str(llm.text or "")
         event_payloads.append(
             self._draft_event(
                 dispatch_id=dispatch_id,
                 node_order=1,
-                agent_order=agent_order,
-                event_order=event_index,
+                agent_order=self._agent_order(layout, agent_id),
+                event_order=event_order,
                 actor=agent_id,
                 event_type="act",
                 payload={
-                    "phase": phase,
-                    "round_index": round_index,
-                    "model": llm.model,
-                    "mock_used": llm.mock_used,
-                    "agent_type": agent_type,
-                    "response_preview": self._message_snippet(text),
-                    "response_text": text,
-                    "metadata": dict(llm.metadata),
+                    "node": node_name,
+                    "stage_role": stage_role,
+                    "response_preview": self._message_snippet(str(llm.text or "")),
+                    "artifact_preview": self._message_snippet(str(artifact.get("summary", ""))),
                 },
                 token_in=int(llm.token_in),
                 token_out=int(llm.token_out),
                 latency_ms=latency_ms,
                 cost_usd=float(llm.cost_usd),
-                state_id=(
-                    f"run_{state['run_index']}_dispatch_{dispatch_id}_"
-                    f"{agent_id}_act"
-                ),
+                state_id=f"run_{state['run_index']}_{node_name}_{agent_id}_act",
             )
         )
 
-        retrieved_docids: set[str] = set()
-        for record in tool_records:
-            tool_name = str(record.get("tool_name") or "")
-            arguments = record.get("arguments")
-            if not isinstance(arguments, dict):
-                arguments = {}
-            retrieved_docids.update(
-                self._extract_docids_from_tool_output(
-                    output=record.get("output"),
-                    arguments=arguments,
-                    tool_name=tool_name,
-                )
-            )
-
-        output_record = {
-            "dispatch_id": dispatch_id,
-            "agent_id": agent_id,
-            "phase": phase,
-            "round_index": round_index,
-            "text": text,
-            "tool_records": tool_records,
-            "retrieved_docids": sorted(retrieved_docids),
-        }
         interaction_log = {
             "dispatch_id": dispatch_id,
             "agent_id": agent_id,
             "agent_role": role,
+            "stage_role": stage_role,
             "agent_type": agent_type,
-            "phase": phase,
+            "phase": node_name,
             "round_index": round_index,
+            "discussion_index": discussion_index,
             "prompt_messages": prompt_messages,
             "visible_messages": self._serialize_for_json(visible_messages),
-            "assistant_message": {"role": "assistant", "content": text},
+            "prior_artifact": self._serialize_for_json(prior_artifact),
+            "assistant_message": {"role": "assistant", "content": str(llm.text or "")},
+            "structured_artifact": self._serialize_for_json(artifact),
             "tool_calls": self._serialize_tool_records(tool_records),
             "llm": {
                 "model": llm.model,
@@ -601,718 +1925,873 @@ class LangGraphMASEngine:
         }
 
         return {
-            "outputs": [output_record],
-            "message_views": [view_record],
+            "artifacts": [artifact],
+            "message_views": [
+                {
+                    "dispatch_id": dispatch_id,
+                    "viewer": agent_id,
+                    "role": role,
+                    "phase": node_name,
+                    "round_index": round_index,
+                    "discussion_index": discussion_index,
+                    "visible_message_ids": [str(item.get("message_id", "")) for item in visible_messages],
+                    "visible_senders": sorted({str(item.get("sender", "")) for item in visible_messages}),
+                    "visible_count": len(visible_messages),
+                }
+            ],
             "trace_payloads": event_payloads,
             "interaction_logs": [interaction_log],
+            "tool_records_log": tool_log_records,
         }
 
-    def _collect_node(self, state: RuntimeState) -> dict[str, Any]:
-        dispatch_id = int(state.get("dispatch_id", -1))
-        phase = str(state.get("phase", ""))
-        round_index = int(state.get("round_index", 0))
-        layout = state["layout"]
-
-        outputs = [
-            item for item in state.get("outputs", []) if int(item.get("dispatch_id", -1)) == dispatch_id
+    def _build_orchestrator_task_packets(
+        self,
+        state: WorkflowState,
+        *,
+        recipients: list[str],
+    ) -> list[dict[str, Any]]:
+        artifact = self._latest_artifact_for_nodes(
+            state,
+            node_names={"orchestrator_merge", "orchestrator_plan"},
+        )
+        if artifact is None:
+            return []
+        kind = "task_package" if int(state.get("round_index", 0)) == 0 else "orchestrator_feedback"
+        payload = self._packet_payload_from_artifact(state, artifact)
+        return [
+            {
+                "sender": state["layout"].orchestrator_id,
+                "recipients": [recipient],
+                "kind": kind,
+                "round": int(state.get("round_index", 0)),
+                "discussion_index": 0,
+                "artifact_id": artifact.get("artifact_id"),
+                "payload": payload,
+                "content": self._packet_content(state, payload),
+            }
+            for recipient in recipients
         ]
 
-        latest_outputs = dict(state.get("latest_outputs", {}))
-        for item in outputs:
-            latest_outputs[str(item.get("agent_id", ""))] = str(item.get("text", ""))
+    def _build_root_task_packets(
+        self,
+        state: WorkflowState,
+        *,
+        recipients: list[str],
+    ) -> list[dict[str, Any]]:
+        artifact = self._latest_artifact_for_nodes(state, node_names={"root_reducer", "root_plan"})
+        if artifact is None:
+            return []
+        payload = self._packet_payload_from_artifact(state, artifact)
+        return [
+            {
+                "sender": state["layout"].orchestrator_id,
+                "recipients": [recipient],
+                "kind": "root_task_package",
+                "round": int(state.get("round_index", 0)),
+                "discussion_index": 0,
+                "artifact_id": artifact.get("artifact_id"),
+                "payload": payload,
+                "content": self._packet_content(state, payload),
+            }
+            for recipient in recipients
+        ]
 
-        tool_call_counts = dict(state.get("tool_call_counts", {}))
-        retrieved_docids_set = set(str(docid) for docid in state.get("retrieved_docids", []))
-        for item in outputs:
-            for record in item.get("tool_records", []):
-                tool_name = str(record.get("tool_name") or "")
-                if not tool_name:
+    def _build_manager_task_packets(
+        self,
+        state: WorkflowState,
+        *,
+        recipients: list[str],
+    ) -> list[dict[str, Any]]:
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"manager_nodes"},
+            round_index=int(state.get("round_index", 0)),
+            latest_only=True,
+        )
+        specs: list[dict[str, Any]] = []
+        recipients_set = set(recipients)
+        for artifact in artifacts:
+            manager_id = str(artifact.get("agent_id", ""))
+            payload = self._packet_payload_from_artifact(state, artifact)
+            for child in state["layout"].children_by_agent.get(manager_id, []):
+                if child not in recipients_set:
                     continue
-                tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + 1
-            for docid in item.get("retrieved_docids", []):
-                retrieved_docids_set.add(str(docid))
+                specs.append(
+                    {
+                        "sender": manager_id,
+                        "recipients": [child],
+                        "kind": "manager_task_package",
+                        "round": int(state.get("round_index", 0)),
+                        "discussion_index": 0,
+                        "artifact_id": artifact.get("artifact_id"),
+                        "payload": payload,
+                        "content": self._packet_content(state, payload),
+                    }
+                )
+        return specs
 
+    def _build_report_packets(
+        self,
+        state: WorkflowState,
+        *,
+        source_node_names: set[str],
+        recipients_by_sender: Callable[[ArtifactRecord], list[str]],
+        kind: str,
+    ) -> list[dict[str, Any]]:
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names=source_node_names,
+            round_index=int(state.get("round_index", 0)),
+            discussion_index=int(state.get("discussion_index", 0)),
+            latest_only=True,
+        )
+        specs: list[dict[str, Any]] = []
+        for artifact in artifacts:
+            payload = self._packet_payload_from_artifact(state, artifact)
+            specs.append(
+                {
+                    "sender": str(artifact.get("agent_id", "")),
+                    "recipients": recipients_by_sender(artifact),
+                    "kind": kind,
+                    "round": int(state.get("round_index", 0)),
+                    "discussion_index": int(state.get("discussion_index", 0)),
+                    "artifact_id": artifact.get("artifact_id"),
+                    "payload": payload,
+                    "content": self._packet_content(state, payload),
+                }
+            )
+        return specs
+
+    def _build_orchestrator_peer_packets(
+        self,
+        state: WorkflowState,
+        artifacts: list[ArtifactRecord],
+    ) -> list[dict[str, Any]]:
+        specs: list[dict[str, Any]] = []
+        by_agent = {str(artifact.get("agent_id", "")): artifact for artifact in artifacts}
+        for recipient in state["layout"].specialists:
+            peer_payloads = []
+            peer_ids = []
+            for agent_id, artifact in by_agent.items():
+                if agent_id == recipient:
+                    continue
+                payload = self._packet_payload_from_artifact(state, artifact)
+                payload["sender"] = agent_id
+                peer_payloads.append(payload)
+                peer_ids.append(str(artifact.get("artifact_id", "")))
+            if not peer_payloads:
+                continue
+            payload = {
+                "summary": self._bundle_peer_summaries(peer_payloads),
+                "peer_artifacts": peer_payloads[:6],
+            }
+            specs.append(
+                {
+                    "sender": state["layout"].orchestrator_id,
+                    "recipients": [recipient],
+                    "kind": "peer_summary",
+                    "round": int(state.get("round_index", 0)),
+                    "discussion_index": int(state.get("discussion_index", 0)) + 1,
+                    "artifact_id": ",".join(peer_ids[:6]),
+                    "payload": payload,
+                    "content": self._packet_content(state, payload),
+                }
+            )
+        return specs
+
+    def _build_peer_summary_packets(
+        self,
+        state: WorkflowState,
+        *,
+        artifacts: list[ArtifactRecord],
+        recipients_resolver: Callable[[ArtifactRecord], list[str]],
+        kind: str,
+        next_round: int,
+        next_discussion: int,
+    ) -> list[dict[str, Any]]:
+        specs: list[dict[str, Any]] = []
+        for artifact in artifacts:
+            payload = self._packet_payload_from_artifact(state, artifact)
+            specs.append(
+                {
+                    "sender": str(artifact.get("agent_id", "")),
+                    "recipients": recipients_resolver(artifact),
+                    "kind": kind,
+                    "round": next_round,
+                    "discussion_index": next_discussion,
+                    "artifact_id": artifact.get("artifact_id"),
+                    "payload": payload,
+                    "content": self._packet_content(state, payload),
+                }
+            )
+        return specs
+
+    def _build_group_peer_packets(
+        self,
+        state: WorkflowState,
+        *,
+        artifacts: list[ArtifactRecord],
+        next_round: int,
+    ) -> list[dict[str, Any]]:
+        specs: list[dict[str, Any]] = []
+        for artifact in artifacts:
+            agent_id = str(artifact.get("agent_id", ""))
+            group = self._group_for_agent(state["layout"], agent_id)
+            recipients = [member for member in group if member != agent_id]
+            payload = self._packet_payload_from_artifact(state, artifact)
+            specs.append(
+                {
+                    "sender": agent_id,
+                    "recipients": recipients,
+                    "kind": "group_debate_round",
+                    "round": next_round,
+                    "discussion_index": 0,
+                    "artifact_id": artifact.get("artifact_id"),
+                    "payload": payload,
+                    "content": self._packet_content(state, payload),
+                }
+            )
+        return specs
+
+    def _build_group_summary_packets(
+        self,
+        state: WorkflowState,
+        artifacts: list[ArtifactRecord],
+    ) -> list[dict[str, Any]]:
+        by_agent = {str(artifact.get("agent_id", "")): artifact for artifact in artifacts}
+        specs: list[dict[str, Any]] = []
+        for group in state["layout"].groups:
+            if not group:
+                continue
+            representative = group[0]
+            group_payloads = []
+            source_ids = []
+            for member in group:
+                artifact = by_agent.get(member)
+                if artifact is None:
+                    continue
+                payload = self._packet_payload_from_artifact(state, artifact)
+                payload["sender"] = member
+                group_payloads.append(payload)
+                source_ids.append(str(artifact.get("artifact_id", "")))
+            payload = {
+                "summary": self._bundle_peer_summaries(group_payloads),
+                "group_members": list(group),
+                "group_artifacts": group_payloads[:6],
+            }
+            specs.append(
+                {
+                    "sender": "system",
+                    "recipients": [representative],
+                    "kind": "group_summary",
+                    "round": int(state.get("round_index", 0)),
+                    "discussion_index": 0,
+                    "artifact_id": ",".join(source_ids[:6]),
+                    "payload": payload,
+                    "content": self._packet_content(state, payload),
+                }
+            )
+        return specs
+
+    def _emit_packets(
+        self,
+        state: WorkflowState,
+        *,
+        dispatch_id: int,
+        phase: str,
+        packet_specs: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        message_seq = int(state.get("message_seq", 0))
         message_budget = dict(state.get("message_budget", {}))
         sent_counts = dict(state.get("sent_counts", {}))
-        message_seq = int(state.get("message_seq", 0))
-        new_messages: list[dict[str, Any]] = []
-        relay_events: list[dict[str, Any]] = []
+        messages: list[RelayPacket] = []
+        trace_payloads: list[dict[str, Any]] = []
 
-        def relay_send(
-            *,
-            sender: str,
-            recipients: list[str],
-            content: str,
-            kind: str,
-            relay_phase: str,
-            relay_round: int,
-        ) -> None:
-            nonlocal message_seq
-
-            deduped = sorted({item for item in recipients if item and item != sender})
-            if not deduped:
-                return
+        for spec in packet_specs:
+            sender = str(spec.get("sender", "system") or "system")
+            recipients = sorted({item for item in spec.get("recipients", []) if item and item != sender})
+            if not recipients:
+                continue
 
             if sender in message_budget:
                 remaining = int(message_budget.get(sender, 0))
                 if remaining <= 0:
-                    return
+                    continue
                 message_budget[sender] = remaining - 1
                 sent_counts[sender] = int(sent_counts.get(sender, 0)) + 1
 
             message_seq += 1
-            message = {
-                "message_id": f"m_{message_seq}",
-                "sender": sender,
-                "recipients": deduped,
-                "content": self._message_snippet(content),
-                "kind": kind,
-                "phase": relay_phase,
-                "round": relay_round,
-            }
-            new_messages.append(message)
-
-            tool_call_counts["inter_agent_send"] = tool_call_counts.get("inter_agent_send", 0) + 1
-            relay_events.append(
+            payload = self._serialize_for_json(spec.get("payload", {}))
+            message = RelayPacket(
+                message_id=f"m_{message_seq}",
+                dispatch_id=dispatch_id,
+                sender=sender,
+                recipients=recipients,
+                kind=str(spec.get("kind", "")),
+                phase=phase,
+                round=int(spec.get("round", state.get("round_index", 0))),
+                discussion_index=int(
+                    spec.get("discussion_index", state.get("discussion_index", 0))
+                ),
+                artifact_id=spec.get("artifact_id"),
+                content=str(spec.get("content") or self._packet_content(state, payload)),
+                payload=payload,
+            )
+            messages.append(message)
+            trace_payloads.append(
                 self._draft_event(
                     dispatch_id=dispatch_id,
                     node_order=2,
-                    agent_order=self._agent_order(layout, sender),
-                    event_order=len(relay_events) + 1,
+                    agent_order=self._agent_order(state["layout"], sender),
+                    event_order=len(trace_payloads) + 1,
                     actor=sender,
                     event_type="tool_call",
                     payload={
                         "tool_name": "inter_agent_send",
-                        "to": deduped,
-                        "kind": kind,
-                        "phase": relay_phase,
-                        "round_index": relay_round,
+                        "to": recipients,
+                        "kind": message["kind"],
+                        "phase": phase,
+                        "round_index": message["round"],
+                        "discussion_index": message["discussion_index"],
                     },
                     token_in=0,
                     token_out=0,
                     latency_ms=1.0,
                     cost_usd=0.0,
-                    state_id=(
-                        f"run_{state['run_index']}_dispatch_{dispatch_id}_"
-                        f"relay_{message_seq}_call"
-                    ),
+                    state_id=f"run_{state['run_index']}_{phase}_send_{message_seq}",
                 )
             )
-            relay_events.append(
+            trace_payloads.append(
                 self._draft_event(
                     dispatch_id=dispatch_id,
                     node_order=2,
-                    agent_order=self._agent_order(layout, sender),
-                    event_order=len(relay_events) + 1,
+                    agent_order=self._agent_order(state["layout"], sender),
+                    event_order=len(trace_payloads) + 1,
                     actor="system",
                     event_type="tool_result",
                     payload={
                         "tool_name": "inter_agent_send",
                         "status": "ok",
                         "message_id": message["message_id"],
-                        "visible_to": deduped,
+                        "visible_to": recipients,
                     },
                     token_in=0,
                     token_out=0,
                     latency_ms=1.0,
                     cost_usd=0.0,
-                    state_id=(
-                        f"run_{state['run_index']}_dispatch_{dispatch_id}_"
-                        f"relay_{message_seq}_result"
-                    ),
+                    state_id=f"run_{state['run_index']}_{phase}_send_{message_seq}_result",
                 )
             )
 
-        round_count = int(state.get("rounds", 1))
-        discussion_rounds = int(state.get("discussion_rounds", 1))
-        phase_iteration = int(state.get("phase_iteration", 0))
-        final_answer = str(state.get("final_answer", ""))
-        final_reason = str(state.get("final_reason", ""))
-        vote_tally = dict(state.get("vote_tally", {}))
-        done = bool(state.get("done", False))
-
-        output_by_agent = {str(item.get("agent_id")): item for item in outputs}
-        candidate_texts = [str(item.get("text", "")) for item in outputs]
-
-        topology = state["topology"]
-        next_phase = phase
-        next_round = round_index
-        next_iteration = phase_iteration
-
-        if topology == TOPOLOGY_SAS:
-            if candidate_texts:
-                final_answer = candidate_texts[-1]
-                final_reason = "single_agent"
-            done = True
-
-        elif topology == TOPOLOGY_ORCHESTRATOR_TREE:
-            root = layout.orchestrator_id
-            if phase == "root_delegate":
-                root_text = str(output_by_agent.get(str(root), {}).get("text", ""))
-                for manager in layout.managers:
-                    relay_send(
-                        sender=str(root),
-                        recipients=[manager],
-                        content=root_text,
-                        kind="root_to_manager",
-                        relay_phase=phase,
-                        relay_round=round_index,
-                    )
-                next_phase = "manager_delegate"
-
-            elif phase == "manager_delegate":
-                for manager in layout.managers:
-                    manager_text = str(output_by_agent.get(manager, {}).get("text", ""))
-                    leaves = [
-                        child
-                        for child in layout.children_by_agent.get(manager, [])
-                        if child in layout.leaves
-                    ]
-                    relay_send(
-                        sender=manager,
-                        recipients=leaves,
-                        content=manager_text,
-                        kind="manager_to_leaf",
-                        relay_phase=phase,
-                        relay_round=round_index,
-                    )
-                next_phase = "leaf_work"
-
-            elif phase == "leaf_work":
-                for leaf in layout.leaves:
-                    leaf_text = str(output_by_agent.get(leaf, {}).get("text", ""))
-                    parent = layout.parent_by_agent.get(leaf)
-                    if parent:
-                        relay_send(
-                            sender=leaf,
-                            recipients=[parent],
-                            content=leaf_text,
-                            kind="leaf_to_manager",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                next_phase = "manager_aggregate"
-
-            elif phase == "manager_aggregate":
-                for manager in layout.managers:
-                    manager_text = str(output_by_agent.get(manager, {}).get("text", ""))
-                    if root:
-                        relay_send(
-                            sender=manager,
-                            recipients=[root],
-                            content=manager_text,
-                            kind="manager_to_root",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                if round_index + 1 < round_count:
-                    next_phase = "root_delegate"
-                    next_round = round_index + 1
-                else:
-                    next_phase = "root_finalize"
-
-            elif phase == "root_finalize":
-                root_text = str(output_by_agent.get(str(root), {}).get("text", ""))
-                final_answer = root_text or self._fallback_answer(candidate_texts)
-                final_reason = "tree_root_finalize"
-                done = True
-
-        elif topology == TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION:
-            root = layout.orchestrator_id
-            if phase == "specialist_solve":
-                for specialist in layout.specialists:
-                    text = str(output_by_agent.get(specialist, {}).get("text", ""))
-                    if root:
-                        relay_send(
-                            sender=specialist,
-                            recipients=[root],
-                            content=text,
-                            kind="specialist_to_orchestrator",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                next_phase = "orchestrator_synthesize"
-
-            elif phase == "orchestrator_synthesize":
-                root_text = str(output_by_agent.get(str(root), {}).get("text", ""))
-                if round_index + 1 < round_count:
-                    for specialist in layout.specialists:
-                        relay_send(
-                            sender=str(root),
-                            recipients=[specialist],
-                            content=root_text,
-                            kind="orchestrator_feedback",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                    next_phase = "specialist_solve"
-                    next_round = round_index + 1
-                else:
-                    final_answer = root_text or self._fallback_answer(candidate_texts)
-                    final_reason = "orchestrator_no_discussion"
-                    done = True
-
-        elif topology == TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION:
-            root = layout.orchestrator_id
-            if phase == "initial_proposals":
-                for specialist in layout.specialists:
-                    text = str(output_by_agent.get(specialist, {}).get("text", ""))
-                    if root:
-                        relay_send(
-                            sender=specialist,
-                            recipients=[root],
-                            content=text,
-                            kind="proposal",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-
-                for specialist in layout.specialists:
-                    peers = [
-                        str(output_by_agent[item].get("text", ""))
-                        for item in layout.specialists
-                        if item != specialist and item in output_by_agent
-                    ]
-                    if peers and root:
-                        relay_send(
-                            sender=str(root),
-                            recipients=[specialist],
-                            content=self._render_peer_bundle(peers),
-                            kind="peer_bundle",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                next_phase = "peer_discussion"
-                next_iteration = 0
-
-            elif phase == "peer_discussion":
-                for specialist in layout.specialists:
-                    text = str(output_by_agent.get(specialist, {}).get("text", ""))
-                    if root:
-                        relay_send(
-                            sender=specialist,
-                            recipients=[root],
-                            content=text,
-                            kind="revision",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-
-                if phase_iteration + 1 < discussion_rounds:
-                    for specialist in layout.specialists:
-                        peers = [
-                            str(output_by_agent[item].get("text", ""))
-                            for item in layout.specialists
-                            if item != specialist and item in output_by_agent
-                        ]
-                        if peers and root:
-                            relay_send(
-                                sender=str(root),
-                                recipients=[specialist],
-                                content=self._render_peer_bundle(peers),
-                                kind="peer_bundle",
-                                relay_phase=phase,
-                                relay_round=round_index,
-                            )
-                    next_phase = "peer_discussion"
-                    next_iteration = phase_iteration + 1
-                else:
-                    next_phase = "orchestrator_synthesize"
-                    next_iteration = 0
-
-            elif phase == "orchestrator_synthesize":
-                root_text = str(output_by_agent.get(str(root), {}).get("text", ""))
-                if round_index + 1 < round_count:
-                    for specialist in layout.specialists:
-                        relay_send(
-                            sender=str(root),
-                            recipients=[specialist],
-                            content=root_text,
-                            kind="orchestrator_feedback",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                    next_phase = "initial_proposals"
-                    next_round = round_index + 1
-                else:
-                    final_answer = root_text or self._fallback_answer(candidate_texts)
-                    final_reason = "orchestrator_with_discussion"
-                    done = True
-
-        elif topology == TOPOLOGY_ONLY_VOTING:
-            final_answer, vote_tally = vote_majority(candidate_texts)
-            final_reason = "majority_vote"
-            done = True
-
-        elif topology == TOPOLOGY_FULLY_LINKED_DEBATE:
-            if round_index + 1 < round_count:
-                for item in outputs:
-                    sender = str(item.get("agent_id", ""))
-                    recipients = [agent_id for agent_id in layout.agent_ids if agent_id != sender]
-                    relay_send(
-                        sender=sender,
-                        recipients=recipients,
-                        content=str(item.get("text", "")),
-                        kind="debate_round",
-                        relay_phase=phase,
-                        relay_round=round_index,
-                    )
-                next_round = round_index + 1
-                next_phase = "debate"
-            else:
-                final_answer, vote_tally = vote_majority(candidate_texts)
-                final_reason = "fully_linked_debate_vote"
-                done = True
-
-        elif topology == TOPOLOGY_GROUP_CHAT_DEBATE:
-            if phase == "group_debate":
-                if round_index + 1 < round_count:
-                    for item in outputs:
-                        sender = str(item.get("agent_id", ""))
-                        group = self._group_for_agent(layout, sender)
-                        recipients = [agent_id for agent_id in group if agent_id != sender]
-                        relay_send(
-                            sender=sender,
-                            recipients=recipients,
-                            content=str(item.get("text", "")),
-                            kind="group_debate_round",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                    next_round = round_index + 1
-                    next_phase = "group_debate"
-                else:
-                    for group in layout.groups:
-                        if not group:
-                            continue
-                        representative = group[0]
-                        group_outputs = [
-                            str(output_by_agent[item].get("text", ""))
-                            for item in group
-                            if item in output_by_agent
-                        ]
-                        relay_send(
-                            sender="system",
-                            recipients=[representative],
-                            content=self._render_group_summary(group_outputs),
-                            kind="group_summary",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                    next_phase = "representative_merge"
-                    next_iteration = 0
-
-            elif phase == "representative_merge":
-                representatives = list(layout.representatives)
-                if phase_iteration + 1 < discussion_rounds and len(representatives) > 1:
-                    for item in outputs:
-                        sender = str(item.get("agent_id", ""))
-                        recipients = [agent_id for agent_id in representatives if agent_id != sender]
-                        relay_send(
-                            sender=sender,
-                            recipients=recipients,
-                            content=str(item.get("text", "")),
-                            kind="representative_debate_round",
-                            relay_phase=phase,
-                            relay_round=round_index,
-                        )
-                    next_phase = "representative_merge"
-                    next_iteration = phase_iteration + 1
-                else:
-                    final_answer, vote_tally = vote_majority(candidate_texts)
-                    final_reason = "group_chat_representative_merge"
-                    done = True
-
-        else:
-            final_answer = self._fallback_answer(candidate_texts)
-            final_reason = "fallback"
-            done = True
-
-        verify_event = self._draft_event(
-            dispatch_id=dispatch_id,
-            node_order=2,
-            agent_order=-1,
-            event_order=0,
-            actor="system",
-            event_type="verify",
-            payload={
-                "phase": phase,
-                "round_index": round_index,
-                "outputs_in_dispatch": len(outputs),
-                "messages_created": len(new_messages),
-                "next_phase": next_phase,
-                "next_round_index": next_round,
-            },
-            token_in=0,
-            token_out=0,
-            latency_ms=1.0,
-            cost_usd=0.0,
-            state_id=(
-                f"run_{state['run_index']}_dispatch_{dispatch_id}_collect_verify"
-            ),
-        )
-
-        history_entry = {
-            "dispatch_id": dispatch_id,
-            "phase": phase,
-            "round_index": round_index,
-            "phase_iteration": phase_iteration,
-            "active_agents": list(state.get("active_agents", [])),
-            "output_agents": [str(item.get("agent_id", "")) for item in outputs],
-            "messages_created": len(new_messages),
-            "next_phase": next_phase,
-            "next_round_index": next_round,
-            "done": done,
-        }
-
-        updates: dict[str, Any] = {
-            "messages": new_messages,
-            "trace_payloads": [verify_event] + relay_events,
-            "phase_history": [history_entry],
-            "latest_outputs": latest_outputs,
-            "tool_call_counts": tool_call_counts,
-            "retrieved_docids": sorted(retrieved_docids_set),
+        return {
+            "messages": messages,
             "message_budget": message_budget,
             "sent_counts": sent_counts,
             "message_seq": message_seq,
-            "vote_tally": vote_tally,
-            "phase": next_phase,
-            "round_index": next_round,
-            "phase_iteration": next_iteration,
-            "done": done,
-            "final_answer": final_answer,
-            "final_reason": final_reason,
-        }
-        return updates
-
-    def _descriptor_monitor_node(self, state: RuntimeState) -> dict[str, Any]:
-        descriptor = state.get("descriptor")
-        dispatch_id = int(state.get("dispatch_id", -1))
-        snapshot = {
-            "task_id": state.get("task_id"),
-            "topology": state.get("topology"),
-            "phase": state.get("phase"),
-            "round_index": int(state.get("round_index", 0)),
-            "dispatch_id": dispatch_id,
-            "message_count": len(state.get("messages", [])),
-            "outputs_seen": len(state.get("outputs", [])),
-            "done": bool(state.get("done", False)),
+            "trace_payloads": trace_payloads,
         }
 
-        record: dict[str, Any] = {}
-        if descriptor is not None and hasattr(descriptor, "on_monitor"):
-            emitted = descriptor.on_monitor(dict(snapshot))
-            if isinstance(emitted, dict):
-                record = dict(emitted)
+    def _termination_decision(
+        self,
+        state: WorkflowState,
+        *,
+        stage_name: str,
+        round_index: int,
+        discussion_index: int,
+        candidate_artifacts: list[ArtifactRecord],
+        previous_candidate_artifacts: list[ArtifactRecord],
+        consensus_artifacts: list[ArtifactRecord],
+        expected_count: int,
+        max_reached: bool,
+        continue_next_step: str,
+        stop_next_step: str,
+    ) -> TerminationDecision:
+        """Compute the explicit code-level stop/continue decision for a looped collaboration stage."""
 
-        event = self._draft_event(
-            dispatch_id=dispatch_id,
-            node_order=3,
-            agent_order=-1,
-            event_order=0,
-            actor="descriptor",
-            event_type="verify",
-            payload={
-                "phase": snapshot["phase"],
-                "round_index": snapshot["round_index"],
-                "record": record,
-            },
-            token_in=0,
-            token_out=0,
-            latency_ms=1.0,
-            cost_usd=0.0,
-            state_id=(
-                f"run_{state['run_index']}_dispatch_{dispatch_id}_descriptor"
-            ),
+        valid_count = len(
+            [
+                artifact
+                for artifact in consensus_artifacts or candidate_artifacts
+                if str(artifact.get("answer", "")).strip()
+            ]
         )
+        base_decision: TerminationDecision = {
+            "stage_name": stage_name,
+            "round_index": round_index,
+            "discussion_index": discussion_index,
+            "consensus_mode": str(state.get("termination_consensus_mode", "llm_judge")),
+            "consensus_source": "uncomputed",
+            "consensus_signature": "",
+            "consensus_count": 0,
+            "consensus_valid_count": 0,
+            "consensus_groups": [],
+            "consensus_explanation": "",
+            "consensus_ratio": 0.0,
+            "average_confidence": 0.0,
+            "mean_delta": None,
+            "valid_artifact_count": valid_count,
+            "control_token_in": 0,
+            "control_token_out": 0,
+            "control_cost_usd": 0.0,
+            "control_latency_ms": 1.0,
+        }
+        if expected_count > 0 and valid_count < max(1, math.ceil(expected_count / 2)):
+            return {
+                **base_decision,
+                "should_stop": True,
+                "next_step": stop_next_step,
+                "reason": "invalid_or_failed_branch",
+                "reason_detail": (
+                    f"Only {valid_count} valid artifacts were available out of {expected_count} expected branches."
+                ),
+            }
 
-        if not record:
-            record = {
-                "phase": snapshot["phase"],
-                "round_index": snapshot["round_index"],
-                "dispatch_id": snapshot["dispatch_id"],
+        consensus = self._compute_termination_consensus(
+            state=state,
+            stage_name=stage_name,
+            round_index=round_index,
+            discussion_index=discussion_index,
+            artifacts=consensus_artifacts or candidate_artifacts,
+        )
+        avg_conf = average_confidence(candidate_artifacts or consensus_artifacts)
+        mean_delta = compute_mean_delta(previous_candidate_artifacts, candidate_artifacts)
+
+        decision_common: TerminationDecision = {
+            **base_decision,
+            "consensus_mode": str(consensus.get("mode", base_decision["consensus_mode"])),
+            "consensus_source": str(consensus.get("source", "lexical")),
+            "consensus_signature": str(consensus.get("signature", "")),
+            "consensus_count": int(consensus.get("count", 0)),
+            "consensus_valid_count": int(consensus.get("valid_count", 0)),
+            "consensus_groups": [
+                [int(index) for index in group]
+                for group in consensus.get("groups", [])
+                if isinstance(group, list)
+            ],
+            "consensus_explanation": str(consensus.get("explanation", "")),
+            "consensus_ratio": float(consensus.get("ratio", 0.0)),
+            "average_confidence": avg_conf,
+            "mean_delta": mean_delta,
+            "valid_artifact_count": valid_count,
+            "control_token_in": int(consensus.get("token_in", 0)),
+            "control_token_out": int(consensus.get("token_out", 0)),
+            "control_cost_usd": float(consensus.get("cost_usd", 0.0)),
+            "control_latency_ms": float(consensus.get("latency_ms", 1.0)),
+        }
+
+        if int(consensus.get("valid_count", 0)) > 1 and float(consensus.get("ratio", 0.0)) >= 0.75:
+            return {
+                **decision_common,
+                "should_stop": True,
+                "next_step": stop_next_step,
+                "reason": "consensus_reached",
+                "reason_detail": (
+                    f"Consensus ratio {float(consensus['ratio']):.2f} met the 0.75 threshold."
+                ),
+            }
+
+        if mean_delta is not None and mean_delta <= 0.05:
+            return {
+                **decision_common,
+                "should_stop": True,
+                "next_step": stop_next_step,
+                "reason": "no_meaningful_change",
+                "reason_detail": f"Mean artifact delta {mean_delta:.3f} stayed below 0.05.",
+            }
+
+        if avg_conf >= 0.85:
+            return {
+                **decision_common,
+                "should_stop": True,
+                "next_step": stop_next_step,
+                "reason": "confidence_threshold_reached",
+                "reason_detail": f"Average confidence {avg_conf:.2f} met the 0.85 threshold.",
+            }
+
+        if max_reached:
+            return {
+                **decision_common,
+                "should_stop": True,
+                "next_step": stop_next_step,
+                "reason": "max_rounds_reached",
+                "reason_detail": "The configured maximum collaboration rounds were exhausted.",
             }
 
         return {
-            "descriptor_records": [record],
-            "trace_payloads": [event],
+            **decision_common,
+            "should_stop": False,
+            "next_step": continue_next_step,
+            "reason": "continue",
+            "reason_detail": "No explicit stop condition fired; proceed to the next routed stage.",
         }
 
-    def _continue_or_finalize(self, state: RuntimeState) -> str:
-        return "finalize" if bool(state.get("done", False)) else "dispatch"
+    def _compute_termination_consensus(
+        self,
+        *,
+        state: WorkflowState,
+        stage_name: str,
+        round_index: int,
+        discussion_index: int,
+        artifacts: list[ArtifactRecord],
+    ) -> dict[str, Any]:
+        mode = str(state.get("termination_consensus_mode", "llm_judge") or "llm_judge")
+        lexical = compute_consensus(artifacts)
+        lexical_result = {
+            "mode": mode,
+            "source": "lexical",
+            "ratio": float(lexical.get("ratio", 0.0)),
+            "signature": str(lexical.get("signature", "")),
+            "count": int(lexical.get("count", 0)),
+            "valid_count": int(lexical.get("valid_count", 0)),
+            "groups": [],
+            "explanation": "",
+            "token_in": 0,
+            "token_out": 0,
+            "cost_usd": 0.0,
+            "latency_ms": 1.0,
+        }
+        if mode != "llm_judge":
+            return lexical_result
 
-    def _finalize_node(self, state: RuntimeState) -> dict[str, Any]:
-        final_answer = str(state.get("final_answer") or "")
-        if not final_answer:
-            final_answer = self._fallback_answer(list(state.get("latest_outputs", {}).values()))
-
-        retrieved_docids = set(str(item) for item in state.get("retrieved_docids", []))
-        if not retrieved_docids:
-            retrieved_docids.update(self._extract_docids(final_answer))
-
-        descriptor_summary: dict[str, Any] = {}
-        descriptor = state.get("descriptor")
-        if descriptor is not None and hasattr(descriptor, "on_finalize"):
-            emitted = descriptor.on_finalize(
+        candidates: list[dict[str, Any]] = []
+        for index, artifact in enumerate(artifacts):
+            answer = str(artifact.get("answer", ""))
+            if not answer_signature(answer):
+                continue
+            candidates.append(
                 {
-                    "task_id": state.get("task_id"),
-                    "topology": state.get("topology"),
-                    "phase": state.get("phase"),
-                    "round_index": state.get("round_index"),
-                    "final_answer": final_answer,
-                    "message_count": len(state.get("messages", [])),
-                    "view_count": len(state.get("message_views", [])),
+                    "index": index,
+                    "agent_id": str(artifact.get("agent_id", "")),
+                    "role": str(artifact.get("role", "")),
+                    "answer": self._trim_text(answer, max_chars=1600),
                 }
             )
-            if isinstance(emitted, dict):
-                descriptor_summary = emitted
 
-        dispatch_id = int(state.get("dispatch_id", 0)) + 1
-        event = self._draft_event(
-            dispatch_id=dispatch_id,
-            node_order=4,
-            agent_order=-1,
-            event_order=0,
-            actor="system",
-            event_type="finalize",
-            payload={
-                "status": "completed",
-                "success": True,
-                "final_answer": final_answer,
-                "retrieved_docids": sorted(retrieved_docids),
-                "final_reason": state.get("final_reason", ""),
-            },
-            token_in=0,
-            token_out=max(1, len(final_answer.split())),
-            latency_ms=1.0,
-            cost_usd=0.0,
-            state_id=f"run_{state['run_index']}_finalize",
+        if len(candidates) <= 1:
+            return {
+                **lexical_result,
+                "source": "lexical_singleton",
+                "groups": [[item["index"]] for item in candidates],
+            }
+
+        prompt = self._build_termination_consensus_prompt(
+            state=state,
+            stage_name=stage_name,
+            round_index=round_index,
+            discussion_index=discussion_index,
+            candidates=candidates,
         )
 
+        t0 = time.perf_counter()
+        llm = state["llm_client"].generate(
+            prompt=prompt,
+            agent_type="judge",
+            task_id=str(state.get("task_id", "")),
+            run_index=int(state.get("run_index", 0)),
+            agent_id=f"{stage_name}_termination_judge",
+            tools=None,
+            max_tool_iterations=1,
+            temperature=0.0,
+        )
+        latency_ms = max((time.perf_counter() - t0) * 1000.0, 1.0)
+        if bool(llm.mock_used):
+            return {
+                **lexical_result,
+                "source": "lexical_fallback_mock",
+                "explanation": "Termination judge fell back to lexical consensus because the LLM client ran in mock mode.",
+            }
+
+        parsed = self._parse_termination_consensus_judgment(str(llm.text or ""))
+        if parsed is None:
+            return {
+                **lexical_result,
+                "source": "lexical_fallback_parse_error",
+                "explanation": "Termination judge returned invalid JSON; lexical consensus was used instead.",
+                "token_in": int(llm.token_in),
+                "token_out": int(llm.token_out),
+                "cost_usd": float(llm.cost_usd),
+                "latency_ms": latency_ms,
+            }
+
+        valid_indices = {int(item["index"]) for item in candidates}
+        invalid_indices = {index for index in parsed["invalid_indices"] if index in valid_indices}
+        remaining_valid = valid_indices - invalid_indices
+
+        groups: list[list[int]] = []
+        seen: set[int] = set()
+        for group in parsed["groups"]:
+            cleaned = sorted({index for index in group if index in remaining_valid and index not in seen})
+            if not cleaned:
+                continue
+            groups.append(cleaned)
+            seen.update(cleaned)
+        for index in sorted(remaining_valid - seen):
+            groups.append([index])
+
+        if not remaining_valid or not groups:
+            return {
+                **lexical_result,
+                "source": "lexical_fallback_empty_judgment",
+                "explanation": "Termination judge did not return any usable valid groups; lexical consensus was used instead.",
+                "token_in": int(llm.token_in),
+                "token_out": int(llm.token_out),
+                "cost_usd": float(llm.cost_usd),
+                "latency_ms": latency_ms,
+            }
+
+        winner_group = max(groups, key=lambda group: (len(group), [-item for item in group]))
         return {
-            "final_answer": final_answer,
-            "retrieved_docids": sorted(retrieved_docids),
-            "descriptor_summary": descriptor_summary,
-            "trace_payloads": [event],
-            "done": True,
+            "mode": mode,
+            "source": "llm_judge",
+            "ratio": len(winner_group) / len(remaining_valid),
+            "signature": ",".join(str(index) for index in winner_group),
+            "count": len(winner_group),
+            "valid_count": len(remaining_valid),
+            "groups": groups,
+            "explanation": str(parsed.get("explanation", "")),
+            "token_in": int(llm.token_in),
+            "token_out": int(llm.token_out),
+            "cost_usd": float(llm.cost_usd),
+            "latency_ms": latency_ms,
+        }
+
+    def _build_termination_consensus_prompt(
+        self,
+        *,
+        state: WorkflowState,
+        stage_name: str,
+        round_index: int,
+        discussion_index: int,
+        candidates: list[dict[str, Any]],
+    ) -> list[dict[str, str]]:
+        payload = {
+            "task_prompt": self._trim_text(str(state.get("task_prompt", "")), max_chars=2000),
+            "stage_name": stage_name,
+            "round_index": round_index,
+            "discussion_index": discussion_index,
+            "answers": candidates,
+        }
+        return [
+            {
+                "role": "system",
+                "content": (
+                    "You judge whether multiple agent answers express the same final answer for task-solving purposes. "
+                    "Group answers together only when they are materially equivalent in final claim, decision, or action. "
+                    "Ignore wording and formatting differences. "
+                    "Return strict JSON only with this schema: "
+                    '{"groups":[[0,2],[1]],"invalid_indices":[3],"explanation":"short reason"}. '
+                    "Every non-empty valid answer index should appear in exactly one group unless it belongs in invalid_indices."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(payload, ensure_ascii=False),
+            },
+        ]
+
+    @staticmethod
+    def _parse_termination_consensus_judgment(text: str) -> dict[str, Any] | None:
+        payload = LangGraphMASEngine._extract_json_object(text)
+        if not isinstance(payload, dict):
+            return None
+
+        groups_raw = payload.get("groups")
+        invalid_raw = payload.get("invalid_indices", [])
+        if not isinstance(groups_raw, list):
+            return None
+
+        groups: list[list[int]] = []
+        for item in groups_raw:
+            if not isinstance(item, list):
+                continue
+            group: list[int] = []
+            for value in item:
+                try:
+                    group.append(int(value))
+                except Exception:
+                    continue
+            if group:
+                groups.append(group)
+
+        invalid_indices: list[int] = []
+        if isinstance(invalid_raw, list):
+            for value in invalid_raw:
+                try:
+                    invalid_indices.append(int(value))
+                except Exception:
+                    continue
+
+        return {
+            "groups": groups,
+            "invalid_indices": invalid_indices,
+            "explanation": str(payload.get("explanation", "")),
         }
 
     @staticmethod
-    def _active_agents_for_phase(state: RuntimeState) -> list[str]:
-        topology = str(state.get("topology", ""))
-        phase = str(state.get("phase", ""))
-        layout = state["layout"]
-
-        if topology == TOPOLOGY_SAS:
-            return list(layout.agent_ids)
-
-        if topology == TOPOLOGY_ORCHESTRATOR_TREE:
-            if phase in {"root_delegate", "root_finalize"}:
-                return [layout.orchestrator_id] if layout.orchestrator_id else []
-            if phase in {"manager_delegate", "manager_aggregate"}:
-                return list(layout.managers)
-            if phase == "leaf_work":
-                return list(layout.leaves)
-            return []
-
-        if topology == TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION:
-            if phase == "specialist_solve":
-                return list(layout.specialists)
-            if phase == "orchestrator_synthesize":
-                return [layout.orchestrator_id] if layout.orchestrator_id else []
-            return []
-
-        if topology == TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION:
-            if phase in {"initial_proposals", "peer_discussion"}:
-                return list(layout.specialists)
-            if phase == "orchestrator_synthesize":
-                return [layout.orchestrator_id] if layout.orchestrator_id else []
-            return []
-
-        if topology == TOPOLOGY_ONLY_VOTING:
-            return list(layout.agent_ids)
-
-        if topology == TOPOLOGY_FULLY_LINKED_DEBATE:
-            return list(layout.agent_ids)
-
-        if topology == TOPOLOGY_GROUP_CHAT_DEBATE:
-            if phase == "group_debate":
-                return list(layout.agent_ids)
-            if phase == "representative_merge":
-                return list(layout.representatives)
-            return []
-
-        return list(layout.agent_ids)
+    def _extract_json_object(text: str) -> dict[str, Any] | None:
+        candidates = [str(text or "").strip()]
+        fenced = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", str(text or ""), flags=re.DOTALL)
+        candidates.extend(fenced)
+        brace_match = re.search(r"\{.*\}", str(text or ""), flags=re.DOTALL)
+        if brace_match is not None:
+            candidates.append(brace_match.group(0))
+        for candidate in candidates:
+            if not candidate:
+                continue
+            try:
+                parsed = json.loads(candidate)
+            except Exception:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return None
 
     @staticmethod
-    def _initial_phase(topology: str) -> str:
-        if topology == TOPOLOGY_SAS:
-            return "solve"
-        if topology == TOPOLOGY_ORCHESTRATOR_TREE:
-            return "root_delegate"
-        if topology == TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION:
-            return "specialist_solve"
-        if topology == TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION:
-            return "initial_proposals"
-        if topology == TOPOLOGY_ONLY_VOTING:
-            return "vote_collect"
-        if topology == TOPOLOGY_FULLY_LINKED_DEBATE:
-            return "debate"
-        if topology == TOPOLOGY_GROUP_CHAT_DEBATE:
-            return "group_debate"
-        return "solve"
+    def _trim_text(text: str, *, max_chars: int) -> str:
+        if len(text) <= max_chars:
+            return text
+        return text[: max_chars - 3].rstrip() + "..."
 
-    @staticmethod
-    def _build_agent_prompt(
+    def _route_next_step(self, state: WorkflowState) -> str:
+        """Route to the explicit next step set by a controller or termination node."""
+
+        return str(state.get("next_step", "finalize"))
+
+    def _make_parallel_router(
+        self,
         *,
-        task_prompt: Any,
-        agent_id: str,
-        role: str,
-        phase: str,
-        round_index: int,
-        visible_messages: list[dict[str, Any]],
-    ) -> Any:
-        if visible_messages:
-            message_lines = [
-                f"From {item.get('sender')} [{item.get('message_id')}]: {item.get('content')}"
-                for item in visible_messages[-8:]
-            ]
-            inbox_text = "\n".join(message_lines)
-        else:
-            inbox_text = "None"
+        worker_node: str,
+        fallback_node: str,
+    ) -> Callable[[WorkflowState], str | list[Send]]:
+        """Fan out one Send per active agent, or jump to the fallback node when empty."""
 
-        instruction = (
-            f"Agent ID: {agent_id}\n"
-            f"Role: {role}\n"
-            f"Phase: {phase}\n"
-            f"Round: {round_index}\n"
-            f"Visible relay messages:\n{inbox_text}\n\n"
-            "Return your best current answer for this phase."
+        def route(state: WorkflowState) -> str | list[Send]:
+            active_agents = list(state.get("active_agents", []))
+            if not active_agents:
+                return fallback_node
+            sends: list[Send] = []
+            for agent_id in active_agents:
+                branch_state = dict(state)
+                branch_state["active_agent"] = agent_id
+                sends.append(Send(worker_node, branch_state))
+            return sends
+
+        return route
+
+    def _messages_for_recipient(
+        self,
+        state: WorkflowState,
+        *,
+        recipient: str,
+        kinds: set[str] | None = None,
+        round_index: int | None = None,
+        discussion_index: int | None = None,
+        latest_only: bool = False,
+    ) -> list[RelayPacket]:
+        messages = []
+        for message in state.get("messages", []):
+            if recipient not in message.get("recipients", []):
+                continue
+            if kinds is not None and str(message.get("kind", "")) not in kinds:
+                continue
+            if round_index is not None and int(message.get("round", -1)) != round_index:
+                continue
+            if discussion_index is not None and int(message.get("discussion_index", -1)) != discussion_index:
+                continue
+            messages.append(message)
+
+        if not latest_only:
+            return sorted(messages, key=self._message_sort_key)
+
+        latest: dict[tuple[str, str], RelayPacket] = {}
+        for message in messages:
+            key = (str(message.get("sender", "")), str(message.get("kind", "")))
+            current = latest.get(key)
+            if current is None or self._message_sort_key(message) >= self._message_sort_key(current):
+                latest[key] = message
+        return sorted(latest.values(), key=self._message_sort_key)
+
+    def _artifacts_for_nodes(
+        self,
+        state: WorkflowState,
+        *,
+        node_names: set[str],
+        round_index: int | None = None,
+        discussion_index: int | None = None,
+        latest_only: bool = False,
+    ) -> list[ArtifactRecord]:
+        artifacts = []
+        for artifact in state.get("artifacts", []):
+            if str(artifact.get("node_name", "")) not in node_names:
+                continue
+            if round_index is not None and int(artifact.get("round_index", -1)) != round_index:
+                continue
+            if discussion_index is not None and int(artifact.get("discussion_index", -1)) != discussion_index:
+                continue
+            artifacts.append(artifact)
+
+        if not latest_only:
+            return sorted(artifacts, key=self._artifact_sort_key)
+
+        latest: dict[str, ArtifactRecord] = {}
+        for artifact in artifacts:
+            agent_id = str(artifact.get("agent_id", ""))
+            current = latest.get(agent_id)
+            if current is None or self._artifact_sort_key(artifact) >= self._artifact_sort_key(current):
+                latest[agent_id] = artifact
+        return sorted(latest.values(), key=self._artifact_sort_key)
+
+    def _latest_artifact_for_nodes(
+        self,
+        state: WorkflowState,
+        *,
+        node_names: set[str],
+    ) -> ArtifactRecord | None:
+        artifacts = self._artifacts_for_nodes(state, node_names=node_names)
+        if not artifacts:
+            return None
+        return sorted(artifacts, key=self._artifact_sort_key)[-1]
+
+    def _latest_agent_artifact(self, state: WorkflowState, agent_id: str) -> ArtifactRecord | None:
+        latest = latest_artifact_by_agent(list(state.get("artifacts", [])))
+        return latest.get(agent_id)
+
+    def _current_specialist_stage_name(self, state: WorkflowState) -> str:
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"specialists_revision_round"},
+            round_index=int(state.get("round_index", 0)),
+            discussion_index=int(state.get("discussion_index", 0)),
         )
+        if artifacts:
+            return "specialists_revision_round"
+        return "specialists_initial_round"
 
-        if isinstance(task_prompt, list):
-            return [{"role": "system", "content": instruction}] + list(task_prompt)
-
-        return f"Task:\n{task_prompt}\n\n{instruction}"
-
-    @staticmethod
-    def _fallback_answer(candidates: list[str]) -> str:
-        if not candidates:
-            return ""
-        winner, _ = vote_majority(candidates)
-        return winner
-
-    @staticmethod
-    def _render_peer_bundle(peer_messages: list[str]) -> str:
-        lines = [f"Peer {idx + 1}: {text}" for idx, text in enumerate(peer_messages[:6])]
-        return "Peer bundle for critique:\n" + "\n".join(lines)
-
-    @staticmethod
-    def _render_group_summary(group_outputs: list[str]) -> str:
-        if not group_outputs:
-            return "Group summary: no outputs provided."
-        lines = [f"- {text}" for text in group_outputs[:6]]
-        return "Group summary:\n" + "\n".join(lines)
+    def _current_specialist_cycle_artifacts(
+        self,
+        state: WorkflowState,
+        *,
+        round_index: int,
+        discussion_index: int | None = None,
+    ) -> list[ArtifactRecord]:
+        artifacts = self._artifacts_for_nodes(
+            state,
+            node_names={"specialists_initial_round", "specialists_revision_round"},
+            round_index=round_index,
+            latest_only=True,
+        )
+        if discussion_index is None:
+            return artifacts
+        filtered = [
+            artifact
+            for artifact in artifacts
+            if int(artifact.get("discussion_index", 0)) == discussion_index
+            or (
+                discussion_index == 0
+                and str(artifact.get("node_name", "")) == "specialists_initial_round"
+            )
+        ]
+        return sorted(filtered, key=self._artifact_sort_key)
 
     @staticmethod
     def _group_for_agent(layout: TopologyLayout, agent_id: str) -> list[str]:
@@ -1322,15 +2801,185 @@ class LangGraphMASEngine:
         return []
 
     @staticmethod
-    def _agent_order(layout: TopologyLayout, agent_id: str) -> int:
-        if agent_id == "system":
-            return -1
-        if agent_id == "descriptor":
-            return -2
-        try:
-            return layout.agent_ids.index(agent_id)
-        except ValueError:
-            return len(layout.agent_ids) + 1
+    def _message_sort_key(message: RelayPacket) -> tuple[int, int, int]:
+        message_id = str(message.get("message_id", "m_0"))
+        match = re.search(r"(\d+)$", message_id)
+        return (
+            int(message.get("round", 0)),
+            int(message.get("discussion_index", 0)),
+            int(match.group(1)) if match else 0,
+        )
+
+    @staticmethod
+    def _artifact_sort_key(artifact: ArtifactRecord) -> tuple[int, int, int, str]:
+        return (
+            int(artifact.get("round_index", 0)),
+            int(artifact.get("discussion_index", 0)),
+            int(artifact.get("dispatch_id", -1)),
+            str(artifact.get("node_name", "")),
+        )
+
+    def _build_agent_prompt(
+        self,
+        *,
+        state: WorkflowState,
+        task_prompt: Any,
+        agent_id: str,
+        role: str,
+        stage_role: str,
+        directive: str,
+        round_index: int,
+        discussion_index: int,
+        visible_messages: list[RelayPacket],
+        prior_artifact: ArtifactRecord | None,
+    ) -> list[dict[str, Any]]:
+        system_message = {
+            "role": "system",
+            "content": (
+                "You are one agent in a deterministic multi-agent workflow.\n"
+                f"Agent ID: {agent_id}\n"
+                f"Agent Role: {role}\n"
+                f"Stage Role: {stage_role}\n\n"
+                "Use only the task messages, the prior artifact, and the visible packets provided in this conversation. "
+                "Do not invent hidden context.\n"
+                "Return exactly one JSON object and do not wrap it in markdown.\n"
+                "Required JSON keys: answer_artifact, summary, critique, revision_request, confidence, "
+                "unresolved_issues, evidence_summary.\n"
+                "If a field is unknown, use an empty string, an empty list, or a conservative confidence score."
+            ),
+        }
+
+        messages = [system_message]
+        if isinstance(task_prompt, list):
+            messages.extend(self._normalize_prompt_messages(task_prompt))
+        else:
+            messages.append({"role": "user", "content": f"Task:\n{task_prompt}"})
+
+        payload = {
+            "agent_id": agent_id,
+            "agent_role": role,
+            "stage_role": stage_role,
+            "directive": directive,
+            "round_index": round_index,
+            "discussion_index": discussion_index,
+            "prior_artifact": self._packet_payload_from_artifact(state, prior_artifact)
+            if prior_artifact
+            else None,
+            "visible_packets": self._serialize_for_json(visible_messages),
+        }
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n"
+                    + json.dumps(payload, indent=2, ensure_ascii=False)
+                ),
+            }
+        )
+        return messages
+
+    @staticmethod
+    def _bundle_peer_summaries(payloads: list[dict[str, Any]]) -> str:
+        lines = []
+        for index, payload in enumerate(payloads[:6]):
+            sender = str(payload.get("sender", f"peer_{index + 1}"))
+            summary = str(payload.get("summary", "")) or str(payload.get("answer_artifact", ""))
+            lines.append(f"{sender}: {summary}")
+        return " | ".join(lines) if lines else "No peer summaries available."
+
+    @staticmethod
+    def _peer_artifact_max_chars(state: WorkflowState) -> int:
+        return max(32, int(state.get("peer_artifact_max_chars", 320)))
+
+    def _packet_payload_from_artifact(
+        self,
+        state: WorkflowState,
+        artifact: ArtifactRecord,
+    ) -> dict[str, Any]:
+        return packet_payload_from_artifact(
+            artifact,
+            max_chars=self._peer_artifact_max_chars(state),
+        )
+
+    def _packet_content(self, state: WorkflowState, payload: dict[str, Any]) -> str:
+        return packet_content(
+            payload,
+            max_chars=self._peer_artifact_max_chars(state),
+        )
+
+    def _resolve_final_answer(self, state: WorkflowState) -> str:
+        artifacts = list(state.get("artifacts", []))
+        topology = str(state.get("topology", ""))
+        layout = state["layout"]
+
+        if topology == TOPOLOGY_SAS:
+            artifact = self._latest_artifact_for_nodes(state, node_names={"single_agent"})
+            return str(artifact.get("answer", "")) if artifact else ""
+        if topology in {TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION, TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION}:
+            artifact = self._latest_artifact_for_nodes(state, node_names={"orchestrator_merge", "orchestrator_plan"})
+            return str(artifact.get("answer", "")) if artifact else ""
+        if topology == TOPOLOGY_ORCHESTRATOR_TREE:
+            artifact = self._latest_artifact_for_nodes(state, node_names={"root_reducer", "root_plan"})
+            return str(artifact.get("answer", "")) if artifact else ""
+        if topology == TOPOLOGY_ONLY_VOTING:
+            answer, _ = vote_artifacts(self._artifacts_for_nodes(state, node_names={"worker"}, latest_only=True))
+            return answer
+        if topology == TOPOLOGY_FULLY_LINKED_DEBATE:
+            answer, _ = vote_artifacts(self._artifacts_for_nodes(state, node_names={"debate_round"}, latest_only=True))
+            return answer
+        if topology == TOPOLOGY_GROUP_CHAT_DEBATE:
+            answer, _ = vote_artifacts(
+                self._artifacts_for_nodes(state, node_names={"representative_merge"}, latest_only=True)
+            )
+            return answer
+        return self._fallback_answer_from_artifacts(artifacts)
+
+    @staticmethod
+    def _fallback_answer_from_artifacts(artifacts: list[ArtifactRecord]) -> str:
+        candidates = [str(artifact.get("answer", "")) for artifact in artifacts if artifact.get("answer")]
+        if not candidates:
+            return ""
+        winner, _ = vote_majority(candidates)
+        return winner
+
+    @staticmethod
+    def _phase_history_entry(
+        state: WorkflowState,
+        node_name: str,
+        *,
+        active_agents: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "phase": node_name,
+            "round_index": int(state.get("round_index", 0)),
+            "discussion_index": int(state.get("discussion_index", 0)),
+            "dispatch_id": int(state.get("dispatch_id", -1)),
+            "active_agents": list(active_agents or []),
+        }
+
+    def _termination_event(
+        self,
+        state: WorkflowState,
+        node_name: str,
+        decision: TerminationDecision,
+    ) -> dict[str, Any]:
+        return self._draft_event(
+            dispatch_id=int(state.get("dispatch_id", -1)),
+            node_order=3,
+            agent_order=-1,
+            event_order=0,
+            actor="system",
+            event_type="verify",
+            payload={
+                "node": node_name,
+                "termination": dict(decision),
+            },
+            token_in=int(decision.get("control_token_in", 0)),
+            token_out=int(decision.get("control_token_out", 0)),
+            latency_ms=float(decision.get("control_latency_ms", 1.0)),
+            cost_usd=float(decision.get("control_cost_usd", 0.0)),
+            state_id=f"run_{state['run_index']}_{node_name}_termination",
+        )
 
     @staticmethod
     def _draft_event(
@@ -1423,53 +3072,26 @@ class LangGraphMASEngine:
         except Exception:
             return str(value)
 
-    @classmethod
-    def build_topology_visual_graph(cls, spec: ExperimentSpec) -> tuple[TopologyLayout, Graph]:
-        resolved = spec.normalized()
-        layout = build_layout(
-            topology=resolved.topology,
-            num_agents=resolved.num_agents,
-            agents_per_level=resolved.agents_per_level,
-            group_sizes=resolved.group_sizes,
-        )
-        nodes = {
-            agent_id: Node(
-                id=agent_id,
-                name=f"{agent_id}\\n{layout.roles.get(agent_id, 'agent')}",
-                data=None,
-                metadata={"role": layout.roles.get(agent_id, "agent")},
-            )
-            for agent_id in layout.agent_ids
-        }
-        edges: list[Edge] = []
-        seen: set[tuple[str, str]] = set()
-        for source, neighbors in layout.adjacency.items():
-            for target in neighbors:
-                key = tuple(sorted((source, target)))
-                if key in seen:
-                    continue
-                seen.add(key)
-                label = cls._topology_edge_label(layout, source, target)
-                edges.append(Edge(source=source, target=target, data=label))
-        return layout, Graph(nodes=nodes, edges=edges)
-
-    @classmethod
-    def render_topology_mermaid(cls, spec: ExperimentSpec) -> tuple[TopologyLayout, str]:
-        layout, graph = cls.build_topology_visual_graph(spec)
-        return layout, graph.draw_mermaid()
+    @staticmethod
+    def _tool_output_preview(value: Any) -> str:
+        text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:260]
 
     @staticmethod
-    def _topology_edge_label(layout: TopologyLayout, source: str, target: str) -> str:
-        if layout.parent_by_agent.get(source) == target or layout.parent_by_agent.get(target) == source:
-            return "hierarchy"
-        if source == layout.orchestrator_id or target == layout.orchestrator_id:
-            return "relay"
-        if layout.groups:
-            left_group = LangGraphMASEngine._group_for_agent(layout, source)
-            right_group = LangGraphMASEngine._group_for_agent(layout, target)
-            if left_group and right_group and left_group == right_group:
-                return "group"
-        return "peer"
+    def _agent_order(layout: TopologyLayout, agent_id: str) -> int:
+        if agent_id == "system":
+            return -1
+        if agent_id == "descriptor":
+            return -2
+        try:
+            return layout.agent_ids.index(agent_id)
+        except ValueError:
+            return len(layout.agent_ids) + 1
+
+    @staticmethod
+    def _message_snippet(text: str) -> str:
+        return re.sub(r"\s+", " ", (text or "").strip())[:260]
 
     @staticmethod
     def _materialize_trace_events(payloads: list[dict[str, Any]]) -> list[TraceEvent]:
@@ -1494,20 +3116,35 @@ class LangGraphMASEngine:
             )
         return events
 
-    @staticmethod
-    def _message_snippet(text: str) -> str:
-        return re.sub(r"\s+", " ", (text or "").strip())[:260]
+    def _count_tool_calls(self, state: WorkflowState) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for record in state.get("tool_records_log", []):
+            name = str(record.get("tool_name", ""))
+            if not name:
+                continue
+            counts[name] = counts.get(name, 0) + 1
+        inter_agent_count = len([message for message in state.get("messages", []) if message.get("sender") != "system"])
+        if inter_agent_count:
+            counts["inter_agent_send"] = inter_agent_count
+        return counts
 
-    @staticmethod
-    def _tool_output_preview(output: Any) -> str:
-        if isinstance(output, str):
-            text = output
-        else:
-            try:
-                text = json.dumps(output, ensure_ascii=False)
-            except Exception:
-                text = str(output)
-        return re.sub(r"\s+", " ", text.strip())[:240]
+    def _collect_retrieved_docids(self, state: WorkflowState) -> list[str]:
+        docids: set[str] = set()
+        for record in state.get("tool_records_log", []):
+            tool_name = str(record.get("tool_name", ""))
+            arguments = record.get("arguments")
+            if not isinstance(arguments, dict):
+                arguments = {}
+            docids.update(
+                self._extract_docids_from_tool_output(
+                    output=record.get("output"),
+                    arguments=arguments,
+                    tool_name=tool_name,
+                )
+            )
+        if not docids:
+            docids.update(self._extract_docids(str(state.get("final_answer", ""))))
+        return sorted(docid for docid in docids if docid and docid != "None")
 
     @staticmethod
     def _is_retrieval_tool(tool_name: str) -> bool:
@@ -1603,21 +3240,17 @@ class LangGraphMASEngine:
                 "output": output,
             }
 
-        if isinstance(prompt, list):
-            prompt_text = " ".join(
-                str(item.get("content", "")) for item in prompt if isinstance(item, dict)
-            )
-        else:
-            prompt_text = str(prompt)
-        query = re.sub(r"\s+", " ", prompt_text).strip()[:600]
-        if not query:
-            query = "Find relevant documents for the task."
+        prompt_text = (
+            " ".join(str(item.get("content", "")) for item in prompt if isinstance(item, dict))
+            if isinstance(prompt, list)
+            else str(prompt)
+        )
+        query = re.sub(r"\s+", " ", prompt_text).strip()[:600] or "Find relevant documents for the task."
 
         records: list[dict[str, Any]] = []
         if "search" in by_name:
             search_record = execute("search", {"query": query})
             records.append(search_record)
-
             candidate_docids = cls._extract_docids_from_tool_output(
                 output=search_record.get("output"),
                 arguments={"query": query},
@@ -1628,5 +3261,404 @@ class LangGraphMASEngine:
         else:
             first_name = next(iter(by_name))
             records.append(execute(first_name, {}))
-
         return records
+
+    @classmethod
+    def build_topology_visual_graph(cls, spec: ExperimentSpec) -> tuple[TopologyLayout, Graph]:
+        resolved = spec.normalized()
+        layout = build_layout(
+            topology=resolved.topology,
+            num_agents=resolved.num_agents,
+            agents_per_level=resolved.agents_per_level,
+            group_sizes=resolved.group_sizes,
+        )
+        nodes = {
+            agent_id: Node(
+                id=agent_id,
+                name=f"{agent_id}\\n{layout.roles.get(agent_id, 'agent')}",
+                data=None,
+                metadata={"role": layout.roles.get(agent_id, "agent")},
+            )
+            for agent_id in layout.agent_ids
+        }
+        edges: list[Edge] = []
+        seen: set[tuple[str, str]] = set()
+        for source, neighbors in layout.adjacency.items():
+            for target in neighbors:
+                key = tuple(sorted((source, target)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                label = cls._topology_edge_label(layout, source, target)
+                edges.append(Edge(source=source, target=target, data=label))
+        return layout, Graph(nodes=nodes, edges=edges)
+
+    @classmethod
+    def build_workflow_visual_graph(cls, spec: ExperimentSpec) -> tuple[WorkflowDocumentation, Graph]:
+        resolved = spec.normalized()
+        workflow = cls._workflow_definition(resolved.topology)
+        nodes = {
+            "START": Node(
+                id="START",
+                name="START",
+                data=None,
+                metadata={"kind": "terminal", "description": "Workflow entrypoint."},
+            ),
+            "END": Node(
+                id="END",
+                name="END",
+                data=None,
+                metadata={"kind": "terminal", "description": "Workflow exit."},
+            ),
+        }
+        for node_id, description in workflow.nodes.items():
+            nodes[node_id] = Node(
+                id=node_id,
+                name=node_id,
+                data=None,
+                metadata={"kind": "workflow_node", "description": description},
+            )
+        return workflow, Graph(nodes=nodes, edges=cls._workflow_edges_from_documentation(workflow))
+
+    @classmethod
+    def render_topology_mermaid(cls, spec: ExperimentSpec) -> tuple[TopologyLayout, str]:
+        layout, graph = cls.build_topology_visual_graph(spec)
+        return layout, graph.draw_mermaid()
+
+    @staticmethod
+    def _topology_edge_label(layout: TopologyLayout, source: str, target: str) -> str:
+        if layout.parent_by_agent.get(source) == target or layout.parent_by_agent.get(target) == source:
+            return "hierarchy"
+        if source == layout.orchestrator_id or target == layout.orchestrator_id:
+            return "relay"
+        if layout.groups:
+            left_group = LangGraphMASEngine._group_for_agent(layout, source)
+            right_group = LangGraphMASEngine._group_for_agent(layout, target)
+            if left_group and right_group and left_group == right_group:
+                return "group"
+        return "peer"
+
+    @classmethod
+    def _workflow_edges_from_documentation(cls, workflow: WorkflowDocumentation) -> list[Edge]:
+        edges: list[Edge] = []
+        seen: set[tuple[str, str, str]] = set()
+        for spec in [*workflow.edges, *workflow.conditional_edges]:
+            for edge in cls._parse_workflow_edge_spec(spec):
+                key = (edge.source, edge.target, str(edge.data or ""))
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append(edge)
+        return edges
+
+    @staticmethod
+    def _parse_workflow_edge_spec(spec: str) -> list[Edge]:
+        text = str(spec or "").strip()
+        if "->" not in text:
+            return []
+
+        source, remainder = text.split("->", 1)
+        source = source.strip()
+        remainder = remainder.strip()
+        edges: list[Edge] = []
+
+        if " else " in remainder:
+            primary, fallback = remainder.split(" else ", 1)
+            primary_target, primary_label = LangGraphMASEngine._split_workflow_target(primary.strip())
+            fallback_target, fallback_label = LangGraphMASEngine._split_workflow_target(
+                fallback.strip()
+            )
+            edges.append(
+                Edge(
+                    source=source,
+                    target=primary_target,
+                    data=primary_label or "conditional",
+                )
+            )
+            edges.append(
+                Edge(
+                    source=source,
+                    target=fallback_target,
+                    data=fallback_label or "else",
+                )
+            )
+            return edges
+
+        if "|" in remainder:
+            for chunk in remainder.split("|"):
+                target, label = LangGraphMASEngine._split_workflow_target(chunk.strip())
+                edges.append(
+                    Edge(
+                        source=source,
+                        target=target,
+                        data=label or "conditional",
+                    )
+                )
+            return edges
+
+        target, label = LangGraphMASEngine._split_workflow_target(remainder)
+        edges.append(Edge(source=source, target=target, data=label))
+        return edges
+
+    @staticmethod
+    def _split_workflow_target(text: str) -> tuple[str, str | None]:
+        match = re.match(r"(.+?)\s*\((.+)\)\s*$", text)
+        if match is None:
+            return text.strip(), None
+        return match.group(1).strip(), match.group(2).strip()
+
+    @staticmethod
+    def _workflow_definition(topology: str) -> WorkflowDocumentation:
+        if topology == TOPOLOGY_SAS:
+            return WorkflowDocumentation(
+                topology=topology,
+                nodes={
+                    "single_agent": "One end-to-end worker.",
+                    "descriptor_monitor": "Shared descriptor hook.",
+                    "finalize": "Emit the final answer and final trace event.",
+                },
+                edges=[
+                    "START -> single_agent",
+                    "single_agent -> descriptor_monitor",
+                    "descriptor_monitor -> finalize",
+                    "finalize -> END",
+                ],
+                conditional_edges=[],
+                dispatch_logic="No dispatch. One agent handles the task directly.",
+                aggregation_logic="No aggregation. The single artifact becomes the final answer.",
+                stopping_criteria=["Single-turn topology. It terminates immediately after `single_agent`."],
+                state_fields=SHARED_STATE_FIELDS,
+                logging_outputs=COMMON_LOG_OUTPUTS,
+            )
+        if topology == TOPOLOGY_ONLY_VOTING:
+            return WorkflowDocumentation(
+                topology=topology,
+                nodes={
+                    "dispatch_independent_agents": "Selects all workers for independent solving.",
+                    "worker": "Independent worker branch.",
+                    "voter": "Deterministic majority vote with explicit tie-breaks.",
+                    "descriptor_monitor": "Shared descriptor hook.",
+                    "finalize": "Finalize the run.",
+                },
+                edges=[
+                    "START -> dispatch_independent_agents",
+                    "worker -> voter",
+                    "voter -> descriptor_monitor",
+                    "descriptor_monitor -> finalize",
+                    "finalize -> END",
+                ],
+                conditional_edges=[
+                    "dispatch_independent_agents -> worker (one Send per active agent) else voter",
+                ],
+                dispatch_logic="Fan out to every worker with no peer packets.",
+                aggregation_logic="`voter` canonicalizes answers, counts votes, and breaks ties by mean confidence then canonical answer.",
+                stopping_criteria=["Single-turn topology. It stops after the voter."],
+                state_fields=SHARED_STATE_FIELDS,
+                logging_outputs=COMMON_LOG_OUTPUTS,
+            )
+        if topology == TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION:
+            return WorkflowDocumentation(
+                topology=topology,
+                nodes={
+                    "orchestrator_plan": "Initial planner/orchestrator artifact.",
+                    "dispatch_specialists": "Build task packages for specialists.",
+                    "specialist_worker": "Independent specialist execution.",
+                    "relay_specialist_reports": "Bounded specialist-to-orchestrator reports.",
+                    "orchestrator_merge": "Merge specialist reports.",
+                    "descriptor_monitor": "Shared descriptor hook.",
+                    "termination_checker": "Explicit round stopper.",
+                    "finalize": "Finalize the run.",
+                },
+                edges=[
+                    "START -> orchestrator_plan",
+                    "orchestrator_plan -> dispatch_specialists",
+                    "specialist_worker -> relay_specialist_reports",
+                    "relay_specialist_reports -> orchestrator_merge",
+                    "orchestrator_merge -> descriptor_monitor",
+                    "descriptor_monitor -> termination_checker",
+                    "finalize -> END",
+                ],
+                conditional_edges=[
+                    "dispatch_specialists -> specialist_worker (parallel Send fan-out) else relay_specialist_reports",
+                    "termination_checker -> dispatch_specialists | finalize",
+                ],
+                dispatch_logic="The orchestrator emits bounded task packages to the activated specialists.",
+                aggregation_logic="Specialist artifacts are relayed upward as reports; the orchestrator merges those reports into one artifact.",
+                stopping_criteria=[
+                    "Max rounds reached",
+                    "Consensus across specialist artifacts",
+                    "No meaningful change between orchestrator merge artifacts",
+                    "Orchestrator confidence threshold reached",
+                    "Invalid or failed branch fallback",
+                ],
+                state_fields=SHARED_STATE_FIELDS,
+                logging_outputs=COMMON_LOG_OUTPUTS,
+            )
+        if topology == TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION:
+            return WorkflowDocumentation(
+                topology=topology,
+                nodes={
+                    "orchestrator_plan": "Initial orchestrator planner.",
+                    "dispatch_specialists": "Task package fan-out.",
+                    "specialists_initial_round": "Initial specialist artifacts.",
+                    "relay_specialist_reports": "Specialist-to-orchestrator reports.",
+                    "orchestrator_relay": "Mediated peer-summary relay plus discussion stopping logic.",
+                    "dispatch_revision_round": "Revision-round fan-out.",
+                    "specialists_revision_round": "Specialist revision stage.",
+                    "orchestrator_merge": "Final orchestrator synthesis for the current cycle.",
+                    "descriptor_monitor": "Shared descriptor hook.",
+                    "cycle_termination_checker": "Outer-cycle stopper.",
+                    "finalize": "Finalize the run.",
+                },
+                edges=[
+                    "START -> orchestrator_plan",
+                    "orchestrator_plan -> dispatch_specialists",
+                    "specialists_initial_round -> relay_specialist_reports",
+                    "specialists_revision_round -> relay_specialist_reports",
+                    "relay_specialist_reports -> orchestrator_relay",
+                    "orchestrator_merge -> descriptor_monitor",
+                    "descriptor_monitor -> cycle_termination_checker",
+                    "finalize -> END",
+                ],
+                conditional_edges=[
+                    "dispatch_specialists -> specialists_initial_round (parallel Send fan-out) else relay_specialist_reports",
+                    "orchestrator_relay -> dispatch_revision_round | orchestrator_merge",
+                    "cycle_termination_checker -> dispatch_specialists | finalize",
+                ],
+                dispatch_logic="The orchestrator sends initial task packages, then bounded peer-summary bundles for revision rounds.",
+                aggregation_logic="Specialists never see raw peer transcripts; only orchestrator-generated peer summaries are routed. The orchestrator performs the final synthesis each outer cycle.",
+                stopping_criteria=[
+                    "Max discussion rounds reached",
+                    "Consensus across latest specialist artifacts",
+                    "No meaningful change between revisions",
+                    "Confidence threshold reached",
+                    "Invalid or failed branch fallback",
+                    "Max outer cycles reached",
+                ],
+                state_fields=SHARED_STATE_FIELDS,
+                logging_outputs=COMMON_LOG_OUTPUTS,
+            )
+        if topology == TOPOLOGY_ORCHESTRATOR_TREE:
+            return WorkflowDocumentation(
+                topology=topology,
+                nodes={
+                    "root_plan": "Root planner artifact.",
+                    "manager_dispatch": "Root-to-manager routing.",
+                    "manager_nodes": "Manager decomposition stage.",
+                    "worker_dispatch": "Manager-to-leaf routing.",
+                    "worker_nodes": "Leaf execution stage.",
+                    "worker_relay": "Leaf-to-manager bounded reports.",
+                    "manager_reducers": "Per-manager aggregation.",
+                    "manager_relay": "Manager-to-root bounded reports.",
+                    "root_reducer": "Root aggregation.",
+                    "descriptor_monitor": "Shared descriptor hook.",
+                    "termination_checker": "Explicit cycle stopper.",
+                    "finalize": "Finalize the run.",
+                },
+                edges=[
+                    "START -> root_plan",
+                    "root_plan -> manager_dispatch",
+                    "manager_nodes -> worker_dispatch",
+                    "worker_nodes -> worker_relay",
+                    "worker_relay -> manager_reducers",
+                    "manager_reducers -> manager_relay",
+                    "manager_relay -> root_reducer",
+                    "root_reducer -> descriptor_monitor",
+                    "descriptor_monitor -> termination_checker",
+                    "finalize -> END",
+                ],
+                conditional_edges=[
+                    "manager_dispatch -> manager_nodes (parallel Send fan-out) else worker_dispatch",
+                    "worker_dispatch -> worker_nodes (parallel Send fan-out) else worker_relay",
+                    "termination_checker -> manager_dispatch | finalize",
+                ],
+                dispatch_logic="Root routes only to managers, managers route only to their own children, and aggregation always follows the parent-child DAG upward.",
+                aggregation_logic="Leaf artifacts are refined upward one level at a time. Internal nodes aggregate only their direct children. No sibling or backflow exchange is allowed.",
+                stopping_criteria=[
+                    "Max rounds reached",
+                    "Consensus across manager reducer artifacts",
+                    "No meaningful change between root artifacts",
+                    "Root confidence threshold reached",
+                    "Invalid or failed branch fallback",
+                ],
+                state_fields=SHARED_STATE_FIELDS,
+                logging_outputs=COMMON_LOG_OUTPUTS,
+            )
+        if topology == TOPOLOGY_FULLY_LINKED_DEBATE:
+            return WorkflowDocumentation(
+                topology=topology,
+                nodes={
+                    "debate_init": "Initialize the debate controller.",
+                    "debate_controller": "Round controller plus explicit stopping logic.",
+                    "debate_dispatch": "Fan out the next debate round.",
+                    "debate_round": "Parallel debater revision stage.",
+                    "judge": "Deterministic final judge.",
+                    "descriptor_monitor": "Shared descriptor hook.",
+                    "finalize": "Finalize the run.",
+                },
+                edges=[
+                    "START -> debate_init",
+                    "debate_init -> debate_controller",
+                    "debate_round -> debate_controller",
+                    "judge -> descriptor_monitor",
+                    "descriptor_monitor -> finalize",
+                    "finalize -> END",
+                ],
+                conditional_edges=[
+                    "debate_controller -> debate_dispatch | judge",
+                    "debate_dispatch -> debate_round (parallel Send fan-out) else debate_controller",
+                ],
+                dispatch_logic="The controller sends bounded summaries of each debater artifact to all peers for the next round.",
+                aggregation_logic="Debaters revise in parallel; the final judge performs deterministic voting over the latest debate artifacts.",
+                stopping_criteria=[
+                    "Max rounds reached",
+                    "Consensus across debater artifacts",
+                    "No meaningful change between debate rounds",
+                    "Confidence threshold reached",
+                    "Invalid or failed branch fallback",
+                ],
+                state_fields=SHARED_STATE_FIELDS,
+                logging_outputs=COMMON_LOG_OUTPUTS,
+            )
+        if topology == TOPOLOGY_GROUP_CHAT_DEBATE:
+            return WorkflowDocumentation(
+                topology=topology,
+                nodes={
+                    "group_dispatch": "Fan out the intra-group debate stage.",
+                    "group_debate_round": "Parallel group debate workers.",
+                    "group_controller": "Intra-group controller plus stop/merge logic.",
+                    "representative_dispatch": "Representative fan-out.",
+                    "representative_merge": "Representative merge/debate stage.",
+                    "representative_controller": "Representative-level controller plus stopping logic.",
+                    "final_judge": "Deterministic final judge.",
+                    "descriptor_monitor": "Shared descriptor hook.",
+                    "finalize": "Finalize the run.",
+                },
+                edges=[
+                    "START -> group_dispatch",
+                    "group_debate_round -> group_controller",
+                    "representative_merge -> representative_controller",
+                    "final_judge -> descriptor_monitor",
+                    "descriptor_monitor -> finalize",
+                    "finalize -> END",
+                ],
+                conditional_edges=[
+                    "group_dispatch -> group_debate_round (parallel Send fan-out) else group_controller",
+                    "group_controller -> group_dispatch | representative_dispatch",
+                    "representative_dispatch -> representative_merge (parallel Send fan-out) else final_judge",
+                    "representative_controller -> representative_dispatch | final_judge",
+                ],
+                dispatch_logic="Debate is local to groups until the controller emits representative-only summaries. Inter-group traffic is restricted to representative packets.",
+                aggregation_logic="Group members debate locally, representatives merge group summaries, and a shared final judge selects the final answer.",
+                stopping_criteria=[
+                    "Max group rounds reached",
+                    "Consensus inside groups",
+                    "No meaningful change between group or representative revisions",
+                    "Confidence threshold reached",
+                    "Invalid or failed branch fallback",
+                    "Max representative rounds reached",
+                ],
+                state_fields=SHARED_STATE_FIELDS,
+                logging_outputs=COMMON_LOG_OUTPUTS,
+            )
+        raise ValueError(f"Unhandled topology '{topology}'")
