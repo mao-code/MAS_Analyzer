@@ -9,6 +9,8 @@ set -euo pipefail
 TASK_LIMIT="${TASK_LIMIT:-5}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
 BENCHMARKS="${BENCHMARKS:-browsecomp,workbench}"
+RETRY_FAILURES="${RETRY_FAILURES:-1}"
+MAX_PARALLEL="${MAX_PARALLEL:-1}"
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"
@@ -85,6 +87,12 @@ fi
 if [[ -n "${BENCHMARKS}" ]]; then
   args+=(--benchmarks "${BENCHMARKS}")
 fi
+if [[ -n "${RETRY_FAILURES}" ]]; then
+  args+=(--retry-failures "${RETRY_FAILURES}")
+fi
+if [[ -n "${MAX_PARALLEL}" ]]; then
+  args+=(--max-parallel "${MAX_PARALLEL}")
+fi
 if [[ -n "${EXPERIMENT_ID}" ]]; then
   args+=(--experiment-id "${EXPERIMENT_ID}")
 fi
@@ -112,6 +120,10 @@ export GROUP_CHAT_DEBATE_ARGS
 
 if command -v conda >/dev/null 2>&1; then
   exec conda run -n agents python scripts/full_experiment.py "${args[@]}" "$@"
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 scripts/full_experiment.py "${args[@]}" "$@"
 fi
 
 exec python scripts/full_experiment.py "${args[@]}" "$@"
