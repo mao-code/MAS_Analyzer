@@ -84,6 +84,9 @@ RESPONSE GUIDELINES:
 3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.
 4. DO NOT include previous function code, example usage or test code in your response.
 5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.
+6. Put a newline immediately after ```python.
+7. Put the background comment on its own line, starting with exactly `# Background:`.
+8. Put the function definition on a new line after the background comment. Never place `def`, `async def`, or `class` on the same line as the background comment.
 
 Example:
 ```python
@@ -149,6 +152,10 @@ class SciCodeBenchmark:
         self.with_background: bool = bool(cfg.get("with_background", False))
         self.h5py_file: str = str(cfg.get("h5py_file", "data/test_data.h5"))
         self.execution_timeout_s: int = max(1, int(cfg.get("execution_timeout_s", 1800)))
+        self.llm_repair: bool = bool(cfg.get("llm_repair", False))
+        self.llm_repair_model: str | None = (
+            str(cfg.get("llm_repair_model")).strip() if cfg.get("llm_repair_model") else None
+        )
         # Match upstream gencode.py mapping:
         #   with_background=True  -> multistep template
         #   with_background=False -> background-comment template
@@ -233,6 +240,7 @@ class SciCodeBenchmark:
         # This is what gets tested.  Mirrors official `save_response_with_steps`.
         full_code_per_step: list[str] = [""] * tot_steps
         raw_responses_per_step: list[str] = [""] * tot_steps
+        repaired_responses_per_step: list[str] = [""] * tot_steps
 
         for idx in range(tot_steps):
             num_steps = idx + 1  # 1-based
@@ -295,7 +303,14 @@ class SciCodeBenchmark:
             # -- Extract and store code (mirrors official logic) --
             raw_response = mas_result.final_answer
             raw_responses_per_step[idx] = raw_response
-            python_code = _extract_python_script(raw_response)
+            repaired_response = self._repair_response_if_needed(
+                raw_response=raw_response,
+                runner=runner,
+                function_header=sub_steps[idx]["function_header"],
+                step_task_id=step_task.task_id,
+            )
+            repaired_responses_per_step[idx] = repaired_response
+            python_code = _extract_python_script(repaired_response)
 
             # Store the extracted *function only* for use in future prompts
             try:
@@ -316,9 +331,77 @@ class SciCodeBenchmark:
                 "full_code_per_step": full_code_per_step,
                 "previous_llm_code": [c or "" for c in previous_llm_code],
                 "raw_responses_per_step": raw_responses_per_step,
+                "repaired_responses_per_step": repaired_responses_per_step,
                 **aggregate_metadata,
             },
         )
+
+    def _repair_response_if_needed(
+        self,
+        *,
+        raw_response: str,
+        runner: MASRunner,
+        function_header: str,
+        step_task_id: str,
+    ) -> str:
+        if not self.llm_repair:
+            return raw_response
+        llm_client = getattr(runner, "llm_client", None)
+        client = getattr(llm_client, "client", None)
+        if client is None:
+            return raw_response
+
+        model = self.llm_repair_model or llm_client.model_for_agent_type("default")
+        repair_prompt = self._build_repair_prompt(
+            raw_response=raw_response,
+            function_header=function_header,
+        )
+        try:
+            completion = client.chat.completions.create(
+                model=model,
+                messages=repair_prompt,
+                temperature=0.0,
+            )
+            repaired = llm_client._extract_text(completion).strip()
+            return repaired or raw_response
+        except Exception as exc:
+            logger.debug(f"SciCode {step_task_id} repair failed: {exc}")
+            return raw_response
+
+    @staticmethod
+    def _build_repair_prompt(
+        *,
+        raw_response: str,
+        function_header: str,
+    ) -> list[dict[str, str]]:
+        return [
+            {
+                "role": "system",
+                "content": (
+                    "You are a strict code-format repair tool. "
+                    "Your job is to repair formatting only. "
+                    "Do not solve the task again, do not add new helper functions, "
+                    "do not change the algorithm, and do not add explanations. "
+                    "Return exactly one ```python``` code block."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Repair the following model output into a single valid Python code block.\n"
+                    "Keep the original code content as much as possible.\n"
+                    "Allowed fixes:\n"
+                    "- move prose outside the code block out of the response\n"
+                    "- ensure ```python starts on its own line\n"
+                    "- ensure '# Background:' is on its own line\n"
+                    "- ensure 'def', 'async def', and 'class' start on a new line\n"
+                    "- preserve the requested function header exactly if it already appears\n\n"
+                    f"Target function header:\n{function_header}\n\n"
+                    "Raw model output:\n"
+                    f"{raw_response}"
+                ),
+            },
+        ]
 
     # ---- evaluate ----------------------------------------------------------
 
