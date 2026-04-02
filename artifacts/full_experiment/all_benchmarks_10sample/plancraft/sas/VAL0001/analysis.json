@@ -1,0 +1,623 @@
+{
+  "benchmark": "plancraft",
+  "descriptor": {
+    "C1_latency_p95": 4206.196583056822,
+    "C2_tokens_total": 2259.0,
+    "C3_cost_total": 0.0,
+    "C4_tool_calls_total": 0.0,
+    "D1_tool_error_rate": 0.0,
+    "D2_communication_count": 0.0,
+    "D3_handoff_count": 3.0,
+    "P1_steps_total": 8.0,
+    "P2_backtrack_rate": 0.0,
+    "P3_loop_score": 0.5,
+    "P4_verification_density": 0.5,
+    "Q1_success_rate": 1.0,
+    "Q2_completion_rate": 1.0,
+    "R1_success_var": 0.0,
+    "R2_latency_var": 0.0,
+    "R3_tokens_var": 0.0,
+    "stage_act_events": 2.0,
+    "stage_act_latency_ms": 4200.196583056822,
+    "stage_act_tokens": 2243.0,
+    "stage_act_tool_errors": 0.0,
+    "stage_act_verify_density": 0.0,
+    "stage_finalize_events": 2.0,
+    "stage_finalize_latency_ms": 2.0,
+    "stage_finalize_tokens": 16.0,
+    "stage_finalize_tool_errors": 0.0,
+    "stage_finalize_verify_density": 0.0,
+    "stage_plan_events": 0.0,
+    "stage_plan_latency_ms": 0.0,
+    "stage_plan_tokens": 0.0,
+    "stage_plan_tool_errors": 0.0,
+    "stage_plan_verify_density": 0.0,
+    "stage_retrieve_events": 0.0,
+    "stage_retrieve_latency_ms": 0.0,
+    "stage_retrieve_tokens": 0.0,
+    "stage_retrieve_tool_errors": 0.0,
+    "stage_retrieve_verify_density": 0.0,
+    "stage_revise_events": 0.0,
+    "stage_revise_latency_ms": 0.0,
+    "stage_revise_tokens": 0.0,
+    "stage_revise_tool_errors": 0.0,
+    "stage_revise_verify_density": 0.0,
+    "stage_verify_events": 4.0,
+    "stage_verify_latency_ms": 4.0,
+    "stage_verify_tokens": 0.0,
+    "stage_verify_tool_errors": 0.0,
+    "stage_verify_verify_density": 1.0
+  },
+  "descriptor_extensions": {},
+  "evaluation": {
+    "avg_score": 1.0,
+    "completion_rate": 1.0,
+    "count": 1,
+    "runs": [
+      {
+        "completion": true,
+        "completion_source": "final_answer",
+        "details": {
+          "complexity": 1,
+          "complexity_split": "easy",
+          "impossible": false,
+          "num_steps": 2,
+          "prediction": "move: from [0] to [I1] with quantity 1",
+          "recipe_type": "shapeless",
+          "reference_answer": "red_dye",
+          "reward": 1.0,
+          "run_metadata": {
+            "agent_outputs": {
+              "agent_0": "move: from [0] to [I1] with quantity 1"
+            },
+            "descriptor_records": [
+              {
+                "dispatch_id": -1,
+                "message_count": 0,
+                "outer_step_index": 0,
+                "phase": "single_agent",
+                "round_index": 0
+              },
+              {
+                "dispatch_id": -1,
+                "message_count": 0,
+                "outer_step_index": 1,
+                "phase": "single_agent",
+                "round_index": 0
+              }
+            ],
+            "descriptor_summary": {
+              "final_phase": "descriptor_monitor",
+              "final_round_index": 0,
+              "monitor_steps": 1
+            },
+            "discussion_rounds": 1,
+            "final_reason": "sas:single_agent",
+            "info": {
+              "reason": "success",
+              "steps": 2
+            },
+            "interaction_logs": [
+              {
+                "agent_id": "agent_0",
+                "agent_role": "single_agent",
+                "agent_type": "general",
+                "assistant_message": {
+                  "content": "{\n  \"answer_artifact\": \"move: from [I3] to [A1] with quantity 1\",\n  \"summary\": \"To craft red dye, I need to place the beetroot in the crafting grid. I have moved the beetroot from [I3] to [A1].\",\n  \"critique\": \"The task is to craft red dye. Placing beetroot in the crafting grid is the correct first step.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory contains beetroot [I3], which is the ingredient for red dye.\"\n}",
+                  "role": "assistant"
+                },
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "llm": {
+                  "cost_usd": 0.0,
+                  "metadata": {
+                    "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+                    "provider": "openrouter"
+                  },
+                  "mock_used": false,
+                  "model": "google/gemini-3.1-flash-lite-preview",
+                  "token_in": 917,
+                  "token_out": 144
+                },
+                "outer_step_index": 0,
+                "phase": "single_agent",
+                "prior_artifact": null,
+                "prompt_messages": [
+                  {
+                    "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: single_agent\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+                    "role": "system"
+                  },
+                  {
+                    "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+                    "role": "system"
+                  },
+                  {
+                    "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "move: from [I18] to [B1] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "move: from [I30] to [B2] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "move: from [0] to [I6] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "smelt: from [I36] to [I35] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: red_dye\ninventory:\n - gray_terracotta [I2] quantity 16\n - beetroot [I3] quantity 1\n - birch_slab [I15] quantity 47\n - cooked_salmon [I23] quantity 31\n - tube_coral_block [I28] quantity 13",
+                    "role": "user"
+                  },
+                  {
+                    "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"single_agent\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task end to end. There are no peer agents.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+                    "role": "user"
+                  }
+                ],
+                "round_index": 0,
+                "stage_role": "worker",
+                "structured_artifact": {
+                  "agent_id": "agent_0",
+                  "answer": "move: from [I3] to [A1] with quantity 1",
+                  "artifact_id": "single_agent:agent_0:0:0:-1",
+                  "confidence": 1.0,
+                  "critique": "The task is to craft red dye. Placing beetroot in the crafting grid is the correct first step.",
+                  "discussion_index": 0,
+                  "dispatch_id": -1,
+                  "evidence_summary": [
+                    "The inventory contains beetroot [I3]",
+                    "which is the ingredient for red dye."
+                  ],
+                  "llm": {
+                    "cost_usd": 0.0,
+                    "metadata": {
+                      "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+                      "provider": "openrouter"
+                    },
+                    "mock_used": false,
+                    "model": "google/gemini-3.1-flash-lite-preview",
+                    "token_in": 917,
+                    "token_out": 144
+                  },
+                  "node_name": "single_agent",
+                  "raw_response": "{\n  \"answer_artifact\": \"move: from [I3] to [A1] with quantity 1\",\n  \"summary\": \"To craft red dye, I need to place the beetroot in the crafting grid. I have moved the beetroot from [I3] to [A1].\",\n  \"critique\": \"The task is to craft red dye. Placing beetroot in the crafting grid is the correct first step.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory contains beetroot [I3], which is the ingredient for red dye.\"\n}",
+                  "revision_request": "",
+                  "role": "single_agent",
+                  "round_index": 0,
+                  "source_artifact_ids": [],
+                  "stage_role": "worker",
+                  "status": "ok",
+                  "summary": "To craft red dye, I need to place the beetroot in the crafting grid. I have moved the beetroot from [I3] to [A1].",
+                  "tool_records": [],
+                  "unresolved_issues": []
+                },
+                "tool_calls": [],
+                "visible_messages": []
+              },
+              {
+                "agent_id": "agent_0",
+                "agent_role": "single_agent",
+                "agent_type": "general",
+                "assistant_message": {
+                  "content": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"Moved the crafted red_dye from the output slot [0] to inventory slot [I1].\",\n  \"critique\": \"The crafting process for red_dye was successful as the item appeared in slot [0]. Moving it to the inventory completes the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The item red_dye was present in slot [0] after placing beetroot in [A1]. Moving it to [I1] clears the crafting table.\"\n}",
+                  "role": "assistant"
+                },
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "llm": {
+                  "cost_usd": 0.0,
+                  "metadata": {
+                    "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+                    "provider": "openrouter"
+                  },
+                  "mock_used": false,
+                  "model": "google/gemini-3.1-flash-lite-preview",
+                  "token_in": 1027,
+                  "token_out": 155
+                },
+                "outer_step_index": 1,
+                "phase": "single_agent",
+                "prior_artifact": null,
+                "prompt_messages": [
+                  {
+                    "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: single_agent\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+                    "role": "system"
+                  },
+                  {
+                    "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+                    "role": "system"
+                  },
+                  {
+                    "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "move: from [I18] to [B1] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "move: from [I30] to [B2] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "move: from [0] to [I6] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+                    "role": "user"
+                  },
+                  {
+                    "content": "smelt: from [I36] to [I35] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: red_dye\ninventory:\n - gray_terracotta [I2] quantity 16\n - beetroot [I3] quantity 1\n - birch_slab [I15] quantity 47\n - cooked_salmon [I23] quantity 31\n - tube_coral_block [I28] quantity 13",
+                    "role": "user"
+                  },
+                  {
+                    "content": "move: from [I3] to [A1] with quantity 1",
+                    "role": "assistant"
+                  },
+                  {
+                    "content": "Craft an item of type: red_dye\ninventory:\n - red_dye [0] quantity 1\n - beetroot [A1] quantity 1\n - gray_terracotta [I2] quantity 16\n - birch_slab [I15] quantity 47\n - cooked_salmon [I23] quantity 31\n - tube_coral_block [I28] quantity 13",
+                    "role": "user"
+                  },
+                  {
+                    "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"single_agent\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task end to end. There are no peer agents.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+                    "role": "user"
+                  }
+                ],
+                "round_index": 0,
+                "stage_role": "worker",
+                "structured_artifact": {
+                  "agent_id": "agent_0",
+                  "answer": "move: from [0] to [I1] with quantity 1",
+                  "artifact_id": "single_agent:agent_0:0:0:-1",
+                  "confidence": 1.0,
+                  "critique": "The crafting process for red_dye was successful as the item appeared in slot [0]. Moving it to the inventory completes the task.",
+                  "discussion_index": 0,
+                  "dispatch_id": -1,
+                  "evidence_summary": [
+                    "The item red_dye was present in slot [0] after placing beetroot in [A1]. Moving it to [I1] clears the crafting table."
+                  ],
+                  "llm": {
+                    "cost_usd": 0.0,
+                    "metadata": {
+                      "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+                      "provider": "openrouter"
+                    },
+                    "mock_used": false,
+                    "model": "google/gemini-3.1-flash-lite-preview",
+                    "token_in": 1027,
+                    "token_out": 155
+                  },
+                  "node_name": "single_agent",
+                  "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"Moved the crafted red_dye from the output slot [0] to inventory slot [I1].\",\n  \"critique\": \"The crafting process for red_dye was successful as the item appeared in slot [0]. Moving it to the inventory completes the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The item red_dye was present in slot [0] after placing beetroot in [A1]. Moving it to [I1] clears the crafting table.\"\n}",
+                  "revision_request": "",
+                  "role": "single_agent",
+                  "round_index": 0,
+                  "source_artifact_ids": [],
+                  "stage_role": "worker",
+                  "status": "ok",
+                  "summary": "Moved the crafted red_dye from the output slot [0] to inventory slot [I1].",
+                  "tool_records": [],
+                  "unresolved_issues": []
+                },
+                "tool_calls": [],
+                "visible_messages": []
+              }
+            ],
+            "message_views": [
+              {
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 0,
+                "phase": "single_agent",
+                "role": "single_agent",
+                "round_index": 0,
+                "viewer": "agent_0",
+                "visible_count": 0,
+                "visible_message_ids": [],
+                "visible_senders": []
+              },
+              {
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 1,
+                "phase": "single_agent",
+                "role": "single_agent",
+                "round_index": 0,
+                "viewer": "agent_0",
+                "visible_count": 0,
+                "visible_message_ids": [],
+                "visible_senders": []
+              }
+            ],
+            "messages_sent_by_agent": {
+              "agent_0": 0
+            },
+            "messages_sent_total": 0,
+            "num_steps": 2,
+            "phase_history": [
+              {
+                "active_agents": [
+                  "agent_0"
+                ],
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 0,
+                "phase": "single_agent",
+                "round_index": 0
+              },
+              {
+                "active_agents": [],
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 0,
+                "phase": "descriptor_monitor",
+                "round_index": 0
+              },
+              {
+                "active_agents": [],
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 0,
+                "phase": "finalize",
+                "round_index": 0
+              },
+              {
+                "active_agents": [
+                  "agent_0"
+                ],
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 1,
+                "phase": "single_agent",
+                "round_index": 0
+              },
+              {
+                "active_agents": [],
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 1,
+                "phase": "descriptor_monitor",
+                "round_index": 0
+              },
+              {
+                "active_agents": [],
+                "discussion_index": 0,
+                "dispatch_id": -1,
+                "outer_step_index": 1,
+                "phase": "finalize",
+                "round_index": 0
+              }
+            ],
+            "raw_outputs": [
+              "move: from [I3] to [A1] with quantity 1",
+              "move: from [0] to [I1] with quantity 1"
+            ],
+            "relay_messages": [],
+            "remaining_message_budget": {
+              "agent_0": 0
+            },
+            "retrieved_docids": [
+              "0",
+              "1",
+              "3"
+            ],
+            "reward": 1.0,
+            "rounds_configured": 1,
+            "run_index": 0,
+            "seed": 9042,
+            "step_runs": [
+              {
+                "final_answer": "move: from [I3] to [A1] with quantity 1",
+                "outer_step_index": 0,
+                "run_summary": {
+                  "final_reason": "sas:single_agent",
+                  "messages_sent_by_agent": {
+                    "agent_0": 0
+                  },
+                  "messages_sent_total": 0,
+                  "tool_call_counts": {},
+                  "tool_calls_total": 0,
+                  "topology": "sas",
+                  "turns_executed": 1
+                },
+                "task_id": "VAL0001"
+              },
+              {
+                "final_answer": "move: from [0] to [I1] with quantity 1",
+                "outer_step_index": 1,
+                "run_summary": {
+                  "final_reason": "sas:single_agent",
+                  "messages_sent_by_agent": {
+                    "agent_0": 0
+                  },
+                  "messages_sent_total": 0,
+                  "tool_call_counts": {},
+                  "tool_calls_total": 0,
+                  "topology": "sas",
+                  "turns_executed": 1
+                },
+                "task_id": "VAL0001"
+              }
+            ],
+            "task_id": "VAL0001",
+            "terminated": true,
+            "termination_history": [],
+            "tool_call_counts": {},
+            "tool_calls_total": 0,
+            "tool_definitions": [],
+            "topology": "sas",
+            "topology_layout": {
+              "adjacency": {
+                "agent_0": []
+              },
+              "agent_ids": [
+                "agent_0"
+              ],
+              "agents_per_level": [
+                1
+              ],
+              "children_by_agent": {},
+              "groups": [],
+              "leaves": [],
+              "level_by_agent": {
+                "agent_0": 0
+              },
+              "managers": [],
+              "orchestrator_id": null,
+              "parent_by_agent": {},
+              "representatives": [],
+              "roles": {
+                "agent_0": "single_agent"
+              },
+              "specialists": [],
+              "topological_order": [
+                "agent_0"
+              ],
+              "topology": "sas"
+            },
+            "truncated": false,
+            "turns_executed": 2,
+            "vote_tally": {},
+            "workflow_definition": {
+              "aggregation_logic": "No aggregation. The single artifact becomes the final answer.",
+              "conditional_edges": [],
+              "dispatch_logic": "No dispatch. One agent handles the task directly.",
+              "edges": [
+                "START -> single_agent",
+                "single_agent -> descriptor_monitor",
+                "descriptor_monitor -> finalize",
+                "finalize -> END"
+              ],
+              "logging_outputs": [
+                "trace_events",
+                "relay_messages",
+                "message_views",
+                "interaction_logs",
+                "descriptor_records",
+                "termination_history"
+              ],
+              "nodes": {
+                "descriptor_monitor": "Shared descriptor hook.",
+                "finalize": "Emit the final answer and final trace event.",
+                "single_agent": "One end-to-end worker."
+              },
+              "state_fields": [
+                "task_id",
+                "task_prompt",
+                "topology",
+                "layout",
+                "rounds",
+                "discussion_rounds",
+                "round_index",
+                "discussion_index",
+                "messages",
+                "artifacts",
+                "termination_decision",
+                "vote_tally",
+                "descriptor_records"
+              ],
+              "stopping_criteria": [
+                "Single-turn topology. It terminates immediately after `single_agent`."
+              ],
+              "topology": "sas"
+            }
+          },
+          "terminated": true,
+          "truncated": false
+        },
+        "score": 1.0,
+        "success": true,
+        "success_source": "benchmark_evaluation",
+        "task_id": "VAL0001"
+      }
+    ],
+    "success_rate": 1.0
+  },
+  "per_run_descriptor": [
+    {
+      "backtrack_rate": 0.0,
+      "communication_count": 0.0,
+      "completion": true,
+      "completion_source": "final_answer",
+      "cost_total": 0.0,
+      "handoff_count": 3.0,
+      "latency_total": 4206.196583056822,
+      "loop_score": 0.5,
+      "score": 1.0,
+      "stage_act_events": 2.0,
+      "stage_act_latency_ms": 4200.196583056822,
+      "stage_act_tokens": 2243.0,
+      "stage_act_tool_errors": 0.0,
+      "stage_act_verify_density": 0.0,
+      "stage_finalize_events": 2.0,
+      "stage_finalize_latency_ms": 2.0,
+      "stage_finalize_tokens": 16.0,
+      "stage_finalize_tool_errors": 0.0,
+      "stage_finalize_verify_density": 0.0,
+      "stage_plan_events": 0.0,
+      "stage_plan_latency_ms": 0.0,
+      "stage_plan_tokens": 0.0,
+      "stage_plan_tool_errors": 0.0,
+      "stage_plan_verify_density": 0.0,
+      "stage_retrieve_events": 0.0,
+      "stage_retrieve_latency_ms": 0.0,
+      "stage_retrieve_tokens": 0.0,
+      "stage_retrieve_tool_errors": 0.0,
+      "stage_retrieve_verify_density": 0.0,
+      "stage_revise_events": 0.0,
+      "stage_revise_latency_ms": 0.0,
+      "stage_revise_tokens": 0.0,
+      "stage_revise_tool_errors": 0.0,
+      "stage_revise_verify_density": 0.0,
+      "stage_verify_events": 4.0,
+      "stage_verify_latency_ms": 4.0,
+      "stage_verify_tokens": 0.0,
+      "stage_verify_tool_errors": 0.0,
+      "stage_verify_verify_density": 1.0,
+      "steps_total": 8.0,
+      "success": true,
+      "success_source": "benchmark_evaluation",
+      "tokens_total": 2259.0,
+      "tool_calls_total": 0.0,
+      "tool_fail_total": 0.0,
+      "verification_density": 0.5
+    }
+  ],
+  "stage_bottleneck": {
+    "findings": [],
+    "peak_latency_stage": "stage_act_latency_ms",
+    "peak_token_stage": "stage_act_tokens"
+  },
+  "task_id": "VAL0001"
+}

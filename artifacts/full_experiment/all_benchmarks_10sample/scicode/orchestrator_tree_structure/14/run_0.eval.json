@@ -1,0 +1,48 @@
+{
+  "completion": true,
+  "details": {
+    "Main Problem Resolve Rate": 0.0,
+    "Subproblem Resolve Rate": 0.0,
+    "Total Correct": 0,
+    "Total Steps": 2,
+    "prediction": "import numpy as np\n # Background: The Langevin equation for a particle in a harmonic potential is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t), where xi(t) is Gaussian white noise. Mannella's leapfrog method is a specialized integration scheme for the Langevin equation that handles the velocity-dependent friction and stochastic force by splitting the update into a deterministic drift step and a stochastic velocity update step. The velocity update is performed using t",
+    "run_metadata_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_tree_structure/14/run_0.metadata.json",
+    "run_metadata_summary": {
+      "final_reason": "orchestrator_tree_structure:confidence_threshold_reached",
+      "messages_sent_by_agent": {
+        "agent_0": 4,
+        "agent_1": 2,
+        "agent_2": 2,
+        "agent_3": 2,
+        "agent_4": 2
+      },
+      "messages_sent_total": 12,
+      "retrieved_docids": [],
+      "run_index": 0,
+      "seed": 9042,
+      "task_id": "14.1",
+      "tool_call_counts": {
+        "inter_agent_send": 12
+      },
+      "tool_calls_total": 12,
+      "topology": "orchestrator_tree_structure",
+      "turns_executed": 2,
+      "vote_tally": {}
+    },
+    "step_results": {
+      "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpolejtr51/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+      "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpolejtr51/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+    }
+  },
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "prediction": "import numpy as np\n # Background: The Langevin equation for a particle in a harmonic potential is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t), where xi(t) is Gaussian white noise. Mannella's leapfrog method is a specialized integration scheme for the Langevin equation that handles the velocity-dependent friction and stochastic force by splitting the update into a deterministic drift step and a stochastic velocity update step. The velocity update is performed using the exact solution for the Ornstein-Uhlenbeck process over a half-step, ensuring numerical stability and correct thermalization. def harmonic_mannella_leapfrog(x0, v0, t0, steps, taup, omega0, vrms): dt = t0 / steps x = x0 v = v0 # Precompute coefficients for the stochastic update # The velocity update over dt/2 is: v_new = v * exp(-dt/(2*taup)) + sqrt(vrms^2 * (1 - exp(-dt/taup))) * normal_random a = np.exp(-dt / (2 * taup)) b = np.sqrt(vrms**2 * (1 - np.exp(-dt / taup))) for _ in range(steps): # 1. Half-step velocity update (stochastic) v = v * a + b * np.random.normal() # 2. Full-step position update x = x + v * dt # 3. Full-step velocity update (deterministic harmonic force) v = v - (omega0**2 * x) * dt # 4. Half-step velocity update (stochastic) v = v * a + b * np.random.normal() return x \n\n # Background: The Mean-Square Displacement (MSD) is defined as the ensemble average of the squared displacement, <(x(t) - x(0))^2>. For an optically trapped particle in thermal equilibrium, the initial position x0 and velocity v0 are sampled from the Maxwell-Boltzmann distribution: x0 ~ N(0, vrms^2/omega0^2) and v0 ~ N(0, vrms^2). The Mannella leapfrog method integrates the Langevin equation by splitting the stochastic and deterministic updates, ensuring the system remains in thermal equilibrium throughout the simulation. def calculate_msd(t0, steps, taup, omega0, vrms, Navg): '''Calculate the mean-square displacement (MSD) of an optically trapped microsphere in a gas by averaging Navg simulations.''' dt = t0 / steps a = np.exp(-dt / (2 * taup)) b = np.sqrt(vrms**2 * (1 - np.exp(-dt / taup))) squared_displacements = [] for _ in range(Navg): # Initial conditions from Maxwell-Boltzmann distribution x0 = np.random.normal(0, vrms / omega0) v0 = np.random.normal(0, vrms) x, v = x0, v0 for _ in range(steps): # 1. Half-step velocity update (stochastic) v = v * a + b * np.random.normal() # 2. Full-step position update x = x + v * dt # 3. Full-step velocity update (deterministic harmonic force) v = v - (omega0**2 * x) * dt # 4. Half-step velocity update (stochastic) v = v * a + b * np.random.normal() squared_displacements.append((x - x0)**2) x_MSD = np.mean(squared_displacements) return x_MSD ",
+  "score": 0.0,
+  "success": false,
+  "task_id": "14"
+}

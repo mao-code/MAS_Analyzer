@@ -1,0 +1,1181 @@
+{
+  "agent_outputs": {
+    "agent_0": "```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix-vector product. The recurrence relation is given by beta_{j+1} * q_{j+1} = A * q_j - alpha_j * q_j - beta_j * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector, ensuring that the resulting vectors q_i are orthonormal. def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize the initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): v = A @ Q[:, j] alpha = np.dot(Q[:, j], v) v = v - alpha * Q[:, j] - beta * q_prev # Re-orthogonalization could be added here for numerical stability beta = np.linalg.norm(v) if beta < 1e-12: break q_prev = Q[:, j] Q[:, j + 1] = v / beta return Q ```",
+    "agent_1": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j is the norm of w. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): q_curr = Q[:, j] w = A @ q_curr - beta * q_prev alpha = np.dot(q_curr, w) w = w - alpha * q_curr beta = np.linalg.norm(w) if beta < 1e-12: break q_prev = q_curr Q[:, j + 1] = w / beta return Q ```",
+    "agent_2": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal. def lanczos(A, b, m): M = A.shape[0] Q = np.zeros((M, m + 1)) alpha = np.zeros(m) beta = np.zeros(m) q = b / np.linalg.norm(b) Q[:, 0] = q for j in range(m): v = A @ Q[:, j] alpha[j] = np.dot(Q[:, j], v) v = v - alpha[j] * Q[:, j] if j > 0: v = v - beta[j-1] * Q[:, j-1] beta[j] = np.linalg.norm(v) if beta[j] < 1e-12: break Q[:, j+1] = v / beta[j] return Q ```",
+    "agent_3": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_m] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j = ||w||_2. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta_prev = 0 q_prev = np.zeros(M) for j in range(m): q_curr = Q[:, j] w = A @ q_curr - beta_prev * q_prev alpha = np.dot(q_curr, w) w = w - alpha * q_curr beta = np.linalg.norm(w) if beta < 1e-12: break Q[:, j + 1] = w / beta beta_prev = beta q_prev = q_curr return Q ```"
+  },
+  "descriptor_records": [
+    {
+      "dispatch_id": 1,
+      "message_count": 2,
+      "outer_step_index": 0,
+      "phase": "final_judge",
+      "round_index": 0
+    }
+  ],
+  "descriptor_summary": {
+    "final_phase": "descriptor_monitor",
+    "final_round_index": 0,
+    "monitor_steps": 1
+  },
+  "discussion_rounds": 2,
+  "final_reason": "group_chat_debate:consensus_reached",
+  "full_code_per_step": [
+    "import numpy as np\n\n\n # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal. def lanczos(A, b, m): M = A.shape[0] Q = np.zeros((M, m + 1)) alpha = np.zeros(m) beta = np.zeros(m) q = b / np.linalg.norm(b) Q[:, 0] = q for j in range(m): v = A @ Q[:, j] alpha[j] = np.dot(Q[:, j], v) v = v - alpha[j] * Q[:, j] if j > 0: v = v - beta[j-1] * Q[:, j-1] beta[j] = np.linalg.norm(v) if beta[j] < 1e-12: break Q[:, j+1] = v / beta[j] return Q "
+  ],
+  "interaction_logs": [
+    {
+      "agent_id": "agent_0",
+      "agent_role": "group_0_representative",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix to a starting vector and orthogonalizing the result against previous vectors using the Gram-Schmidt process. The algorithm produces a sequence of vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize the initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        # Compute the next vector in the Krylov sequence\\n        v = A @ Q[:, j]\\n        \\n        # Orthogonalize against the previous two vectors (Lanczos recurrence)\\n        if j > 0:\\n            v = v - beta * q_prev\\n        \\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j]\\n        \\n        # Re-orthogonalization (optional but recommended for numerical stability)\\n        # Here we perform standard Gram-Schmidt\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 688,
+        "token_out": 643
+      },
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: group_0_representative\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function performing Lanczos Iteration. It takes a symmetric matrix A a number of iterations m and outputs a new matrix Q with orthonomal columns.\n\ndef lanczos(A, b, m):\n    '''Inputs:\n    A : Matrix, 2d array of arbitrary size M * M\n    b : Vector, 1d array of arbitrary size M * 1\n    m : integer, m < M\n    Outputs:\n    Q : Matrix, 2d array of size M*(m+1)\n    '''\n\n    return Q\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"group_0_representative\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_0",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix to a starting vector and orthogonalizing the result against previous vectors using the Gram-Schmidt process. The algorithm produces a sequence of vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize the initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): # Compute the next vector in the Krylov sequence v = A @ Q[:, j] # Orthogonalize against the previous two vectors (Lanczos recurrence) if j > 0: v = v - beta * q_prev alpha = np.dot(Q[:, j], v) v = v - alpha * Q[:, j] # Re-orthogonalization (optional but recommended for numerical stability) # Here we perform standard Gram-Schmidt beta = np.linalg.norm(v) if beta < 1e-12: break q_prev = Q[:, j] Q[:, j + 1] = v / beta return Q ```",
+        "artifact_id": "group_debate_round:agent_0:0:0:0",
+        "confidence": 1.0,
+        "critique": "The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 688,
+          "token_out": 643
+        },
+        "node_name": "group_debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix to a starting vector and orthogonalizing the result against previous vectors using the Gram-Schmidt process. The algorithm produces a sequence of vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize the initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        # Compute the next vector in the Krylov sequence\\n        v = A @ Q[:, j]\\n        \\n        # Orthogonalize against the previous two vectors (Lanczos recurrence)\\n        if j > 0:\\n            v = v - beta * q_prev\\n        \\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j]\\n        \\n        # Re-orthogonalization (optional but recommended for numerical stability)\\n        # Here we perform standard Gram-Schmidt\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation.\"\n}",
+        "revision_request": "",
+        "role": "group_0_representative",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_1",
+      "agent_role": "group_0_member",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j is the norm of w.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        q_curr = Q[:, j]\\n        w = A @ q_curr - beta * q_prev\\n        alpha = np.dot(q_curr, w)\\n        w = w - alpha * q_curr\\n        \\n        beta = np.linalg.norm(w)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = q_curr\\n        Q[:, j + 1] = w / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos procedure. It handles the orthonormalization process correctly and includes a check for the breakdown condition (beta near zero).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code implements the Lanczos algorithm as requested, using numpy for matrix-vector operations and norm calculations.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 690,
+        "token_out": 626
+      },
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: group_0_member\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function performing Lanczos Iteration. It takes a symmetric matrix A a number of iterations m and outputs a new matrix Q with orthonomal columns.\n\ndef lanczos(A, b, m):\n    '''Inputs:\n    A : Matrix, 2d array of arbitrary size M * M\n    b : Vector, 1d array of arbitrary size M * 1\n    m : integer, m < M\n    Outputs:\n    Q : Matrix, 2d array of size M*(m+1)\n    '''\n\n    return Q\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"group_0_member\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_1",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j is the norm of w. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): q_curr = Q[:, j] w = A @ q_curr - beta * q_prev alpha = np.dot(q_curr, w) w = w - alpha * q_curr beta = np.linalg.norm(w) if beta < 1e-12: break q_prev = q_curr Q[:, j + 1] = w / beta return Q ```",
+        "artifact_id": "group_debate_round:agent_1:0:0:0",
+        "confidence": 1.0,
+        "critique": "The implementation follows the standard Lanczos procedure. It handles the orthonormalization process correctly and includes a check for the breakdown condition (beta near zero).",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The code implements the Lanczos algorithm as requested",
+          "using numpy for matrix-vector operations and norm calculations."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 690,
+          "token_out": 626
+        },
+        "node_name": "group_debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j is the norm of w.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        q_curr = Q[:, j]\\n        w = A @ q_curr - beta * q_prev\\n        alpha = np.dot(q_curr, w)\\n        w = w - alpha * q_curr\\n        \\n        beta = np.linalg.norm(w)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = q_curr\\n        Q[:, j + 1] = w / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos procedure. It handles the orthonormalization process correctly and includes a check for the breakdown condition (beta near zero).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code implements the Lanczos algorithm as requested, using numpy for matrix-vector operations and norm calculations.\"\n}",
+        "revision_request": "",
+        "role": "group_0_member",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_2",
+      "agent_role": "group_1_representative",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes a new vector using the recurrence relation v = A*q_j - beta_{j-1}*q_{j-1}, orthogonalizes it against the previous vector, and normalizes it to obtain the next basis vector q_{j+1}.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        v = A @ Q[:, j]\\n        \\n        # Orthogonalization against previous vectors\\n        if j > 0:\\n            v = v - beta * q_prev\\n        \\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j]\\n        \\n        # Re-orthogonalization (Gram-Schmidt)\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration, ensuring the output matrix Q has orthonormal columns as requested.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 690,
+        "token_out": 646
+      },
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: group_1_representative\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function performing Lanczos Iteration. It takes a symmetric matrix A a number of iterations m and outputs a new matrix Q with orthonomal columns.\n\ndef lanczos(A, b, m):\n    '''Inputs:\n    A : Matrix, 2d array of arbitrary size M * M\n    b : Vector, 1d array of arbitrary size M * 1\n    m : integer, m < M\n    Outputs:\n    Q : Matrix, 2d array of size M*(m+1)\n    '''\n\n    return Q\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"group_1_representative\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_2",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes a new vector using the recurrence relation v = A*q_j - beta_{j-1}*q_{j-1}, orthogonalizes it against the previous vector, and normalizes it to obtain the next basis vector q_{j+1}. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): v = A @ Q[:, j] # Orthogonalization against previous vectors if j > 0: v = v - beta * q_prev alpha = np.dot(Q[:, j], v) v = v - alpha * Q[:, j] # Re-orthogonalization (Gram-Schmidt) beta = np.linalg.norm(v) if beta < 1e-12: break q_prev = Q[:, j] Q[:, j + 1] = v / beta return Q ```",
+        "artifact_id": "group_debate_round:agent_2:0:0:0",
+        "confidence": 1.0,
+        "critique": "The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration",
+          "ensuring the output matrix Q has orthonormal columns as requested."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 690,
+          "token_out": 646
+        },
+        "node_name": "group_debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes a new vector using the recurrence relation v = A*q_j - beta_{j-1}*q_{j-1}, orthogonalizes it against the previous vector, and normalizes it to obtain the next basis vector q_{j+1}.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        v = A @ Q[:, j]\\n        \\n        # Orthogonalization against previous vectors\\n        if j > 0:\\n            v = v - beta * q_prev\\n        \\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j]\\n        \\n        # Re-orthogonalization (Gram-Schmidt)\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration, ensuring the output matrix Q has orthonormal columns as requested.\"\n}",
+        "revision_request": "",
+        "role": "group_1_representative",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_3",
+      "agent_role": "group_1_member",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_m] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j = ||w||_2.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta_prev = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        q_curr = Q[:, j]\\n        w = A @ q_curr - beta_prev * q_prev\\n        alpha = np.dot(q_curr, w)\\n        w = w - alpha * q_curr\\n        \\n        beta = np.linalg.norm(w)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        Q[:, j + 1] = w / beta\\n        beta_prev = beta\\n        q_prev = q_curr\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The implementation uses standard linear algebra operations (matrix-vector multiplication, dot products, and norms) consistent with the Lanczos algorithm definition.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 690,
+        "token_out": 651
+      },
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: group_1_member\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function performing Lanczos Iteration. It takes a symmetric matrix A a number of iterations m and outputs a new matrix Q with orthonomal columns.\n\ndef lanczos(A, b, m):\n    '''Inputs:\n    A : Matrix, 2d array of arbitrary size M * M\n    b : Vector, 1d array of arbitrary size M * 1\n    m : integer, m < M\n    Outputs:\n    Q : Matrix, 2d array of size M*(m+1)\n    '''\n\n    return Q\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"group_1_member\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_3",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_m] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j = ||w||_2. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta_prev = 0 q_prev = np.zeros(M) for j in range(m): q_curr = Q[:, j] w = A @ q_curr - beta_prev * q_prev alpha = np.dot(q_curr, w) w = w - alpha * q_curr beta = np.linalg.norm(w) if beta < 1e-12: break Q[:, j + 1] = w / beta beta_prev = beta q_prev = q_curr return Q ```",
+        "artifact_id": "group_debate_round:agent_3:0:0:0",
+        "confidence": 1.0,
+        "critique": "The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The implementation uses standard linear algebra operations (matrix-vector multiplication",
+          "dot products",
+          "and norms) consistent with the Lanczos algorithm definition."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 690,
+          "token_out": 651
+        },
+        "node_name": "group_debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_m] has orthonormal columns. In each step, it computes w = A*q_j - beta_{j-1}*q_{j-1}, then alpha_j = q_j^T * w, and finally w = w - alpha_j * q_j. The next vector q_{j+1} is obtained by normalizing w, where beta_j = ||w||_2.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta_prev = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        q_curr = Q[:, j]\\n        w = A @ q_curr - beta_prev * q_prev\\n        alpha = np.dot(q_curr, w)\\n        w = w - alpha * q_curr\\n        \\n        beta = np.linalg.norm(w)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        Q[:, j + 1] = w / beta\\n        beta_prev = beta\\n        q_prev = q_curr\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The implementation uses standard linear algebra operations (matrix-vector multiplication, dot products, and norms) consistent with the Lanczos algorithm definition.\"\n}",
+        "revision_request": "",
+        "role": "group_1_member",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_0",
+      "agent_role": "group_0_representative",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix-vector product. The recurrence relation is given by beta_{j+1} * q_{j+1} = A * q_j - alpha_j * q_j - beta_j * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector, ensuring that the resulting vectors q_i are orthonormal.\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize the initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        v = A @ Q[:, j]\\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j] - beta * q_prev\\n        \\n        # Re-orthogonalization could be added here for numerical stability\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A using the standard three-term recurrence relation.\",\n  \"critique\": \"The implementation uses the standard three-term recurrence. While numerically sensitive to rounding errors in finite precision, it is the standard approach for the requested function signature. Added a small epsilon check for the breakdown condition (beta near zero).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The code correctly initializes the Krylov subspace basis.\",\n    \"The iterative loop correctly computes alpha and beta coefficients.\",\n    \"The orthonormal vectors are stored in the output matrix Q.\"\n  ]\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1736,
+        "token_out": 638
+      },
+      "outer_step_index": 0,
+      "phase": "representative_merge",
+      "prior_artifact": {
+        "agent_id": "agent_0",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix to a starting vector and orthogonalizing the result against previous vectors using the Gram-Schmidt process. The algorithm produces a sequence of vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize the initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): # Compute the next vector in the Krylov sequence v = A @ Q[:, j] # Orthogonalize against the previous two vectors (Lanczos recurrence) if j > 0: v = v - beta * q_prev alpha = np.dot(Q[:, j], v) v = v - alpha * Q[:, j] # Re-orthogonalization (optional but recommended for numerical stability) # Here we perform standard Gram-Schmidt beta = np.linalg.norm(v) if beta < 1e-12: break q_prev = Q[:, j] Q[:, j + 1] = v / beta return Q ```",
+        "artifact_id": "group_debate_round:agent_0:0:0:0",
+        "confidence": 1.0,
+        "critique": "The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 688,
+          "token_out": 643
+        },
+        "node_name": "group_debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix to a starting vector and orthogonalizing the result against previous vectors using the Gram-Schmidt process. The algorithm produces a sequence of vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize the initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        # Compute the next vector in the Krylov sequence\\n        v = A @ Q[:, j]\\n        \\n        # Orthogonalize against the previous two vectors (Lanczos recurrence)\\n        if j > 0:\\n            v = v - beta * q_prev\\n        \\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j]\\n        \\n        # Re-orthogonalization (optional but recommended for numerical stability)\\n        # Here we perform standard Gram-Schmidt\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation.\"\n}",
+        "revision_request": "",
+        "role": "group_0_representative",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: group_0_representative\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function performing Lanczos Iteration. It takes a symmetric matrix A a number of iterations m and outputs a new matrix Q with orthonomal columns.\n\ndef lanczos(A, b, m):\n    '''Inputs:\n    A : Matrix, 2d array of arbitrary size M * M\n    b : Vector, 1d array of arbitrary size M * 1\n    m : integer, m < M\n    Outputs:\n    Q : Matrix, 2d array of size M*(m+1)\n    '''\n\n    return Q\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"group_0_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n    \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n    \"answer_artifact\": \"```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix...\",\n    \"critique\": \"The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_1\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0\",\n      \"content\": \"agent_0: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_1: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n      \"payload\": {\n        \"summary\": \"agent_0: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_1: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n        \"group_members\": [\n          \"agent_0\",\n          \"agent_1\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n            \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n            \"answer_artifact\": \"```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix...\",\n            \"critique\": \"The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation.\"\n            ],\n            \"sender\": \"agent_0\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_1:0:0:0\",\n            \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n            \"answer_artifact\": \"```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...\",\n            \"critique\": \"The implementation follows the standard Lanczos procedure. It handles the orthonormalization process correctly and includes a check for the breakdown condition (beta near zero).\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The code implements the Lanczos algorithm as requested\",\n              \"using numpy for matrix-vector operations and norm calculations.\"\n            ],\n            \"sender\": \"agent_1\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "aggregator",
+      "structured_artifact": {
+        "agent_id": "agent_0",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix-vector product. The recurrence relation is given by beta_{j+1} * q_{j+1} = A * q_j - alpha_j * q_j - beta_j * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector, ensuring that the resulting vectors q_i are orthonormal. def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize the initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): v = A @ Q[:, j] alpha = np.dot(Q[:, j], v) v = v - alpha * Q[:, j] - beta * q_prev # Re-orthogonalization could be added here for numerical stability beta = np.linalg.norm(v) if beta < 1e-12: break q_prev = Q[:, j] Q[:, j + 1] = v / beta return Q ```",
+        "artifact_id": "representative_merge:agent_0:0:0:1",
+        "confidence": 1.0,
+        "critique": "The implementation uses the standard three-term recurrence. While numerically sensitive to rounding errors in finite precision, it is the standard approach for the requested function signature. Added a small epsilon check for the breakdown condition (beta near zero).",
+        "discussion_index": 0,
+        "dispatch_id": 1,
+        "evidence_summary": [
+          "The code correctly initializes the Krylov subspace basis.",
+          "The iterative loop correctly computes alpha and beta coefficients.",
+          "The orthonormal vectors are stored in the output matrix Q."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1736,
+          "token_out": 638
+        },
+        "node_name": "representative_merge",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix-vector product. The recurrence relation is given by beta_{j+1} * q_{j+1} = A * q_j - alpha_j * q_j - beta_j * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector, ensuring that the resulting vectors q_i are orthonormal.\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize the initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        v = A @ Q[:, j]\\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j] - beta * q_prev\\n        \\n        # Re-orthogonalization could be added here for numerical stability\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A using the standard three-term recurrence relation.\",\n  \"critique\": \"The implementation uses the standard three-term recurrence. While numerically sensitive to rounding errors in finite precision, it is the standard approach for the requested function signature. Added a small epsilon check for the breakdown condition (beta near zero).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The code correctly initializes the Krylov subspace basis.\",\n    \"The iterative loop correctly computes alpha and beta coefficients.\",\n    \"The orthonormal vectors are stored in the output matrix Q.\"\n  ]\n}",
+        "revision_request": "",
+        "role": "group_0_representative",
+        "round_index": 0,
+        "source_artifact_ids": [
+          "group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0",
+          "group_debate_round:agent_0:0:0:0"
+        ],
+        "stage_role": "aggregator",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A using the standard three-term recurrence relation.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": [
+        {
+          "artifact_id": "group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0",
+          "content": "agent_0: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_1: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "kind": "group_summary",
+          "message_id": "m_1",
+          "payload": {
+            "group_artifacts": [
+              {
+                "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix...",
+                "artifact_id": "group_debate_round:agent_0:0:0:0",
+                "confidence": 1.0,
+                "critique": "The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.",
+                "evidence_summary": [
+                  "The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation."
+                ],
+                "revision_request": "",
+                "sender": "agent_0",
+                "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+                "unresolved_issues": []
+              },
+              {
+                "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...",
+                "artifact_id": "group_debate_round:agent_1:0:0:0",
+                "confidence": 1.0,
+                "critique": "The implementation follows the standard Lanczos procedure. It handles the orthonormalization process correctly and includes a check for the breakdown condition (beta near zero).",
+                "evidence_summary": [
+                  "The code implements the Lanczos algorithm as requested",
+                  "using numpy for matrix-vector operations and norm calculations."
+                ],
+                "revision_request": "",
+                "sender": "agent_1",
+                "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+                "unresolved_issues": []
+              }
+            ],
+            "group_members": [
+              "agent_0",
+              "agent_1"
+            ],
+            "summary": "agent_0: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_1: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A."
+          },
+          "phase": "group_controller",
+          "recipients": [
+            "agent_0"
+          ],
+          "round": 0,
+          "sender": "system"
+        }
+      ]
+    },
+    {
+      "agent_id": "agent_2",
+      "agent_role": "group_1_representative",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal.\\n\\ndef lanczos(A, b, m):\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    alpha = np.zeros(m)\\n    beta = np.zeros(m)\\n    \\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    for j in range(m):\\n        v = A @ Q[:, j]\\n        alpha[j] = np.dot(Q[:, j], v)\\n        v = v - alpha[j] * Q[:, j]\\n        if j > 0:\\n            v = v - beta[j-1] * Q[:, j-1]\\n        \\n        beta[j] = np.linalg.norm(v)\\n        if beta[j] < 1e-12:\\n            break\\n        Q[:, j+1] = v / beta[j]\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A using the three-term recurrence relation.\",\n  \"critique\": \"The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The implementation uses standard linear algebra operations (matrix-vector multiplication, dot products, and norms) consistent with the Lanczos algorithm definition.\",\n    \"The code ensures the output matrix Q has orthonormal columns as requested.\"\n  ]\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1785,
+        "token_out": 567
+      },
+      "outer_step_index": 0,
+      "phase": "representative_merge",
+      "prior_artifact": {
+        "agent_id": "agent_2",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes a new vector using the recurrence relation v = A*q_j - beta_{j-1}*q_{j-1}, orthogonalizes it against the previous vector, and normalizes it to obtain the next basis vector q_{j+1}. import numpy as np def lanczos(A, b, m): '''Inputs: A : Matrix, 2d array of arbitrary size M * M b : Vector, 1d array of arbitrary size M * 1 m : integer, m < M Outputs: Q : Matrix, 2d array of size M*(m+1) ''' M = A.shape[0] Q = np.zeros((M, m + 1)) # Normalize initial vector q = b / np.linalg.norm(b) Q[:, 0] = q beta = 0 q_prev = np.zeros(M) for j in range(m): v = A @ Q[:, j] # Orthogonalization against previous vectors if j > 0: v = v - beta * q_prev alpha = np.dot(Q[:, j], v) v = v - alpha * Q[:, j] # Re-orthogonalization (Gram-Schmidt) beta = np.linalg.norm(v) if beta < 1e-12: break q_prev = Q[:, j] Q[:, j + 1] = v / beta return Q ```",
+        "artifact_id": "group_debate_round:agent_2:0:0:0",
+        "confidence": 1.0,
+        "critique": "The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration",
+          "ensuring the output matrix Q has orthonormal columns as requested."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 690,
+          "token_out": 646
+        },
+        "node_name": "group_debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. In each step, it computes a new vector using the recurrence relation v = A*q_j - beta_{j-1}*q_{j-1}, orthogonalizes it against the previous vector, and normalizes it to obtain the next basis vector q_{j+1}.\\n\\nimport numpy as np\\n\\ndef lanczos(A, b, m):\\n    '''Inputs:\\n    A : Matrix, 2d array of arbitrary size M * M\\n    b : Vector, 1d array of arbitrary size M * 1\\n    m : integer, m < M\\n    Outputs:\\n    Q : Matrix, 2d array of size M*(m+1)\\n    '''\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    \\n    # Normalize initial vector\\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    beta = 0\\n    q_prev = np.zeros(M)\\n    \\n    for j in range(m):\\n        v = A @ Q[:, j]\\n        \\n        # Orthogonalization against previous vectors\\n        if j > 0:\\n            v = v - beta * q_prev\\n        \\n        alpha = np.dot(Q[:, j], v)\\n        v = v - alpha * Q[:, j]\\n        \\n        # Re-orthogonalization (Gram-Schmidt)\\n        beta = np.linalg.norm(v)\\n        \\n        if beta < 1e-12:\\n            break\\n            \\n        q_prev = Q[:, j]\\n        Q[:, j + 1] = v / beta\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n  \"critique\": \"The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration, ensuring the output matrix Q has orthonormal columns as requested.\"\n}",
+        "revision_request": "",
+        "role": "group_1_representative",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: group_1_representative\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function performing Lanczos Iteration. It takes a symmetric matrix A a number of iterations m and outputs a new matrix Q with orthonomal columns.\n\ndef lanczos(A, b, m):\n    '''Inputs:\n    A : Matrix, 2d array of arbitrary size M * M\n    b : Vector, 1d array of arbitrary size M * 1\n    m : integer, m < M\n    Outputs:\n    Q : Matrix, 2d array of size M*(m+1)\n    '''\n\n    return Q\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"group_1_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n    \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n    \"answer_artifact\": \"```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...\",\n    \"critique\": \"The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration\",\n      \"ensuring the output matrix Q has orthonormal columns as requested.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_2\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_2\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0\",\n      \"content\": \"agent_2: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_3: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n      \"payload\": {\n        \"summary\": \"agent_2: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_3: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n        \"group_members\": [\n          \"agent_2\",\n          \"agent_3\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n            \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n            \"answer_artifact\": \"```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...\",\n            \"critique\": \"The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration\",\n              \"ensuring the output matrix Q has orthonormal columns as requested.\"\n            ],\n            \"sender\": \"agent_2\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_3:0:0:0\",\n            \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.\",\n            \"answer_artifact\": \"```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...\",\n            \"critique\": \"The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The implementation uses standard linear algebra operations (matrix-vector multiplication\",\n              \"dot products\",\n              \"and norms) consistent with the Lanczos algorithm definition.\"\n            ],\n            \"sender\": \"agent_3\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "aggregator",
+      "structured_artifact": {
+        "agent_id": "agent_2",
+        "answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal. def lanczos(A, b, m): M = A.shape[0] Q = np.zeros((M, m + 1)) alpha = np.zeros(m) beta = np.zeros(m) q = b / np.linalg.norm(b) Q[:, 0] = q for j in range(m): v = A @ Q[:, j] alpha[j] = np.dot(Q[:, j], v) v = v - alpha[j] * Q[:, j] if j > 0: v = v - beta[j-1] * Q[:, j-1] beta[j] = np.linalg.norm(v) if beta[j] < 1e-12: break Q[:, j+1] = v / beta[j] return Q ```",
+        "artifact_id": "representative_merge:agent_2:0:0:1",
+        "confidence": 1.0,
+        "critique": "The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).",
+        "discussion_index": 0,
+        "dispatch_id": 1,
+        "evidence_summary": [
+          "The implementation uses standard linear algebra operations (matrix-vector multiplication, dot products, and norms) consistent with the Lanczos algorithm definition.",
+          "The code ensures the output matrix Q has orthonormal columns as requested."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1785,
+          "token_out": 567
+        },
+        "node_name": "representative_merge",
+        "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal.\\n\\ndef lanczos(A, b, m):\\n    M = A.shape[0]\\n    Q = np.zeros((M, m + 1))\\n    alpha = np.zeros(m)\\n    beta = np.zeros(m)\\n    \\n    q = b / np.linalg.norm(b)\\n    Q[:, 0] = q\\n    \\n    for j in range(m):\\n        v = A @ Q[:, j]\\n        alpha[j] = np.dot(Q[:, j], v)\\n        v = v - alpha[j] * Q[:, j]\\n        if j > 0:\\n            v = v - beta[j-1] * Q[:, j-1]\\n        \\n        beta[j] = np.linalg.norm(v)\\n        if beta[j] < 1e-12:\\n            break\\n        Q[:, j+1] = v / beta[j]\\n        \\n    return Q\\n```\",\n  \"summary\": \"Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A using the three-term recurrence relation.\",\n  \"critique\": \"The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The implementation uses standard linear algebra operations (matrix-vector multiplication, dot products, and norms) consistent with the Lanczos algorithm definition.\",\n    \"The code ensures the output matrix Q has orthonormal columns as requested.\"\n  ]\n}",
+        "revision_request": "",
+        "role": "group_1_representative",
+        "round_index": 0,
+        "source_artifact_ids": [
+          "group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0",
+          "group_debate_round:agent_2:0:0:0"
+        ],
+        "stage_role": "aggregator",
+        "status": "ok",
+        "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A using the three-term recurrence relation.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": [
+        {
+          "artifact_id": "group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0",
+          "content": "agent_2: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_3: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "kind": "group_summary",
+          "message_id": "m_2",
+          "payload": {
+            "group_artifacts": [
+              {
+                "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...",
+                "artifact_id": "group_debate_round:agent_2:0:0:0",
+                "confidence": 1.0,
+                "critique": "The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.",
+                "evidence_summary": [
+                  "The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration",
+                  "ensuring the output matrix Q has orthonormal columns as requested."
+                ],
+                "revision_request": "",
+                "sender": "agent_2",
+                "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+                "unresolved_issues": []
+              },
+              {
+                "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...",
+                "artifact_id": "group_debate_round:agent_3:0:0:0",
+                "confidence": 1.0,
+                "critique": "The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).",
+                "evidence_summary": [
+                  "The implementation uses standard linear algebra operations (matrix-vector multiplication",
+                  "dot products",
+                  "and norms) consistent with the Lanczos algorithm definition."
+                ],
+                "revision_request": "",
+                "sender": "agent_3",
+                "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+                "unresolved_issues": []
+              }
+            ],
+            "group_members": [
+              "agent_2",
+              "agent_3"
+            ],
+            "summary": "agent_2: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_3: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A."
+          },
+          "phase": "group_controller",
+          "recipients": [
+            "agent_2"
+          ],
+          "round": 0,
+          "sender": "system"
+        }
+      ]
+    }
+  ],
+  "message_views": [
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "role": "group_0_representative",
+      "round_index": 0,
+      "viewer": "agent_0",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "role": "group_0_member",
+      "round_index": 0,
+      "viewer": "agent_1",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "role": "group_1_representative",
+      "round_index": 0,
+      "viewer": "agent_2",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "group_debate_round",
+      "role": "group_1_member",
+      "round_index": 0,
+      "viewer": "agent_3",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "outer_step_index": 0,
+      "phase": "representative_merge",
+      "role": "group_0_representative",
+      "round_index": 0,
+      "viewer": "agent_0",
+      "visible_count": 1,
+      "visible_message_ids": [
+        "m_1"
+      ],
+      "visible_senders": [
+        "system"
+      ]
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "outer_step_index": 0,
+      "phase": "representative_merge",
+      "role": "group_1_representative",
+      "round_index": 0,
+      "viewer": "agent_2",
+      "visible_count": 1,
+      "visible_message_ids": [
+        "m_2"
+      ],
+      "visible_senders": [
+        "system"
+      ]
+    }
+  ],
+  "messages_sent_by_agent": {
+    "agent_0": 0,
+    "agent_1": 0,
+    "agent_2": 0,
+    "agent_3": 0
+  },
+  "messages_sent_total": 0,
+  "phase_history": [
+    {
+      "active_agents": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 0,
+      "phase": "group_dispatch",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "group_controller",
+      "round_index": 0
+    },
+    {
+      "active_agents": [
+        "agent_0",
+        "agent_2"
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "representative_dispatch",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "outer_step_index": 0,
+      "phase": "representative_controller",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "outer_step_index": 0,
+      "phase": "final_judge",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "outer_step_index": 0,
+      "phase": "descriptor_monitor",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "outer_step_index": 0,
+      "phase": "finalize",
+      "round_index": 0
+    }
+  ],
+  "previous_llm_code": [
+    " # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal. def lanczos(A, b, m): M = A.shape[0] Q = np.zeros((M, m + 1)) alpha = np.zeros(m) beta = np.zeros(m) q = b / np.linalg.norm(b) Q[:, 0] = q for j in range(m): v = A @ Q[:, j] alpha[j] = np.dot(Q[:, j], v) v = v - alpha[j] * Q[:, j] if j > 0: v = v - beta[j-1] * Q[:, j-1] beta[j] = np.linalg.norm(v) if beta[j] < 1e-12: break Q[:, j+1] = v / beta[j] return Q "
+  ],
+  "raw_responses_per_step": [
+    "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal. def lanczos(A, b, m): M = A.shape[0] Q = np.zeros((M, m + 1)) alpha = np.zeros(m) beta = np.zeros(m) q = b / np.linalg.norm(b) Q[:, 0] = q for j in range(m): v = A @ Q[:, j] alpha[j] = np.dot(Q[:, j], v) v = v - alpha[j] * Q[:, j] if j > 0: v = v - beta[j-1] * Q[:, j-1] beta[j] = np.linalg.norm(v) if beta[j] < 1e-12: break Q[:, j+1] = v / beta[j] return Q ```"
+  ],
+  "relay_messages": [
+    {
+      "artifact_id": "group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0",
+      "content": "agent_0: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_1: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "kind": "group_summary",
+      "message_id": "m_1",
+      "outer_step_index": 0,
+      "payload": {
+        "group_artifacts": [
+          {
+            "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices. It constructs an orthonormal basis (Krylov subspace) for the matrix A by iteratively applying the matrix...",
+            "artifact_id": "group_debate_round:agent_0:0:0:0",
+            "confidence": 1.0,
+            "critique": "The implementation follows the standard Lanczos recurrence. Numerical stability in floating-point arithmetic often requires full re-orthogonalization, but the provided implementation uses the standard three-term recurrence which is sufficient for the requested function signature.",
+            "evidence_summary": [
+              "The code correctly initializes the Krylov subspace basis and iteratively computes the orthonormal vectors using the symmetric Lanczos recurrence relation."
+            ],
+            "revision_request": "",
+            "sender": "agent_0",
+            "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+            "unresolved_issues": []
+          },
+          {
+            "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...",
+            "artifact_id": "group_debate_round:agent_1:0:0:0",
+            "confidence": 1.0,
+            "critique": "The implementation follows the standard Lanczos procedure. It handles the orthonormalization process correctly and includes a check for the breakdown condition (beta near zero).",
+            "evidence_summary": [
+              "The code implements the Lanczos algorithm as requested",
+              "using numpy for matrix-vector operations and norm calculations."
+            ],
+            "revision_request": "",
+            "sender": "agent_1",
+            "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+            "unresolved_issues": []
+          }
+        ],
+        "group_members": [
+          "agent_0",
+          "agent_1"
+        ],
+        "summary": "agent_0: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_1: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A."
+      },
+      "phase": "group_controller",
+      "recipients": [
+        "agent_0"
+      ],
+      "round": 0,
+      "sender": "system"
+    },
+    {
+      "artifact_id": "group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0",
+      "content": "agent_2: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_3: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "kind": "group_summary",
+      "message_id": "m_2",
+      "outer_step_index": 0,
+      "payload": {
+        "group_artifacts": [
+          {
+            "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...",
+            "artifact_id": "group_debate_round:agent_2:0:0:0",
+            "confidence": 1.0,
+            "critique": "The implementation follows the standard Lanczos recurrence. Added a small epsilon check for the norm to handle potential breakdown cases where the Krylov subspace dimension is less than m.",
+            "evidence_summary": [
+              "The implementation uses the standard three-term recurrence relation for symmetric Lanczos iteration",
+              "ensuring the output matrix Q has orthonormal columns as requested."
+            ],
+            "revision_request": "",
+            "sender": "agent_2",
+            "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+            "unresolved_issues": []
+          },
+          {
+            "answer_artifact": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm iteratively generates vectors q_j such that the ma...",
+            "artifact_id": "group_debate_round:agent_3:0:0:0",
+            "confidence": 1.0,
+            "critique": "The implementation correctly follows the Lanczos process, including the Gram-Schmidt orthogonalization steps and normalization. It handles the case where the norm of the residual vector becomes negligible (breakdown).",
+            "evidence_summary": [
+              "The implementation uses standard linear algebra operations (matrix-vector multiplication",
+              "dot products",
+              "and norms) consistent with the Lanczos algorithm definition."
+            ],
+            "revision_request": "",
+            "sender": "agent_3",
+            "summary": "Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A.",
+            "unresolved_issues": []
+          }
+        ],
+        "group_members": [
+          "agent_2",
+          "agent_3"
+        ],
+        "summary": "agent_2: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A. | agent_3: Implemented the Lanczos iteration algorithm to generate an orthonormal basis for the Krylov subspace of a symmetric matrix A."
+      },
+      "phase": "group_controller",
+      "recipients": [
+        "agent_2"
+      ],
+      "round": 0,
+      "sender": "system"
+    }
+  ],
+  "remaining_message_budget": {
+    "agent_0": 2,
+    "agent_1": 2,
+    "agent_2": 2,
+    "agent_3": 2
+  },
+  "retrieved_docids": [
+    "0",
+    "1"
+  ],
+  "rounds_configured": 2,
+  "run_index": 0,
+  "seed": 6042,
+  "step_runs": [
+    {
+      "final_answer": "```python # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal. def lanczos(A, b, m): M = A.shape[0] Q = np.zeros((M, m + 1)) alpha = np.zeros(m) beta = np.zeros(m) q = b / np.linalg.norm(b) Q[:, 0] = q for j in range(m): v = A @ Q[:, j] alpha[j] = np.dot(Q[:, j], v) v = v - alpha[j] * Q[:, j] if j > 0: v = v - beta[j-1] * Q[:, j-1] beta[j] = np.linalg.norm(v) if beta[j] < 1e-12: break Q[:, j+1] = v / beta[j] return Q ```",
+      "outer_step_index": 0,
+      "run_summary": {
+        "final_reason": "group_chat_debate:consensus_reached",
+        "messages_sent_by_agent": {
+          "agent_0": 0,
+          "agent_1": 0,
+          "agent_2": 0,
+          "agent_3": 0
+        },
+        "messages_sent_total": 0,
+        "tool_call_counts": {},
+        "tool_calls_total": 0,
+        "topology": "group_chat_debate",
+        "turns_executed": 1
+      },
+      "task_id": "5.1"
+    }
+  ],
+  "task_id": "5.1",
+  "termination_history": [
+    {
+      "average_confidence": 1.0,
+      "consensus_count": 4,
+      "consensus_explanation": "All agents implemented the Lanczos iteration algorithm correctly, producing the same logic for the orthonormal basis construction and returning the matrix Q of size M*(m+1).",
+      "consensus_groups": [
+        [
+          0,
+          1,
+          2,
+          3
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "0,1,2,3",
+      "consensus_source": "llm_judge",
+      "consensus_valid_count": 4,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 1636.401457944885,
+      "control_token_in": 2311,
+      "control_token_out": 53,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "representative_dispatch",
+      "outer_step_index": 0,
+      "reason": "consensus_reached",
+      "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "group_controller",
+      "valid_artifact_count": 4
+    },
+    {
+      "average_confidence": 1.0,
+      "consensus_count": 2,
+      "consensus_explanation": "Both agents implement the Lanczos iteration algorithm correctly using the standard three-term recurrence relation to generate an orthonormal basis for the Krylov subspace.",
+      "consensus_groups": [
+        [
+          0,
+          1
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "0,1",
+      "consensus_source": "llm_judge",
+      "consensus_valid_count": 2,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 1539.300749776885,
+      "control_token_in": 1364,
+      "control_token_out": 45,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "final_judge",
+      "outer_step_index": 0,
+      "reason": "consensus_reached",
+      "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "representative_controller",
+      "valid_artifact_count": 2
+    }
+  ],
+  "tool_call_counts": {},
+  "tool_calls_total": 0,
+  "tool_definitions": [],
+  "topology": "group_chat_debate",
+  "topology_layout": {
+    "adjacency": {
+      "agent_0": [
+        "agent_1"
+      ],
+      "agent_1": [
+        "agent_0"
+      ],
+      "agent_2": [
+        "agent_3"
+      ],
+      "agent_3": [
+        "agent_2"
+      ]
+    },
+    "agent_ids": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "agents_per_level": [
+      2,
+      2
+    ],
+    "children_by_agent": {},
+    "groups": [
+      [
+        "agent_0",
+        "agent_1"
+      ],
+      [
+        "agent_2",
+        "agent_3"
+      ]
+    ],
+    "leaves": [],
+    "level_by_agent": {
+      "agent_0": 0,
+      "agent_1": 0,
+      "agent_2": 1,
+      "agent_3": 1
+    },
+    "managers": [],
+    "orchestrator_id": null,
+    "parent_by_agent": {},
+    "representatives": [
+      "agent_0",
+      "agent_2"
+    ],
+    "roles": {
+      "agent_0": "group_0_representative",
+      "agent_1": "group_0_member",
+      "agent_2": "group_1_representative",
+      "agent_3": "group_1_member"
+    },
+    "specialists": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "topological_order": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "topology": "group_chat_debate"
+  },
+  "turns_executed": 1,
+  "vote_tally": {
+    "python background the lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large sparse symmetric matrix it constructs an orthonormal basis for the krylov subspace k m a b span b ab a 2b a m 1 b the algorithm uses a three term recurrence relation beta j q j 1 a q j alpha j q j beta j 1 q j 1 where alpha j q j t a q j and beta j is the norm of the residual vector this process ensures that the generated vectors q 1 q m are orthonormal def lanczos a b m m a shape 0 q np zeros m m 1 alpha np zeros m beta np zeros m q b np linalg norm b q 0 q for j in range m v a q j alpha j np dot q j v v v alpha j q j if j 0 v v beta j 1 q j 1 beta j np linalg norm v if beta j 1e 12 break q j 1 v beta j return q": 1,
+    "python background the lanczos iteration is an algorithm used to compute the tridiagonalization of a symmetric matrix or to find a subset of eigenvalues and eigenvectors for large sparse symmetric matrices it constructs an orthonormal basis krylov subspace for the matrix a by iteratively applying the matrix vector product the recurrence relation is given by beta j 1 q j 1 a q j alpha j q j beta j q j 1 where alpha j q j t a q j and beta j is the norm of the residual vector ensuring that the resulting vectors q i are orthonormal def lanczos a b m inputs a matrix 2d array of arbitrary size m m b vector 1d array of arbitrary size m 1 m integer m m outputs q matrix 2d array of size m m 1 m a shape 0 q np zeros m m 1 normalize the initial vector q b np linalg norm b q 0 q beta 0 q prev np zeros m for j in range m v a q j alpha np dot q j v v v alpha q j beta q prev re orthogonalization could be added here for numerical stability beta np linalg norm v if beta 1e 12 break q prev q j q j 1 v beta return q": 1
+  },
+  "workflow_definition": {
+    "aggregation_logic": "Group members debate locally, representatives merge group summaries, and a shared final judge selects the final answer.",
+    "conditional_edges": [
+      "group_dispatch -> group_debate_round (parallel Send fan-out) else group_controller",
+      "group_controller -> group_dispatch | representative_dispatch",
+      "representative_dispatch -> representative_merge (parallel Send fan-out) else final_judge",
+      "representative_controller -> representative_dispatch | final_judge"
+    ],
+    "dispatch_logic": "Debate is local to groups until the controller emits representative-only summaries. Inter-group traffic is restricted to representative packets.",
+    "edges": [
+      "START -> group_dispatch",
+      "group_debate_round -> group_controller",
+      "representative_merge -> representative_controller",
+      "final_judge -> descriptor_monitor",
+      "descriptor_monitor -> finalize",
+      "finalize -> END"
+    ],
+    "logging_outputs": [
+      "trace_events",
+      "relay_messages",
+      "message_views",
+      "interaction_logs",
+      "descriptor_records",
+      "termination_history"
+    ],
+    "nodes": {
+      "descriptor_monitor": "Shared descriptor hook.",
+      "final_judge": "Deterministic final judge.",
+      "finalize": "Finalize the run.",
+      "group_controller": "Intra-group controller plus stop/merge logic.",
+      "group_debate_round": "Parallel group debate workers.",
+      "group_dispatch": "Fan out the intra-group debate stage.",
+      "representative_controller": "Representative-level controller plus stopping logic.",
+      "representative_dispatch": "Representative fan-out.",
+      "representative_merge": "Representative merge/debate stage."
+    },
+    "state_fields": [
+      "task_id",
+      "task_prompt",
+      "topology",
+      "layout",
+      "rounds",
+      "discussion_rounds",
+      "round_index",
+      "discussion_index",
+      "messages",
+      "artifacts",
+      "termination_decision",
+      "vote_tally",
+      "descriptor_records"
+    ],
+    "stopping_criteria": [
+      "Max group rounds reached",
+      "Consensus inside groups",
+      "No meaningful change between group or representative revisions",
+      "Confidence threshold reached",
+      "Invalid or failed branch fallback",
+      "Max representative rounds reached"
+    ],
+    "topology": "group_chat_debate"
+  }
+}

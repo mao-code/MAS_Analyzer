@@ -1,0 +1,1283 @@
+{
+  "benchmark": "workbench",
+  "config_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/config/benchmarks/workbench_10.toml",
+  "experiment_id": "20260401T034156Z",
+  "experiment_settings_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_1": [
+          "agent_0"
+        ],
+        "agent_2": [
+          "agent_0"
+        ],
+        "agent_3": [
+          "agent_0"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        1,
+        3
+      ],
+      "children_by_agent": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ]
+      },
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "managers": [],
+      "orchestrator_id": "agent_0",
+      "parent_by_agent": {
+        "agent_1": "agent_0",
+        "agent_2": "agent_0",
+        "agent_3": "agent_0"
+      },
+      "representatives": [],
+      "roles": {
+        "agent_0": "orchestrator",
+        "agent_1": "specialist",
+        "agent_2": "specialist",
+        "agent_3": "specialist"
+      },
+      "specialists": [
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "orchestrator_no_discussion"
+    },
+    "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/mas_graph.mmd",
+    "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "orchestrator_no_discussion",
+    "workflow": {
+      "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/workflow_graph.mmd",
+      "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "orchestrator_no_discussion",
+      "workflow": {
+        "aggregation_logic": "Specialist artifacts are relayed upward as reports; the orchestrator merges those reports into one artifact.",
+        "conditional_edges": [
+          "dispatch_specialists -> specialist_worker (parallel Send fan-out) else relay_specialist_reports",
+          "termination_checker -> dispatch_specialists | finalize"
+        ],
+        "dispatch_logic": "The orchestrator emits bounded task packages to the activated specialists.",
+        "edges": [
+          "START -> orchestrator_plan",
+          "orchestrator_plan -> dispatch_specialists",
+          "specialist_worker -> relay_specialist_reports",
+          "relay_specialist_reports -> orchestrator_merge",
+          "orchestrator_merge -> descriptor_monitor",
+          "descriptor_monitor -> termination_checker",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "descriptor_monitor": "Shared descriptor hook.",
+          "dispatch_specialists": "Build task packages for specialists.",
+          "finalize": "Finalize the run.",
+          "orchestrator_merge": "Merge specialist reports.",
+          "orchestrator_plan": "Initial planner/orchestrator artifact.",
+          "relay_specialist_reports": "Bounded specialist-to-orchestrator reports.",
+          "specialist_worker": "Independent specialist execution.",
+          "termination_checker": "Explicit round stopper."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max rounds reached",
+          "Consensus across specialist artifacts",
+          "No meaningful change between orchestrator merge artifacts",
+          "Orchestrator confidence threshold reached",
+          "Invalid or failed branch fallback"
+        ],
+        "topology": "orchestrator_no_discussion"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_no_discussion",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_no_discussion"
+  },
+  "system_label": "orchestrator_no_discussion",
+  "task_count": 10,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_0/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_0/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 52604.818791966885,
+        "C2_tokens_total": 23553.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 20.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 55.0,
+        "P2_backtrack_rate": 0.01818181818181818,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.14545454545454545,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 49931.43741693348,
+        "stage_act_tokens": 22713.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 101.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 40.0,
+        "stage_retrieve_latency_ms": 40.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2631.3813750334084,
+        "stage_verify_tokens": 739.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Cameron Anderson\", participant_email=\"sofia.santos@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\")",
+                "calendar.create_event.func(event_start=\"2023-12-01 14:00:00\", duration=\"30\", participant_email=\"cameron.anderson@atlas.com\", event_name=\"Update on Cameron Anderson\")"
+              ],
+              "query": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": true
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_0"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_0",
+      "task_id": "multi_domain_0"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_1/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_1/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 60776.375125037506,
+        "C2_tokens_total": 30407.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 25.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 65.0,
+        "P2_backtrack_rate": 0.015384615384615385,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.12307692307692308,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 58713.26324995607,
+        "stage_act_tokens": 29542.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 119.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 50.0,
+        "stage_retrieve_latency_ms": 50.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2011.1118750814348,
+        "stage_verify_tokens": 746.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Riley Brown\", participant_email=\"lena.schmidt@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Riley Brown\")",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley\")",
+                "calendar.search_events.func(query=\"Brown\")",
+                "calendar.search_events.func(query=\"Riley Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(query=\"Brown\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Riley Brown\")",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "calendar.create_event.func(event_name=\"Update on Riley Brown\", duration=\"30\", event_start=\"2023-12-01 14:00:00\")"
+              ],
+              "query": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_1"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_1",
+      "task_id": "multi_domain_1"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_2/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 52684.95449994318,
+        "C2_tokens_total": 22973.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 20.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 55.0,
+        "P2_backtrack_rate": 0.01818181818181818,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.14545454545454545,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 50034.73645797931,
+        "stage_act_tokens": 22242.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 106.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 40.0,
+        "stage_retrieve_latency_ms": 40.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2608.2180419638753,
+        "stage_verify_tokens": 625.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jessie Thomas\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\", time_min=\"2023-11-16 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\", time_min=\"2023-11-16 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "calendar.create_event.func(event_name=\"Update on Jessie Thomas\", participant_email=\"nia.johnson@atlas.com\", duration=\"30\", event_start=\"2023-12-01 14:00:00\")"
+              ],
+              "query": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": true
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_2"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_2",
+      "task_id": "multi_domain_2"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_3/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_3/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 43391.7895403523,
+        "C2_tokens_total": 18805.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 17.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 49.0,
+        "P2_backtrack_rate": 0.02040816326530612,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.16326530612244897,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 41243.81049931981,
+        "stage_act_tokens": 18084.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 61.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 34.0,
+        "stage_retrieve_latency_ms": 34.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2111.979041032493,
+        "stage_verify_tokens": 660.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Quinn Thomas\", participant_email=\"akira.sato@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", query=\"Quinn Thomas\")",
+                "company_directory.find_email_address.func(name=\"Quinn Thomas\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", query=\"Quinn Thomas\")",
+                "company_directory.find_email_address.func(name=\"Quinn Thomas\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(query=\"Quinn Thomas\")",
+                "company_directory.find_email_address.func(name=\"Quinn Thomas\")",
+                "calendar.search_events.func(query=\"Quinn\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")"
+              ],
+              "query": "I haven't spoken to Quinn Thomas in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Thomas' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_3"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "I haven't spoken to Quinn Thomas in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Thomas' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_3",
+      "task_id": "multi_domain_3"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_4/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_4/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 72865.47041691653,
+        "C2_tokens_total": 32055.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 28.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 8.0,
+        "D3_handoff_count": 16.0,
+        "P1_steps_total": 83.0,
+        "P2_backtrack_rate": 0.024096385542168676,
+        "P3_loop_score": 0.25301204819277107,
+        "P4_verification_density": 0.18072289156626506,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 9.0,
+        "stage_act_latency_ms": 67730.96329183318,
+        "stage_act_tokens": 30651.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 79.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 56.0,
+        "stage_retrieve_latency_ms": 56.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 15.0,
+        "stage_verify_latency_ms": 5075.507125083357,
+        "stage_verify_tokens": 1325.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\", time_min=\"2023-11-16 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Quinn Harris\")",
+                "calendar.create_event.func(event_start=\"2023-12-01 14:00:00\", duration=\"30\", event_name=\"Update on Quinn Harris\", participant_email=\"quinn.harris@atlas.com\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Quinn Harris\")",
+                "calendar.search_events.func(query=\"Quinn Harris\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Quinn Harris in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Harris' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": true
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_4"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Quinn Harris in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Harris' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_4",
+      "task_id": "multi_domain_4"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_5/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_5/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 46882.02175123431,
+        "C2_tokens_total": 19881.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 19.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 53.0,
+        "P2_backtrack_rate": 0.018867924528301886,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.1509433962264151,
+        "Q1_success_rate": 1.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 44773.6211263109,
+        "stage_act_tokens": 19135.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 87.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 38.0,
+        "stage_retrieve_latency_ms": 38.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2068.400624923408,
+        "stage_verify_tokens": 659.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 1.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": true,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": true,
+              "ground_truth": [],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(query=\"Quinn Brown\", time_max=\"2023-11-30 23:59:59\")",
+                "company_directory.find_email_address.func(name=\"Quinn Brown\")",
+                "calendar.search_events.func(query=\"Quinn\")",
+                "calendar.search_events.func(query=\"Brown\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", time_min=\"2023-10-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Quinn Brown\", time_max=\"2023-11-30 23:59:59\")",
+                "company_directory.find_email_address.func(name=\"Quinn Brown\")",
+                "calendar.search_events.func(query=\"Quinn\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(query=\"Quinn Brown\")",
+                "company_directory.find_email_address.func(name=\"Quinn Brown\")",
+                "calendar.search_events.func(query=\"Quinn\")"
+              ],
+              "query": "I haven't spoken to Quinn Brown in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Brown' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 1.0,
+            "success": true,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_5"
+          }
+        ],
+        "success_rate": 1.0
+      },
+      "prompt_preview": "I haven't spoken to Quinn Brown in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Quinn Brown' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_5",
+      "task_id": "multi_domain_5"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_6/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_6/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 54256.53370937705,
+        "C2_tokens_total": 24605.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 21.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 57.0,
+        "P2_backtrack_rate": 0.017543859649122806,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.14035087719298245,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 51680.019876221195,
+        "stage_act_tokens": 23818.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 91.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 42.0,
+        "stage_retrieve_latency_ms": 42.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2532.5138331558555,
+        "stage_verify_tokens": 696.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Jamie Anderson\", participant_email=\"nadia.moreau@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Jamie Anderson\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jamie Anderson\")",
+                "calendar.search_events.func(query=\"Jamie Anderson\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "company_directory.find_email_address.func(name=\"Jamie Anderson\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jamie Anderson\")",
+                "calendar.search_events.func(query=\"Jamie Anderson\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jamie Anderson\")",
+                "company_directory.find_email_address.func(name=\"Jamie Anderson\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "calendar.search_events.func(query=\"Jamie Anderson\")",
+                "calendar.search_events.func(query=\"Jamie\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\")"
+              ],
+              "query": "If we haven't spoke to Jamie Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jamie Anderson' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_6"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Jamie Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jamie Anderson' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_6",
+      "task_id": "multi_domain_6"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_7/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_7/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 48911.053207915276,
+        "C2_tokens_total": 21642.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 19.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 53.0,
+        "P2_backtrack_rate": 0.018867924528301886,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.1509433962264151,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 46645.35062387586,
+        "stage_act_tokens": 20895.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 76.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 38.0,
+        "stage_retrieve_latency_ms": 38.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2225.70258403942,
+        "stage_verify_tokens": 671.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Kerry Brown\", participant_email=\"lena.schmidt@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(query=\"Kerry Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(query=\"Kerry Brown\")",
+                "company_directory.find_email_address.func(name=\"Kerry Brown\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Kerry Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(query=\"Kerry Brown\")",
+                "company_directory.find_email_address.func(name=\"Kerry Brown\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Kerry Brown\")",
+                "company_directory.find_email_address.func(name=\"Kerry Brown\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.create_event.func(event_name=\"Update on Kerry Brown\", event_start=\"2023-12-01 13:00:00\", participant_email=\"nia.johnson@atlas.com\", duration=\"30\")"
+              ],
+              "query": "If we haven't spoken to Kerry Brown in the past 2 weeks, book a half hour meeting with whoeveris assigned to them called 'Update on Kerry Brown' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": true
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_7"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoken to Kerry Brown in the past 2 weeks, book a half hour meeting with whoeveris assigned to them called 'Update on Kerry Brown' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_7",
+      "task_id": "multi_domain_7"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_8/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_8/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 76536.8533759173,
+        "C2_tokens_total": 33417.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 28.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 8.0,
+        "D3_handoff_count": 16.0,
+        "P1_steps_total": 83.0,
+        "P2_backtrack_rate": 0.024096385542168676,
+        "P3_loop_score": 0.2289156626506024,
+        "P4_verification_density": 0.18072289156626506,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 9.0,
+        "stage_act_latency_ms": 71205.54650085978,
+        "stage_act_tokens": 31953.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 101.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 56.0,
+        "stage_retrieve_latency_ms": 56.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 15.0,
+        "stage_verify_latency_ms": 5272.3068750575185,
+        "stage_verify_tokens": 1363.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Jordan Jones\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jordan Jones\")",
+                "calendar.search_events.func(query=\"Jordan Jones\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")",
+                "company_directory.find_email_address.func(name=\"Jordan Jones\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jordan Jones\")",
+                "calendar.search_events.func(query=\"Jordan Jones\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jordan Jones\")",
+                "company_directory.find_email_address.func(name=\"Jordan Jones\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 18:00:00\", time_min=\"2023-12-01 09:00:00\")",
+                "calendar.search_events.func(query=\"Jordan Jones\")",
+                "calendar.create_event.func(event_start=\"2023-12-01 13:00:00\", event_name=\"Update on Jordan Jones\", duration=\"30\", participant_email=\"nia.johnson@atlas.com\")",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jordan Jones\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 09:00:00\", time_max=\"2023-12-01 18:00:00\")"
+              ],
+              "query": "If we haven't spoke to Jordan Jones in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jordan Jones' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": true
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_8"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Jordan Jones in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jordan Jones' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_8",
+      "task_id": "multi_domain_8"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_9/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_9/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 41147.774792118,
+        "C2_tokens_total": 18072.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 18.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 51.0,
+        "P2_backtrack_rate": 0.0196078431372549,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.1568627450980392,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 38433.52779210545,
+        "stage_act_tokens": 17360.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 82.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 36.0,
+        "stage_retrieve_latency_ms": 36.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2676.247000012547,
+        "stage_verify_tokens": 630.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Jamie Davis\", participant_email=\"sofia.santos@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "calendar.get_event_information_by_id.func()",
+                "calendar.search_events.func(query=\"Jamie Davis\", time_max=\"2023-11-30 23:59:59\")",
+                "company_directory.find_email_address.func(name=\"Jamie Davis\")",
+                "calendar.search_events.func(query=\"Jamie\")",
+                "calendar.search_events.func(time_min=\"2023-11-01 00:00:00\", time_max=\"2023-11-30 23:59:59\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", time_min=\"2023-11-10 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-11-30 23:59:59\", query=\"Jamie Davis\")",
+                "company_directory.find_email_address.func(name=\"Jamie Davis\")",
+                "calendar.search_events.func(query=\"Jamie\")",
+                "calendar.search_events.func(query=\"Jamie Davis\")",
+                "company_directory.find_email_address.func(name=\"Jamie Davis\")",
+                "calendar.search_events.func(query=\"Jamie\")"
+              ],
+              "query": "I haven't spoken to Jamie Davis in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Jamie Davis' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_9"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "I haven't spoken to Jamie Davis in a while. Can you check if it's been over 14 days? If so, book a 30-minute meeting with whoever is assigned to them called 'Update on Jamie Davis' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/workbench/orchestrator_no_discussion/multi_domain_9",
+      "task_id": "multi_domain_9"
+    }
+  ],
+  "timestamp": "20260401T034156Z"
+}

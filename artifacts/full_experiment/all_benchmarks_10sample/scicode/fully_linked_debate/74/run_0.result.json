@@ -1,0 +1,129 @@
+{
+  "artifacts": {
+    "answer_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/run_0.answer.txt",
+    "metadata_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/run_0.metadata.json",
+    "task_manifest_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/task.json",
+    "trace_metrics_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/run_0.trace_metrics.json",
+    "trajectory_json_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/run_0.trajectory.json",
+    "trajectory_md_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/run_0.trajectory.md"
+  },
+  "benchmark": "scicode",
+  "evaluation": {
+    "details": {
+      "Main Problem Resolve Rate": 0.0,
+      "Subproblem Resolve Rate": 0.0,
+      "Total Correct": 0,
+      "Total Steps": 1,
+      "prediction": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. The process uses Householder reflections, which are transformations of the form H = I - 2vv^T / (v^T v), to zero out elements below the diagonal of each column of A. By applying a sequence of these reflections, A is transformed into an upper triangular matrix R. The vector v is chosen such that the reflection maps the target column vector to a multi",
+      "step_results": {
+        "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp1cx8_ri3/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+      }
+    },
+    "score": 0.0,
+    "success": false
+  },
+  "final_answer": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. The process uses Householder reflections, which are transformations of the form H = I - 2vv^T / (v^T v), to zero out elements below the diagonal of each column of A. By applying a sequence of these reflections, A is transformed into an upper triangular matrix R. The vector v is chosen such that the reflection maps the target column vector to a multiple of the first standard basis vector, effectively introducing zeros below the pivot. import numpy as np def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (The upper triangular matrix R) ''' m, n = A.shape R = A.astype(float).copy() for k in range(n): x = R[k:, k] e1 = np.zeros_like(x) e1[0] = np.linalg.norm(x) # Determine the Householder vector v v = x - (np.sign(x[0]) if x[0] != 0 else 1) * e1 norm_v = np.linalg.norm(v) if norm_v < 1e-15: continue v = v / norm_v # Apply the reflection to the remaining submatrix R[k:, k:] -= 2 * np.outer(v, v.T @ R[k:, k:]) # Ensure the lower triangle is zeroed out due to floating point errors return np.triu(R) ",
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "run_index": 0,
+  "run_summary": {
+    "final_reason": "fully_linked_debate:consensus_reached",
+    "messages_sent_by_agent": {
+      "agent_0": 0,
+      "agent_1": 0,
+      "agent_2": 0,
+      "agent_3": 0
+    },
+    "messages_sent_total": 0,
+    "retrieved_docids": [
+      "0"
+    ],
+    "run_index": 0,
+    "seed": 5042,
+    "task_id": "74.1",
+    "tool_call_counts": {},
+    "tool_calls_total": 0,
+    "topology": "fully_linked_debate",
+    "turns_executed": 1,
+    "vote_tally": {
+      "python background householder qr factorization decomposes a matrix a into an orthogonal matrix q and an upper triangular matrix r the process uses householder reflections which are transformations of the form h i 2vv t v t v to zero out elements below the diagonal of each column of a by applying a sequence of these reflections a is transformed into an upper triangular matrix r the vector v is chosen such that the reflection maps the target column vector to a multiple of the first standard basis vector effectively introducing zeros below the pivot import numpy as np def householder a inputs a matrix of size m n m n outputs a matrix of size m n the upper triangular matrix r m n a shape r a astype float copy for k in range n x r k k e1 np zeros like x e1 0 np linalg norm x determine the householder vector v v x np sign x 0 if x 0 0 else 1 e1 norm v np linalg norm v if norm v 1e 15 continue v v norm v apply the reflection to the remaining submatrix r k k 2 np outer v v t r k k ensure the lower triangle is zeroed out due to floating point errors return np triu r": 1,
+      "python background householder qr factorization decomposes a matrix a into an orthogonal matrix q and an upper triangular matrix r this is achieved by applying a sequence of householder reflections which are transformations of the form h i 2vv t v tv where v is a householder vector for each column k from 0 to n 1 we construct a vector v that zeros out the elements below the diagonal in that column applying these reflections to a transforms it into an upper triangular matrix r which is stored in the upper triangle of the modified a def householder a inputs a matrix of size m n m n outputs a matrix of size m n upper triangle contains r m n a shape a a astype float for k in range n x a k k norm x np linalg norm x rho np sign x 0 if x 0 0 else 1 u1 x 0 rho norm x v x u1 v 0 1 0 beta rho u1 norm x apply reflection to the remaining columns a k k beta np outer v v t a k k explicitly zero out the lower part for numerical stability if k m 1 a k 1 k 0 0 return a": 1,
+      "python background qr factorization using householder reflections transforms an m x n matrix a into an upper triangular matrix r by applying a sequence of orthogonal householder transformations a householder reflection is defined by a vector v such that h i 2 vv t v tv for each column k from 0 to n 1 we construct a reflection that zeros out the elements below the diagonal in that column the matrix a is updated in place to store the r matrix in its upper triangular part def householder a inputs a matrix of size m n m n outputs a matrix of size m n upper triangular part contains r m n a shape a a astype float for k in range n x a k k e1 np zeros like x e1 0 np linalg norm x 1 if x 0 0 else 1 v x e1 v v np linalg norm v apply reflection to the remaining submatrix a k k 2 0 np outer v v t a k k return a": 1,
+      "python background qr factorization via householder reflections decomposes a matrix a into an orthogonal matrix q and an upper triangular matrix r the process involves applying a sequence of householder transformations h k i 2vv t v tv to zero out the sub diagonal elements of each column for a matrix a of size m x n we iterate through columns k 0 to n 1 for each column we construct a vector v such that the reflection maps the column segment a k m k to a multiple of the first standard basis vector effectively introducing zeros below the diagonal the matrix a is updated in place to store the r matrix in its upper triangular part import numpy as np def householder a inputs a matrix of size m n m n outputs a matrix of size m n upper triangular part contains r m n a shape a a astype float for k in range n x a k m k norm x np linalg norm x rho np sign x 0 if x 0 0 else 1 u1 x 0 rho norm x v x u1 v 0 1 0 beta rho u1 norm x apply transformation to remaining columns for j in range k n a k m j beta v np dot v a k m j return a": 1
+    }
+  },
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "fully_linked_debate",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "fully_linked_debate"
+  },
+  "task_id": "74",
+  "termination": {
+    "average_confidence": 1.0,
+    "consensus_count": 4,
+    "consensus_explanation": "All agents correctly implement the Householder QR factorization algorithm to compute the R matrix, despite minor variations in implementation details (e.g., handling of the Householder vector normalization or explicit zeroing).",
+    "consensus_groups": [
+      [
+        0,
+        1,
+        2,
+        3
+      ]
+    ],
+    "consensus_mode": "llm_judge",
+    "consensus_ratio": 1.0,
+    "consensus_signature": "0,1,2,3",
+    "consensus_source": "llm_judge",
+    "consensus_valid_count": 4,
+    "control_cost_usd": 0.0,
+    "control_latency_ms": 1930.9347090311348,
+    "control_token_in": 1983,
+    "control_token_out": 60,
+    "discussion_index": 0,
+    "mean_delta": null,
+    "next_step": "judge",
+    "outer_step_index": 0,
+    "reason": "consensus_reached",
+    "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+    "round_index": 0,
+    "should_stop": true,
+    "stage_name": "debate_controller",
+    "valid_artifact_count": 4
+  },
+  "trace_metrics": {
+    "backtrack_rate": 0.06666666666666667,
+    "communication_count": 0.0,
+    "completion": true,
+    "completion_source": "final_answer",
+    "cost_total": 0.0,
+    "handoff_count": 5.0,
+    "latency_total": 19762.254167106003,
+    "loop_score": 0.0,
+    "score": 0.0,
+    "steps_total": 15.0,
+    "success": false,
+    "success_source": "benchmark_evaluation",
+    "tokens_total": 6967.0,
+    "tool_calls_total": 0.0,
+    "tool_fail_total": 0.0,
+    "verification_density": 0.5333333333333333
+  }
+}

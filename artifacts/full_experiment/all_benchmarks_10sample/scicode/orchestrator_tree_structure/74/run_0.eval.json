@@ -1,0 +1,50 @@
+{
+  "completion": true,
+  "details": {
+    "Main Problem Resolve Rate": 0.0,
+    "Subproblem Resolve Rate": 0.0,
+    "Total Correct": 0,
+    "Total Steps": 1,
+    "prediction": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes an m x n matrix A into Q*R, where Q is an m x m orthogonal matrix and R is an m x n upper triangular matrix. The process uses Householder reflections of the form H = I - 2vv^T / (v^Tv) to zero out elements below the diagonal of each column. For a vector x, we choose v = x + sign(x[0])*||x||*e_1 to ensure numerical stability. By applying these reflections sequentially, we transform A into an upper triangular matrix R. def",
+    "run_metadata_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_tree_structure/74/run_0.metadata.json",
+    "run_metadata_summary": {
+      "final_reason": "orchestrator_tree_structure:confidence_threshold_reached",
+      "messages_sent_by_agent": {
+        "agent_0": 2,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 1,
+        "agent_4": 1
+      },
+      "messages_sent_total": 6,
+      "retrieved_docids": [
+        "0",
+        "1"
+      ],
+      "run_index": 0,
+      "seed": 5042,
+      "task_id": "74.1",
+      "tool_call_counts": {
+        "inter_agent_send": 6
+      },
+      "tool_calls_total": 6,
+      "topology": "orchestrator_tree_structure",
+      "turns_executed": 1,
+      "vote_tally": {}
+    },
+    "step_results": {
+      "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpb6jzbkmx/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+    }
+  },
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "prediction": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes an m x n matrix A into Q*R, where Q is an m x m orthogonal matrix and R is an m x n upper triangular matrix. The process uses Householder reflections of the form H = I - 2vv^T / (v^Tv) to zero out elements below the diagonal of each column. For a vector x, we choose v = x + sign(x[0])*||x||*e_1 to ensure numerical stability. By applying these reflections sequentially, we transform A into an upper triangular matrix R. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (upper triangular R) ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -u1 / rho / norm_x # Apply reflection to the remaining columns A[k:, k:] -= (beta * np.outer(v, v.T @ A[k:, k:])) # Explicitly zero out the sub-diagonal elements if k < m - 1: A[k+1:, k] = 0.0 return A ",
+  "score": 0.0,
+  "success": false,
+  "task_id": "74"
+}

@@ -1,0 +1,63 @@
+{
+  "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/finance_agent/fully_linked_debate/workflow_graph.mmd",
+  "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T034156Z/finance_agent/fully_linked_debate/workflow_graph.png",
+  "render_backend": "matplotlib_fallback",
+  "render_error": "Failed to reach https://mermaid.ink API while trying to render your graph after 0 retries. To resolve this issue:\n1. Check your internet connection and try again\n2. Try with higher retry settings: `draw_mermaid_png(..., max_retries=5, retry_delay=2.0)`\n3. Use the Pyppeteer rendering method which will render your graph locally in a browser: `draw_mermaid_png(..., draw_method=MermaidDrawMethod.PYPPETEER)`",
+  "topology": "fully_linked_debate",
+  "workflow": {
+    "aggregation_logic": "Debaters revise in parallel; the final judge performs deterministic voting over the latest debate artifacts.",
+    "conditional_edges": [
+      "debate_controller -> debate_dispatch | judge",
+      "debate_dispatch -> debate_round (parallel Send fan-out) else debate_controller"
+    ],
+    "dispatch_logic": "The controller sends bounded summaries of each debater artifact to all peers for the next round.",
+    "edges": [
+      "START -> debate_init",
+      "debate_init -> debate_controller",
+      "debate_round -> debate_controller",
+      "judge -> descriptor_monitor",
+      "descriptor_monitor -> finalize",
+      "finalize -> END"
+    ],
+    "logging_outputs": [
+      "trace_events",
+      "relay_messages",
+      "message_views",
+      "interaction_logs",
+      "descriptor_records",
+      "termination_history"
+    ],
+    "nodes": {
+      "debate_controller": "Round controller plus explicit stopping logic.",
+      "debate_dispatch": "Fan out the next debate round.",
+      "debate_init": "Initialize the debate controller.",
+      "debate_round": "Parallel debater revision stage.",
+      "descriptor_monitor": "Shared descriptor hook.",
+      "finalize": "Finalize the run.",
+      "judge": "Deterministic final judge."
+    },
+    "state_fields": [
+      "task_id",
+      "task_prompt",
+      "topology",
+      "layout",
+      "rounds",
+      "discussion_rounds",
+      "round_index",
+      "discussion_index",
+      "messages",
+      "artifacts",
+      "termination_decision",
+      "vote_tally",
+      "descriptor_records"
+    ],
+    "stopping_criteria": [
+      "Max rounds reached",
+      "Consensus across debater artifacts",
+      "No meaningful change between debate rounds",
+      "Confidence threshold reached",
+      "Invalid or failed branch fallback"
+    ],
+    "topology": "fully_linked_debate"
+  }
+}

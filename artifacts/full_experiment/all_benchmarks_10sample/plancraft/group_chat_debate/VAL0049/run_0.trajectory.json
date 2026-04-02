@@ -1,0 +1,964 @@
+{
+  "benchmark": "plancraft",
+  "final": {
+    "answer": "move: from [0] to [I17] with quantity 3",
+    "answer_preview": "move: from [0] to [I17] with quantity 3",
+    "final_reason": "group_chat_debate:consensus_reached",
+    "last_termination": {
+      "average_confidence": 1.0,
+      "consensus_count": 2,
+      "consensus_explanation": "Both agents provide the same action to move the crafted item from the output slot to an inventory slot.",
+      "consensus_groups": [
+        [
+          0,
+          1
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "0,1",
+      "consensus_source": "llm_judge",
+      "consensus_valid_count": 2,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 1602.5394168682396,
+      "control_token_in": 869,
+      "control_token_out": 37,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "final_judge",
+      "outer_step_index": 2,
+      "reason": "consensus_reached",
+      "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "representative_controller",
+      "valid_artifact_count": 2
+    },
+    "vote_tally": {
+      "move from 0 to i17 with quantity 3": 2
+    }
+  },
+  "prompt_catalog": [
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: group_0_representative\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_1",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+      "prompt_id": "p_2",
+      "role": "system",
+      "usage_count": 18
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_3",
+      "role": "user",
+      "usage_count": 18
+    },
+    {
+      "content": "move: from [I18] to [B1] with quantity 1",
+      "prompt_id": "p_4",
+      "role": "assistant",
+      "usage_count": 18
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_5",
+      "role": "user",
+      "usage_count": 18
+    },
+    {
+      "content": "move: from [I30] to [B2] with quantity 1",
+      "prompt_id": "p_6",
+      "role": "assistant",
+      "usage_count": 18
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+      "prompt_id": "p_7",
+      "role": "user",
+      "usage_count": 18
+    },
+    {
+      "content": "move: from [0] to [I6] with quantity 1",
+      "prompt_id": "p_8",
+      "role": "assistant",
+      "usage_count": 18
+    },
+    {
+      "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_9",
+      "role": "user",
+      "usage_count": 18
+    },
+    {
+      "content": "smelt: from [I36] to [I35] with quantity 1",
+      "prompt_id": "p_10",
+      "role": "assistant",
+      "usage_count": 18
+    },
+    {
+      "content": "Craft an item of type: gray_carpet\ninventory:\n - red_mushroom_block [I1] quantity 38\n - green_wool [I3] quantity 41\n - ender_eye [I6] quantity 46\n - glass_pane [I10] quantity 49\n - piglin_brute_spawn_egg [I12] quantity 6\n - clay [I14] quantity 7\n - magenta_dye [I16] quantity 6\n - gray_wool [I17] quantity 2\n - vine [I19] quantity 31\n - iron_hoe [I21] quantity 1\n - gray_bed [I23] quantity 1\n - orange_concrete_powder [I27] quantity 37\n - beacon [I28] quantity 25\n - warped_wart_block [I30] quantity 39\n - tropical_fish_bucket [I32] quantity 1\n - music_disc_chirp [I33] quantity 1\n - red_sandstone [I35] quantity 11",
+      "prompt_id": "p_11",
+      "role": "user",
+      "usage_count": 18
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"group_0_representative\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_12",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: group_0_member\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_13",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"group_0_member\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_14",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: group_1_representative\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_15",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"group_1_representative\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_16",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: group_1_member\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_17",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"group_1_member\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate only inside your group, using bounded group summaries.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_18",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: group_0_representative\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_19",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"group_0_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n    \"summary\": \"The objective is to craft gray_carpet. Gray carpet is crafted using two gray wool blocks placed horizontally in the crafting grid.\",\n    \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1 move: from [I17] to [A2] with quantity 1\",\n    \"critique\": \"The inventory contains gray_wool in slot [I17] with a quantity of 2. Placing these in [A1] and [A2] will result in the crafting of gray_carpet in slot [0].\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"Inventory slot [I17] contains 2 gray_wool. Recipe for gray_carpet is 2 gray_wool in a horizontal row.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_1\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0\",\n      \"content\": \"agent_0: The objective is to craft gray_carpet. Gray carpet is crafted using two gray wool blocks placed horizontally in the crafting grid. | agent_1: The user requested to craft a gray_carpet. I have identified that gray_wool is available in slot [I17]. Placing two gray_wool blocks in the crafting grid (A1 and A2)...\",\n      \"payload\": {\n        \"summary\": \"agent_0: The objective is to craft gray_carpet. Gray carpet is crafted using two gray wool blocks placed horizontally in the crafting grid. | agent_1: The user requested to craft a gray_carpet. I have identified that gray_wool is available in slot [I17]. Placing two gray_wool blocks in the crafting grid (A1 and A2) will produce gray_carpet.\",\n        \"group_members\": [\n          \"agent_0\",\n          \"agent_1\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n            \"summary\": \"The objective is to craft gray_carpet. Gray carpet is crafted using two gray wool blocks placed horizontally in the crafting grid.\",\n            \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1 move: from [I17] to [A2] with quantity 1\",\n            \"critique\": \"The inventory contains gray_wool in slot [I17] with a quantity of 2. Placing these in [A1] and [A2] will result in the crafting of gray_carpet in slot [0].\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"Inventory slot [I17] contains 2 gray_wool. Recipe for gray_carpet is 2 gray_wool in a horizontal row.\"\n            ],\n            \"sender\": \"agent_0\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_1:0:0:0\",\n            \"summary\": \"The user requested to craft a gray_carpet. I have identified that gray_wool is available in slot [I17]. Placing two gray_wool blocks in the crafting grid (A1 and A2) will produce gray_carpet.\",\n            \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1 move: from [I17] to [A2] with quantity 1\",\n            \"critique\": \"The task is to craft gray_carpet. The recipe for gray_carpet requires two gray_wool blocks placed horizontally. I have identified the necessary materials in the inventory.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"Inventory contains gray_wool in [I17]. Recipe for gray_carpet is 2x gray_wool.\"\n            ],\n            \"sender\": \"agent_1\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_20",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: group_1_representative\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_21",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"group_1_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n    \"summary\": \"The objective is to craft a gray_carpet. Gray carpet is crafted using two pieces of gray wool in a horizontal row. The inventory contains gray_wool in slot [I17] with a quantity of 2.\",\n    \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1 move: from [I17] to [A2] with quantity 1\",\n    \"critique\": \"The agent correctly identified the recipe for gray carpet (2 gray wool) and the location of the required materials in the inventory.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"Inventory slot [I17] contains 2 gray_wool. The crafting recipe for gray carpet requires 2 gray_wool placed horizontally in the crafting grid.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_2\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_2\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0\",\n      \"content\": \"agent_2: The objective is to craft a gray_carpet. Gray carpet is crafted using two pieces of gray wool in a horizontal row. The inventory contains gray_wool in slot [I17] with a quantity of 2. | agent_3: The user requested to craft a gray_carpet. I identified that gray_wool is available in slot [I17]. Placing two gr...\",\n      \"payload\": {\n        \"summary\": \"agent_2: The objective is to craft a gray_carpet. Gray carpet is crafted using two pieces of gray wool in a horizontal row. The inventory contains gray_wool in slot [I17] with a quantity of 2. | agent_3: The user requested to craft a gray_carpet. I identified that gray_wool is available in slot [I17]. Placing two gray_wool in the crafting grid will produce gray_carpet.\",\n        \"group_members\": [\n          \"agent_2\",\n          \"agent_3\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n            \"summary\": \"The objective is to craft a gray_carpet. Gray carpet is crafted using two pieces of gray wool in a horizontal row. The inventory contains gray_wool in slot [I17] with a quantity of 2.\",\n            \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1 move: from [I17] to [A2] with quantity 1\",\n            \"critique\": \"The agent correctly identified the recipe for gray carpet (2 gray wool) and the location of the required materials in the inventory.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"Inventory slot [I17] contains 2 gray_wool. The crafting recipe for gray carpet requires 2 gray_wool placed horizontally in the crafting grid.\"\n            ],\n            \"sender\": \"agent_2\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_3:0:0:0\",\n            \"summary\": \"The user requested to craft a gray_carpet. I identified that gray_wool is available in slot [I17]. Placing two gray_wool in the crafting grid will produce gray_carpet.\",\n            \"answer_artifact\": \"move: from [I17] to [A1] with quantity 2\",\n            \"critique\": \"The inventory contains gray_wool in [I17], which is the correct ingredient for gray_carpet. No other ingredients are required for this recipe.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"Inventory slot [I17] contains gray_wool. The recipe for gray_carpet requires two wool blocks of the same color.\"\n            ],\n            \"sender\": \"agent_3\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_22",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "move: from [I17] to [A1] with quantity 1 move: from [I17] to [A2] with quantity 1",
+      "prompt_id": "p_23",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: gray_carpet\ninventory:\n - gray_wool [A1] quantity 1\n - red_mushroom_block [I1] quantity 38\n - green_wool [I3] quantity 41\n - ender_eye [I6] quantity 46\n - glass_pane [I10] quantity 49\n - piglin_brute_spawn_egg [I12] quantity 6\n - clay [I14] quantity 7\n - magenta_dye [I16] quantity 6\n - gray_wool [I17] quantity 1\n - vine [I19] quantity 31\n - iron_hoe [I21] quantity 1\n - gray_bed [I23] quantity 1\n - orange_concrete_powder [I27] quantity 37\n - beacon [I28] quantity 25\n - warped_wart_block [I30] quantity 39\n - tropical_fish_bucket [I32] quantity 1\n - music_disc_chirp [I33] quantity 1\n - red_sandstone [I35] quantity 11",
+      "prompt_id": "p_24",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"group_0_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n    \"summary\": \"The user is attempting to craft gray carpet. I have already placed one gray wool in [A1]. I am now moving the second gray wool from [I17] to [A2] to complete the recipe.\",\n    \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n    \"critique\": \"The previous move command was split into two parts in the prompt's history, but only one was executed. I am completing the placement of the second gray wool.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"The recipe for gray carpet requires two gray wool blocks. One is in [A1]\",\n      \"and the other is being moved from [I17] to [A2].\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_1\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0\",\n      \"content\": \"agent_0: The user is attempting to craft gray carpet. I have already placed one gray wool in [A1]. I am now moving the second gray wool from [I17] to [A2] to complete the recipe. | agent_1: The user wants to craft gray_carpet. I have already moved one gray_wool to [A1]. I need to move the second gray_wool from [I17]...\",\n      \"payload\": {\n        \"summary\": \"agent_0: The user is attempting to craft gray carpet. I have already placed one gray wool in [A1]. I am now moving the second gray wool from [I17] to [A2] to complete the recipe. | agent_1: The user wants to craft gray_carpet. I have already moved one gray_wool to [A1]. I need to move the second gray_wool from [I17] to [A2] to complete the recipe.\",\n        \"group_members\": [\n          \"agent_0\",\n          \"agent_1\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n            \"summary\": \"The user is attempting to craft gray carpet. I have already placed one gray wool in [A1]. I am now moving the second gray wool from [I17] to [A2] to complete the recipe.\",\n            \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n            \"critique\": \"The previous move command was split into two parts in the prompt's history, but only one was executed. I am completing the placement of the second gray wool.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The recipe for gray carpet requires two gray wool blocks. One is in [A1]\",\n              \"and the other is being moved from [I17] to [A2].\"\n            ],\n            \"sender\": \"agent_0\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_1:0:0:0\",\n            \"summary\": \"The user wants to craft gray_carpet. I have already moved one gray_wool to [A1]. I need to move the second gray_wool from [I17] to [A2] to complete the recipe.\",\n            \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n            \"critique\": \"The previous turn only moved one gray_wool. The recipe for gray_carpet requires two gray_wool blocks in a horizontal row. Moving the second gray_wool to [A2] will complete the crafting grid.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The inventory shows gray_wool at [I17] with quantity 1. The crafting grid has gray_wool at [A1]. Moving the remaining gray_wool to [A2] satisfies the recipe.\"\n            ],\n            \"sender\": \"agent_1\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_25",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"group_1_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n    \"summary\": \"The agent is crafting gray carpet using two gray wool blocks in the crafting grid.\",\n    \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n    \"critique\": \"The previous move command was incomplete as it attempted to move two items in one line, which is not supported by the action format. I am correcting the placement of the second gray wool block.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"The inventory contains gray_wool in [I17]. The crafting recipe for gray carpet requires two gray wool blocks placed horizontally.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_2\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_2\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0\",\n      \"content\": \"agent_2: The agent is crafting gray carpet using two gray wool blocks in the crafting grid. | agent_3: The agent is crafting gray carpet using two gray wool blocks in the crafting grid.\",\n      \"payload\": {\n        \"summary\": \"agent_2: The agent is crafting gray carpet using two gray wool blocks in the crafting grid. | agent_3: The agent is crafting gray carpet using two gray wool blocks in the crafting grid.\",\n        \"group_members\": [\n          \"agent_2\",\n          \"agent_3\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n            \"summary\": \"The agent is crafting gray carpet using two gray wool blocks in the crafting grid.\",\n            \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n            \"critique\": \"The previous move command was incomplete as it attempted to move two items in one line, which is not supported by the action format. I am correcting the placement of the second gray wool block.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The inventory contains gray_wool in [I17]. The crafting recipe for gray carpet requires two gray wool blocks placed horizontally.\"\n            ],\n            \"sender\": \"agent_2\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_3:0:0:0\",\n            \"summary\": \"The agent is crafting gray carpet using two gray wool blocks in the crafting grid.\",\n            \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n            \"critique\": \"The previous move command was incomplete as it only moved one block to A1 and failed to move the second block to A2. The current action completes the placement of the two gray wool blocks required for the recipe.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The inventory contains gray_wool in [A1] and [I17]. Moving the remaining gray_wool from [I17] to [A2] will complete the 1x2 recipe for gray carpet.\"\n            ],\n            \"sender\": \"agent_3\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_26",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "move: from [I17] to [A2] with quantity 1",
+      "prompt_id": "p_27",
+      "role": "assistant",
+      "usage_count": 6
+    },
+    {
+      "content": "Craft an item of type: gray_carpet\ninventory:\n - gray_carpet [0] quantity 3\n - gray_wool [A1] quantity 1\n - gray_wool [A2] quantity 1\n - red_mushroom_block [I1] quantity 38\n - green_wool [I3] quantity 41\n - ender_eye [I6] quantity 46\n - glass_pane [I10] quantity 49\n - piglin_brute_spawn_egg [I12] quantity 6\n - clay [I14] quantity 7\n - magenta_dye [I16] quantity 6\n - vine [I19] quantity 31\n - iron_hoe [I21] quantity 1\n - gray_bed [I23] quantity 1\n - orange_concrete_powder [I27] quantity 37\n - beacon [I28] quantity 25\n - warped_wart_block [I30] quantity 39\n - tropical_fish_bucket [I32] quantity 1\n - music_disc_chirp [I33] quantity 1\n - red_sandstone [I35] quantity 11",
+      "prompt_id": "p_28",
+      "role": "user",
+      "usage_count": 6
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"group_0_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n    \"summary\": \"The user successfully crafted 3 gray carpets using two units of gray wool. The items are currently in the output slot [0].\",\n    \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n    \"critique\": \"The crafting process was completed correctly. The next logical step is to move the crafted items from the output slot to the inventory to clear the crafting table.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"The crafting grid contains gray_wool in [A1] and [A2]\",\n      \"resulting in gray_carpet in [0] with quantity 3.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_1\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0\",\n      \"content\": \"agent_0: The user successfully crafted 3 gray carpets using two units of gray wool. The items are currently in the output slot [0]. | agent_1: The user successfully crafted 3 gray carpets using two gray wool blocks. The output is currently in slot [0].\",\n      \"payload\": {\n        \"summary\": \"agent_0: The user successfully crafted 3 gray carpets using two units of gray wool. The items are currently in the output slot [0]. | agent_1: The user successfully crafted 3 gray carpets using two gray wool blocks. The output is currently in slot [0].\",\n        \"group_members\": [\n          \"agent_0\",\n          \"agent_1\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_0:0:0:0\",\n            \"summary\": \"The user successfully crafted 3 gray carpets using two units of gray wool. The items are currently in the output slot [0].\",\n            \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n            \"critique\": \"The crafting process was completed correctly. The next logical step is to move the crafted items from the output slot to the inventory to clear the crafting table.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The crafting grid contains gray_wool in [A1] and [A2]\",\n              \"resulting in gray_carpet in [0] with quantity 3.\"\n            ],\n            \"sender\": \"agent_0\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_1:0:0:0\",\n            \"summary\": \"The user successfully crafted 3 gray carpets using two gray wool blocks. The output is currently in slot [0].\",\n            \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n            \"critique\": \"The crafting process for gray carpet is complete. The items need to be moved from the output slot [0] to the inventory to finalize the task.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The crafting grid contains gray_carpet in slot [0] with quantity 3. Moving this to an inventory slot completes the action.\"\n            ],\n            \"sender\": \"agent_1\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_29",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"group_1_representative\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Merge your group summary with representative-level peer summaries when present.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n    \"summary\": \"The agent successfully crafted 3 gray carpets using two gray wool blocks in the crafting grid. The output was generated in slot [0].\",\n    \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n    \"critique\": \"The crafting process was completed correctly. The next logical step is to move the crafted items from the output slot [0] to the inventory to clear the crafting table.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"The crafting grid contained two gray wool blocks\",\n      \"resulting in 3 gray carpets in slot [0].\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_2\",\n      \"dispatch_id\": 0,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_2\"\n      ],\n      \"kind\": \"group_summary\",\n      \"phase\": \"group_controller\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0\",\n      \"content\": \"agent_2: The agent successfully crafted 3 gray carpets using two gray wool blocks in the crafting grid. The output was generated in slot [0]. | agent_3: The gray carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 gray carpets to an empty inventory slot [I17] to complete the task.\",\n      \"payload\": {\n        \"summary\": \"agent_2: The agent successfully crafted 3 gray carpets using two gray wool blocks in the crafting grid. The output was generated in slot [0]. | agent_3: The gray carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 gray carpets to an empty inventory slot [I17] to complete the task.\",\n        \"group_members\": [\n          \"agent_2\",\n          \"agent_3\"\n        ],\n        \"group_artifacts\": [\n          {\n            \"artifact_id\": \"group_debate_round:agent_2:0:0:0\",\n            \"summary\": \"The agent successfully crafted 3 gray carpets using two gray wool blocks in the crafting grid. The output was generated in slot [0].\",\n            \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n            \"critique\": \"The crafting process was completed correctly. The next logical step is to move the crafted items from the output slot [0] to the inventory to clear the crafting table.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The crafting grid contained two gray wool blocks\",\n              \"resulting in 3 gray carpets in slot [0].\"\n            ],\n            \"sender\": \"agent_2\"\n          },\n          {\n            \"artifact_id\": \"group_debate_round:agent_3:0:0:0\",\n            \"summary\": \"The gray carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 gray carpets to an empty inventory slot [I17] to complete the task.\",\n            \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n            \"critique\": \"The crafting process for gray carpet was successful. The items were placed in the grid, and the output is ready. Moving the output to the inventory is the final step.\",\n            \"revision_request\": \"\",\n            \"confidence\": 1.0,\n            \"unresolved_issues\": [],\n            \"evidence_summary\": [\n              \"The crafting grid contains the output [0] with 3 gray carpets. Moving them to [I17] clears the output slot.\"\n            ],\n            \"sender\": \"agent_3\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_30",
+      "role": "user",
+      "usage_count": 1
+    }
+  ],
+  "run_index": 0,
+  "steps": [
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1091,
+            "token_out": 198
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1\\nmove: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The objective is to craft gray_carpet. Gray carpet is crafted using two gray wool blocks placed horizontally in the crafting grid.\",\n  \"critique\": \"The inventory contains gray_wool in slot [I17] with a quantity of 2. Placing these in [A1] and [A2] will result in the crafting of gray_carpet in slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory slot [I17] contains 2 gray_wool. Recipe for gray_carpet is 2 gray_wool in a horizontal row.\"\n}",
+          "role": "group_0_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1081,
+            "token_out": 203
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1\\nmove: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The user requested to craft a gray_carpet. I have identified that gray_wool is available in slot [I17]. Placing two gray_wool blocks in the crafting grid (A1 and A2) will produce gray_carpet.\",\n  \"critique\": \"The task is to craft gray_carpet. The recipe for gray_carpet requires two gray_wool blocks placed horizontally. I have identified the necessary materials in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains gray_wool in [I17]. Recipe for gray_carpet is 2x gray_wool.\"\n}",
+          "role": "group_0_member",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1091,
+            "token_out": 199
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1\\nmove: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The objective is to craft a gray_carpet. Gray carpet is crafted using two pieces of gray wool in a horizontal row. The inventory contains gray_wool in slot [I17] with a quantity of 2.\",\n  \"critique\": \"The agent correctly identified the recipe for gray carpet (2 gray wool) and the location of the required materials in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory slot [I17] contains 2 gray_wool. The crafting recipe for gray carpet requires 2 gray_wool placed horizontally in the crafting grid.\"\n}",
+          "role": "group_1_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1091,
+            "token_out": 175
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A1] with quantity 2\",\n  \"summary\": \"The user requested to craft a gray_carpet. I identified that gray_wool is available in slot [I17]. Placing two gray_wool in the crafting grid will produce gray_carpet.\",\n  \"critique\": \"The inventory contains gray_wool in [I17], which is the correct ingredient for gray_carpet. No other ingredients are required for this recipe.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory slot [I17] contains gray_wool. The recipe for gray_carpet requires two wool blocks of the same color.\"\n}",
+          "role": "group_1_member",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "group_debate_round",
+      "phases": [
+        "group_debate_round"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11"
+      ],
+      "step_index": 1,
+      "termination": [
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "representative_dispatch",
+          "outer_step_index": 0,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "group_controller",
+          "valid_artifact_count": 4
+        },
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "final_judge",
+          "outer_step_index": 0,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "representative_controller",
+          "valid_artifact_count": 2
+        }
+      ]
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_1"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 2153,
+            "token_out": 199
+          },
+          "prompt_ids": [
+            "p_19",
+            "p_20"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1\\nmove: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The objective is to craft gray_carpet. The recipe requires two gray_wool blocks placed horizontally in the crafting grid. The inventory contains 2 gray_wool in slot [I17].\",\n  \"critique\": \"The plan is correct and follows the standard Minecraft recipe for gray_carpet. The items are available and the grid placement is valid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"Inventory slot [I17] contains 2 gray_wool.\",\n    \"Recipe for gray_carpet is 2 gray_wool placed horizontally.\"\n  ]\n}",
+          "role": "group_0_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_2"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 2135,
+            "token_out": 197
+          },
+          "prompt_ids": [
+            "p_21",
+            "p_22"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A1] with quantity 1\\nmove: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The objective is to craft a gray_carpet. The recipe requires two gray_wool blocks placed horizontally in the crafting grid. The inventory contains 2 gray_wool in slot [I17].\",\n  \"critique\": \"The proposed actions correctly move the required materials to the crafting grid to produce the gray_carpet.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"Inventory slot [I17] contains 2 gray_wool.\",\n    \"The recipe for gray_carpet is 2 gray_wool placed in a horizontal row.\"\n  ]\n}",
+          "role": "group_1_representative",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "messages_sent": [],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "representative_merge",
+      "phases": [
+        "representative_merge"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11"
+      ],
+      "step_index": 2,
+      "termination": []
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1391,
+            "token_out": 190
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The user is attempting to craft gray carpet. I have already placed one gray wool in [A1]. I am now moving the second gray wool from [I17] to [A2] to complete the recipe.\",\n  \"critique\": \"The previous move command was split into two parts in the prompt's history, but only one was executed. I am completing the placement of the second gray wool.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The recipe for gray carpet requires two gray wool blocks. One is in [A1], and the other is being moved from [I17] to [A2].\"\n}",
+          "role": "group_0_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1379,
+            "token_out": 212
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft gray_carpet. I have already moved one gray_wool to [A1]. I need to move the second gray_wool from [I17] to [A2] to complete the recipe.\",\n  \"critique\": \"The previous turn only moved one gray_wool. The recipe for gray_carpet requires two gray_wool blocks in a horizontal row. Moving the second gray_wool to [A2] will complete the crafting grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory shows gray_wool at [I17] with quantity 1. The crafting grid has gray_wool at [A1]. Moving the remaining gray_wool to [A2] satisfies the recipe.\"\n}",
+          "role": "group_0_member",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1379,
+            "token_out": 157
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The agent is crafting gray carpet using two gray wool blocks in the crafting grid.\",\n  \"critique\": \"The previous move command was incomplete as it attempted to move two items in one line, which is not supported by the action format. I am correcting the placement of the second gray wool block.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory contains gray_wool in [I17]. The crafting recipe for gray carpet requires two gray wool blocks placed horizontally.\"\n}",
+          "role": "group_1_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1379,
+            "token_out": 182
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The agent is crafting gray carpet using two gray wool blocks in the crafting grid.\",\n  \"critique\": \"The previous move command was incomplete as it only moved one block to A1 and failed to move the second block to A2. The current action completes the placement of the two gray wool blocks required for the recipe.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory contains gray_wool in [A1] and [I17]. Moving the remaining gray_wool from [I17] to [A2] will complete the 1x2 recipe for gray carpet.\"\n}",
+          "role": "group_1_member",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 1,
+      "parallel": true,
+      "phase": "group_debate_round",
+      "phases": [
+        "group_debate_round"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_23",
+        "p_24"
+      ],
+      "step_index": 3,
+      "termination": [
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "representative_dispatch",
+          "outer_step_index": 1,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "group_controller",
+          "valid_artifact_count": 4
+        },
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "final_judge",
+          "outer_step_index": 1,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "representative_controller",
+          "valid_artifact_count": 2
+        }
+      ]
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_1"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 2478,
+            "token_out": 215
+          },
+          "prompt_ids": [
+            "p_19",
+            "p_25"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The crafting grid currently has one gray_wool in [A1]. I am moving the second gray_wool from [I17] to [A2] to complete the recipe for gray_carpet.\",\n  \"critique\": \"The previous steps successfully placed one gray_wool in [A1]. Moving the remaining gray_wool from [I17] to [A2] completes the required 1x2 horizontal recipe for gray_carpet.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The recipe for gray_carpet requires two gray_wool blocks placed horizontally.\",\n    \"One gray_wool is already in [A1].\",\n    \"The remaining gray_wool is in [I17].\"\n  ]\n}",
+          "role": "group_0_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_2"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 2265,
+            "token_out": 178
+          },
+          "prompt_ids": [
+            "p_21",
+            "p_26"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I17] to [A2] with quantity 1\",\n  \"summary\": \"The agent is placing the second gray wool block into the crafting grid at [A2] to complete the recipe for gray carpet.\",\n  \"critique\": \"The previous attempt to move two items in a single command was invalid. This action correctly places the second required gray wool block into the grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The crafting grid now contains gray_wool at [A1]. Moving the remaining gray_wool from [I17] to [A2] completes the 1x2 recipe for gray carpet.\"\n  ]\n}",
+          "role": "group_1_representative",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "messages_sent": [],
+      "outer_step_index": 1,
+      "parallel": true,
+      "phase": "representative_merge",
+      "phases": [
+        "representative_merge"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_23",
+        "p_24"
+      ],
+      "step_index": 4,
+      "termination": []
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1670,
+            "token_out": 164
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n  \"summary\": \"The user successfully crafted 3 gray carpets using two units of gray wool. The items are currently in the output slot [0].\",\n  \"critique\": \"The crafting process was completed correctly. The next logical step is to move the crafted items from the output slot to the inventory to clear the crafting table.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contains gray_wool in [A1] and [A2], resulting in gray_carpet in [0] with quantity 3.\"\n}",
+          "role": "group_0_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1670,
+            "token_out": 157
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n  \"summary\": \"The user successfully crafted 3 gray carpets using two gray wool blocks. The output is currently in slot [0].\",\n  \"critique\": \"The crafting process for gray carpet is complete. The items need to be moved from the output slot [0] to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contains gray_carpet in slot [0] with quantity 3. Moving this to an inventory slot completes the action.\"\n}",
+          "role": "group_0_member",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1684,
+            "token_out": 157
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n  \"summary\": \"The agent successfully crafted 3 gray carpets using two gray wool blocks in the crafting grid. The output was generated in slot [0].\",\n  \"critique\": \"The crafting process was completed correctly. The next logical step is to move the crafted items from the output slot [0] to the inventory to clear the crafting table.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contained two gray wool blocks, resulting in 3 gray carpets in slot [0].\"\n}",
+          "role": "group_1_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1670,
+            "token_out": 176
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n  \"summary\": \"The gray carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 gray carpets to an empty inventory slot [I17] to complete the task.\",\n  \"critique\": \"The crafting process for gray carpet was successful. The items were placed in the grid, and the output is ready. Moving the output to the inventory is the final step.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contains the output [0] with 3 gray carpets. Moving them to [I17] clears the output slot.\"\n}",
+          "role": "group_1_member",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [
+        {
+          "artifact_id": "group_debate_round:agent_0:0:0:0,group_debate_round:agent_1:0:0:0",
+          "content": "agent_0: The user successfully crafted 3 gray carpets using two units of gray wool. The items are currently in the output slot [0]. | agent_1: The user successfully crafted 3 gray carpets using two gray wool blocks. The output is currently in slot [0].",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "from": "system",
+          "kind": "group_summary",
+          "message_id": "m_1",
+          "outer_step_index": 2,
+          "phase": "group_controller",
+          "round_index": 0,
+          "to": [
+            "agent_0"
+          ]
+        },
+        {
+          "artifact_id": "group_debate_round:agent_2:0:0:0,group_debate_round:agent_3:0:0:0",
+          "content": "agent_2: The agent successfully crafted 3 gray carpets using two gray wool blocks in the crafting grid. The output was generated in slot [0]. | agent_3: The gray carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 gray carpets to an empty inventory slot [I17] to complete the task.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "from": "system",
+          "kind": "group_summary",
+          "message_id": "m_2",
+          "outer_step_index": 2,
+          "phase": "group_controller",
+          "round_index": 0,
+          "to": [
+            "agent_2"
+          ]
+        }
+      ],
+      "outer_step_index": 2,
+      "parallel": true,
+      "phase": "group_debate_round",
+      "phases": [
+        "group_debate_round"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_23",
+        "p_24",
+        "p_27",
+        "p_28"
+      ],
+      "step_index": 5,
+      "termination": [
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "representative_dispatch",
+          "outer_step_index": 2,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "group_controller",
+          "valid_artifact_count": 4
+        },
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "final_judge",
+          "outer_step_index": 2,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "representative_controller",
+          "valid_artifact_count": 2
+        }
+      ]
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_1"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 2601,
+            "token_out": 183
+          },
+          "prompt_ids": [
+            "p_19",
+            "p_29"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n  \"summary\": \"The crafting process for 3 gray carpets is complete, with the items currently in the output slot [0]. The next step is to move these items to an inventory slot to clear the crafting table.\",\n  \"critique\": \"The crafting was successful. Moving the items from [0] to [I17] is the correct final step to conclude the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The crafting grid output slot [0] contains 3 gray_carpet.\",\n    \"The inventory slot [I17] is available to receive the items.\"\n  ]\n}",
+          "role": "group_0_representative",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_2"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 2636,
+            "token_out": 173
+          },
+          "prompt_ids": [
+            "p_21",
+            "p_30"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I17] with quantity 3\",\n  \"summary\": \"The gray carpet has been successfully crafted in the output slot [0]. The items are being moved to the inventory slot [I17] to complete the task.\",\n  \"critique\": \"The crafting process is complete. Moving the items from the output slot [0] to the inventory is the correct final action.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The crafting grid output [0] contains 3 gray carpets.\",\n    \"Moving these to [I17] clears the output slot and completes the task.\"\n  ]\n}",
+          "role": "group_1_representative",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "messages_sent": [],
+      "outer_step_index": 2,
+      "parallel": true,
+      "phase": "representative_merge",
+      "phases": [
+        "representative_merge"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_23",
+        "p_24",
+        "p_27",
+        "p_28"
+      ],
+      "step_index": 6,
+      "termination": []
+    }
+  ],
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 2,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "group_chat_debate",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "group_chat_debate"
+  },
+  "task_id": "VAL0049",
+  "tool_definitions": []
+}

@@ -1,0 +1,1116 @@
+{
+  "benchmark": "scicode",
+  "config_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/config/benchmarks/scicode_10.toml",
+  "experiment_id": "20260401T195507Z",
+  "experiment_settings_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1"
+        ],
+        "agent_1": [
+          "agent_0"
+        ],
+        "agent_2": [
+          "agent_3"
+        ],
+        "agent_3": [
+          "agent_2"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        2,
+        2
+      ],
+      "children_by_agent": {},
+      "groups": [
+        [
+          "agent_0",
+          "agent_1"
+        ],
+        [
+          "agent_2",
+          "agent_3"
+        ]
+      ],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 0,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "managers": [],
+      "orchestrator_id": null,
+      "parent_by_agent": {},
+      "representatives": [
+        "agent_0",
+        "agent_2"
+      ],
+      "roles": {
+        "agent_0": "group_0_representative",
+        "agent_1": "group_0_member",
+        "agent_2": "group_1_representative",
+        "agent_3": "group_1_member"
+      },
+      "specialists": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "group_chat_debate"
+    },
+    "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/mas_graph.mmd",
+    "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "group_chat_debate",
+    "workflow": {
+      "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/workflow_graph.mmd",
+      "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "group_chat_debate",
+      "workflow": {
+        "aggregation_logic": "Group members debate locally, representatives merge group summaries, and a shared final judge selects the final answer.",
+        "conditional_edges": [
+          "group_dispatch -> group_debate_round (parallel Send fan-out) else group_controller",
+          "group_controller -> group_dispatch | representative_dispatch",
+          "representative_dispatch -> representative_merge (parallel Send fan-out) else final_judge",
+          "representative_controller -> representative_dispatch | final_judge"
+        ],
+        "dispatch_logic": "Debate is local to groups until the controller emits representative-only summaries. Inter-group traffic is restricted to representative packets.",
+        "edges": [
+          "START -> group_dispatch",
+          "group_debate_round -> group_controller",
+          "representative_merge -> representative_controller",
+          "final_judge -> descriptor_monitor",
+          "descriptor_monitor -> finalize",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "descriptor_monitor": "Shared descriptor hook.",
+          "final_judge": "Deterministic final judge.",
+          "finalize": "Finalize the run.",
+          "group_controller": "Intra-group controller plus stop/merge logic.",
+          "group_debate_round": "Parallel group debate workers.",
+          "group_dispatch": "Fan out the intra-group debate stage.",
+          "representative_controller": "Representative-level controller plus stopping logic.",
+          "representative_dispatch": "Representative fan-out.",
+          "representative_merge": "Representative merge/debate stage."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max group rounds reached",
+          "Consensus inside groups",
+          "No meaningful change between group or representative revisions",
+          "Confidence threshold reached",
+          "Invalid or failed branch fallback",
+          "Max representative rounds reached"
+        ],
+        "topology": "group_chat_debate"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 2,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "group_chat_debate",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "group_chat_debate"
+  },
+  "system_label": "group_chat_debate",
+  "task_count": 10,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/77/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/77/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 394306.5911599621,
+        "C2_tokens_total": 342716.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 24.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 95.0,
+        "P1_steps_total": 276.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 72.0,
+        "stage_act_latency_ms": 340517.4274514429,
+        "stage_act_tokens": 293780.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 2981.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 48.0,
+        "stage_retrieve_latency_ms": 48.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 24.0,
+        "stage_revise_latency_ms": 24.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 120.0,
+        "stage_verify_latency_ms": 53705.16370851919,
+        "stage_verify_tokens": 45955.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import math\nimport numpy as np\nimport scipy as sp\nfrom scipy.constants import  Avogadro\n # Background: Periodic boundary conditions (PBC) are used in molecular dynamics simulations to mimic an infinite system by using a finite simulation box. When a particle moves outside the boundaries of the cubic box of side length L, it is re-inserted from the opposite side. Mathematically, for a coordinate r, the wrapped coordinate is given by r mod L, which maps the value into the interval [0, L). def wrap",
+              "step_results": {
+                "77.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.1.py\", line 17, in <module>\n    assert np.allclose(wrap(particle_position, box_length), targe",
+                "77.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.10.py\", line 30, in <module>\n    assert cmp_tuple_or_list(pressure(N, L, T, positions, sigma,",
+                "77.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.11.py\", line 29, in <module>\n    assert np.allclose(forces(N, positions, L, sigma, epsilon, r",
+                "77.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.12.py\", line 171, in <module>\n    xyz = init_rand(N,L,sigma)\n          ^^^^^^^^^^^^^^^^^^^^\n ",
+                "77.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.2.py\", line 17, in <module>\n    assert np.allclose(dist(r1, r2, box_length), target)\n        ",
+                "77.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.3.py\", line 18, in <module>\n    assert np.allclose(dist_v(r1, r2, box_length), target)\n      ",
+                "77.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.4.py\", line 20, in <module>\n    assert np.allclose(E_ij(r1, sigma1, epsilon1, rc), target)\n  ",
+                "77.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.5.py\", line 21, in <module>\n    assert np.allclose(f_ij(r,sigma,epsilon,rc), target)\n        ",
+                "77.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.6.py\", line 23, in <module>\n    assert np.allclose(E_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.7.py\", line 24, in <module>\n    assert np.allclose(P_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.8.py\", line 25, in <module>\n    assert np.allclose(E_pot(positions1, L1, sigma1, epsilon1,rc)",
+                "77.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp6d97xf1h/77.9.py\", line 24, in <module>\n    assert np.allclose(temperature(v,m,N), target)\n              "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "77"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/77",
+      "task_id": "77"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/11/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/11/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 378404.48149323463,
+        "C2_tokens_total": 345640.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 24.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 95.0,
+        "P1_steps_total": 276.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 72.0,
+        "stage_act_latency_ms": 328468.8300380949,
+        "stage_act_tokens": 296239.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 2723.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 48.0,
+        "stage_retrieve_latency_ms": 48.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 24.0,
+        "stage_revise_latency_ms": 24.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 120.0,
+        "stage_verify_latency_ms": 49851.65145513974,
+        "stage_verify_tokens": 46678.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import numpy as np\nimport itertools\nimport scipy.linalg\n # Background: A standard basis vector |j> in a d-dimensional Hilbert space is a vector with a 1 at the j-th index (0-indexed) and 0 elsewhere. For composite systems, the state |j1>|j2>...|jn> is represented by the Kronecker product (tensor product) of the individual basis vectors. If dimensions d_i are provided as a list, the i-th basis vector is constructed in d_i-dimensional space. def ket(dim, j): '''Input: dim: int or list, dimension o",
+              "step_results": {
+                "11.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.1.py\", line 13, in <module>\n    assert np.allclose(ket(2, 0), target)\n                       ",
+                "11.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.10.py\", line 22, in <module>\n    assert np.allclose(entropy(rho), target)\n                   ",
+                "11.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.11.py\", line 23, in <module>\n    assert np.allclose(coherent_inf_state(rho_AB, 2, 2), target)",
+                "11.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.12.py\", line 23, in <module>\n    assert np.allclose(rate(2,0.2,0.2,0.2,0.2), target)\n        ",
+                "11.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.2.py\", line 13, in <module>\n    assert np.allclose(multi_rail_encoding_state(1), target)\n    ",
+                "11.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.3.py\", line 14, in <module>\n    assert np.allclose(tensor([0,1],[0,1]), target)\n             ",
+                "11.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.4.py\", line 17, in <module>\n    assert np.allclose(apply_channel(K, rho, sys=None, dim=None),",
+                "11.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.5.py\", line 16, in <module>\n    assert np.allclose(generalized_amplitude_damping_channel(0, 0",
+                "11.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.6.py\", line 17, in <module>\n    assert np.allclose(output_state(2,0,0,0,0), target)\n         ",
+                "11.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.7.py\", line 18, in <module>\n    assert np.allclose(measurement(1), target)\n                  ",
+                "11.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.8.py\", line 20, in <module>\n    assert np.allclose(syspermute(X, [2,1], [2,2]), target)\n     ",
+                "11.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpwjqx6c_8/11.9.py\", line 21, in <module>\n    assert np.allclose(partial_trace(X, [2], [2,2]), target)\n    "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "11"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/11",
+      "task_id": "11"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/12/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/12/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 494330.73507974856,
+        "C2_tokens_total": 570149.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 28.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 111.0,
+        "P1_steps_total": 322.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 84.0,
+        "stage_act_latency_ms": 427291.6113284882,
+        "stage_act_tokens": 499786.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 3769.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 56.0,
+        "stage_retrieve_latency_ms": 56.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 28.0,
+        "stage_revise_latency_ms": 28.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 140.0,
+        "stage_verify_latency_ms": 66941.12375126034,
+        "stage_verify_tokens": 66594.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 14,
+              "prediction": "from scipy import integrate\nfrom scipy import optimize\nimport numpy as np\n # Background: The radial Schrodinger equation for a central potential V(r) is given by -hbar^2/(2m) * (d^2/dr^2 - l(l+1)/r^2) R(r) + V(r)R(r) = E R(r). By substituting u(r) = r*R(r), the equation transforms into -hbar^2/(2m) * u''(r) + [V(r) + hbar^2*l(l+1)/(2m*r^2)] u(r) = E u(r). In atomic units (hbar=1, m=1, e=1, 4*pi*epsilon_0=1), and with V(r) = -Z/r, this becomes u''(r) = [l(l+1)/r^2 - 2*Z/r - 2*E] * u(r). Thus, f(r",
+              "step_results": {
+                "12.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.1.py\", line 13, in <module>\n    assert np.allclose(f_Schrod(1,1, np.array([0.1,0.2,0.3])), ta",
+                "12.10": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.10.py\", line 16\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.11": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.11.py\", line 17\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.12": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.12.py\", line 18\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.13": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.13.py\", line 19\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.14": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.14.py\", line 20\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.2.py\", line 13, in <module>\n    assert np.allclose(Numerov(f_Schrod(1,3, np.linspace(1e-5,10,",
+                "12.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.3.py\", line 14, in <module>\n    assert np.allclose(compute_Schrod(1, np.linspace(1e-5,10,20),",
+                "12.4": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.4.py\", line 10\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.5": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.5.py\", line 11\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.6": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.6.py\", line 12\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.7": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.7.py\", line 13\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.8": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.8.py\", line 14\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.9": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsl_ckf50/12.9.py\", line 15\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "12"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/12",
+      "task_id": "12"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/13/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/13/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 520322.8797172569,
+        "C2_tokens_total": 677582.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 28.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 111.0,
+        "P1_steps_total": 322.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 84.0,
+        "stage_act_latency_ms": 462537.01746393926,
+        "stage_act_tokens": 604145.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 4395.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 56.0,
+        "stage_retrieve_latency_ms": 56.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 28.0,
+        "stage_revise_latency_ms": 28.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 140.0,
+        "stage_verify_latency_ms": 57687.86225331761,
+        "stage_verify_tokens": 69042.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.06666666666666667,
+              "Total Correct": 1,
+              "Total Steps": 15,
+              "prediction": "from numpy import zeros, linspace, exp, sqrt\nimport numpy as np\n # Background: The partial derivative of a scalar field f(x, y, z) on a discrete grid can be approximated using finite difference methods. For interior points, the second-order central difference formula is used: df/dx ≈ (f(i+1) - f(i-1)) / (2*delta). At the boundaries, one-sided second-order finite difference formulas are required to maintain second-order accuracy. For the left boundary (i=0), the formula is: df/dx ≈ (-3*f(0) + 4*f",
+              "step_results": {
+                "13.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.1.py\", line 15, in <module>\n    assert np.allclose(partial_derivs_vec(fct, delta), target)\n  ",
+                "13.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.10.py\", line 20, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.11.py\", line 22, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.12.py\", line 22, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.13": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.13.py\", line 34, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.14": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.14.py\", line 24, in <module>\n    maxwell = Maxwell(50, 2)\n              ^^^^^^^\nNameError: na",
+                "13.15": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.15.py\", line 30, in <module>\n    assert np.allclose(main(n_grid, x_out, courant, t_max, t_che",
+                "13.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.2.py\", line 15, in <module>\n    assert np.allclose(laplace(fct, delta), target)\n             ",
+                "13.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.3.py\", line 16, in <module>\n    assert np.allclose(gradient(fct, delta), target)\n            ",
+                "13.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.4.py\", line 19, in <module>\n    assert np.allclose(divergence(fx, fy, fz, delta), target)\n   ",
+                "13.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.5.py\", line 20, in <module>\n    assert np.allclose(grad_div(fx, fy, fz, delta), target)\n     ",
+                "13.6": "skipped (official)",
+                "13.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.7.py\", line 19, in <module>\n    assert np.allclose(symmetry(f_dot, 1, 1, -1), target)\n       ",
+                "13.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.8.py\", line 18, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: name",
+                "13.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk_5wf2xy/13.9.py\", line 19, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: name"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "13"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/13",
+      "task_id": "13"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/2/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 37754.86804229207,
+        "C2_tokens_total": 18332.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 33715.20004235208,
+        "stage_act_tokens": 13390.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 259.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 4032.667999939993,
+        "stage_verify_tokens": 4683.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom scipy.integrate import simps\n\n\n # Background: The diffraction of a Gaussian beam through a lens is modeled using the Fresnel diffraction integral. A lens introduces a phase transformation factor P(r) = exp(-i * k * (n-1) * h(r)), where h(r) is the lens thickness profile. For a symmetric biconvex lens, the thickness profile is h(r) = d - 2 * (RL - sqrt(RL^2 - r^2)). The incident Gaussian beam is defined as E(r) = exp(-r^2 / R0^2). The field at the focal plane is computed b",
+              "step_results": {
+                "2.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpk1k5co37/2.1.py\", line 2, in <module>\n    from scipy.integrate import simps\nImportError: cannot import na"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "2"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/2",
+      "task_id": "2"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/74/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/74/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 29891.434708945453,
+        "C2_tokens_total": 13031.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 25527.628042036667,
+        "stage_act_tokens": 9352.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 180.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 4356.806666908786,
+        "stage_verify_tokens": 3499.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R such that A = QR. This is achieved by applying a sequence of Householder reflections H_k = I - 2(v_k v_k^T) / (v_k^T v_k) to zero out the sub-diagonal elements of each column. To avoid catastrophic cancellation, the vector v_k is chosen such that the reflection maps the column vector to a multiple of the first standard basis vector, with the s",
+              "step_results": {
+                "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpntgsidr1/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "74"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/74",
+      "task_id": "74"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/5/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/5/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 29328.039666740224,
+        "C2_tokens_total": 13993.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 26137.337459018454,
+        "stage_act_tokens": 10050.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 170.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 3183.70220772177,
+        "stage_verify_tokens": 3773.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the genera",
+              "step_results": {
+                "5.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0_g_nfj8/5.1.py\", line 19, in <module>\n    assert np.allclose(lanczos(A,b,m), target)\n                   "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "5"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/5",
+      "task_id": "5"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/8/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/8/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 33776.10624941066,
+        "C2_tokens_total": 15910.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 28704.102290794253,
+        "stage_act_tokens": 11840.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 292.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 5065.003958616406,
+        "stage_verify_tokens": 3778.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom numpy.fft import fft2, ifft2, fftshift, ifftshift\n\n\n # Background: Spatial filtering in Fourier optics involves transforming an image into the frequency domain using the 2D Fast Fourier Transform (FFT). A high-pass filter in the frequency domain suppresses low-frequency components (the central region) and allows high-frequency components to pass. A cross-shaped high-pass filter is constructed by creating a mask that zeroes out the central horizontal and vertical strips of",
+              "step_results": {
+                "8.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpijtuilm4/8.1.py\", line 16, in <module>\n    assert cmp_tuple_or_list(apply_cshband_pass_filter(image_array"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "8"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/8",
+      "task_id": "8"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/9/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/9/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 34899.924206649885,
+        "C2_tokens_total": 16769.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 29772.94054068625,
+        "stage_act_tokens": 12254.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 271.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 5119.983665963635,
+        "stage_verify_tokens": 4244.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The weighted Jacobi method is an iterative technique for solving linear systems Ax = b. It modifies the standard Jacobi iteration by introducing a relaxation parameter omega. The iteration formula is given by x_{k+1} = (1 - omega) * x_k + omega * D^{-1}(b - (A - D)x_k), where D is the diagonal part of A. This can be simplified to x_{k+1} = x_k + omega * D^{-1}(b - Ax_k). The method converges when the spectral radius of the iteration matrix I - omega * D^{-1}A ",
+              "step_results": {
+                "9.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpgwakz17p/9.1.py\", line 28, in <module>\n    assert np.allclose(WJ(A, b, eps, x_true, x0,2/3), target)\n    "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "9"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/9",
+      "task_id": "9"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/14/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/14/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 64144.641330204904,
+        "C2_tokens_total": 34242.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 4.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 15.0,
+        "P1_steps_total": 46.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 12.0,
+        "stage_act_latency_ms": 54592.51729026437,
+        "stage_act_tokens": 25517.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 460.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 8.0,
+        "stage_retrieve_latency_ms": 8.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 4.0,
+        "stage_revise_latency_ms": 4.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 20.0,
+        "stage_verify_latency_ms": 9538.124039940536,
+        "stage_verify_tokens": 8265.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 2,
+              "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t). Mannella's leapfrog method discretizes this by defining coefficients a = (1 - dt/(2*taup)) / (1 + dt/(2*taup)), b = dt / (1 + dt/(2*taup)), and c = sqrt(2 * vrms^2 * dt / taup) / (1 + dt/(2*taup)). The update rules are: v_half = v_n + 0.5 * dt * (-omega0^2 * x_n), x_{n+1} = x_n + dt * v_half, v_{n+1} = a * v_half + b * (-omega0^2 * x_{n",
+              "step_results": {
+                "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpmtrppyqm/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+                "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpmtrppyqm/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "14"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/14",
+      "task_id": "14"
+    }
+  ],
+  "timestamp": "20260401T195507Z"
+}

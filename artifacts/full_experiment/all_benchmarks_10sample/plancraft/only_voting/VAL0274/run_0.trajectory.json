@@ -1,0 +1,399 @@
+{
+  "benchmark": "plancraft",
+  "final": {
+    "answer": "move: from [0] to [I26] with quantity 1",
+    "answer_preview": "move: from [0] to [I26] with quantity 1",
+    "final_reason": "only_voting:majority_vote",
+    "last_termination": null,
+    "vote_tally": {
+      "move from 0 to i26 with quantity 1": 4
+    }
+  },
+  "prompt_catalog": [
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_1",
+      "role": "system",
+      "usage_count": 2
+    },
+    {
+      "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+      "prompt_id": "p_2",
+      "role": "system",
+      "usage_count": 8
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_3",
+      "role": "user",
+      "usage_count": 8
+    },
+    {
+      "content": "move: from [I18] to [B1] with quantity 1",
+      "prompt_id": "p_4",
+      "role": "assistant",
+      "usage_count": 8
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_5",
+      "role": "user",
+      "usage_count": 8
+    },
+    {
+      "content": "move: from [I30] to [B2] with quantity 1",
+      "prompt_id": "p_6",
+      "role": "assistant",
+      "usage_count": 8
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+      "prompt_id": "p_7",
+      "role": "user",
+      "usage_count": 8
+    },
+    {
+      "content": "move: from [0] to [I6] with quantity 1",
+      "prompt_id": "p_8",
+      "role": "assistant",
+      "usage_count": 8
+    },
+    {
+      "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_9",
+      "role": "user",
+      "usage_count": 8
+    },
+    {
+      "content": "smelt: from [I36] to [I35] with quantity 1",
+      "prompt_id": "p_10",
+      "role": "assistant",
+      "usage_count": 8
+    },
+    {
+      "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+      "prompt_id": "p_11",
+      "role": "user",
+      "usage_count": 8
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_12",
+      "role": "user",
+      "usage_count": 2
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_13",
+      "role": "system",
+      "usage_count": 2
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_14",
+      "role": "user",
+      "usage_count": 2
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_15",
+      "role": "system",
+      "usage_count": 2
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_16",
+      "role": "user",
+      "usage_count": 2
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_17",
+      "role": "system",
+      "usage_count": 2
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_18",
+      "role": "user",
+      "usage_count": 2
+    },
+    {
+      "content": "move: from [I26] to [A1] with quantity 1",
+      "prompt_id": "p_19",
+      "role": "assistant",
+      "usage_count": 4
+    },
+    {
+      "content": "Craft an item of type: brown_dye\ninventory:\n - brown_dye [0] quantity 1\n - cocoa_beans [A1] quantity 1\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+      "prompt_id": "p_20",
+      "role": "user",
+      "usage_count": 4
+    }
+  ],
+  "run_index": 0,
+  "steps": [
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1080,
+            "token_out": 180
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The user requested to craft brown_dye. Cocoa beans are the primary ingredient for brown dye. I am moving the cocoa beans from [I26] to the crafting grid [A1].\",\n  \"critique\": \"The crafting recipe for brown dye is simply placing cocoa beans in any slot of the crafting grid. Moving one cocoa bean to [A1] will result in the output appearing in slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cocoa_beans at [I26]. Recipe for brown_dye is 1 cocoa_bean.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1090,
+            "token_out": 162
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The user requested to craft brown_dye. Cocoa beans are the primary ingredient for brown dye. I am moving the cocoa beans from the inventory to the crafting grid.\",\n  \"critique\": \"The task is straightforward as cocoa beans directly craft into brown dye without needing a specific grid pattern, though the prompt implies a crafting table usage.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans are located in [I26]. Moving them to [A1] to initiate the crafting process.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1090,
+            "token_out": 174
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The user requested to craft brown_dye. Cocoa beans are the primary ingredient for brown dye. I am moving the cocoa beans from [I26] to the crafting grid slot [A1].\",\n  \"critique\": \"The task is to craft brown_dye. Cocoa beans are the correct ingredient. Placing them in the crafting grid will produce the dye in slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cocoa_beans at [I26]. Crafting recipe for brown_dye is simply one cocoa bean.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1090,
+            "token_out": 177
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The user requested to craft brown_dye. Cocoa beans are the primary ingredient for brown dye. I am moving the cocoa beans from [I26] to the crafting grid slot [A1].\",\n  \"critique\": \"The crafting recipe for brown dye is simply placing cocoa beans in any slot of the crafting grid. Moving one cocoa bean to [A1] will result in brown dye appearing in slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cocoa_beans at [I26]. Brown dye is crafted from cocoa beans.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "worker",
+      "phases": [
+        "worker"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11"
+      ],
+      "step_index": 1,
+      "termination": []
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1377,
+            "token_out": 161
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The brown_dye has been successfully crafted from the cocoa_beans in slot [A1]. I am moving the resulting item from the output slot [0] to an inventory slot [I26].\",\n  \"critique\": \"The crafting process is complete. Moving the item to the inventory is the final step.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains the brown_dye, which was produced by the cocoa_beans in [A1].\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1377,
+            "token_out": 158
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The brown_dye has been successfully crafted in slot [0] using the cocoa_beans from [A1]. I am moving the resulting brown_dye to an inventory slot to complete the task.\",\n  \"critique\": \"The crafting process was successful. No further actions are required for this specific task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains the brown_dye, and the input cocoa_beans were consumed from [A1].\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1365,
+            "token_out": 162
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The brown dye was successfully crafted from the cocoa beans in slot [A1]. I am moving the resulting item from the output slot [0] to an inventory slot [I26] to complete the task.\",\n  \"critique\": \"The crafting process was straightforward as cocoa beans are the direct ingredient for brown dye.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 1 brown_dye, which was produced from the cocoa beans placed in [A1].\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1377,
+            "token_out": 177
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The brown dye was successfully crafted from cocoa beans in the crafting grid. I am moving the resulting item from the output slot [0] to an inventory slot [I26] to complete the task.\",\n  \"critique\": \"The crafting process was completed correctly in the previous step. The current action is simply to clear the output slot.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The item 'brown_dye' is present in slot [0] and 'cocoa_beans' were used in slot [A1]. Moving the output to inventory completes the request.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 1,
+      "parallel": true,
+      "phase": "worker",
+      "phases": [
+        "worker"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_19",
+        "p_20"
+      ],
+      "step_index": 2,
+      "termination": []
+    }
+  ],
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 0,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 1,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "only_voting",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "only_voting"
+  },
+  "task_id": "VAL0274",
+  "tool_definitions": []
+}

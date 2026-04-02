@@ -1,0 +1,1148 @@
+{
+  "final_answer": "import numpy as np\n\n\n # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ",
+  "run_metadata": {
+    "agent_outputs": {
+      "agent_0": "```python # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ```",
+      "agent_1": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R. The transformation is performed in-place, where the upper triangle of A stores the R matrix. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (upper triangular part contains R) ''' m, n = A.shape for k in range(n): # Vector x is the sub-column below the diagonal x = A[k:, k] norm_x = np.linalg.norm(x) # Householder vector v rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 # Beta factor for reflection beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:]) return A ```",
+      "agent_2": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, where the upper triangle contains R ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining submatrix A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ```",
+      "agent_3": "```python # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections, which are transformations of the form H = I - 2vv^T / (v^Tv), to zero out the elements below the diagonal of each column. For an m x n matrix, we iterate through each column k from 0 to n-1, constructing a vector v that reflects the current column segment onto the basis vector e_1, effectively introducing zeros below the diagonal. The matrix A is updated in-place to store the upper triangular matrix R in its upper triangle and the Householder vectors in the lower triangle. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (Upper triangular part contains R) ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply transformation to remaining columns A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:]) # Store Householder vector for Q reconstruction if needed if k < m - 1: A[k+1:, k] = v[1:] return A ```"
+    },
+    "descriptor_records": [
+      {
+        "dispatch_id": 0,
+        "message_count": 5,
+        "outer_step_index": 0,
+        "phase": "orchestrator_merge",
+        "round_index": 0
+      }
+    ],
+    "descriptor_summary": {
+      "final_phase": "cycle_termination_checker",
+      "final_round_index": 0,
+      "monitor_steps": 1
+    },
+    "discussion_rounds": 2,
+    "final_reason": "orchestrator_with_discussion:consensus_reached",
+    "full_code_per_step": [
+      "import numpy as np\n\n\n # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A "
+    ],
+    "interaction_logs": [
+      {
+        "agent_id": "agent_0",
+        "agent_role": "orchestrator",
+        "agent_type": "general",
+        "assistant_message": {
+          "content": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal. Specifically, for a vector x (the current column segment), we choose v = x + sign(x[0])||x||e_1, which reflects x onto the span of the first standard basis vector. Applying these reflections sequentially transforms A into R.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n (where the upper triangle contains R)\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:m, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        w = x / u1\\n        w[0] = 1.0\\n        tau = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining submatrix\\n        A[k:m, k:n] -= tau * np.outer(w, w.T @ A[k:m, k:n])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n  \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R.\"\n}",
+          "role": "assistant"
+        },
+        "discussion_index": 0,
+        "dispatch_id": -1,
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 641,
+          "token_out": 523
+        },
+        "outer_step_index": 0,
+        "phase": "orchestrator_plan",
+        "prior_artifact": null,
+        "prompt_messages": [
+          {
+            "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: orchestrator\nStage Role: planner\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+            "role": "system"
+          },
+          {
+            "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function to compute the factor R of a QR factorization of an $m\\times n$ matrix A with $m\\geq n$.\n\ndef householder(A):\n    '''Inputs:\n    A : Matrix of size m*n, m>=n\n    Outputs:\n    A : Matrix of size m*n\n    '''\n\n    return A\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+            "role": "user"
+          },
+          {
+            "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"orchestrator\",\n  \"stage_role\": \"planner\",\n  \"directive\": \"Plan the specialist work and produce bounded task packages.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+            "role": "user"
+          }
+        ],
+        "round_index": 0,
+        "stage_role": "planner",
+        "structured_artifact": {
+          "agent_id": "agent_0",
+          "answer": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal. Specifically, for a vector x (the current column segment), we choose v = x + sign(x[0])||x||e_1, which reflects x onto the span of the first standard basis vector. Applying these reflections sequentially transforms A into R. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (where the upper triangle contains R) ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x w = x / u1 w[0] = 1.0 tau = -rho * u1 / norm_x # Apply reflection to the remaining submatrix A[k:m, k:n] -= tau * np.outer(w, w.T @ A[k:m, k:n]) return A ```",
+          "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+          "confidence": 1.0,
+          "critique": "The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.",
+          "discussion_index": 0,
+          "dispatch_id": -1,
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 641,
+            "token_out": 523
+          },
+          "node_name": "orchestrator_plan",
+          "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal. Specifically, for a vector x (the current column segment), we choose v = x + sign(x[0])||x||e_1, which reflects x onto the span of the first standard basis vector. Applying these reflections sequentially transforms A into R.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n (where the upper triangle contains R)\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:m, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        w = x / u1\\n        w[0] = 1.0\\n        tau = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining submatrix\\n        A[k:m, k:n] -= tau * np.outer(w, w.T @ A[k:m, k:n])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n  \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R.\"\n}",
+          "revision_request": "",
+          "role": "orchestrator",
+          "round_index": 0,
+          "source_artifact_ids": [],
+          "stage_role": "planner",
+          "status": "ok",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "tool_records": [],
+          "unresolved_issues": []
+        },
+        "tool_calls": [],
+        "visible_messages": []
+      },
+      {
+        "agent_id": "agent_1",
+        "agent_role": "specialist",
+        "agent_type": "general",
+        "assistant_message": {
+          "content": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R. The transformation is performed in-place, where the upper triangle of A stores the R matrix.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n (upper triangular part contains R)\\n    '''\\n    m, n = A.shape\\n    for k in range(n):\\n        # Vector x is the sub-column below the diagonal\\n        x = A[k:, k]\\n        norm_x = np.linalg.norm(x)\\n        \\n        # Householder vector v\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        \\n        # Beta factor for reflection\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining columns\\n        A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n  \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R. The use of the sign function and the norm ensures numerical stability.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R.\"\n}",
+          "role": "assistant"
+        },
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1044,
+          "token_out": 525
+        },
+        "outer_step_index": 0,
+        "phase": "specialists_initial_round",
+        "prior_artifact": null,
+        "prompt_messages": [
+          {
+            "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: specialist\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+            "role": "system"
+          },
+          {
+            "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function to compute the factor R of a QR factorization of an $m\\times n$ matrix A with $m\\geq n$.\n\ndef householder(A):\n    '''Inputs:\n    A : Matrix of size m*n, m>=n\n    Outputs:\n    A : Matrix of size m*n\n    '''\n\n    return A\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+            "role": "user"
+          },
+          {
+            "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"specialist\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Produce an initial specialist artifact from the orchestrator task package.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_1\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_0\",\n      \"recipients\": [\n        \"agent_1\"\n      ],\n      \"kind\": \"task_package\",\n      \"phase\": \"dispatch_specialists\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"orchestrator_plan:agent_0:0:0:-1\",\n      \"content\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n      \"payload\": {\n        \"artifact_id\": \"orchestrator_plan:agent_0:0:0:-1\",\n        \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n        \"answer_artifact\": \"```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...\",\n        \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements\",\n          \"effectively transforming the matrix into an upper triangular form R.\"\n        ]\n      }\n    }\n  ]\n}",
+            "role": "user"
+          }
+        ],
+        "round_index": 0,
+        "stage_role": "worker",
+        "structured_artifact": {
+          "agent_id": "agent_1",
+          "answer": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R. The transformation is performed in-place, where the upper triangle of A stores the R matrix. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (upper triangular part contains R) ''' m, n = A.shape for k in range(n): # Vector x is the sub-column below the diagonal x = A[k:, k] norm_x = np.linalg.norm(x) # Householder vector v rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 # Beta factor for reflection beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:]) return A ```",
+          "artifact_id": "specialists_initial_round:agent_1:0:0:0",
+          "confidence": 1.0,
+          "critique": "The implementation correctly applies Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R. The use of the sign function and the norm ensures numerical stability.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1044,
+            "token_out": 525
+          },
+          "node_name": "specialists_initial_round",
+          "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R. The transformation is performed in-place, where the upper triangle of A stores the R matrix.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n (upper triangular part contains R)\\n    '''\\n    m, n = A.shape\\n    for k in range(n):\\n        # Vector x is the sub-column below the diagonal\\n        x = A[k:, k]\\n        norm_x = np.linalg.norm(x)\\n        \\n        # Householder vector v\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        \\n        # Beta factor for reflection\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining columns\\n        A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n  \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R. The use of the sign function and the norm ensures numerical stability.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R.\"\n}",
+          "revision_request": "",
+          "role": "specialist",
+          "round_index": 0,
+          "source_artifact_ids": [
+            "orchestrator_plan:agent_0:0:0:-1"
+          ],
+          "stage_role": "worker",
+          "status": "ok",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "tool_records": [],
+          "unresolved_issues": []
+        },
+        "tool_calls": [],
+        "visible_messages": [
+          {
+            "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+            "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+            "discussion_index": 0,
+            "dispatch_id": 0,
+            "kind": "task_package",
+            "message_id": "m_1",
+            "payload": {
+              "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+              "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+              "confidence": 1.0,
+              "critique": "The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.",
+              "evidence_summary": [
+                "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+                "effectively transforming the matrix into an upper triangular form R."
+              ],
+              "revision_request": "",
+              "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+              "unresolved_issues": []
+            },
+            "phase": "dispatch_specialists",
+            "recipients": [
+              "agent_1"
+            ],
+            "round": 0,
+            "sender": "agent_0"
+          }
+        ]
+      },
+      {
+        "agent_id": "agent_2",
+        "agent_role": "specialist",
+        "agent_type": "general",
+        "assistant_message": {
+          "content": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n, where the upper triangle contains R\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:m, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining submatrix\\n        A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n  \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R.\"\n}",
+          "role": "assistant"
+        },
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1044,
+          "token_out": 493
+        },
+        "outer_step_index": 0,
+        "phase": "specialists_initial_round",
+        "prior_artifact": null,
+        "prompt_messages": [
+          {
+            "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: specialist\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+            "role": "system"
+          },
+          {
+            "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function to compute the factor R of a QR factorization of an $m\\times n$ matrix A with $m\\geq n$.\n\ndef householder(A):\n    '''Inputs:\n    A : Matrix of size m*n, m>=n\n    Outputs:\n    A : Matrix of size m*n\n    '''\n\n    return A\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+            "role": "user"
+          },
+          {
+            "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"specialist\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Produce an initial specialist artifact from the orchestrator task package.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_2\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_0\",\n      \"recipients\": [\n        \"agent_2\"\n      ],\n      \"kind\": \"task_package\",\n      \"phase\": \"dispatch_specialists\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"orchestrator_plan:agent_0:0:0:-1\",\n      \"content\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n      \"payload\": {\n        \"artifact_id\": \"orchestrator_plan:agent_0:0:0:-1\",\n        \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n        \"answer_artifact\": \"```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...\",\n        \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements\",\n          \"effectively transforming the matrix into an upper triangular form R.\"\n        ]\n      }\n    }\n  ]\n}",
+            "role": "user"
+          }
+        ],
+        "round_index": 0,
+        "stage_role": "worker",
+        "structured_artifact": {
+          "agent_id": "agent_2",
+          "answer": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, where the upper triangle contains R ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining submatrix A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ```",
+          "artifact_id": "specialists_initial_round:agent_2:0:0:0",
+          "confidence": 1.0,
+          "critique": "The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1044,
+            "token_out": 493
+          },
+          "node_name": "specialists_initial_round",
+          "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal in that column. By applying these reflections sequentially, the matrix A is transformed into an upper triangular matrix R.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n, where the upper triangle contains R\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:m, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining submatrix\\n        A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n  \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R.\"\n}",
+          "revision_request": "",
+          "role": "specialist",
+          "round_index": 0,
+          "source_artifact_ids": [
+            "orchestrator_plan:agent_0:0:0:-1"
+          ],
+          "stage_role": "worker",
+          "status": "ok",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "tool_records": [],
+          "unresolved_issues": []
+        },
+        "tool_calls": [],
+        "visible_messages": [
+          {
+            "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+            "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+            "discussion_index": 0,
+            "dispatch_id": 0,
+            "kind": "task_package",
+            "message_id": "m_2",
+            "payload": {
+              "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+              "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+              "confidence": 1.0,
+              "critique": "The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.",
+              "evidence_summary": [
+                "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+                "effectively transforming the matrix into an upper triangular form R."
+              ],
+              "revision_request": "",
+              "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+              "unresolved_issues": []
+            },
+            "phase": "dispatch_specialists",
+            "recipients": [
+              "agent_2"
+            ],
+            "round": 0,
+            "sender": "agent_0"
+          }
+        ]
+      },
+      {
+        "agent_id": "agent_3",
+        "agent_role": "specialist",
+        "agent_type": "general",
+        "assistant_message": {
+          "content": "{\n  \"answer_artifact\": \"```python\\n# Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections, which are transformations of the form H = I - 2vv^T / (v^Tv), to zero out the elements below the diagonal of each column. For an m x n matrix, we iterate through each column k from 0 to n-1, constructing a vector v that reflects the current column segment onto the basis vector e_1, effectively introducing zeros below the diagonal. The matrix A is updated in-place to store the upper triangular matrix R in its upper triangle and the Householder vectors in the lower triangle.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n (Upper triangular part contains R)\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply transformation to remaining columns\\n        A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:])\\n        \\n        # Store Householder vector for Q reconstruction if needed\\n        if k < m - 1:\\n            A[k+1:, k] = v[1:]\\n            \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).\",\n  \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies the input matrix in-place to store the R matrix in the upper triangle and the Householder vectors in the lower triangle, which is memory efficient.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The implementation follows the standard numerical linear algebra procedure for Householder QR decomposition as described in textbooks like Trefethen and Bau.\"\n}",
+          "role": "assistant"
+        },
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 639,
+          "token_out": 574
+        },
+        "outer_step_index": 0,
+        "phase": "specialists_initial_round",
+        "prior_artifact": null,
+        "prompt_messages": [
+          {
+            "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: specialist\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+            "role": "system"
+          },
+          {
+            "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function to compute the factor R of a QR factorization of an $m\\times n$ matrix A with $m\\geq n$.\n\ndef householder(A):\n    '''Inputs:\n    A : Matrix of size m*n, m>=n\n    Outputs:\n    A : Matrix of size m*n\n    '''\n\n    return A\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+            "role": "user"
+          },
+          {
+            "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"specialist\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Produce an initial specialist artifact from the orchestrator task package.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+            "role": "user"
+          }
+        ],
+        "round_index": 0,
+        "stage_role": "worker",
+        "structured_artifact": {
+          "agent_id": "agent_3",
+          "answer": "```python # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections, which are transformations of the form H = I - 2vv^T / (v^Tv), to zero out the elements below the diagonal of each column. For an m x n matrix, we iterate through each column k from 0 to n-1, constructing a vector v that reflects the current column segment onto the basis vector e_1, effectively introducing zeros below the diagonal. The matrix A is updated in-place to store the upper triangular matrix R in its upper triangle and the Householder vectors in the lower triangle. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (Upper triangular part contains R) ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply transformation to remaining columns A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:]) # Store Householder vector for Q reconstruction if needed if k < m - 1: A[k+1:, k] = v[1:] return A ```",
+          "artifact_id": "specialists_initial_round:agent_3:0:0:0",
+          "confidence": 1.0,
+          "critique": "The implementation uses the standard Householder reflection approach. It modifies the input matrix in-place to store the R matrix in the upper triangle and the Householder vectors in the lower triangle, which is memory efficient.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "evidence_summary": [
+            "The implementation follows the standard numerical linear algebra procedure for Householder QR decomposition as described in textbooks like Trefethen and Bau."
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 639,
+            "token_out": 574
+          },
+          "node_name": "specialists_initial_round",
+          "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections, which are transformations of the form H = I - 2vv^T / (v^Tv), to zero out the elements below the diagonal of each column. For an m x n matrix, we iterate through each column k from 0 to n-1, constructing a vector v that reflects the current column segment onto the basis vector e_1, effectively introducing zeros below the diagonal. The matrix A is updated in-place to store the upper triangular matrix R in its upper triangle and the Householder vectors in the lower triangle.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n (Upper triangular part contains R)\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply transformation to remaining columns\\n        A[k:, k:] -= beta * np.outer(v, v.T @ A[k:, k:])\\n        \\n        # Store Householder vector for Q reconstruction if needed\\n        if k < m - 1:\\n            A[k+1:, k] = v[1:]\\n            \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).\",\n  \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies the input matrix in-place to store the R matrix in the upper triangle and the Householder vectors in the lower triangle, which is memory efficient.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The implementation follows the standard numerical linear algebra procedure for Householder QR decomposition as described in textbooks like Trefethen and Bau.\"\n}",
+          "revision_request": "",
+          "role": "specialist",
+          "round_index": 0,
+          "source_artifact_ids": [],
+          "stage_role": "worker",
+          "status": "ok",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).",
+          "tool_records": [],
+          "unresolved_issues": []
+        },
+        "tool_calls": [],
+        "visible_messages": []
+      },
+      {
+        "agent_id": "agent_0",
+        "agent_role": "orchestrator",
+        "agent_type": "general",
+        "assistant_message": {
+          "content": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n, with R in the upper triangle\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:m, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining columns\\n        A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A, ensuring numerical stability by using the sign function and appropriate scaling.\",\n  \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements.\",\n    \"The implementation effectively transforms the matrix into an upper triangular form R.\"\n  ]\n}",
+          "role": "assistant"
+        },
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 2125,
+          "token_out": 513
+        },
+        "outer_step_index": 0,
+        "phase": "orchestrator_merge",
+        "prior_artifact": {
+          "agent_id": "agent_0",
+          "answer": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal. Specifically, for a vector x (the current column segment), we choose v = x + sign(x[0])||x||e_1, which reflects x onto the span of the first standard basis vector. Applying these reflections sequentially transforms A into R. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n (where the upper triangle contains R) ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x w = x / u1 w[0] = 1.0 tau = -rho * u1 / norm_x # Apply reflection to the remaining submatrix A[k:m, k:n] -= tau * np.outer(w, w.T @ A[k:m, k:n]) return A ```",
+          "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+          "confidence": 1.0,
+          "critique": "The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.",
+          "discussion_index": 0,
+          "dispatch_id": -1,
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 641,
+            "token_out": 523
+          },
+          "node_name": "orchestrator_plan",
+          "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the elements below the diagonal. Specifically, for a vector x (the current column segment), we choose v = x + sign(x[0])||x||e_1, which reflects x onto the span of the first standard basis vector. Applying these reflections sequentially transforms A into R.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n (where the upper triangle contains R)\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:m, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        w = x / u1\\n        w[0] = 1.0\\n        tau = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining submatrix\\n        A[k:m, k:n] -= tau * np.outer(w, w.T @ A[k:m, k:n])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n  \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R.\"\n}",
+          "revision_request": "",
+          "role": "orchestrator",
+          "round_index": 0,
+          "source_artifact_ids": [],
+          "stage_role": "planner",
+          "status": "ok",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "tool_records": [],
+          "unresolved_issues": []
+        },
+        "prompt_messages": [
+          {
+            "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: orchestrator\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+            "role": "system"
+          },
+          {
+            "content": "PROBLEM DESCRIPTION:\nYou will be provided with the main description of the problem, previous steps, and the next step. Your task will be to generate the disciplinary knowledge necessary for solving the next step and then develop a Python solution focused on this step.\n\nPREVIOUS STEPS DESCRIPTION:\n\n\nNEXT STEP - PROBLEM DESCRIPTION AND FUNCTION HEADER:\nThis part will describe the next step in the problem-solving process. First, provide the necessary scientific background knowledge as a comment at the beginning of your response, starting with 'Background: '. Then, a function header will be provided, and your task is to develop the Python code for this next step based on the provided description and function header.\n\nCreate a function to compute the factor R of a QR factorization of an $m\\times n$ matrix A with $m\\geq n$.\n\ndef householder(A):\n    '''Inputs:\n    A : Matrix of size m*n, m>=n\n    Outputs:\n    A : Matrix of size m*n\n    '''\n\n    return A\n\nDEPENDENCIES:\nUse only the following dependencies in your solution. Do not include these dependencies at the beginning of your code.\nimport numpy as np\n\nRESPONSE GUIDELINES:\n1. Start with the scientific background required for the next step, formatted as a comment.\n2. Then write the complete and executable Python program for the next step in a single block.\n3. Your response should focus exclusively on implementing the solution for the next step, adhering closely to the specified function header and the context provided by the initial steps.\n4. DO NOT include previous function code, example usage or test code in your response.\n5. Ensure your response is in the format of ```python``` and includes the necessary background as a comment at the top.\n\nExample:\n```python\n# Background: [Here, insert the necessary scientific knowledge required for the next step.]\n\n[Insert the Python code here based on the provided function header and dependencies.]\n```\n",
+            "role": "user"
+          },
+          {
+            "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"orchestrator\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Synthesize the latest specialist artifacts into the current best final answer.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"orchestrator_plan:agent_0:0:0:-1\",\n    \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n    \"answer_artifact\": \"```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...\",\n    \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements\",\n      \"effectively transforming the matrix into an upper triangular form R.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_3\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_1\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"specialist_report\",\n      \"phase\": \"relay_specialist_reports\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"specialists_initial_round:agent_1:0:0:0\",\n      \"content\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n      \"payload\": {\n        \"artifact_id\": \"specialists_initial_round:agent_1:0:0:0\",\n        \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n        \"answer_artifact\": \"```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...\",\n        \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R. The use of the sign function and the norm ensures numerical stability.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements\",\n          \"effectively transforming the matrix into an upper triangular form R.\"\n        ]\n      }\n    },\n    {\n      \"message_id\": \"m_4\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_2\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"specialist_report\",\n      \"phase\": \"relay_specialist_reports\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"specialists_initial_round:agent_2:0:0:0\",\n      \"content\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n      \"payload\": {\n        \"artifact_id\": \"specialists_initial_round:agent_2:0:0:0\",\n        \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.\",\n        \"answer_artifact\": \"```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...\",\n        \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements\",\n          \"effectively transforming the matrix into an upper triangular form R.\"\n        ]\n      }\n    },\n    {\n      \"message_id\": \"m_5\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_3\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"specialist_report\",\n      \"phase\": \"relay_specialist_reports\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"specialists_initial_round:agent_3:0:0:0\",\n      \"content\": \"Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).\",\n      \"payload\": {\n        \"artifact_id\": \"specialists_initial_round:agent_3:0:0:0\",\n        \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).\",\n        \"answer_artifact\": \"```python # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections, which are transformations of the form H = I - 2vv^T / (v^Tv), to zero out the elements below the diagonal of eac...\",\n        \"critique\": \"The implementation uses the standard Householder reflection approach. It modifies the input matrix in-place to store the R matrix in the upper triangle and the Householder vectors in the lower triangle, which is memory efficient.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"The implementation follows the standard numerical linear algebra procedure for Householder QR decomposition as described in textbooks like Trefethen and Bau.\"\n        ]\n      }\n    }\n  ]\n}",
+            "role": "user"
+          }
+        ],
+        "round_index": 0,
+        "stage_role": "aggregator",
+        "structured_artifact": {
+          "agent_id": "agent_0",
+          "answer": "```python # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ```",
+          "artifact_id": "orchestrator_merge:agent_0:0:0:0",
+          "confidence": 1.0,
+          "critique": "The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements.",
+            "The implementation effectively transforms the matrix into an upper triangular form R."
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 2125,
+            "token_out": 513
+          },
+          "node_name": "orchestrator_merge",
+          "raw_response": "{\n  \"answer_artifact\": \"```python\\n# Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A.\\n\\ndef householder(A):\\n    '''Inputs:\\n    A : Matrix of size m*n, m>=n\\n    Outputs:\\n    A : Matrix of size m*n, with R in the upper triangle\\n    '''\\n    m, n = A.shape\\n    A = A.astype(float)\\n    for k in range(n):\\n        x = A[k:m, k]\\n        norm_x = np.linalg.norm(x)\\n        rho = -np.sign(x[0]) if x[0] != 0 else -1\\n        u1 = x[0] - rho * norm_x\\n        v = x / u1\\n        v[0] = 1.0\\n        beta = -rho * u1 / norm_x\\n        \\n        # Apply reflection to the remaining columns\\n        A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n])\\n        \\n    return A\\n```\",\n  \"summary\": \"Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A, ensuring numerical stability by using the sign function and appropriate scaling.\",\n  \"critique\": \"The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements.\",\n    \"The implementation effectively transforms the matrix into an upper triangular form R.\"\n  ]\n}",
+          "revision_request": "",
+          "role": "orchestrator",
+          "round_index": 0,
+          "source_artifact_ids": [
+            "specialists_initial_round:agent_1:0:0:0",
+            "specialists_initial_round:agent_2:0:0:0",
+            "specialists_initial_round:agent_3:0:0:0",
+            "orchestrator_plan:agent_0:0:0:-1"
+          ],
+          "stage_role": "aggregator",
+          "status": "ok",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A, ensuring numerical stability by using the sign function and appropriate scaling.",
+          "tool_records": [],
+          "unresolved_issues": []
+        },
+        "tool_calls": [],
+        "visible_messages": [
+          {
+            "artifact_id": "specialists_initial_round:agent_1:0:0:0",
+            "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+            "discussion_index": 0,
+            "dispatch_id": 0,
+            "kind": "specialist_report",
+            "message_id": "m_3",
+            "payload": {
+              "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+              "artifact_id": "specialists_initial_round:agent_1:0:0:0",
+              "confidence": 1.0,
+              "critique": "The implementation correctly applies Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R. The use of the sign function and the norm ensures numerical stability.",
+              "evidence_summary": [
+                "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+                "effectively transforming the matrix into an upper triangular form R."
+              ],
+              "revision_request": "",
+              "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+              "unresolved_issues": []
+            },
+            "phase": "relay_specialist_reports",
+            "recipients": [
+              "agent_0"
+            ],
+            "round": 0,
+            "sender": "agent_1"
+          },
+          {
+            "artifact_id": "specialists_initial_round:agent_2:0:0:0",
+            "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+            "discussion_index": 0,
+            "dispatch_id": 0,
+            "kind": "specialist_report",
+            "message_id": "m_4",
+            "payload": {
+              "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+              "artifact_id": "specialists_initial_round:agent_2:0:0:0",
+              "confidence": 1.0,
+              "critique": "The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.",
+              "evidence_summary": [
+                "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+                "effectively transforming the matrix into an upper triangular form R."
+              ],
+              "revision_request": "",
+              "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+              "unresolved_issues": []
+            },
+            "phase": "relay_specialist_reports",
+            "recipients": [
+              "agent_0"
+            ],
+            "round": 0,
+            "sender": "agent_2"
+          },
+          {
+            "artifact_id": "specialists_initial_round:agent_3:0:0:0",
+            "content": "Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).",
+            "discussion_index": 0,
+            "dispatch_id": 0,
+            "kind": "specialist_report",
+            "message_id": "m_5",
+            "payload": {
+              "answer_artifact": "```python # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections, which are transformations of the form H = I - 2vv^T / (v^Tv), to zero out the elements below the diagonal of eac...",
+              "artifact_id": "specialists_initial_round:agent_3:0:0:0",
+              "confidence": 1.0,
+              "critique": "The implementation uses the standard Householder reflection approach. It modifies the input matrix in-place to store the R matrix in the upper triangle and the Householder vectors in the lower triangle, which is memory efficient.",
+              "evidence_summary": [
+                "The implementation follows the standard numerical linear algebra procedure for Householder QR decomposition as described in textbooks like Trefethen and Bau."
+              ],
+              "revision_request": "",
+              "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).",
+              "unresolved_issues": []
+            },
+            "phase": "relay_specialist_reports",
+            "recipients": [
+              "agent_0"
+            ],
+            "round": 0,
+            "sender": "agent_3"
+          }
+        ]
+      }
+    ],
+    "message_views": [
+      {
+        "discussion_index": 0,
+        "dispatch_id": -1,
+        "outer_step_index": 0,
+        "phase": "orchestrator_plan",
+        "role": "orchestrator",
+        "round_index": 0,
+        "viewer": "agent_0",
+        "visible_count": 0,
+        "visible_message_ids": [],
+        "visible_senders": []
+      },
+      {
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "specialists_initial_round",
+        "role": "specialist",
+        "round_index": 0,
+        "viewer": "agent_1",
+        "visible_count": 1,
+        "visible_message_ids": [
+          "m_1"
+        ],
+        "visible_senders": [
+          "agent_0"
+        ]
+      },
+      {
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "specialists_initial_round",
+        "role": "specialist",
+        "round_index": 0,
+        "viewer": "agent_2",
+        "visible_count": 1,
+        "visible_message_ids": [
+          "m_2"
+        ],
+        "visible_senders": [
+          "agent_0"
+        ]
+      },
+      {
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "specialists_initial_round",
+        "role": "specialist",
+        "round_index": 0,
+        "viewer": "agent_3",
+        "visible_count": 0,
+        "visible_message_ids": [],
+        "visible_senders": []
+      },
+      {
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "orchestrator_merge",
+        "role": "orchestrator",
+        "round_index": 0,
+        "viewer": "agent_0",
+        "visible_count": 3,
+        "visible_message_ids": [
+          "m_3",
+          "m_4",
+          "m_5"
+        ],
+        "visible_senders": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ]
+      }
+    ],
+    "messages_sent_by_agent": {
+      "agent_0": 2,
+      "agent_1": 1,
+      "agent_2": 1,
+      "agent_3": 1
+    },
+    "messages_sent_total": 5,
+    "phase_history": [
+      {
+        "active_agents": [
+          "agent_0"
+        ],
+        "discussion_index": 0,
+        "dispatch_id": -1,
+        "outer_step_index": 0,
+        "phase": "orchestrator_plan",
+        "round_index": 0
+      },
+      {
+        "active_agents": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "discussion_index": 0,
+        "dispatch_id": -1,
+        "outer_step_index": 0,
+        "phase": "dispatch_specialists",
+        "round_index": 0
+      },
+      {
+        "active_agents": [],
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "relay_specialist_reports",
+        "round_index": 0
+      },
+      {
+        "active_agents": [],
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "orchestrator_relay",
+        "round_index": 0
+      },
+      {
+        "active_agents": [
+          "agent_0"
+        ],
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "orchestrator_merge",
+        "round_index": 0
+      },
+      {
+        "active_agents": [],
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "descriptor_monitor",
+        "round_index": 0
+      },
+      {
+        "active_agents": [],
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "cycle_termination_checker",
+        "round_index": 0
+      },
+      {
+        "active_agents": [],
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "outer_step_index": 0,
+        "phase": "finalize",
+        "round_index": 0
+      }
+    ],
+    "previous_llm_code": [
+      " # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A "
+    ],
+    "raw_responses_per_step": [
+      "```python # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ```"
+    ],
+    "relay_messages": [
+      {
+        "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+        "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "kind": "task_package",
+        "message_id": "m_1",
+        "outer_step_index": 0,
+        "payload": {
+          "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+          "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+          "confidence": 1.0,
+          "critique": "The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.",
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "revision_request": "",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "unresolved_issues": []
+        },
+        "phase": "dispatch_specialists",
+        "recipients": [
+          "agent_1"
+        ],
+        "round": 0,
+        "sender": "agent_0"
+      },
+      {
+        "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+        "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "kind": "task_package",
+        "message_id": "m_2",
+        "outer_step_index": 0,
+        "payload": {
+          "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+          "artifact_id": "orchestrator_plan:agent_0:0:0:-1",
+          "confidence": 1.0,
+          "critique": "The implementation uses the standard Householder reflection approach. It modifies A in-place to store the R matrix in the upper triangle, which is standard for this type of numerical linear algebra task.",
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "revision_request": "",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "unresolved_issues": []
+        },
+        "phase": "dispatch_specialists",
+        "recipients": [
+          "agent_2"
+        ],
+        "round": 0,
+        "sender": "agent_0"
+      },
+      {
+        "artifact_id": "specialists_initial_round:agent_1:0:0:0",
+        "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "kind": "specialist_report",
+        "message_id": "m_3",
+        "outer_step_index": 0,
+        "payload": {
+          "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+          "artifact_id": "specialists_initial_round:agent_1:0:0:0",
+          "confidence": 1.0,
+          "critique": "The implementation correctly applies Householder reflections to zero out sub-diagonal elements, effectively transforming the matrix into an upper triangular form R. The use of the sign function and the norm ensures numerical stability.",
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "revision_request": "",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "unresolved_issues": []
+        },
+        "phase": "relay_specialist_reports",
+        "recipients": [
+          "agent_0"
+        ],
+        "round": 0,
+        "sender": "agent_1"
+      },
+      {
+        "artifact_id": "specialists_initial_round:agent_2:0:0:0",
+        "content": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "kind": "specialist_report",
+        "message_id": "m_4",
+        "outer_step_index": 0,
+        "payload": {
+          "answer_artifact": "```python # Background: QR factorization using Householder reflections decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). For each column k of the matrix, we construct a reflection that zeros out the...",
+          "artifact_id": "specialists_initial_round:agent_2:0:0:0",
+          "confidence": 1.0,
+          "critique": "The implementation correctly applies Householder reflections to zero out sub-diagonal elements, transforming the matrix into an upper triangular form R. The use of the sign function and the scaling factor beta ensures numerical stability.",
+          "evidence_summary": [
+            "The code follows the mathematical definition of Householder reflections to zero out sub-diagonal elements",
+            "effectively transforming the matrix into an upper triangular form R."
+          ],
+          "revision_request": "",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix in-place within the input matrix A.",
+          "unresolved_issues": []
+        },
+        "phase": "relay_specialist_reports",
+        "recipients": [
+          "agent_0"
+        ],
+        "round": 0,
+        "sender": "agent_2"
+      },
+      {
+        "artifact_id": "specialists_initial_round:agent_3:0:0:0",
+        "content": "Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "kind": "specialist_report",
+        "message_id": "m_5",
+        "outer_step_index": 0,
+        "payload": {
+          "answer_artifact": "```python # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections, which are transformations of the form H = I - 2vv^T / (v^Tv), to zero out the elements below the diagonal of eac...",
+          "artifact_id": "specialists_initial_round:agent_3:0:0:0",
+          "confidence": 1.0,
+          "critique": "The implementation uses the standard Householder reflection approach. It modifies the input matrix in-place to store the R matrix in the upper triangle and the Householder vectors in the lower triangle, which is memory efficient.",
+          "evidence_summary": [
+            "The implementation follows the standard numerical linear algebra procedure for Householder QR decomposition as described in textbooks like Trefethen and Bau."
+          ],
+          "revision_request": "",
+          "summary": "Implemented the Householder QR factorization algorithm to compute the R matrix (stored in the upper triangle of the input matrix A).",
+          "unresolved_issues": []
+        },
+        "phase": "relay_specialist_reports",
+        "recipients": [
+          "agent_0"
+        ],
+        "round": 0,
+        "sender": "agent_3"
+      }
+    ],
+    "remaining_message_budget": {
+      "agent_0": 0,
+      "agent_1": 1,
+      "agent_2": 1,
+      "agent_3": 1
+    },
+    "retrieved_docids": [
+      "0"
+    ],
+    "rounds_configured": 2,
+    "run_index": 0,
+    "seed": 5042,
+    "step_runs": [
+      {
+        "final_answer": "```python # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ```",
+        "outer_step_index": 0,
+        "run_summary": {
+          "final_reason": "orchestrator_with_discussion:consensus_reached",
+          "messages_sent_by_agent": {
+            "agent_0": 2,
+            "agent_1": 1,
+            "agent_2": 1,
+            "agent_3": 1
+          },
+          "messages_sent_total": 5,
+          "tool_call_counts": {
+            "inter_agent_send": 5
+          },
+          "tool_calls_total": 5,
+          "topology": "orchestrator_with_discussion",
+          "turns_executed": 1
+        },
+        "task_id": "74.1"
+      }
+    ],
+    "task_id": "74.1",
+    "termination_history": [
+      {
+        "average_confidence": 1.0,
+        "consensus_count": 3,
+        "consensus_explanation": "All three agents implement the Householder QR factorization algorithm correctly using the same mathematical approach (Householder reflections) to transform the matrix into an upper triangular form. Minor differences in code structure or comments do not change the functional outcome.",
+        "consensus_groups": [
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        "consensus_mode": "llm_judge",
+        "consensus_ratio": 1.0,
+        "consensus_signature": "0,1,2",
+        "consensus_source": "llm_judge",
+        "consensus_valid_count": 3,
+        "control_cost_usd": 0.0,
+        "control_latency_ms": 1601.25704202801,
+        "control_token_in": 1611,
+        "control_token_out": 64,
+        "discussion_index": 0,
+        "mean_delta": null,
+        "next_step": "orchestrator_merge",
+        "outer_step_index": 0,
+        "reason": "consensus_reached",
+        "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+        "round_index": 0,
+        "should_stop": true,
+        "stage_name": "orchestrator_relay",
+        "valid_artifact_count": 3
+      },
+      {
+        "average_confidence": 1.0,
+        "consensus_count": 3,
+        "consensus_explanation": "All three agents implement the Householder QR factorization algorithm correctly, using the same mathematical approach to transform the matrix A into an upper triangular matrix R in-place. Minor differences in variable naming or handling of the lower triangular part (storing Householder vectors) do not change the fundamental result of computing the R factor.",
+        "consensus_groups": [
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        "consensus_mode": "llm_judge",
+        "consensus_ratio": 1.0,
+        "consensus_signature": "0,1,2",
+        "consensus_source": "llm_judge",
+        "consensus_valid_count": 3,
+        "control_cost_usd": 0.0,
+        "control_latency_ms": 2134.0529590379447,
+        "control_token_in": 1609,
+        "control_token_out": 82,
+        "discussion_index": 0,
+        "mean_delta": null,
+        "next_step": "finalize",
+        "outer_step_index": 0,
+        "reason": "consensus_reached",
+        "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+        "round_index": 0,
+        "should_stop": true,
+        "stage_name": "cycle_termination_checker",
+        "valid_artifact_count": 3
+      }
+    ],
+    "tool_call_counts": {
+      "inter_agent_send": 5
+    },
+    "tool_calls_total": 5,
+    "tool_definitions": [],
+    "topology": "orchestrator_with_discussion",
+    "topology_layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_1": [
+          "agent_0"
+        ],
+        "agent_2": [
+          "agent_0"
+        ],
+        "agent_3": [
+          "agent_0"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        1,
+        3
+      ],
+      "children_by_agent": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ]
+      },
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "managers": [],
+      "orchestrator_id": "agent_0",
+      "parent_by_agent": {
+        "agent_1": "agent_0",
+        "agent_2": "agent_0",
+        "agent_3": "agent_0"
+      },
+      "representatives": [],
+      "roles": {
+        "agent_0": "orchestrator",
+        "agent_1": "specialist",
+        "agent_2": "specialist",
+        "agent_3": "specialist"
+      },
+      "specialists": [
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "orchestrator_with_discussion"
+    },
+    "turns_executed": 1,
+    "vote_tally": {},
+    "workflow_definition": {
+      "aggregation_logic": "Specialists never see raw peer transcripts; only orchestrator-generated peer summaries are routed. The orchestrator performs the final synthesis each outer cycle.",
+      "conditional_edges": [
+        "dispatch_specialists -> specialists_initial_round (parallel Send fan-out) else relay_specialist_reports",
+        "orchestrator_relay -> dispatch_revision_round | orchestrator_merge",
+        "cycle_termination_checker -> dispatch_specialists | finalize"
+      ],
+      "dispatch_logic": "The orchestrator sends initial task packages, then bounded peer-summary bundles for revision rounds.",
+      "edges": [
+        "START -> orchestrator_plan",
+        "orchestrator_plan -> dispatch_specialists",
+        "specialists_initial_round -> relay_specialist_reports",
+        "specialists_revision_round -> relay_specialist_reports",
+        "relay_specialist_reports -> orchestrator_relay",
+        "orchestrator_merge -> descriptor_monitor",
+        "descriptor_monitor -> cycle_termination_checker",
+        "finalize -> END"
+      ],
+      "logging_outputs": [
+        "trace_events",
+        "relay_messages",
+        "message_views",
+        "interaction_logs",
+        "descriptor_records",
+        "termination_history"
+      ],
+      "nodes": {
+        "cycle_termination_checker": "Outer-cycle stopper.",
+        "descriptor_monitor": "Shared descriptor hook.",
+        "dispatch_revision_round": "Revision-round fan-out.",
+        "dispatch_specialists": "Task package fan-out.",
+        "finalize": "Finalize the run.",
+        "orchestrator_merge": "Final orchestrator synthesis for the current cycle.",
+        "orchestrator_plan": "Initial orchestrator planner.",
+        "orchestrator_relay": "Mediated peer-summary relay plus discussion stopping logic.",
+        "relay_specialist_reports": "Specialist-to-orchestrator reports.",
+        "specialists_initial_round": "Initial specialist artifacts.",
+        "specialists_revision_round": "Specialist revision stage."
+      },
+      "state_fields": [
+        "task_id",
+        "task_prompt",
+        "topology",
+        "layout",
+        "rounds",
+        "discussion_rounds",
+        "round_index",
+        "discussion_index",
+        "messages",
+        "artifacts",
+        "termination_decision",
+        "vote_tally",
+        "descriptor_records"
+      ],
+      "stopping_criteria": [
+        "Max discussion rounds reached",
+        "Consensus across latest specialist artifacts",
+        "No meaningful change between revisions",
+        "Confidence threshold reached",
+        "Invalid or failed branch fallback",
+        "Max outer cycles reached"
+      ],
+      "topology": "orchestrator_with_discussion"
+    }
+  }
+}

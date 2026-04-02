@@ -1,0 +1,1112 @@
+{
+  "benchmark": "scicode",
+  "config_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/config/benchmarks/scicode_10.toml",
+  "experiment_id": "20260401T195507Z",
+  "experiment_settings_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_1": [
+          "agent_0"
+        ],
+        "agent_2": [
+          "agent_0"
+        ],
+        "agent_3": [
+          "agent_0"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        1,
+        3
+      ],
+      "children_by_agent": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ]
+      },
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "managers": [],
+      "orchestrator_id": "agent_0",
+      "parent_by_agent": {
+        "agent_1": "agent_0",
+        "agent_2": "agent_0",
+        "agent_3": "agent_0"
+      },
+      "representatives": [],
+      "roles": {
+        "agent_0": "orchestrator",
+        "agent_1": "specialist",
+        "agent_2": "specialist",
+        "agent_3": "specialist"
+      },
+      "specialists": [
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "orchestrator_no_discussion"
+    },
+    "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/mas_graph.mmd",
+    "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "orchestrator_no_discussion",
+    "workflow": {
+      "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/workflow_graph.mmd",
+      "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "orchestrator_no_discussion",
+      "workflow": {
+        "aggregation_logic": "Specialist artifacts are relayed upward as reports; the orchestrator merges those reports into one artifact.",
+        "conditional_edges": [
+          "dispatch_specialists -> specialist_worker (parallel Send fan-out) else relay_specialist_reports",
+          "termination_checker -> dispatch_specialists | finalize"
+        ],
+        "dispatch_logic": "The orchestrator emits bounded task packages to the activated specialists.",
+        "edges": [
+          "START -> orchestrator_plan",
+          "orchestrator_plan -> dispatch_specialists",
+          "specialist_worker -> relay_specialist_reports",
+          "relay_specialist_reports -> orchestrator_merge",
+          "orchestrator_merge -> descriptor_monitor",
+          "descriptor_monitor -> termination_checker",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "descriptor_monitor": "Shared descriptor hook.",
+          "dispatch_specialists": "Build task packages for specialists.",
+          "finalize": "Finalize the run.",
+          "orchestrator_merge": "Merge specialist reports.",
+          "orchestrator_plan": "Initial planner/orchestrator artifact.",
+          "relay_specialist_reports": "Bounded specialist-to-orchestrator reports.",
+          "specialist_worker": "Independent specialist execution.",
+          "termination_checker": "Explicit round stopper."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max rounds reached",
+          "Consensus across specialist artifacts",
+          "No meaningful change between orchestrator merge artifacts",
+          "Orchestrator confidence threshold reached",
+          "Invalid or failed branch fallback"
+        ],
+        "topology": "orchestrator_no_discussion"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_no_discussion",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_no_discussion"
+  },
+  "system_label": "orchestrator_no_discussion",
+  "task_count": 10,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/77/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/77/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 313048.2400414739,
+        "C2_tokens_total": 280142.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 60.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 60.0,
+        "D3_handoff_count": 107.0,
+        "P1_steps_total": 300.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 60.0,
+        "stage_act_latency_ms": 285936.26658432186,
+        "stage_act_tokens": 253956.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 3126.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 120.0,
+        "stage_retrieve_latency_ms": 120.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 12.0,
+        "stage_revise_latency_ms": 12.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 96.0,
+        "stage_verify_latency_ms": 26967.973457152024,
+        "stage_verify_tokens": 23060.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import math\nimport numpy as np\nimport scipy as sp\nfrom scipy.constants import  Avogadro\n # Background: Periodic boundary conditions (PBCs) are used in molecular dynamics simulations to mimic an infinite system by placing the simulation box in a periodic array. When a particle moves outside the boundaries of the cubic box of side length L, it is re-inserted from the opposite side. Mathematically, for a box defined in the range [0, L), the wrapped coordinate is given by r_wrapped = r % L, or equiv",
+              "step_results": {
+                "77.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.1.py\", line 17, in <module>\n    assert np.allclose(wrap(particle_position, box_length), targe",
+                "77.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.10.py\", line 30, in <module>\n    assert cmp_tuple_or_list(pressure(N, L, T, positions, sigma,",
+                "77.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.11.py\", line 29, in <module>\n    assert np.allclose(forces(N, positions, L, sigma, epsilon, r",
+                "77.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.12.py\", line 171, in <module>\n    xyz = init_rand(N,L,sigma)\n          ^^^^^^^^^^^^^^^^^^^^\n ",
+                "77.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.2.py\", line 17, in <module>\n    assert np.allclose(dist(r1, r2, box_length), target)\n        ",
+                "77.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.3.py\", line 18, in <module>\n    assert np.allclose(dist_v(r1, r2, box_length), target)\n      ",
+                "77.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.4.py\", line 20, in <module>\n    assert np.allclose(E_ij(r1, sigma1, epsilon1, rc), target)\n  ",
+                "77.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.5.py\", line 21, in <module>\n    assert np.allclose(f_ij(r,sigma,epsilon,rc), target)\n        ",
+                "77.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.6.py\", line 23, in <module>\n    assert np.allclose(E_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.7.py\", line 24, in <module>\n    assert np.allclose(P_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.8.py\", line 25, in <module>\n    assert np.allclose(E_pot(positions1, L1, sigma1, epsilon1,rc)",
+                "77.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp0ce2fuqf/77.9.py\", line 24, in <module>\n    assert np.allclose(temperature(v,m,N), target)\n              "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "77"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/77",
+      "task_id": "77"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/11/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/11/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 312693.5756633729,
+        "C2_tokens_total": 281459.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 60.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 60.0,
+        "D3_handoff_count": 107.0,
+        "P1_steps_total": 300.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 60.0,
+        "stage_act_latency_ms": 284089.2764129676,
+        "stage_act_tokens": 255484.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 2669.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 120.0,
+        "stage_retrieve_latency_ms": 120.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 12.0,
+        "stage_revise_latency_ms": 12.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 96.0,
+        "stage_verify_latency_ms": 28460.29925040528,
+        "stage_verify_tokens": 23306.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import numpy as np\nimport itertools\nimport scipy.linalg\n # Background: A standard basis vector |j> in a d-dimensional Hilbert space is a vector with a 1 at the j-th index (0-indexed) and 0 elsewhere. For composite systems, the state |j1>|j2>...|jn> is represented by the Kronecker product (tensor product) of the individual basis vectors. If d is a list [d1, d2, ..., dn], the i-th basis vector is constructed in dimension di. If d is an int, all basis vectors are constructed in dimension d. def ket",
+              "step_results": {
+                "11.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.1.py\", line 13, in <module>\n    assert np.allclose(ket(2, 0), target)\n                       ",
+                "11.10": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.10.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any n",
+                "11.11": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.11.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any n",
+                "11.12": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.12.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any n",
+                "11.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.2.py\", line 13, in <module>\n    assert np.allclose(multi_rail_encoding_state(1), target)\n    ",
+                "11.3": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.3.py\", line 7\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any nu",
+                "11.4": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.4.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any nu",
+                "11.5": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.5.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any nu",
+                "11.6": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.6.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any nu",
+                "11.7": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.7.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any nu",
+                "11.8": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.8.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any nu",
+                "11.9": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpqsycqbqg/11.9.py\", line 6\n    def tensor(*args): '''Takes the tensor product of an arbitrary number of matrices/vectors. Input: args: any nu"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "11"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/11",
+      "task_id": "11"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/12/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/12/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 391218.59762438945,
+        "C2_tokens_total": 441471.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 70.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 70.0,
+        "D3_handoff_count": 125.0,
+        "P1_steps_total": 350.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 70.0,
+        "stage_act_latency_ms": 362422.10895754397,
+        "stage_act_tokens": 405302.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 3315.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 140.0,
+        "stage_retrieve_latency_ms": 140.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 14.0,
+        "stage_revise_latency_ms": 14.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 112.0,
+        "stage_verify_latency_ms": 28628.488666845486,
+        "stage_verify_tokens": 32854.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 14,
+              "prediction": "from scipy import integrate\nfrom scipy import optimize\nimport numpy as np\n # Background: The radial Schrodinger equation for a particle of mass m in a central potential V(r) is given by -hbar^2/(2m) * (d^2/dr^2 - l(l+1)/r^2) u(r) + V(r)u(r) = E u(r), where u(r) = r * R(r). In atomic units (hbar = m = e = 1, 4*pi*epsilon_0 = 1), this simplifies to -1/2 * u''(r) + [l(l+1)/(2r^2) + V(r)] u(r) = E u(r). Rearranging to the form u''(r) = f(r)u(r) with V(r) = -Z/r, we obtain f(r) = 2 * [l(l+1)/(2r^2) -",
+              "step_results": {
+                "12.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.1.py\", line 13, in <module>\n    assert np.allclose(f_Schrod(1,1, np.array([0.1,0.2,0.3])), ta",
+                "12.10": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.10.py\", line 16\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.11": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.11.py\", line 17\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.12": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.12.py\", line 18\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.13": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.13.py\", line 19\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.14": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.14.py\", line 20\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block aft",
+                "12.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.2.py\", line 13, in <module>\n    assert np.allclose(Numerov(f_Schrod(1,3, np.linspace(1e-5,10,",
+                "12.3": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.3.py\", line 9\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block after",
+                "12.4": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.4.py\", line 10\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.5": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.5.py\", line 11\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.6": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.6.py\", line 12\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.7": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.7.py\", line 13\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.8": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.8.py\", line 14\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "12.9": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpogz7uw3r/12.9.py\", line 15\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "12"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/12",
+      "task_id": "12"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/13/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/13/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 412506.7904996071,
+        "C2_tokens_total": 534889.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 70.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 70.0,
+        "D3_handoff_count": 125.0,
+        "P1_steps_total": 350.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 70.0,
+        "stage_act_latency_ms": 383998.03045764565,
+        "stage_act_tokens": 496074.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 3802.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 140.0,
+        "stage_retrieve_latency_ms": 140.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 14.0,
+        "stage_revise_latency_ms": 14.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 112.0,
+        "stage_verify_latency_ms": 28340.760041961446,
+        "stage_verify_tokens": 35013.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.06666666666666667,
+              "Total Correct": 1,
+              "Total Steps": 15,
+              "prediction": "from numpy import zeros, linspace, exp, sqrt\nimport numpy as np\n # Background: The partial derivative of a scalar field f(x, y, z) on a discrete grid can be approximated using finite difference methods. For interior points, the second-order central difference formula is used: df/dx ≈ (f(x+h) - f(x-h)) / (2h). For boundary points, a second-order one-sided finite difference is required. At the left boundary (i=0), the formula is: df/dx ≈ (-3f(i) + 4f(i+1) - f(i+2)) / (2h). At the right boundary (i",
+              "step_results": {
+                "13.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.1.py\", line 15, in <module>\n    assert np.allclose(partial_derivs_vec(fct, delta), target)\n  ",
+                "13.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.10.py\", line 20, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.11.py\", line 22, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.12": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.12.py\", line 15\n    i, j-1, k]) / (2 * delta) dEz_dz = (E_z[i, j, k+1] - E_z[i, j, k-1]) / (2 * delta) div_E[i, j, k] = dEx_dx +",
+                "13.13": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.13.py\", line 14\n    i, j-1, k]) / (2 * delta) dEz_dz = (E_z[i, j, k+1] - E_z[i, j, k-1]) / (2 * delta) div_E[i, j, k] = dEx_dx +",
+                "13.14": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.14.py\", line 14\n    i, j-1, k]) / (2 * delta) dEz_dz = (E_z[i, j, k+1] - E_z[i, j, k-1]) / (2 * delta) div_E[i, j, k] = dEx_dx +",
+                "13.15": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.15.py\", line 14\n    i, j-1, k]) / (2 * delta) dEz_dz = (E_z[i, j, k+1] - E_z[i, j, k-1]) / (2 * delta) div_E[i, j, k] = dEx_dx +",
+                "13.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.2.py\", line 15, in <module>\n    assert np.allclose(laplace(fct, delta), target)\n             ",
+                "13.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.3.py\", line 16, in <module>\n    assert np.allclose(gradient(fct, delta), target)\n            ",
+                "13.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.4.py\", line 19, in <module>\n    assert np.allclose(divergence(fx, fy, fz, delta), target)\n   ",
+                "13.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.5.py\", line 20, in <module>\n    assert np.allclose(grad_div(fx, fy, fz, delta), target)\n     ",
+                "13.6": "skipped (official)",
+                "13.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.7.py\", line 19, in <module>\n    assert np.allclose(symmetry(f_dot, 1, 1, -1), target)\n       ",
+                "13.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.8.py\", line 18, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: name",
+                "13.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpo3ydo5fb/13.9.py\", line 19, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: name"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "13"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/13",
+      "task_id": "13"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/2/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 29406.43937527761,
+        "C2_tokens_total": 13960.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 27585.17216728069,
+        "stage_act_tokens": 11376.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 244.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1809.2672079969198,
+        "stage_verify_tokens": 2340.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom scipy.integrate import simps\n\n\n # Background: The diffraction of a Gaussian beam through a lens is modeled using the Fresnel diffraction integral. A lens introduces a phase transformation factor P(r) = exp(-i * k * (n-1) * h(r)), where h(r) is the lens thickness profile. For a symmetric lens with radius of curvature RL, the thickness profile is h(r) = d - 2 * (sqrt(RL^2 - r^2) - sqrt(RL^2 - R0^2)). The Fresnel diffraction integral in cylindrical coordinates simplifies to ",
+              "step_results": {
+                "2.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpv1d622yo/2.1.py\", line 2, in <module>\n    from scipy.integrate import simps\nImportError: cannot import na"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "2"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/2",
+      "task_id": "2"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 22003.52804191038,
+        "C2_tokens_total": 9962.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 19493.870000122115,
+        "stage_act_tokens": 8091.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 179.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2497.658041788265,
+        "stage_verify_tokens": 1692.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections H_k = I - 2(v_k v_k^T) / (v_k^T v_k), where v_k is a vector chosen to zero out the sub-diagonal elements of the k-th column. The transformation is applied iteratively for each column k from 0 to n-1, resulting in the upper triangular matrix R stored in the upper triangle of A.",
+              "step_results": {
+                "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp94ugmb86/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "74"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74",
+      "task_id": "74"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/5/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/5/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 25310.966332821175,
+        "C2_tokens_total": 11016.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 22604.38595782034,
+        "stage_act_tokens": 8966.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 214.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2694.5803750008345,
+        "stage_verify_tokens": 1836.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The Lanczos iteration is an iterative method used to construct an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b} of a symmetric matrix A. The algorithm generates a sequence of orthonormal vectors {q_1, q_2, ..., q_m} using the three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process effect",
+              "step_results": {
+                "5.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf7w6zev5/5.1.py\", line 19, in <module>\n    assert np.allclose(lanczos(A,b,m), target)\n                   "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "5"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/5",
+      "task_id": "5"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/8/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/8/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 27456.90845829062,
+        "C2_tokens_total": 12395.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 25908.334667328745,
+        "stage_act_tokens": 10279.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 316.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1536.5737909618765,
+        "stage_verify_tokens": 1800.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom numpy.fft import fft2, ifft2, fftshift, ifftshift\n\n\n # Background: Spatial filtering in Fourier optics relies on the Convolution Theorem, which states that convolution in the spatial domain is equivalent to multiplication in the frequency domain. By applying a 2D Fast Fourier Transform (FFT) to an image, we decompose it into its constituent spatial frequencies. A cross-shaped high-pass filter is constructed by creating a mask in the frequency domain that zeroes out the ce",
+              "step_results": {
+                "8.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpvkk9goiq/8.1.py\", line 16, in <module>\n    assert cmp_tuple_or_list(apply_cshband_pass_filter(image_array"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "8"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/8",
+      "task_id": "8"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/9/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/9/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 24842.89166788198,
+        "C2_tokens_total": 12577.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 23071.960584959015,
+        "stage_act_tokens": 10467.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 180.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1758.9310829229653,
+        "stage_verify_tokens": 1930.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The weighted Jacobi method is a stationary iterative technique for solving linear systems Ax=b. By decomposing A into D + R (where D is the diagonal component), the iteration is defined as x_{k+1} = (1-omega)x_k + omega * D^{-1}(b - Rx_k). This simplifies to the update rule x_{k+1} = x_k + omega * D^{-1}(b - Ax_k). The method converges when the spectral radius of the iteration matrix I - omega * D^{-1}A is less than 1. The convergence is monitored by the L2 no",
+              "step_results": {
+                "9.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpgilpgxeu/9.1.py\", line 28, in <module>\n    assert np.allclose(WJ(A, b, eps, x_true, x0,2/3), target)\n    "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "9"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/9",
+      "task_id": "9"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 51857.408749230206,
+        "C2_tokens_total": 26257.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 10.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 10.0,
+        "D3_handoff_count": 17.0,
+        "P1_steps_total": 50.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 10.0,
+        "stage_act_latency_ms": 46557.8068329487,
+        "stage_act_tokens": 21838.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 411.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 20.0,
+        "stage_retrieve_latency_ms": 20.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 16.0,
+        "stage_verify_latency_ms": 5275.601916281506,
+        "stage_verify_tokens": 4008.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 2,
+              "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t). Mannella's leapfrog method discretizes this by splitting the update into deterministic and stochastic parts. Specifically, the velocity update uses an exponential decay factor a = exp(-dt/taup) to account for friction, and the stochastic term is scaled by sigma = vrms * sqrt(1 - a^2) to ensure the system reaches the correct Bol",
+              "step_results": {
+                "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpt5idtxug/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+                "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpt5idtxug/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "14"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14",
+      "task_id": "14"
+    }
+  ],
+  "timestamp": "20260401T195507Z"
+}

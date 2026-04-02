@@ -1,0 +1,1954 @@
+{
+  "agent_outputs": {
+    "agent_0": "move: from [0] to [I1] with quantity 1",
+    "agent_1": "move: from [0] to [I1] with quantity 1",
+    "agent_2": "move: from [0] to [I1] with quantity 1",
+    "agent_3": "move: from [0] to [I1] with quantity 1"
+  },
+  "descriptor_records": [
+    {
+      "dispatch_id": 0,
+      "message_count": 0,
+      "outer_step_index": 0,
+      "phase": "voter",
+      "round_index": 0
+    },
+    {
+      "dispatch_id": 0,
+      "message_count": 0,
+      "outer_step_index": 1,
+      "phase": "voter",
+      "round_index": 0
+    },
+    {
+      "dispatch_id": 0,
+      "message_count": 0,
+      "outer_step_index": 2,
+      "phase": "voter",
+      "round_index": 0
+    }
+  ],
+  "descriptor_summary": {
+    "final_phase": "descriptor_monitor",
+    "final_round_index": 0,
+    "monitor_steps": 1
+  },
+  "discussion_rounds": 1,
+  "final_reason": "only_voting:majority_vote",
+  "info": {
+    "reason": "success",
+    "steps": 3
+  },
+  "interaction_logs": [
+    {
+      "agent_id": "agent_0",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\\nmove: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"Initiated crafting process for skull_banner_pattern by placing paper and wither_skeleton_skull into the crafting grid.\",\n  \"critique\": \"The recipe for a skull banner pattern requires one paper and one wither skeleton skull. I have placed these items into the grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"Need to verify if the crafting grid configuration results in the desired item in slot [0].\"\n  ],\n  \"evidence_summary\": \"Inventory contains paper [I13] and wither_skeleton_skull [I20]. Placed them into [A1] and [A2] respectively.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 983,
+        "token_out": 203
+      },
+      "outer_step_index": 0,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_0",
+        "answer": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+        "artifact_id": "worker:agent_0:0:0:0",
+        "confidence": 1.0,
+        "critique": "The recipe for a skull banner pattern requires one paper and one wither skeleton skull. I have placed these items into the grid.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "Inventory contains paper [I13] and wither_skeleton_skull [I20]. Placed them into [A1] and [A2] respectively."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 983,
+          "token_out": 203
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\\nmove: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"Initiated crafting process for skull_banner_pattern by placing paper and wither_skeleton_skull into the crafting grid.\",\n  \"critique\": \"The recipe for a skull banner pattern requires one paper and one wither skeleton skull. I have placed these items into the grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"Need to verify if the crafting grid configuration results in the desired item in slot [0].\"\n  ],\n  \"evidence_summary\": \"Inventory contains paper [I13] and wither_skeleton_skull [I20]. Placed them into [A1] and [A2] respectively.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "Initiated crafting process for skull_banner_pattern by placing paper and wither_skeleton_skull into the crafting grid.",
+        "tool_records": [],
+        "unresolved_issues": [
+          "Need to verify if the crafting grid configuration results in the desired item in slot [0]."
+        ]
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_1",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\\nmove: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"To craft a skull banner pattern, I need to place paper in [A1] and a wither skeleton skull in [A2].\",\n  \"critique\": \"The recipe for a skull banner pattern requires paper and a wither skeleton skull in the crafting grid. I have identified these items in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains paper [I13] and wither_skeleton_skull [I20]. Recipe requires these two items.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 973,
+        "token_out": 177
+      },
+      "outer_step_index": 0,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_1",
+        "answer": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+        "artifact_id": "worker:agent_1:0:0:0",
+        "confidence": 1.0,
+        "critique": "The recipe for a skull banner pattern requires paper and a wither skeleton skull in the crafting grid. I have identified these items in the inventory.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "Inventory contains paper [I13] and wither_skeleton_skull [I20]. Recipe requires these two items."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 973,
+          "token_out": 177
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\\nmove: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"To craft a skull banner pattern, I need to place paper in [A1] and a wither skeleton skull in [A2].\",\n  \"critique\": \"The recipe for a skull banner pattern requires paper and a wither skeleton skull in the crafting grid. I have identified these items in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains paper [I13] and wither_skeleton_skull [I20]. Recipe requires these two items.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "To craft a skull banner pattern, I need to place paper in [A1] and a wither skeleton skull in [A2].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_2",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\",\n  \"summary\": \"To craft a skull banner pattern, I need to place paper in the crafting grid and a wither skeleton skull. I am starting by moving the paper to the crafting grid.\",\n  \"critique\": \"The recipe for a skull banner pattern requires one paper and one wither skeleton skull. I have both in my inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains paper [I13] and wither_skeleton_skull [I20].\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 983,
+        "token_out": 153
+      },
+      "outer_step_index": 0,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_2",
+        "answer": "move: from [I13] to [A1] with quantity 1",
+        "artifact_id": "worker:agent_2:0:0:0",
+        "confidence": 1.0,
+        "critique": "The recipe for a skull banner pattern requires one paper and one wither skeleton skull. I have both in my inventory.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "Inventory contains paper [I13] and wither_skeleton_skull [I20]."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 983,
+          "token_out": 153
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\",\n  \"summary\": \"To craft a skull banner pattern, I need to place paper in the crafting grid and a wither skeleton skull. I am starting by moving the paper to the crafting grid.\",\n  \"critique\": \"The recipe for a skull banner pattern requires one paper and one wither skeleton skull. I have both in my inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains paper [I13] and wither_skeleton_skull [I20].\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "To craft a skull banner pattern, I need to place paper in the crafting grid and a wither skeleton skull. I am starting by moving the paper to the crafting grid.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_3",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\\nmove: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"To craft a skull banner pattern, I need to place paper in slot A1 and a wither skeleton skull in slot A2.\",\n  \"critique\": \"The recipe for a skull banner pattern requires one paper and one wither skeleton skull in a crafting table.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory contains paper [I13] and wither_skeleton_skull [I20], which are the required ingredients for the skull banner pattern.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 973,
+        "token_out": 173
+      },
+      "outer_step_index": 0,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_3",
+        "answer": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+        "artifact_id": "worker:agent_3:0:0:0",
+        "confidence": 1.0,
+        "critique": "The recipe for a skull banner pattern requires one paper and one wither skeleton skull in a crafting table.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The inventory contains paper [I13] and wither_skeleton_skull [I20]",
+          "which are the required ingredients for the skull banner pattern."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 973,
+          "token_out": 173
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I13] to [A1] with quantity 1\\nmove: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"To craft a skull banner pattern, I need to place paper in slot A1 and a wither skeleton skull in slot A2.\",\n  \"critique\": \"The recipe for a skull banner pattern requires one paper and one wither skeleton skull in a crafting table.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory contains paper [I13] and wither_skeleton_skull [I20], which are the required ingredients for the skull banner pattern.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "To craft a skull banner pattern, I need to place paper in slot A1 and a wither skeleton skull in slot A2.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_0",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. I have placed the paper in [A1] and now need to place the wither_skeleton_skull in [A2] to complete the recipe.\",\n  \"critique\": \"The previous turn only moved the paper. I am now moving the wither_skeleton_skull to the crafting grid to complete the recipe.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The recipe for a skull_banner_pattern requires 1 paper and 1 wither_skeleton_skull. Paper is already in [A1]. Wither_skeleton_skull is in [I20].\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1157,
+        "token_out": 190
+      },
+      "outer_step_index": 1,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_0",
+        "answer": "move: from [I20] to [A2] with quantity 1",
+        "artifact_id": "worker:agent_0:0:0:0",
+        "confidence": 1.0,
+        "critique": "The previous turn only moved the paper. I am now moving the wither_skeleton_skull to the crafting grid to complete the recipe.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The recipe for a skull_banner_pattern requires 1 paper and 1 wither_skeleton_skull. Paper is already in [A1]. Wither_skeleton_skull is in [I20]."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1157,
+          "token_out": 190
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. I have placed the paper in [A1] and now need to place the wither_skeleton_skull in [A2] to complete the recipe.\",\n  \"critique\": \"The previous turn only moved the paper. I am now moving the wither_skeleton_skull to the crafting grid to complete the recipe.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The recipe for a skull_banner_pattern requires 1 paper and 1 wither_skeleton_skull. Paper is already in [A1]. Wither_skeleton_skull is in [I20].\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The user wants to craft a skull_banner_pattern. I have placed the paper in [A1] and now need to place the wither_skeleton_skull in [A2] to complete the recipe.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_1",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. I have already placed the paper in [A1]. I am now moving the wither_skeleton_skull to [A2] to complete the recipe.\",\n  \"critique\": \"The previous turn only moved the paper. I am completing the placement of the required ingredients for the skull_banner_pattern.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The recipe for a skull_banner_pattern requires one paper and one wither_skeleton_skull. Paper is in [A1] and the skull is in [I20].\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1169,
+        "token_out": 182
+      },
+      "outer_step_index": 1,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_1",
+        "answer": "move: from [I20] to [A2] with quantity 1",
+        "artifact_id": "worker:agent_1:0:0:0",
+        "confidence": 1.0,
+        "critique": "The previous turn only moved the paper. I am completing the placement of the required ingredients for the skull_banner_pattern.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The recipe for a skull_banner_pattern requires one paper and one wither_skeleton_skull. Paper is in [A1] and the skull is in [I20]."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1169,
+          "token_out": 182
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. I have already placed the paper in [A1]. I am now moving the wither_skeleton_skull to [A2] to complete the recipe.\",\n  \"critique\": \"The previous turn only moved the paper. I am completing the placement of the required ingredients for the skull_banner_pattern.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The recipe for a skull_banner_pattern requires one paper and one wither_skeleton_skull. Paper is in [A1] and the skull is in [I20].\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The user wants to craft a skull_banner_pattern. I have already placed the paper in [A1]. I am now moving the wither_skeleton_skull to [A2] to complete the recipe.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_2",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. The recipe requires paper and a wither_skeleton_skull. I have already placed the paper in [A1] and now need to place the wither_skeleton_skull in [A2].\",\n  \"critique\": \"The previous turn only moved the paper. I am now moving the skull to complete the recipe setup.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting recipe for a skull_banner_pattern is paper + wither_skeleton_skull. Paper is in [A1]. Wither skeleton skull is in [I20]. Moving [I20] to [A2] completes the grid.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1157,
+        "token_out": 201
+      },
+      "outer_step_index": 1,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_2",
+        "answer": "move: from [I20] to [A2] with quantity 1",
+        "artifact_id": "worker:agent_2:0:0:0",
+        "confidence": 1.0,
+        "critique": "The previous turn only moved the paper. I am now moving the skull to complete the recipe setup.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The crafting recipe for a skull_banner_pattern is paper + wither_skeleton_skull. Paper is in [A1]. Wither skeleton skull is in [I20]. Moving [I20] to [A2] completes the grid."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1157,
+          "token_out": 201
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. The recipe requires paper and a wither_skeleton_skull. I have already placed the paper in [A1] and now need to place the wither_skeleton_skull in [A2].\",\n  \"critique\": \"The previous turn only moved the paper. I am now moving the skull to complete the recipe setup.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting recipe for a skull_banner_pattern is paper + wither_skeleton_skull. Paper is in [A1]. Wither skeleton skull is in [I20]. Moving [I20] to [A2] completes the grid.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The user wants to craft a skull_banner_pattern. The recipe requires paper and a wither_skeleton_skull. I have already placed the paper in [A1] and now need to place the wither_skeleton_skull in [A2].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_3",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. The recipe requires paper and a wither_skeleton_skull. I have already moved the paper to [A1] and now I am moving the wither_skeleton_skull to [A2] to complete the crafting grid setup.\",\n  \"critique\": \"The previous turn only moved the paper. I am completing the placement of the required ingredients into the crafting grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting recipe for a skull_banner_pattern is paper + wither_skeleton_skull. Paper is at [A1], wither_skeleton_skull is at [I20].\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1157,
+        "token_out": 195
+      },
+      "outer_step_index": 1,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_3",
+        "answer": "move: from [I20] to [A2] with quantity 1",
+        "artifact_id": "worker:agent_3:0:0:0",
+        "confidence": 1.0,
+        "critique": "The previous turn only moved the paper. I am completing the placement of the required ingredients into the crafting grid.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The crafting recipe for a skull_banner_pattern is paper + wither_skeleton_skull. Paper is at [A1]",
+          "wither_skeleton_skull is at [I20]."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1157,
+          "token_out": 195
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I20] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft a skull_banner_pattern. The recipe requires paper and a wither_skeleton_skull. I have already moved the paper to [A1] and now I am moving the wither_skeleton_skull to [A2] to complete the crafting grid setup.\",\n  \"critique\": \"The previous turn only moved the paper. I am completing the placement of the required ingredients into the crafting grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting recipe for a skull_banner_pattern is paper + wither_skeleton_skull. Paper is at [A1], wither_skeleton_skull is at [I20].\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The user wants to craft a skull_banner_pattern. The recipe requires paper and a wither_skeleton_skull. I have already moved the paper to [A1] and now I am moving the wither_skeleton_skull to [A2] to complete the crafting grid setup.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_0",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to inventory slot [I1] to complete the task.\",\n  \"critique\": \"The crafting process was completed successfully in the previous turn. The current action is simply to clear the output slot.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory shows 'skull_banner_pattern [0] quantity 1', confirming the item is ready to be moved.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1336,
+        "token_out": 155
+      },
+      "outer_step_index": 2,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - skull_banner_pattern [0] quantity 1\n - paper [A1] quantity 1\n - wither_skeleton_skull [A2] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_0",
+        "answer": "move: from [0] to [I1] with quantity 1",
+        "artifact_id": "worker:agent_0:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process was completed successfully in the previous turn. The current action is simply to clear the output slot.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The inventory shows 'skull_banner_pattern [0] quantity 1'",
+          "confirming the item is ready to be moved."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1336,
+          "token_out": 155
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to inventory slot [I1] to complete the task.\",\n  \"critique\": \"The crafting process was completed successfully in the previous turn. The current action is simply to clear the output slot.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory shows 'skull_banner_pattern [0] quantity 1', confirming the item is ready to be moved.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to inventory slot [I1] to complete the task.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_1",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to an inventory slot [I1] to complete the task.\",\n  \"critique\": \"The crafting process was completed successfully by placing paper and a wither skeleton skull in the grid. No further actions are required.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The item 'skull_banner_pattern' is present in slot [0] as confirmed by the inventory state.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1350,
+        "token_out": 156
+      },
+      "outer_step_index": 2,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - skull_banner_pattern [0] quantity 1\n - paper [A1] quantity 1\n - wither_skeleton_skull [A2] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_1",
+        "answer": "move: from [0] to [I1] with quantity 1",
+        "artifact_id": "worker:agent_1:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process was completed successfully by placing paper and a wither skeleton skull in the grid. No further actions are required.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The item 'skull_banner_pattern' is present in slot [0] as confirmed by the inventory state."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1350,
+          "token_out": 156
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to an inventory slot [I1] to complete the task.\",\n  \"critique\": \"The crafting process was completed successfully by placing paper and a wither skeleton skull in the grid. No further actions are required.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The item 'skull_banner_pattern' is present in slot [0] as confirmed by the inventory state.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to an inventory slot [I1] to complete the task.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_2",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to an inventory slot to complete the task.\",\n  \"critique\": \"The crafting process was successful. No further actions are required for this specific task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The item 'skull_banner_pattern' is present in slot [0] as confirmed by the inventory state.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1350,
+        "token_out": 144
+      },
+      "outer_step_index": 2,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - skull_banner_pattern [0] quantity 1\n - paper [A1] quantity 1\n - wither_skeleton_skull [A2] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_2",
+        "answer": "move: from [0] to [I1] with quantity 1",
+        "artifact_id": "worker:agent_2:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process was successful. No further actions are required for this specific task.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The item 'skull_banner_pattern' is present in slot [0] as confirmed by the inventory state."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1350,
+          "token_out": 144
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to an inventory slot to complete the task.\",\n  \"critique\": \"The crafting process was successful. No further actions are required for this specific task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The item 'skull_banner_pattern' is present in slot [0] as confirmed by the inventory state.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to an inventory slot to complete the task.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_3",
+      "agent_role": "voter",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to inventory slot [I1] to complete the task.\",\n  \"critique\": \"The crafting process was successful. The item is now in the output slot and needs to be moved to the inventory to finalize the action.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contains the required ingredients (paper and wither_skeleton_skull) and the output slot [0] contains the skull_banner_pattern.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1336,
+        "token_out": 166
+      },
+      "outer_step_index": 2,
+      "phase": "worker",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - paper [I13] quantity 1\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - paper [A1] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - wither_skeleton_skull [I20] quantity 1\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I20] to [A2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: skull_banner_pattern\ninventory:\n - skull_banner_pattern [0] quantity 1\n - paper [A1] quantity 1\n - wither_skeleton_skull [A2] quantity 1\n - orange_carpet [I5] quantity 20\n - beetroot [I8] quantity 54\n - chorus_flower [I9] quantity 25\n - warped_fungus [I10] quantity 49\n - dolphin_spawn_egg [I21] quantity 3\n - light_gray_dye [I23] quantity 32\n - sandstone [I29] quantity 17\n - pink_concrete_powder [I35] quantity 18",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "worker",
+      "structured_artifact": {
+        "agent_id": "agent_3",
+        "answer": "move: from [0] to [I1] with quantity 1",
+        "artifact_id": "worker:agent_3:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process was successful. The item is now in the output slot and needs to be moved to the inventory to finalize the action.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The crafting grid contains the required ingredients (paper and wither_skeleton_skull) and the output slot [0] contains the skull_banner_pattern."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1336,
+          "token_out": 166
+        },
+        "node_name": "worker",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 1\",\n  \"summary\": \"The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to inventory slot [I1] to complete the task.\",\n  \"critique\": \"The crafting process was successful. The item is now in the output slot and needs to be moved to the inventory to finalize the action.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contains the required ingredients (paper and wither_skeleton_skull) and the output slot [0] contains the skull_banner_pattern.\"\n}",
+        "revision_request": "",
+        "role": "voter",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "worker",
+        "status": "ok",
+        "summary": "The skull_banner_pattern has been successfully crafted in the output slot [0]. I am moving it to inventory slot [I1] to complete the task.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    }
+  ],
+  "message_views": [
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_0",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_1",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_2",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_3",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_0",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_1",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_2",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_3",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 2,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_0",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 2,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_1",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 2,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_2",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 2,
+      "phase": "worker",
+      "role": "voter",
+      "round_index": 0,
+      "viewer": "agent_3",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    }
+  ],
+  "messages_sent_by_agent": {
+    "agent_0": 0,
+    "agent_1": 0,
+    "agent_2": 0,
+    "agent_3": 0
+  },
+  "messages_sent_total": 0,
+  "num_steps": 3,
+  "phase_history": [
+    {
+      "active_agents": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 0,
+      "phase": "dispatch_independent_agents",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "voter",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "descriptor_monitor",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "finalize",
+      "round_index": 0
+    },
+    {
+      "active_agents": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 1,
+      "phase": "dispatch_independent_agents",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "voter",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "descriptor_monitor",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "finalize",
+      "round_index": 0
+    },
+    {
+      "active_agents": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 2,
+      "phase": "dispatch_independent_agents",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 2,
+      "phase": "voter",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 2,
+      "phase": "descriptor_monitor",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 2,
+      "phase": "finalize",
+      "round_index": 0
+    }
+  ],
+  "raw_outputs": [
+    "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+    "move: from [I20] to [A2] with quantity 1",
+    "move: from [0] to [I1] with quantity 1"
+  ],
+  "relay_messages": [],
+  "remaining_message_budget": {
+    "agent_0": 0,
+    "agent_1": 0,
+    "agent_2": 0,
+    "agent_3": 0
+  },
+  "retrieved_docids": [
+    "0",
+    "1",
+    "13",
+    "2",
+    "20"
+  ],
+  "reward": 1.0,
+  "rounds_configured": 1,
+  "run_index": 0,
+  "seed": 4042,
+  "step_runs": [
+    {
+      "final_answer": "move: from [I13] to [A1] with quantity 1 move: from [I20] to [A2] with quantity 1",
+      "outer_step_index": 0,
+      "run_summary": {
+        "final_reason": "only_voting:majority_vote",
+        "messages_sent_by_agent": {
+          "agent_0": 0,
+          "agent_1": 0,
+          "agent_2": 0,
+          "agent_3": 0
+        },
+        "messages_sent_total": 0,
+        "tool_call_counts": {},
+        "tool_calls_total": 0,
+        "topology": "only_voting",
+        "turns_executed": 1
+      },
+      "task_id": "VAL0214"
+    },
+    {
+      "final_answer": "move: from [I20] to [A2] with quantity 1",
+      "outer_step_index": 1,
+      "run_summary": {
+        "final_reason": "only_voting:majority_vote",
+        "messages_sent_by_agent": {
+          "agent_0": 0,
+          "agent_1": 0,
+          "agent_2": 0,
+          "agent_3": 0
+        },
+        "messages_sent_total": 0,
+        "tool_call_counts": {},
+        "tool_calls_total": 0,
+        "topology": "only_voting",
+        "turns_executed": 1
+      },
+      "task_id": "VAL0214"
+    },
+    {
+      "final_answer": "move: from [0] to [I1] with quantity 1",
+      "outer_step_index": 2,
+      "run_summary": {
+        "final_reason": "only_voting:majority_vote",
+        "messages_sent_by_agent": {
+          "agent_0": 0,
+          "agent_1": 0,
+          "agent_2": 0,
+          "agent_3": 0
+        },
+        "messages_sent_total": 0,
+        "tool_call_counts": {},
+        "tool_calls_total": 0,
+        "topology": "only_voting",
+        "turns_executed": 1
+      },
+      "task_id": "VAL0214"
+    }
+  ],
+  "task_id": "VAL0214",
+  "terminated": true,
+  "termination_history": [],
+  "tool_call_counts": {},
+  "tool_calls_total": 0,
+  "tool_definitions": [],
+  "topology": "only_voting",
+  "topology_layout": {
+    "adjacency": {
+      "agent_0": [],
+      "agent_1": [],
+      "agent_2": [],
+      "agent_3": []
+    },
+    "agent_ids": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "agents_per_level": [
+      4
+    ],
+    "children_by_agent": {},
+    "groups": [],
+    "leaves": [],
+    "level_by_agent": {
+      "agent_0": 0,
+      "agent_1": 0,
+      "agent_2": 0,
+      "agent_3": 0
+    },
+    "managers": [],
+    "orchestrator_id": null,
+    "parent_by_agent": {},
+    "representatives": [],
+    "roles": {
+      "agent_0": "voter",
+      "agent_1": "voter",
+      "agent_2": "voter",
+      "agent_3": "voter"
+    },
+    "specialists": [],
+    "topological_order": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "topology": "only_voting"
+  },
+  "truncated": false,
+  "turns_executed": 3,
+  "vote_tally": {
+    "move from 0 to i1 with quantity 1": 4
+  },
+  "workflow_definition": {
+    "aggregation_logic": "`voter` canonicalizes answers, counts votes, and breaks ties by mean confidence then canonical answer.",
+    "conditional_edges": [
+      "dispatch_independent_agents -> worker (one Send per active agent) else voter"
+    ],
+    "dispatch_logic": "Fan out to every worker with no peer packets.",
+    "edges": [
+      "START -> dispatch_independent_agents",
+      "worker -> voter",
+      "voter -> descriptor_monitor",
+      "descriptor_monitor -> finalize",
+      "finalize -> END"
+    ],
+    "logging_outputs": [
+      "trace_events",
+      "relay_messages",
+      "message_views",
+      "interaction_logs",
+      "descriptor_records",
+      "termination_history"
+    ],
+    "nodes": {
+      "descriptor_monitor": "Shared descriptor hook.",
+      "dispatch_independent_agents": "Selects all workers for independent solving.",
+      "finalize": "Finalize the run.",
+      "voter": "Deterministic majority vote with explicit tie-breaks.",
+      "worker": "Independent worker branch."
+    },
+    "state_fields": [
+      "task_id",
+      "task_prompt",
+      "topology",
+      "layout",
+      "rounds",
+      "discussion_rounds",
+      "round_index",
+      "discussion_index",
+      "messages",
+      "artifacts",
+      "termination_decision",
+      "vote_tally",
+      "descriptor_records"
+    ],
+    "stopping_criteria": [
+      "Single-turn topology. It stops after the voter."
+    ],
+    "topology": "only_voting"
+  }
+}

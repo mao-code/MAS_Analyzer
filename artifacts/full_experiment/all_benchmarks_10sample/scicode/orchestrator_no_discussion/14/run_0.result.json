@@ -1,0 +1,124 @@
+{
+  "artifacts": {
+    "answer_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/run_0.answer.txt",
+    "metadata_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/run_0.metadata.json",
+    "task_manifest_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/task.json",
+    "trace_metrics_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/run_0.trace_metrics.json",
+    "trajectory_json_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/run_0.trajectory.json",
+    "trajectory_md_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/14/run_0.trajectory.md"
+  },
+  "benchmark": "scicode",
+  "evaluation": {
+    "details": {
+      "Main Problem Resolve Rate": 0.0,
+      "Subproblem Resolve Rate": 0.0,
+      "Total Correct": 0,
+      "Total Steps": 2,
+      "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t). Mannella's leapfrog method discretizes this by splitting the update into deterministic and stochastic parts. Specifically, the velocity update uses an exponential decay factor a = exp(-dt/taup) to account for friction, and the stochastic term is scaled by sigma = vrms * sqrt(1 - a^2) to ensure the system reaches the correct Bol",
+      "step_results": {
+        "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpt5idtxug/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+        "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpt5idtxug/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+      }
+    },
+    "score": 0.0,
+    "success": false
+  },
+  "final_answer": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t). Mannella's leapfrog method discretizes this by splitting the update into deterministic and stochastic parts. Specifically, the velocity update uses an exponential decay factor a = exp(-dt/taup) to account for friction, and the stochastic term is scaled by sigma = vrms * sqrt(1 - a^2) to ensure the system reaches the correct Boltzmann distribution at equilibrium. def harmonic_mannella_leapfrog(x0, v0, t0, steps, taup, omega0, vrms): dt = t0 / steps x = x0 v = v0 # Precompute constants for the Mannella scheme a = np.exp(-dt / taup) sigma = vrms * np.sqrt(1 - a**2) for _ in range(steps): # 1. Half-step velocity update (deterministic part) v_half = v - 0.5 * dt * omega0**2 * x # 2. Full-step velocity update (friction and stochastic part) xi = np.random.normal(0, 1) v_full = a * v_half + sigma * xi # 3. Full-step position update x = x + dt * v_full # 4. Final half-step velocity update (deterministic part) v = v_full - 0.5 * dt * omega0**2 * x return x \n\n # Background: The Mean-Square Displacement (MSD) is defined as the ensemble average of the squared displacement, <(x(t) - x(0))^2>. For an optically trapped particle in thermal equilibrium, the initial position x0 and velocity v0 are sampled from the Maxwell-Boltzmann distribution: x0 ~ N(0, vrms^2 / omega0^2) and v0 ~ N(0, vrms^2). Mannella's leapfrog method is then used to evolve the system to time t0, and the MSD is computed by averaging (x(t0) - x(0))^2 over Navg independent simulations. def calculate_msd(t0, steps, taup, omega0, vrms, Navg): '''Calculate the mean-square displacement (MSD) of an optically trapped microsphere in a gas by averaging Navg simulations.''' dt = t0 / steps a = np.exp(-dt / taup) sigma = vrms * np.sqrt(1 - a**2) squared_displacements = [] for _ in range(Navg): # Sample initial conditions from equilibrium distribution x0 = np.random.normal(0, vrms / omega0) v0 = np.random.normal(0, vrms) x = x0 v = v0 # Mannella leapfrog integration for _ in range(steps): v_half = v - 0.5 * dt * omega0**2 * x xi = np.random.normal(0, 1) v_full = a * v_half + sigma * xi x = x + dt * v_full v = v_full - 0.5 * dt * omega0**2 * x squared_displacements.append((x - x0)**2) x_MSD = np.mean(squared_displacements) return x_MSD ",
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "run_index": 0,
+  "run_summary": {
+    "final_reason": "orchestrator_no_discussion:consensus_reached",
+    "messages_sent_by_agent": {
+      "agent_0": 4,
+      "agent_1": 2,
+      "agent_2": 2,
+      "agent_3": 2
+    },
+    "messages_sent_total": 10,
+    "retrieved_docids": [],
+    "run_index": 0,
+    "seed": 9042,
+    "task_id": "14.1",
+    "tool_call_counts": {
+      "inter_agent_send": 10
+    },
+    "tool_calls_total": 10,
+    "topology": "orchestrator_no_discussion",
+    "turns_executed": 2,
+    "vote_tally": {}
+  },
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_no_discussion",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_no_discussion"
+  },
+  "task_id": "14",
+  "termination": {
+    "average_confidence": 1.0,
+    "consensus_count": 3,
+    "consensus_explanation": "All three agents provide the same scientific background and implement the same logic for calculating the Mean-Square Displacement (MSD) using the Mannella leapfrog method, including the correct sampling of initial conditions from the Maxwell-Boltzmann distribution.",
+    "consensus_groups": [
+      [
+        0,
+        1,
+        2
+      ]
+    ],
+    "consensus_mode": "llm_judge",
+    "consensus_ratio": 1.0,
+    "consensus_signature": "0,1,2",
+    "consensus_source": "llm_judge",
+    "consensus_valid_count": 3,
+    "control_cost_usd": 0.0,
+    "control_latency_ms": 3117.1641661785543,
+    "control_token_in": 1998,
+    "control_token_out": 65,
+    "discussion_index": 0,
+    "mean_delta": null,
+    "next_step": "finalize",
+    "outer_step_index": 1,
+    "reason": "consensus_reached",
+    "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+    "round_index": 0,
+    "should_stop": true,
+    "stage_name": "termination_checker",
+    "valid_artifact_count": 3
+  },
+  "trace_metrics": {
+    "backtrack_rate": 0.04,
+    "communication_count": 10.0,
+    "completion": true,
+    "completion_source": "final_answer",
+    "cost_total": 0.0,
+    "handoff_count": 17.0,
+    "latency_total": 51857.408749230206,
+    "loop_score": 0.5,
+    "score": 0.0,
+    "steps_total": 50.0,
+    "success": false,
+    "success_source": "benchmark_evaluation",
+    "tokens_total": 26257.0,
+    "tool_calls_total": 10.0,
+    "tool_fail_total": 0.0,
+    "verification_density": 0.32
+  }
+}

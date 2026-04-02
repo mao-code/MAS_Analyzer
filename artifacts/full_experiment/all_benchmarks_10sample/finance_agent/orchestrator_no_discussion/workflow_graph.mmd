@@ -1,0 +1,40 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	START([START<hr/><small><em>kind = terminal
+description = Workflow entrypoint.</em></small>]):::first
+	END([END<hr/><small><em>kind = terminal
+description = Workflow exit.</em></small>]):::last
+	orchestrator_plan(orchestrator_plan<hr/><small><em>kind = workflow_node
+description = Initial planner/orchestrator artifact.</em></small>)
+	dispatch_specialists(dispatch_specialists<hr/><small><em>kind = workflow_node
+description = Build task packages for specialists.</em></small>)
+	specialist_worker(specialist_worker<hr/><small><em>kind = workflow_node
+description = Independent specialist execution.</em></small>)
+	relay_specialist_reports(relay_specialist_reports<hr/><small><em>kind = workflow_node
+description = Bounded specialist-to-orchestrator reports.</em></small>)
+	orchestrator_merge(orchestrator_merge<hr/><small><em>kind = workflow_node
+description = Merge specialist reports.</em></small>)
+	descriptor_monitor(descriptor_monitor<hr/><small><em>kind = workflow_node
+description = Shared descriptor hook.</em></small>)
+	termination_checker(termination_checker<hr/><small><em>kind = workflow_node
+description = Explicit round stopper.</em></small>)
+	finalize(finalize<hr/><small><em>kind = workflow_node
+description = Finalize the run.</em></small>)
+	START --> orchestrator_plan;
+	orchestrator_plan --> dispatch_specialists;
+	specialist_worker --> relay_specialist_reports;
+	relay_specialist_reports --> orchestrator_merge;
+	orchestrator_merge --> descriptor_monitor;
+	descriptor_monitor --> termination_checker;
+	finalize --> END;
+	dispatch_specialists -- &nbsp;parallel Send fan-out&nbsp; --> specialist_worker;
+	dispatch_specialists -- &nbsp;else&nbsp; --> relay_specialist_reports;
+	termination_checker -- &nbsp;conditional&nbsp; --> dispatch_specialists;
+	termination_checker -- &nbsp;conditional&nbsp; --> finalize;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

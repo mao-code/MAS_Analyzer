@@ -1,0 +1,535 @@
+{
+  "benchmark": "plancraft",
+  "final": {
+    "answer": "move: from [0] to [I1] with quantity 3",
+    "answer_preview": "move: from [0] to [I1] with quantity 3",
+    "final_reason": "only_voting:majority_vote",
+    "last_termination": null,
+    "vote_tally": {
+      "move from 0 to i1 with quantity 3": 4
+    }
+  },
+  "prompt_catalog": [
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_1",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+      "prompt_id": "p_2",
+      "role": "system",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_3",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "move: from [I18] to [B1] with quantity 1",
+      "prompt_id": "p_4",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_5",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "move: from [I30] to [B2] with quantity 1",
+      "prompt_id": "p_6",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+      "prompt_id": "p_7",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "move: from [0] to [I6] with quantity 1",
+      "prompt_id": "p_8",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_9",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "smelt: from [I36] to [I35] with quantity 1",
+      "prompt_id": "p_10",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: cyan_carpet\ninventory:\n - bedrock [I2] quantity 52\n - dark_oak_sapling [I4] quantity 42\n - shield [I5] quantity 1\n - brown_banner [I8] quantity 2\n - spruce_door [I11] quantity 58\n - stone_brick_wall [I12] quantity 52\n - red_nether_bricks [I15] quantity 49\n - cooked_beef [I17] quantity 16\n - cooked_chicken [I19] quantity 35\n - cut_sandstone_slab [I20] quantity 10\n - cyan_wool [I21] quantity 2\n - minecart [I23] quantity 1\n - honeycomb [I24] quantity 46\n - spruce_boat [I26] quantity 1\n - egg [I27] quantity 14\n - green_concrete [I30] quantity 13\n - golden_pickaxe [I33] quantity 1",
+      "prompt_id": "p_11",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_12",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_13",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_14",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_15",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_16",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: voter\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_17",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"voter\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Solve the task independently. Ignore any notion of peer context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_18",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "move: from [I21] to [A1] with quantity 1 move: from [I21] to [A2] with quantity 1",
+      "prompt_id": "p_19",
+      "role": "assistant",
+      "usage_count": 8
+    },
+    {
+      "content": "Craft an item of type: cyan_carpet\ninventory:\n - cyan_wool [A1] quantity 1\n - bedrock [I2] quantity 52\n - dark_oak_sapling [I4] quantity 42\n - shield [I5] quantity 1\n - brown_banner [I8] quantity 2\n - spruce_door [I11] quantity 58\n - stone_brick_wall [I12] quantity 52\n - red_nether_bricks [I15] quantity 49\n - cooked_beef [I17] quantity 16\n - cooked_chicken [I19] quantity 35\n - cut_sandstone_slab [I20] quantity 10\n - cyan_wool [I21] quantity 1\n - minecart [I23] quantity 1\n - honeycomb [I24] quantity 46\n - spruce_boat [I26] quantity 1\n - egg [I27] quantity 14\n - green_concrete [I30] quantity 13\n - golden_pickaxe [I33] quantity 1",
+      "prompt_id": "p_20",
+      "role": "user",
+      "usage_count": 8
+    },
+    {
+      "content": "move: from [I21] to [A2] with quantity 1",
+      "prompt_id": "p_21",
+      "role": "assistant",
+      "usage_count": 4
+    },
+    {
+      "content": "Craft an item of type: cyan_carpet\ninventory:\n - cyan_carpet [0] quantity 3\n - cyan_wool [A1] quantity 1\n - cyan_wool [A2] quantity 1\n - bedrock [I2] quantity 52\n - dark_oak_sapling [I4] quantity 42\n - shield [I5] quantity 1\n - brown_banner [I8] quantity 2\n - spruce_door [I11] quantity 58\n - stone_brick_wall [I12] quantity 52\n - red_nether_bricks [I15] quantity 49\n - cooked_beef [I17] quantity 16\n - cooked_chicken [I19] quantity 35\n - cut_sandstone_slab [I20] quantity 10\n - minecart [I23] quantity 1\n - honeycomb [I24] quantity 46\n - spruce_boat [I26] quantity 1\n - egg [I27] quantity 14\n - green_concrete [I30] quantity 13\n - golden_pickaxe [I33] quantity 1",
+      "prompt_id": "p_22",
+      "role": "user",
+      "usage_count": 4
+    }
+  ],
+  "run_index": 0,
+  "steps": [
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1075,
+            "token_out": 206
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A1] with quantity 1\\nmove: from [I21] to [A2] with quantity 1\",\n  \"summary\": \"To craft cyan_carpet, I need two cyan_wool blocks in the crafting grid. I am moving the two cyan_wool blocks from [I21] to the crafting grid slots [A1] and [A2].\",\n  \"critique\": \"The user requested cyan_carpet. The recipe for cyan_carpet is two cyan_wool blocks placed horizontally. I have identified the cyan_wool in [I21].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cyan_wool [I21] quantity 2. Recipe for cyan_carpet is 2 cyan_wool.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1075,
+            "token_out": 198
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A1] with quantity 1\\nmove: from [I21] to [A2] with quantity 1\",\n  \"summary\": \"To craft cyan carpet, I need to place two cyan wool blocks in the crafting grid. I am moving the two cyan wool blocks from [I21] to [A1] and [A2].\",\n  \"critique\": \"The recipe for cyan carpet requires two cyan wool blocks placed horizontally or vertically. Moving them to [A1] and [A2] satisfies this.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The inventory contains cyan_wool [I21] with quantity 2. The recipe for cyan_carpet is 2 cyan_wool.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1075,
+            "token_out": 179
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A1] with quantity 2\",\n  \"summary\": \"To craft cyan carpet, I need to place cyan wool in the crafting grid. I have cyan_wool in [I21]. I will move it to the crafting grid.\",\n  \"critique\": \"The user requested cyan_carpet. Cyan carpet is crafted using 2 cyan wool. I have 2 cyan wool in [I21]. I will start by moving them to the crafting grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cyan_wool [I21] quantity 2. Recipe for cyan_carpet is 2 cyan_wool.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1065,
+            "token_out": 197
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A1] with quantity 1\\nmove: from [I21] to [A2] with quantity 1\",\n  \"summary\": \"To craft cyan carpet, I need to place two cyan wool blocks in the crafting grid. I am moving the two cyan wool blocks from [I21] to [A1] and [A2].\",\n  \"critique\": \"The user requested cyan carpet. The recipe for cyan carpet is two cyan wool blocks placed horizontally. I have identified the cyan wool in [I21].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cyan_wool [I21] quantity 2. Recipe for cyan_carpet is 2 cyan_wool.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "worker",
+      "phases": [
+        "worker"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11"
+      ],
+      "step_index": 1,
+      "termination": []
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1366,
+            "token_out": 178
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft cyan_carpet. I have already placed one cyan_wool in [A1] and need to place the second one in [A2] to complete the recipe.\",\n  \"critique\": \"The previous turn only moved one cyan_wool. I need to move the second one to complete the crafting grid configuration for cyan_carpet.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting recipe for cyan_carpet requires two cyan_wool blocks placed horizontally. One is already in [A1], and the other is in [I21].\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1366,
+            "token_out": 154
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A2] with quantity 1\",\n  \"summary\": \"Moved the second cyan_wool from [I21] to [A2] to complete the crafting recipe for cyan_carpet.\",\n  \"critique\": \"The previous turn only moved one wool. I am completing the placement of the second wool required for the recipe.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid now contains cyan_wool in [A1] and [A2], which is the correct recipe for cyan_carpet.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1354,
+            "token_out": 187
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft cyan_carpet. I have already placed one cyan_wool in [A1]. I am now moving the second cyan_wool from [I21] to [A2] to complete the recipe.\",\n  \"critique\": \"The recipe for cyan_carpet requires two cyan_wool placed horizontally. I have placed one in [A1] and am now placing the second in [A2].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid now contains cyan_wool in [A1] and [A2], which is the correct recipe for cyan_carpet.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1366,
+            "token_out": 169
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [I21] to [A2] with quantity 1\",\n  \"summary\": \"The user wants to craft cyan_carpet. I have already placed one cyan_wool in [A1]. I need to place the second cyan_wool in [A2] to complete the recipe.\",\n  \"critique\": \"The previous turn only moved one item, so I am completing the placement of the second item required for the recipe.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The recipe for cyan_carpet requires two cyan_wool placed horizontally. [A1] is occupied, [A2] is empty.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 1,
+      "parallel": true,
+      "phase": "worker",
+      "phases": [
+        "worker"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_19",
+        "p_20"
+      ],
+      "step_index": 2,
+      "termination": []
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1636,
+            "token_out": 143
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 3\",\n  \"summary\": \"The cyan carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 cyan carpets to inventory slot [I1].\",\n  \"critique\": \"The crafting process is complete. No further actions are required for this specific task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 3 cyan_carpet items, which matches the requested task.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1650,
+            "token_out": 168
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 3\",\n  \"summary\": \"The cyan carpet has been crafted in the output slot [0]. I am moving the resulting 3 cyan carpets to inventory slot [I1].\",\n  \"critique\": \"The crafting process is complete. The items were successfully moved to the output slot, and now they need to be moved to the inventory to clear the crafting grid.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contains cyan_wool in [A1] and [A2], resulting in cyan_carpet in [0] with quantity 3.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1650,
+            "token_out": 154
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 3\",\n  \"summary\": \"The cyan carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 cyan carpets to inventory slot [I1].\",\n  \"critique\": \"The crafting process is complete. Moving the output to the inventory is the final step.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contains cyan_wool in [A1] and [A2], resulting in cyan_carpet in [0] with quantity 3.\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1650,
+            "token_out": 154
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"move: from [0] to [I1] with quantity 3\",\n  \"summary\": \"The cyan_carpet has been successfully crafted in the output slot [0]. I am moving the resulting 3 cyan_carpet items to inventory slot [I1].\",\n  \"critique\": \"The crafting process is complete. The items were correctly placed in the crafting grid, resulting in the desired output.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid contained two cyan_wool items, which produced 3 cyan_carpet items in slot [0].\"\n}",
+          "role": "voter",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 2,
+      "parallel": true,
+      "phase": "worker",
+      "phases": [
+        "worker"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_19",
+        "p_20",
+        "p_21",
+        "p_22"
+      ],
+      "step_index": 3,
+      "termination": []
+    }
+  ],
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 0,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 1,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "only_voting",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "only_voting"
+  },
+  "task_id": "VAL0103",
+  "tool_definitions": []
+}

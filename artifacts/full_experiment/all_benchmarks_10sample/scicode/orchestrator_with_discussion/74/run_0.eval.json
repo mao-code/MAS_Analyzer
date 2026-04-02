@@ -1,0 +1,48 @@
+{
+  "completion": true,
+  "details": {
+    "Main Problem Resolve Rate": 0.0,
+    "Subproblem Resolve Rate": 0.0,
+    "Total Correct": 0,
+    "Total Steps": 1,
+    "prediction": "import numpy as np\n\n\n # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size",
+    "run_metadata_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/74/run_0.metadata.json",
+    "run_metadata_summary": {
+      "final_reason": "orchestrator_with_discussion:consensus_reached",
+      "messages_sent_by_agent": {
+        "agent_0": 2,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "messages_sent_total": 5,
+      "retrieved_docids": [
+        "0"
+      ],
+      "run_index": 0,
+      "seed": 5042,
+      "task_id": "74.1",
+      "tool_call_counts": {
+        "inter_agent_send": 5
+      },
+      "tool_calls_total": 5,
+      "topology": "orchestrator_with_discussion",
+      "turns_executed": 1,
+      "vote_tally": {}
+    },
+    "step_results": {
+      "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpp9h_mba3/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+    }
+  },
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "prediction": "import numpy as np\n\n\n # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ",
+  "score": 0.0,
+  "success": false,
+  "task_id": "74"
+}

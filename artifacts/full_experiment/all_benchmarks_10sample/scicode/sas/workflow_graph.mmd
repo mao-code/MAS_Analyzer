@@ -1,0 +1,23 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	START([START<hr/><small><em>kind = terminal
+description = Workflow entrypoint.</em></small>]):::first
+	END([END<hr/><small><em>kind = terminal
+description = Workflow exit.</em></small>]):::last
+	single_agent(single_agent<hr/><small><em>kind = workflow_node
+description = One end-to-end worker.</em></small>)
+	descriptor_monitor(descriptor_monitor<hr/><small><em>kind = workflow_node
+description = Shared descriptor hook.</em></small>)
+	finalize(finalize<hr/><small><em>kind = workflow_node
+description = Emit the final answer and final trace event.</em></small>)
+	START --> single_agent;
+	single_agent --> descriptor_monitor;
+	descriptor_monitor --> finalize;
+	finalize --> END;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

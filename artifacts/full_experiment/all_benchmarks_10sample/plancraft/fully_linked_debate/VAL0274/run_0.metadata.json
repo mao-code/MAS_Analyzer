@@ -1,0 +1,1458 @@
+{
+  "agent_outputs": {
+    "agent_0": "move: from [0] to [I26] with quantity 1",
+    "agent_1": "move: from [0] to [I26] with quantity 1",
+    "agent_2": "move: from [0] to [I26] with quantity 1",
+    "agent_3": "move: from [0] to [I26] with quantity 1"
+  },
+  "descriptor_records": [
+    {
+      "dispatch_id": 0,
+      "message_count": 0,
+      "outer_step_index": 0,
+      "phase": "judge",
+      "round_index": 0
+    },
+    {
+      "dispatch_id": 0,
+      "message_count": 0,
+      "outer_step_index": 1,
+      "phase": "judge",
+      "round_index": 0
+    }
+  ],
+  "descriptor_summary": {
+    "final_phase": "descriptor_monitor",
+    "final_round_index": 0,
+    "monitor_steps": 1
+  },
+  "discussion_rounds": 1,
+  "final_reason": "fully_linked_debate:consensus_reached",
+  "info": {
+    "reason": "success",
+    "steps": 2
+  },
+  "interaction_logs": [
+    {
+      "agent_id": "agent_0",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown_dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains cocoa beans in slot [I26].\",\n  \"critique\": \"The user requested brown_dye. According to Minecraft crafting recipes, placing a single cocoa bean in any crafting grid slot results in brown dye. No other ingredients are required.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans [I26] are the correct and only ingredient needed to craft brown_dye.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1088,
+        "token_out": 166
+      },
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_0",
+        "answer": "move: from [I26] to [A1] with quantity 1",
+        "artifact_id": "debate_round:agent_0:0:0:0",
+        "confidence": 1.0,
+        "critique": "The user requested brown_dye. According to Minecraft crafting recipes, placing a single cocoa bean in any crafting grid slot results in brown dye. No other ingredients are required.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "Cocoa beans [I26] are the correct and only ingredient needed to craft brown_dye."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1088,
+          "token_out": 166
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown_dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains cocoa beans in slot [I26].\",\n  \"critique\": \"The user requested brown_dye. According to Minecraft crafting recipes, placing a single cocoa bean in any crafting grid slot results in brown dye. No other ingredients are required.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans [I26] are the correct and only ingredient needed to craft brown_dye.\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The objective is to craft brown_dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains cocoa beans in slot [I26].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_1",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains 1 cocoa bean in slot [I26].\",\n  \"critique\": \"The user requested brown dye. Placing a single cocoa bean in the crafting grid (A1) is the correct recipe to produce brown dye in the output slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans [I26] are the standard crafting ingredient for brown dye.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1088,
+        "token_out": 164
+      },
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_1",
+        "answer": "move: from [I26] to [A1] with quantity 1",
+        "artifact_id": "debate_round:agent_1:0:0:0",
+        "confidence": 1.0,
+        "critique": "The user requested brown dye. Placing a single cocoa bean in the crafting grid (A1) is the correct recipe to produce brown dye in the output slot [0].",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "Cocoa beans [I26] are the standard crafting ingredient for brown dye."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1088,
+          "token_out": 164
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains 1 cocoa bean in slot [I26].\",\n  \"critique\": \"The user requested brown dye. Placing a single cocoa bean in the crafting grid (A1) is the correct recipe to produce brown dye in the output slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans [I26] are the standard crafting ingredient for brown dye.\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The objective is to craft brown dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains 1 cocoa bean in slot [I26].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_2",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The agent identified cocoa beans in slot [I26] and moved them to the crafting grid.\",\n  \"critique\": \"The agent correctly identified that cocoa beans are the required ingredient for brown dye. Moving the item to the crafting grid is the necessary first step to produce the dye.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans are located in [I26]. Placing them in the crafting grid [A1] allows for the crafting of brown dye.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1098,
+        "token_out": 178
+      },
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_2",
+        "answer": "move: from [I26] to [A1] with quantity 1",
+        "artifact_id": "debate_round:agent_2:0:0:0",
+        "confidence": 1.0,
+        "critique": "The agent correctly identified that cocoa beans are the required ingredient for brown dye. Moving the item to the crafting grid is the necessary first step to produce the dye.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "Cocoa beans are located in [I26]. Placing them in the crafting grid [A1] allows for the crafting of brown dye."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1098,
+          "token_out": 178
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The agent identified cocoa beans in slot [I26] and moved them to the crafting grid.\",\n  \"critique\": \"The agent correctly identified that cocoa beans are the required ingredient for brown dye. Moving the item to the crafting grid is the necessary first step to produce the dye.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans are located in [I26]. Placing them in the crafting grid [A1] allows for the crafting of brown dye.\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The objective is to craft brown dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The agent identified cocoa beans in slot [I26] and moved them to the crafting grid.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_3",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown_dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains cocoa beans in slot [I26].\",\n  \"critique\": \"The user requested brown_dye. Placing cocoa beans in the crafting grid (A1) will produce brown_dye in the output slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans [I26] are the correct ingredient for brown_dye.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1098,
+        "token_out": 159
+      },
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_3",
+        "answer": "move: from [I26] to [A1] with quantity 1",
+        "artifact_id": "debate_round:agent_3:0:0:0",
+        "confidence": 1.0,
+        "critique": "The user requested brown_dye. Placing cocoa beans in the crafting grid (A1) will produce brown_dye in the output slot [0].",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "Cocoa beans [I26] are the correct ingredient for brown_dye."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1098,
+          "token_out": 159
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [I26] to [A1] with quantity 1\",\n  \"summary\": \"The objective is to craft brown_dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains cocoa beans in slot [I26].\",\n  \"critique\": \"The user requested brown_dye. Placing cocoa beans in the crafting grid (A1) will produce brown_dye in the output slot [0].\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Cocoa beans [I26] are the correct ingredient for brown_dye.\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The objective is to craft brown_dye. Cocoa beans are the primary ingredient for brown dye in Minecraft. The inventory contains cocoa beans in slot [I26].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_0",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user requested to craft brown_dye. The cocoa beans were placed in [A1], resulting in brown_dye appearing in the output slot [0]. The final step is to move the crafted item from the output slot to the inventory.\",\n  \"critique\": \"The crafting process for brown_dye is complete. The item is currently in the output slot [0] and must be moved to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid shows brown_dye in slot [0] and cocoa_beans in [A1]. Moving the item from [0] to an inventory slot completes the action.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1373,
+        "token_out": 194
+      },
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I26] to [A1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - brown_dye [0] quantity 1\n - cocoa_beans [A1] quantity 1\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_0",
+        "answer": "move: from [0] to [I26] with quantity 1",
+        "artifact_id": "debate_round:agent_0:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process for brown_dye is complete. The item is currently in the output slot [0] and must be moved to the inventory to finalize the task.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The crafting grid shows brown_dye in slot [0] and cocoa_beans in [A1]. Moving the item from [0] to an inventory slot completes the action."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1373,
+          "token_out": 194
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user requested to craft brown_dye. The cocoa beans were placed in [A1], resulting in brown_dye appearing in the output slot [0]. The final step is to move the crafted item from the output slot to the inventory.\",\n  \"critique\": \"The crafting process for brown_dye is complete. The item is currently in the output slot [0] and must be moved to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid shows brown_dye in slot [0] and cocoa_beans in [A1]. Moving the item from [0] to an inventory slot completes the action.\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The user requested to craft brown_dye. The cocoa beans were placed in [A1], resulting in brown_dye appearing in the output slot [0]. The final step is to move the crafted item from the output slot to the inventory.",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_1",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].\",\n  \"critique\": \"The crafting process for brown_dye is complete. The item must be moved from the output slot [0] to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 1 brown_dye, which was produced from the cocoa_beans previously placed in [A1].\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1385,
+        "token_out": 159
+      },
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I26] to [A1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - brown_dye [0] quantity 1\n - cocoa_beans [A1] quantity 1\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_1",
+        "answer": "move: from [0] to [I26] with quantity 1",
+        "artifact_id": "debate_round:agent_1:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process for brown_dye is complete. The item must be moved from the output slot [0] to the inventory to finalize the task.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The crafting grid output [0] contains 1 brown_dye",
+          "which was produced from the cocoa_beans previously placed in [A1]."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1385,
+          "token_out": 159
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].\",\n  \"critique\": \"The crafting process for brown_dye is complete. The item must be moved from the output slot [0] to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 1 brown_dye, which was produced from the cocoa_beans previously placed in [A1].\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_2",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].\",\n  \"critique\": \"The crafting process is complete, but the item remains in the output slot [0]. It must be moved to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 1 brown_dye. Moving it to an inventory slot [I26] clears the output slot.\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1385,
+        "token_out": 159
+      },
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I26] to [A1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - brown_dye [0] quantity 1\n - cocoa_beans [A1] quantity 1\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_2",
+        "answer": "move: from [0] to [I26] with quantity 1",
+        "artifact_id": "debate_round:agent_2:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process is complete, but the item remains in the output slot [0]. It must be moved to the inventory to finalize the task.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The crafting grid output [0] contains 1 brown_dye. Moving it to an inventory slot [I26] clears the output slot."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1385,
+          "token_out": 159
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].\",\n  \"critique\": \"The crafting process is complete, but the item remains in the output slot [0]. It must be moved to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 1 brown_dye. Moving it to an inventory slot [I26] clears the output slot.\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    },
+    {
+      "agent_id": "agent_3",
+      "agent_role": "debater",
+      "agent_type": "general",
+      "assistant_message": {
+        "content": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].\",\n  \"critique\": \"The crafting process for brown_dye is complete. The item must be moved from the output slot [0] to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 1 brown_dye, which was produced from the cocoa_beans placed in [A1].\"\n}",
+        "role": "assistant"
+      },
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "llm": {
+        "cost_usd": 0.0,
+        "metadata": {
+          "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+          "provider": "openrouter"
+        },
+        "mock_used": false,
+        "model": "google/gemini-3.1-flash-lite-preview",
+        "token_in": 1385,
+        "token_out": 158
+      },
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "prior_artifact": null,
+      "prompt_messages": [
+        {
+          "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+          "role": "system"
+        },
+        {
+          "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+          "role": "system"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I18] to [B1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I30] to [B2] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "move: from [0] to [I6] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+          "role": "user"
+        },
+        {
+          "content": "smelt: from [I36] to [I35] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - cocoa_beans [I26] quantity 1\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "move: from [I26] to [A1] with quantity 1",
+          "role": "assistant"
+        },
+        {
+          "content": "Craft an item of type: brown_dye\ninventory:\n - brown_dye [0] quantity 1\n - cocoa_beans [A1] quantity 1\n - mule_spawn_egg [I1] quantity 60\n - flint [I2] quantity 20\n - mossy_cobblestone [I3] quantity 46\n - iron_sword [I4] quantity 1\n - cracked_nether_bricks [I8] quantity 16\n - birch_sapling [I9] quantity 52\n - sea_pickle [I14] quantity 47\n - smooth_red_sandstone_slab [I18] quantity 64\n - sandstone_wall [I19] quantity 45\n - black_stained_glass_pane [I21] quantity 29\n - leather [I23] quantity 25\n - clay [I25] quantity 50\n - lime_stained_glass [I30] quantity 3\n - brown_glazed_terracotta [I34] quantity 44\n - lead [I35] quantity 4\n - squid_spawn_egg [I36] quantity 22",
+          "role": "user"
+        },
+        {
+          "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+          "role": "user"
+        }
+      ],
+      "round_index": 0,
+      "stage_role": "critic",
+      "structured_artifact": {
+        "agent_id": "agent_3",
+        "answer": "move: from [0] to [I26] with quantity 1",
+        "artifact_id": "debate_round:agent_3:0:0:0",
+        "confidence": 1.0,
+        "critique": "The crafting process for brown_dye is complete. The item must be moved from the output slot [0] to the inventory to finalize the task.",
+        "discussion_index": 0,
+        "dispatch_id": 0,
+        "evidence_summary": [
+          "The crafting grid output [0] contains 1 brown_dye",
+          "which was produced from the cocoa_beans placed in [A1]."
+        ],
+        "llm": {
+          "cost_usd": 0.0,
+          "metadata": {
+            "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "provider": "openrouter"
+          },
+          "mock_used": false,
+          "model": "google/gemini-3.1-flash-lite-preview",
+          "token_in": 1385,
+          "token_out": 158
+        },
+        "node_name": "debate_round",
+        "raw_response": "{\n  \"answer_artifact\": \"move: from [0] to [I26] with quantity 1\",\n  \"summary\": \"The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].\",\n  \"critique\": \"The crafting process for brown_dye is complete. The item must be moved from the output slot [0] to the inventory to finalize the task.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"The crafting grid output [0] contains 1 brown_dye, which was produced from the cocoa_beans placed in [A1].\"\n}",
+        "revision_request": "",
+        "role": "debater",
+        "round_index": 0,
+        "source_artifact_ids": [],
+        "stage_role": "critic",
+        "status": "ok",
+        "summary": "The user successfully crafted brown_dye using cocoa_beans. The item is currently in the output slot [0].",
+        "tool_records": [],
+        "unresolved_issues": []
+      },
+      "tool_calls": [],
+      "visible_messages": []
+    }
+  ],
+  "message_views": [
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_0",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_1",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_2",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_3",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_0",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_1",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_2",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    },
+    {
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "debate_round",
+      "role": "debater",
+      "round_index": 0,
+      "viewer": "agent_3",
+      "visible_count": 0,
+      "visible_message_ids": [],
+      "visible_senders": []
+    }
+  ],
+  "messages_sent_by_agent": {
+    "agent_0": 0,
+    "agent_1": 0,
+    "agent_2": 0,
+    "agent_3": 0
+  },
+  "messages_sent_total": 0,
+  "num_steps": 2,
+  "phase_history": [
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 0,
+      "phase": "debate_init",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 0,
+      "phase": "debate_controller",
+      "round_index": 0
+    },
+    {
+      "active_agents": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 0,
+      "phase": "debate_dispatch",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "debate_controller",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "judge",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "descriptor_monitor",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 0,
+      "phase": "finalize",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 1,
+      "phase": "debate_init",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 1,
+      "phase": "debate_controller",
+      "round_index": 0
+    },
+    {
+      "active_agents": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "outer_step_index": 1,
+      "phase": "debate_dispatch",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "debate_controller",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "judge",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "descriptor_monitor",
+      "round_index": 0
+    },
+    {
+      "active_agents": [],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "outer_step_index": 1,
+      "phase": "finalize",
+      "round_index": 0
+    }
+  ],
+  "raw_outputs": [
+    "move: from [I26] to [A1] with quantity 1",
+    "move: from [0] to [I26] with quantity 1"
+  ],
+  "relay_messages": [],
+  "remaining_message_budget": {
+    "agent_0": 2,
+    "agent_1": 2,
+    "agent_2": 2,
+    "agent_3": 2
+  },
+  "retrieved_docids": [
+    "0",
+    "1",
+    "26"
+  ],
+  "reward": 1.0,
+  "rounds_configured": 2,
+  "run_index": 0,
+  "seed": 1042,
+  "step_runs": [
+    {
+      "final_answer": "move: from [I26] to [A1] with quantity 1",
+      "outer_step_index": 0,
+      "run_summary": {
+        "final_reason": "fully_linked_debate:consensus_reached",
+        "messages_sent_by_agent": {
+          "agent_0": 0,
+          "agent_1": 0,
+          "agent_2": 0,
+          "agent_3": 0
+        },
+        "messages_sent_total": 0,
+        "tool_call_counts": {},
+        "tool_calls_total": 0,
+        "topology": "fully_linked_debate",
+        "turns_executed": 1
+      },
+      "task_id": "VAL0274"
+    },
+    {
+      "final_answer": "move: from [0] to [I26] with quantity 1",
+      "outer_step_index": 1,
+      "run_summary": {
+        "final_reason": "fully_linked_debate:consensus_reached",
+        "messages_sent_by_agent": {
+          "agent_0": 0,
+          "agent_1": 0,
+          "agent_2": 0,
+          "agent_3": 0
+        },
+        "messages_sent_total": 0,
+        "tool_call_counts": {},
+        "tool_calls_total": 0,
+        "topology": "fully_linked_debate",
+        "turns_executed": 1
+      },
+      "task_id": "VAL0274"
+    }
+  ],
+  "task_id": "VAL0274",
+  "terminated": true,
+  "termination_history": [
+    {
+      "average_confidence": 1.0,
+      "consensus_count": 4,
+      "consensus_explanation": "All agents provided the exact same move command.",
+      "consensus_groups": [
+        [
+          0,
+          1,
+          2,
+          3
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "0,1,2,3",
+      "consensus_source": "llm_judge",
+      "consensus_valid_count": 4,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 4246.637334115803,
+      "control_token_in": 953,
+      "control_token_out": 30,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "judge",
+      "outer_step_index": 0,
+      "reason": "consensus_reached",
+      "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "debate_controller",
+      "valid_artifact_count": 4
+    },
+    {
+      "average_confidence": 1.0,
+      "consensus_count": 4,
+      "consensus_explanation": "All agents provided the same action to move the crafted item from the output slot to an inventory slot.",
+      "consensus_groups": [
+        [
+          0,
+          1,
+          2,
+          3
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "0,1,2,3",
+      "consensus_source": "llm_judge",
+      "consensus_valid_count": 4,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 1354.0205000899732,
+      "control_token_in": 951,
+      "control_token_out": 41,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "judge",
+      "outer_step_index": 1,
+      "reason": "consensus_reached",
+      "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "debate_controller",
+      "valid_artifact_count": 4
+    }
+  ],
+  "tool_call_counts": {},
+  "tool_calls_total": 0,
+  "tool_definitions": [],
+  "topology": "fully_linked_debate",
+  "topology_layout": {
+    "adjacency": {
+      "agent_0": [
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agent_1": [
+        "agent_0",
+        "agent_2",
+        "agent_3"
+      ],
+      "agent_2": [
+        "agent_0",
+        "agent_1",
+        "agent_3"
+      ],
+      "agent_3": [
+        "agent_0",
+        "agent_1",
+        "agent_2"
+      ]
+    },
+    "agent_ids": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "agents_per_level": [
+      4
+    ],
+    "children_by_agent": {},
+    "groups": [],
+    "leaves": [],
+    "level_by_agent": {
+      "agent_0": 0,
+      "agent_1": 0,
+      "agent_2": 0,
+      "agent_3": 0
+    },
+    "managers": [],
+    "orchestrator_id": null,
+    "parent_by_agent": {},
+    "representatives": [],
+    "roles": {
+      "agent_0": "debater",
+      "agent_1": "debater",
+      "agent_2": "debater",
+      "agent_3": "debater"
+    },
+    "specialists": [],
+    "topological_order": [
+      "agent_0",
+      "agent_1",
+      "agent_2",
+      "agent_3"
+    ],
+    "topology": "fully_linked_debate"
+  },
+  "truncated": false,
+  "turns_executed": 2,
+  "vote_tally": {
+    "move from 0 to i26 with quantity 1": 4
+  },
+  "workflow_definition": {
+    "aggregation_logic": "Debaters revise in parallel; the final judge performs deterministic voting over the latest debate artifacts.",
+    "conditional_edges": [
+      "debate_controller -> debate_dispatch | judge",
+      "debate_dispatch -> debate_round (parallel Send fan-out) else debate_controller"
+    ],
+    "dispatch_logic": "The controller sends bounded summaries of each debater artifact to all peers for the next round.",
+    "edges": [
+      "START -> debate_init",
+      "debate_init -> debate_controller",
+      "debate_round -> debate_controller",
+      "judge -> descriptor_monitor",
+      "descriptor_monitor -> finalize",
+      "finalize -> END"
+    ],
+    "logging_outputs": [
+      "trace_events",
+      "relay_messages",
+      "message_views",
+      "interaction_logs",
+      "descriptor_records",
+      "termination_history"
+    ],
+    "nodes": {
+      "debate_controller": "Round controller plus explicit stopping logic.",
+      "debate_dispatch": "Fan out the next debate round.",
+      "debate_init": "Initialize the debate controller.",
+      "debate_round": "Parallel debater revision stage.",
+      "descriptor_monitor": "Shared descriptor hook.",
+      "finalize": "Finalize the run.",
+      "judge": "Deterministic final judge."
+    },
+    "state_fields": [
+      "task_id",
+      "task_prompt",
+      "topology",
+      "layout",
+      "rounds",
+      "discussion_rounds",
+      "round_index",
+      "discussion_index",
+      "messages",
+      "artifacts",
+      "termination_decision",
+      "vote_tally",
+      "descriptor_records"
+    ],
+    "stopping_criteria": [
+      "Max rounds reached",
+      "Consensus across debater artifacts",
+      "No meaningful change between debate rounds",
+      "Confidence threshold reached",
+      "Invalid or failed branch fallback"
+    ],
+    "topology": "fully_linked_debate"
+  }
+}

@@ -1,0 +1,1101 @@
+{
+  "benchmark": "scicode",
+  "config_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/config/benchmarks/scicode_10.toml",
+  "experiment_id": "20260401T195507Z",
+  "experiment_settings_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_1": [
+          "agent_0",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_2": [
+          "agent_0",
+          "agent_1",
+          "agent_3"
+        ],
+        "agent_3": [
+          "agent_0",
+          "agent_1",
+          "agent_2"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        4
+      ],
+      "children_by_agent": {},
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 0,
+        "agent_2": 0,
+        "agent_3": 0
+      },
+      "managers": [],
+      "orchestrator_id": null,
+      "parent_by_agent": {},
+      "representatives": [],
+      "roles": {
+        "agent_0": "debater",
+        "agent_1": "debater",
+        "agent_2": "debater",
+        "agent_3": "debater"
+      },
+      "specialists": [],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "fully_linked_debate"
+    },
+    "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/mas_graph.mmd",
+    "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "fully_linked_debate",
+    "workflow": {
+      "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/workflow_graph.mmd",
+      "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "fully_linked_debate",
+      "workflow": {
+        "aggregation_logic": "Debaters revise in parallel; the final judge performs deterministic voting over the latest debate artifacts.",
+        "conditional_edges": [
+          "debate_controller -> debate_dispatch | judge",
+          "debate_dispatch -> debate_round (parallel Send fan-out) else debate_controller"
+        ],
+        "dispatch_logic": "The controller sends bounded summaries of each debater artifact to all peers for the next round.",
+        "edges": [
+          "START -> debate_init",
+          "debate_init -> debate_controller",
+          "debate_round -> debate_controller",
+          "judge -> descriptor_monitor",
+          "descriptor_monitor -> finalize",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "debate_controller": "Round controller plus explicit stopping logic.",
+          "debate_dispatch": "Fan out the next debate round.",
+          "debate_init": "Initialize the debate controller.",
+          "debate_round": "Parallel debater revision stage.",
+          "descriptor_monitor": "Shared descriptor hook.",
+          "finalize": "Finalize the run.",
+          "judge": "Deterministic final judge."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max rounds reached",
+          "Consensus across debater artifacts",
+          "No meaningful change between debate rounds",
+          "Confidence threshold reached",
+          "Invalid or failed branch fallback"
+        ],
+        "topology": "fully_linked_debate"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "fully_linked_debate",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "fully_linked_debate"
+  },
+  "system_label": "fully_linked_debate",
+  "task_count": 10,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/77/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/77/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 267261.03416679427,
+        "C2_tokens_total": 221214.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 71.0,
+        "P1_steps_total": 180.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 48.0,
+        "stage_act_latency_ms": 239712.7042489592,
+        "stage_act_tokens": 189154.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 3371.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 12.0,
+        "stage_plan_latency_ms": 12.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 12.0,
+        "stage_revise_latency_ms": 12.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 96.0,
+        "stage_verify_latency_ms": 27512.32991783507,
+        "stage_verify_tokens": 28689.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import math\nimport numpy as np\nimport scipy as sp\nfrom scipy.constants import  Avogadro\n # Background: Periodic boundary conditions (PBCs) are used in molecular dynamics simulations to mimic an infinite system by placing the simulation box in a periodic array. For a cubic box of side length L, a particle at position r = (x, y, z) is mapped back into the primary simulation cell [0, L) using the modulo operator. Specifically, each coordinate component r_i is transformed such that r_i_wrapped = r_i",
+              "step_results": {
+                "77.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.1.py\", line 17, in <module>\n    assert np.allclose(wrap(particle_position, box_length), targe",
+                "77.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.10.py\", line 30, in <module>\n    assert cmp_tuple_or_list(pressure(N, L, T, positions, sigma,",
+                "77.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.11.py\", line 29, in <module>\n    assert np.allclose(forces(N, positions, L, sigma, epsilon, r",
+                "77.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.12.py\", line 171, in <module>\n    xyz = init_rand(N,L,sigma)\n          ^^^^^^^^^^^^^^^^^^^^\n ",
+                "77.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.2.py\", line 17, in <module>\n    assert np.allclose(dist(r1, r2, box_length), target)\n        ",
+                "77.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.3.py\", line 18, in <module>\n    assert np.allclose(dist_v(r1, r2, box_length), target)\n      ",
+                "77.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.4.py\", line 20, in <module>\n    assert np.allclose(E_ij(r1, sigma1, epsilon1, rc), target)\n  ",
+                "77.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.5.py\", line 21, in <module>\n    assert np.allclose(f_ij(r,sigma,epsilon,rc), target)\n        ",
+                "77.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.6.py\", line 23, in <module>\n    assert np.allclose(E_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.7.py\", line 24, in <module>\n    assert np.allclose(P_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.8.py\", line 25, in <module>\n    assert np.allclose(E_pot(positions1, L1, sigma1, epsilon1,rc)",
+                "77.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf9u2xgxq/77.9.py\", line 24, in <module>\n    assert np.allclose(temperature(v,m,N), target)\n              "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "77"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/77",
+      "task_id": "77"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/11/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/11/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 249200.3361653816,
+        "C2_tokens_total": 217130.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 71.0,
+        "P1_steps_total": 180.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 48.0,
+        "stage_act_latency_ms": 223643.90153926797,
+        "stage_act_tokens": 186007.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 2717.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 12.0,
+        "stage_plan_latency_ms": 12.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 12.0,
+        "stage_revise_latency_ms": 12.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 96.0,
+        "stage_verify_latency_ms": 25520.434626113623,
+        "stage_verify_tokens": 28406.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import numpy as np\nimport itertools\nimport scipy.linalg\n# Background: A standard basis vector |j> in a d-dimensional Hilbert space is a vector with a 1 at the j-th index (0-indexed) and 0 elsewhere. The tensor product of multiple basis vectors |j1>|j2>...|jn> is represented by the Kronecker product of their individual vector representations. If dimensions are provided as a list, each vector is constructed in its respective d_i-dimensional space before the product is computed. import numpy as np ",
+              "step_results": {
+                "11.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.1.py\", line 13, in <module>\n    assert np.allclose(ket(2, 0), target)\n                       ",
+                "11.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.10.py\", line 22, in <module>\n    assert np.allclose(entropy(rho), target)\n                   ",
+                "11.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.11.py\", line 23, in <module>\n    assert np.allclose(coherent_inf_state(rho_AB, 2, 2), target)",
+                "11.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.12.py\", line 23, in <module>\n    assert np.allclose(rate(2,0.2,0.2,0.2,0.2), target)\n        ",
+                "11.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.2.py\", line 13, in <module>\n    assert np.allclose(multi_rail_encoding_state(1), target)\n    ",
+                "11.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.3.py\", line 14, in <module>\n    assert np.allclose(tensor([0,1],[0,1]), target)\n             ",
+                "11.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.4.py\", line 17, in <module>\n    assert np.allclose(apply_channel(K, rho, sys=None, dim=None),",
+                "11.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.5.py\", line 16, in <module>\n    assert np.allclose(generalized_amplitude_damping_channel(0, 0",
+                "11.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.6.py\", line 17, in <module>\n    assert np.allclose(output_state(2,0,0,0,0), target)\n         ",
+                "11.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.7.py\", line 18, in <module>\n    assert np.allclose(measurement(1), target)\n                  ",
+                "11.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.8.py\", line 20, in <module>\n    assert np.allclose(syspermute(X, [2,1], [2,2]), target)\n     ",
+                "11.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp538p4k3b/11.9.py\", line 21, in <module>\n    assert np.allclose(partial_trace(X, [2], [2,2]), target)\n    "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "11"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/11",
+      "task_id": "11"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/12/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/12/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 311169.1891286615,
+        "C2_tokens_total": 345579.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 83.0,
+        "P1_steps_total": 210.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 56.0,
+        "stage_act_latency_ms": 280267.21462840214,
+        "stage_act_tokens": 301929.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 3733.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 14.0,
+        "stage_plan_latency_ms": 14.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 14.0,
+        "stage_revise_latency_ms": 14.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 112.0,
+        "stage_verify_latency_ms": 30859.974500259385,
+        "stage_verify_tokens": 39917.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 14,
+              "prediction": "from scipy import integrate\nfrom scipy import optimize\nimport numpy as np\n # Background: The radial Schrödinger equation for a central potential V(r) is given by -hbar^2/(2m) * (d^2/dr^2 - l(l+1)/r^2) u(r) + V(r)u(r) = E u(r), where u(r) = r * R(r). Rearranging this into the form u''(r) = f(r)u(r) with V(r) = -Ze^2/(4*pi*epsilon_0*r) and using atomic units (hbar = m = e = 4*pi*epsilon_0 = 1), we get u''(r) = [l(l+1)/r^2 - 2Z/r - 2E] * u(r). Thus, f(r) = l(l+1)/r^2 - 2Z/r - 2E. def f_Schrod(energ",
+              "step_results": {
+                "12.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.1.py\", line 13, in <module>\n    assert np.allclose(f_Schrod(1,1, np.array([0.1,0.2,0.3])), ta",
+                "12.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.10.py\", line 27, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.11.py\", line 28, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.12.py\", line 29, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.13": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.13.py\", line 32, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.14": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.14.py\", line 35, in <module>\n    assert cmp_tuple_or_list(scf_routine(r_grid, energy_grid, nm",
+                "12.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.2.py\", line 13, in <module>\n    assert np.allclose(Numerov(f_Schrod(1,3, np.linspace(1e-5,10,",
+                "12.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.3.py\", line 14, in <module>\n    assert np.allclose(compute_Schrod(1, np.linspace(1e-5,10,20),",
+                "12.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.4.py\", line 15, in <module>\n    assert np.allclose(shoot(1.1, np.linspace(1e-7,20,10), 0), ta",
+                "12.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.5.py\", line 16, in <module>\n    assert np.allclose(find_bound_states(np.linspace(1e-8,100,200",
+                "12.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.6.py\", line 19, in <module>\n    bound_states += find_bound_states(np.linspace(1e-8,100,2000),",
+                "12.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.7.py\", line 24, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n   ",
+                "12.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.8.py\", line 25, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n   ",
+                "12.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpesj2l781/12.9.py\", line 26, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n   "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "12"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/12",
+      "task_id": "12"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/13/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/13/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 336420.9967503417,
+        "C2_tokens_total": 422273.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 83.0,
+        "P1_steps_total": 210.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 56.0,
+        "stage_act_latency_ms": 309973.26895734295,
+        "stage_act_tokens": 375377.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 4344.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 14.0,
+        "stage_plan_latency_ms": 14.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 14.0,
+        "stage_revise_latency_ms": 14.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 112.0,
+        "stage_verify_latency_ms": 26405.727792998776,
+        "stage_verify_tokens": 42552.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.06666666666666667,
+              "Total Correct": 1,
+              "Total Steps": 15,
+              "prediction": "from numpy import zeros, linspace, exp, sqrt\nimport numpy as np\n # Background: The partial derivative of a scalar field f(x, y, z) on a discrete grid can be approximated using finite difference methods. For interior points, the second-order central difference formula is used: df/dx ≈ (f(i+1) - f(i-1)) / (2 * delta). For boundary points, one-sided second-order finite difference formulas are required to maintain second-order accuracy: at the start boundary (i=0), df/dx ≈ (-3f(i) + 4f(i+1) - f(i+2)",
+              "step_results": {
+                "13.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.1.py\", line 15, in <module>\n    assert np.allclose(partial_derivs_vec(fct, delta), target)\n  ",
+                "13.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.10.py\", line 20, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.11.py\", line 22, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.12.py\", line 22, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.13": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.13.py\", line 34, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: nam",
+                "13.14": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.14.py\", line 24, in <module>\n    maxwell = Maxwell(50, 2)\n              ^^^^^^^\nNameError: na",
+                "13.15": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.15.py\", line 30, in <module>\n    assert np.allclose(main(n_grid, x_out, courant, t_max, t_che",
+                "13.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.2.py\", line 15, in <module>\n    assert np.allclose(laplace(fct, delta), target)\n             ",
+                "13.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.3.py\", line 16, in <module>\n    assert np.allclose(gradient(fct, delta), target)\n            ",
+                "13.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.4.py\", line 19, in <module>\n    assert np.allclose(divergence(fx, fy, fz, delta), target)\n   ",
+                "13.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.5.py\", line 20, in <module>\n    assert np.allclose(grad_div(fx, fy, fz, delta), target)\n     ",
+                "13.6": "skipped (official)",
+                "13.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.7.py\", line 19, in <module>\n    assert np.allclose(symmetry(f_dot, 1, 1, -1), target)\n       ",
+                "13.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.8.py\", line 18, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: name",
+                "13.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2b_bfhx3/13.9.py\", line 19, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: name"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "13"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/13",
+      "task_id": "13"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/2/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 26293.284708159044,
+        "C2_tokens_total": 10537.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 15.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 23063.10304114595,
+        "stage_act_tokens": 7301.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 309.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 3227.181667013094,
+        "stage_verify_tokens": 2927.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom scipy.integrate import simps\n\n\n # Background: The diffraction of a Gaussian beam through a lens can be modeled using the Huygens-Fresnel principle or the Fresnel diffraction integral. A lens introduces a phase transformation factor P(r) = exp(-i * k * (n-1) * h(r)), where h(r) is the lens thickness profile. For a symmetric lens with radius of curvature RL, the thickness profile is h(r) = d - 2 * (RL - sqrt(RL^2 - r^2)). The incident Gaussian beam is defined by E(r) = exp(",
+              "step_results": {
+                "2.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpdy4e_vwx/2.1.py\", line 2, in <module>\n    from scipy.integrate import simps\nImportError: cannot import na"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "2"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/2",
+      "task_id": "2"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 19762.254167106003,
+        "C2_tokens_total": 6967.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 15.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 17821.319458074868,
+        "stage_act_tokens": 4713.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 211.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1937.9347090311348,
+        "stage_verify_tokens": 2043.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes a matrix A into an orthogonal matrix Q and an upper triangular matrix R. The process uses Householder reflections, which are transformations of the form H = I - 2vv^T / (v^T v), to zero out elements below the diagonal of each column of A. By applying a sequence of these reflections, A is transformed into an upper triangular matrix R. The vector v is chosen such that the reflection maps the target column vector to a multi",
+              "step_results": {
+                "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp1cx8_ri3/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "74"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/74",
+      "task_id": "74"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/5/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/5/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 22036.79958404042,
+        "C2_tokens_total": 8084.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 15.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 18711.06666699052,
+        "stage_act_tokens": 5423.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 258.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 3322.7329170498997,
+        "stage_verify_tokens": 2403.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The process uses a three-term recurrence relation to generate the basis vectors (Lanczos vectors), ensuring orthogonality through Gram-Schmidt orthogonalization. Given a symmetric matrix A and an initial vector b, the algorithm produce",
+              "step_results": {
+                "5.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp2dx079t1/5.1.py\", line 19, in <module>\n    assert np.allclose(lanczos(A,b,m), target)\n                   "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "5"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/5",
+      "task_id": "5"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/8/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/8/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 22024.11358313635,
+        "C2_tokens_total": 8654.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 15.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 20403.348750201985,
+        "stage_act_tokens": 6173.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 262.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1617.7648329343647,
+        "stage_verify_tokens": 2219.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom numpy.fft import fft2, ifft2, fftshift, ifftshift\n\n\n # Background: Fourier optics utilizes the property that the Fourier transform of an image represents its spatial frequency content. A spatial filter in the frequency domain is a mask that modifies these frequencies. A cross-shaped high-pass filter is constructed by setting the central region (defined by the bandwidth) to zero, effectively blocking low-frequency components along the horizontal and vertical axes of the fr",
+              "step_results": {
+                "8.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpxit92kmp/8.1.py\", line 16, in <module>\n    assert cmp_tuple_or_list(apply_cshband_pass_filter(image_array"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "8"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/8",
+      "task_id": "8"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/9/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/9/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 18491.209583813325,
+        "C2_tokens_total": 8899.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 15.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 16344.06291693449,
+        "stage_act_tokens": 6270.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 222.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 1.0,
+        "stage_plan_latency_ms": 1.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 2144.1466668788344,
+        "stage_verify_tokens": 2407.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The weighted Jacobi method is an iterative technique for solving linear systems Ax=b. Given the decomposition A = D + R, where D is the diagonal part of A and R = A - D, the iteration is defined as x_{k+1} = (1-omega)x_k + omega * D^{-1}(b - Rx_k). This can be rewritten as x_{k+1} = x_k + omega * D^{-1}(b - Ax_k). The method converges if the spectral radius of the iteration matrix I - omega * D^{-1}A is less than 1. The parameter omega is chosen to accelerate ",
+              "step_results": {
+                "9.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpf8vbpp3r/9.1.py\", line 28, in <module>\n    assert np.allclose(WJ(A, b, eps, x_true, x0,2/3), target)\n    "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "9"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/9",
+      "task_id": "9"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/14/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/14/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 44680.1474173367,
+        "C2_tokens_total": 19846.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 0.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 11.0,
+        "P1_steps_total": 30.0,
+        "P2_backtrack_rate": 0.06666666666666667,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.5333333333333333,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 8.0,
+        "stage_act_latency_ms": 38984.57858432084,
+        "stage_act_tokens": 14141.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 487.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 2.0,
+        "stage_plan_latency_ms": 2.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 0.0,
+        "stage_retrieve_latency_ms": 0.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 16.0,
+        "stage_verify_latency_ms": 5689.568833015859,
+        "stage_verify_tokens": 5218.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 2,
+              "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t), where xi(t) is Gaussian white noise. Mannella's leapfrog method is a specialized integration scheme for stochastic differential equations that preserves the correct equilibrium distribution. It updates velocity and position in a staggered manner: v_{n+1/2} = v_n + (dt/2) * F(x_n, v_n), x_{n+1} = x_n + dt * v_{n+1/2}, and v_{n+1",
+              "step_results": {
+                "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpvzuqpsf5/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+                "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpvzuqpsf5/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "14"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/fully_linked_debate/14",
+      "task_id": "14"
+    }
+  ],
+  "timestamp": "20260401T195507Z"
+}

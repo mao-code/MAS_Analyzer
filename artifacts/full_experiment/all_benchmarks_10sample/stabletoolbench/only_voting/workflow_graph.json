@@ -1,0 +1,55 @@
+{
+  "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260402_stabletoolbench/stabletoolbench/only_voting/workflow_graph.mmd",
+  "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260402_stabletoolbench/stabletoolbench/only_voting/workflow_graph.png",
+  "render_backend": "langgraph_mermaid_api",
+  "render_error": "",
+  "topology": "only_voting",
+  "workflow": {
+    "aggregation_logic": "`voter` canonicalizes answers, counts votes, and breaks ties by mean confidence then canonical answer.",
+    "conditional_edges": [
+      "dispatch_independent_agents -> worker (one Send per active agent) else voter"
+    ],
+    "dispatch_logic": "Fan out to every worker with no peer packets.",
+    "edges": [
+      "START -> dispatch_independent_agents",
+      "worker -> voter",
+      "voter -> descriptor_monitor",
+      "descriptor_monitor -> finalize",
+      "finalize -> END"
+    ],
+    "logging_outputs": [
+      "trace_events",
+      "relay_messages",
+      "message_views",
+      "interaction_logs",
+      "descriptor_records",
+      "termination_history"
+    ],
+    "nodes": {
+      "descriptor_monitor": "Shared descriptor hook.",
+      "dispatch_independent_agents": "Selects all workers for independent solving.",
+      "finalize": "Finalize the run.",
+      "voter": "Deterministic majority vote with explicit tie-breaks.",
+      "worker": "Independent worker branch."
+    },
+    "state_fields": [
+      "task_id",
+      "task_prompt",
+      "topology",
+      "layout",
+      "rounds",
+      "discussion_rounds",
+      "round_index",
+      "discussion_index",
+      "messages",
+      "artifacts",
+      "termination_decision",
+      "vote_tally",
+      "descriptor_records"
+    ],
+    "stopping_criteria": [
+      "Single-turn topology. It stops after the voter."
+    ],
+    "topology": "only_voting"
+  }
+}

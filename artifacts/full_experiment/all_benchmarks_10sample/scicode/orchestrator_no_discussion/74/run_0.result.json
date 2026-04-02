@@ -1,0 +1,127 @@
+{
+  "artifacts": {
+    "answer_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/run_0.answer.txt",
+    "metadata_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/run_0.metadata.json",
+    "task_manifest_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/task.json",
+    "trace_metrics_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/run_0.trace_metrics.json",
+    "trajectory_json_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/run_0.trajectory.json",
+    "trajectory_md_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_no_discussion/74/run_0.trajectory.md"
+  },
+  "benchmark": "scicode",
+  "evaluation": {
+    "details": {
+      "Main Problem Resolve Rate": 0.0,
+      "Subproblem Resolve Rate": 0.0,
+      "Total Correct": 0,
+      "Total Steps": 1,
+      "prediction": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections H_k = I - 2(v_k v_k^T) / (v_k^T v_k), where v_k is a vector chosen to zero out the sub-diagonal elements of the k-th column. The transformation is applied iteratively for each column k from 0 to n-1, resulting in the upper triangular matrix R stored in the upper triangle of A.",
+      "step_results": {
+        "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp94ugmb86/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+      }
+    },
+    "score": 0.0,
+    "success": false
+  },
+  "final_answer": "import numpy as np\n\n\n # Background: Householder QR factorization decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections H_k = I - 2(v_k v_k^T) / (v_k^T v_k), where v_k is a vector chosen to zero out the sub-diagonal elements of the k-th column. The transformation is applied iteratively for each column k from 0 to n-1, resulting in the upper triangular matrix R stored in the upper triangle of A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A ",
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "run_index": 0,
+  "run_summary": {
+    "final_reason": "orchestrator_no_discussion:confidence_threshold_reached",
+    "messages_sent_by_agent": {
+      "agent_0": 2,
+      "agent_1": 1,
+      "agent_2": 1,
+      "agent_3": 1
+    },
+    "messages_sent_total": 5,
+    "retrieved_docids": [
+      "0"
+    ],
+    "run_index": 0,
+    "seed": 5042,
+    "task_id": "74.1",
+    "tool_call_counts": {
+      "inter_agent_send": 5
+    },
+    "tool_calls_total": 5,
+    "topology": "orchestrator_no_discussion",
+    "turns_executed": 1,
+    "vote_tally": {}
+  },
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_no_discussion",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_no_discussion"
+  },
+  "task_id": "74",
+  "termination": {
+    "average_confidence": 1.0,
+    "consensus_count": 2,
+    "consensus_explanation": "Agents 0 and 1 use the same Householder reflection implementation (storing Householder vectors in the lower triangle). Agent 2 uses a different implementation (standard Householder reflection without storing the vectors in the lower triangle).",
+    "consensus_groups": [
+      [
+        0,
+        1
+      ],
+      [
+        2
+      ]
+    ],
+    "consensus_mode": "llm_judge",
+    "consensus_ratio": 0.6666666666666666,
+    "consensus_signature": "0,1",
+    "consensus_source": "llm_judge",
+    "consensus_valid_count": 3,
+    "control_cost_usd": 0.0,
+    "control_latency_ms": 2490.658041788265,
+    "control_token_in": 1628,
+    "control_token_out": 64,
+    "discussion_index": 0,
+    "mean_delta": null,
+    "next_step": "finalize",
+    "outer_step_index": 0,
+    "reason": "confidence_threshold_reached",
+    "reason_detail": "Average confidence 1.00 met the 0.85 threshold.",
+    "round_index": 0,
+    "should_stop": true,
+    "stage_name": "termination_checker",
+    "valid_artifact_count": 3
+  },
+  "trace_metrics": {
+    "backtrack_rate": 0.04,
+    "communication_count": 5.0,
+    "completion": true,
+    "completion_source": "final_answer",
+    "cost_total": 0.0,
+    "handoff_count": 8.0,
+    "latency_total": 22003.52804191038,
+    "loop_score": 0.0,
+    "score": 0.0,
+    "steps_total": 25.0,
+    "success": false,
+    "success_source": "benchmark_evaluation",
+    "tokens_total": 9962.0,
+    "tool_calls_total": 5.0,
+    "tool_fail_total": 0.0,
+    "verification_density": 0.32
+  }
+}

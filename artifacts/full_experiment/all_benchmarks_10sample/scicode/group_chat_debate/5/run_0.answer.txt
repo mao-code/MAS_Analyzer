@@ -1,0 +1,4 @@
+import numpy as np
+
+
+ # Background: The Lanczos iteration is an algorithm used to compute the eigenvalues and eigenvectors of a large, sparse symmetric matrix. It constructs an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b}. The algorithm uses a three-term recurrence relation: beta_j * q_{j+1} = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}, where alpha_j = q_j^T * A * q_j and beta_j is the norm of the residual vector. This process ensures that the generated vectors {q_1, ..., q_m} are orthonormal. def lanczos(A, b, m): M = A.shape[0] Q = np.zeros((M, m + 1)) alpha = np.zeros(m) beta = np.zeros(m) q = b / np.linalg.norm(b) Q[:, 0] = q for j in range(m): v = A @ Q[:, j] alpha[j] = np.dot(Q[:, j], v) v = v - alpha[j] * Q[:, j] if j > 0: v = v - beta[j-1] * Q[:, j-1] beta[j] = np.linalg.norm(v) if beta[j] < 1e-12: break Q[:, j+1] = v / beta[j] return Q

@@ -1,0 +1,741 @@
+{
+  "benchmark": "workbench",
+  "final": {
+    "answer": "I will check if there have been any meetings with Riley Brown in the last 14 days. If not, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available slot tomorrow, Friday, December 1st.",
+    "answer_preview": "I will check if there have been any meetings with Riley Brown in the last 14 days. If not, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available slot tomorrow, Friday, December 1st.",
+    "final_reason": "orchestrator_tree_structure:confidence_threshold_reached",
+    "last_termination": {
+      "average_confidence": 0.9,
+      "consensus_count": 1,
+      "consensus_explanation": "",
+      "consensus_groups": [
+        [
+          0
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "i need to determine if there has been a meeting with riley brown in the last 14 days and identify who is assigned to them before i can schedule the update on riley brown meeting for tomorrow",
+      "consensus_source": "lexical_singleton",
+      "consensus_valid_count": 1,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 1.0,
+      "control_token_in": 0,
+      "control_token_out": 0,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "finalize",
+      "reason": "confidence_threshold_reached",
+      "reason_detail": "Average confidence 0.90 met the 0.85 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "termination_checker",
+      "valid_artifact_count": 1
+    },
+    "vote_tally": {}
+  },
+  "prompt_catalog": [
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: root_orchestrator\nStage Role: planner\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_1",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Today's date is Thursday, 2023-11-30 and the current time is 00:00:00. Remember the current date and time when answering queries. Meetings must not start before 9am or end after 6pm. Use the provided workplace tools to complete the task. After using tools, provide a brief natural-language confirmation.",
+      "prompt_id": "p_2",
+      "role": "system",
+      "usage_count": 7
+    },
+    {
+      "content": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+      "prompt_id": "p_3",
+      "role": "user",
+      "usage_count": 7
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"root_orchestrator\",\n  \"stage_role\": \"planner\",\n  \"directive\": \"Create manager-level task packages for the tree. Communication must remain parent-child only.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_4",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: manager\nStage Role: planner\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_5",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"manager\",\n  \"stage_role\": \"planner\",\n  \"directive\": \"Refine the parent task package into child-specific work packages. Do not use sibling information.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_1\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_0\",\n      \"recipients\": [\n        \"agent_1\"\n      ],\n      \"kind\": \"root_task_package\",\n      \"phase\": \"manager_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n      \"content\": \"The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.\",\n      \"payload\": {\n        \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n        \"summary\": \"The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.\",\n        \"answer_artifact\": \"I will check if there have been any meetings with Riley Brown in the last 14 days. If not, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available slot tomorrow, Friday, December 1st.\",\n        \"critique\": \"I need to be careful with the 'assigned to' logic. I'll start by searching for Riley Brown's email and checking the calendar for the past 14 days.\",\n        \"revision_request\": \"[{'call': 'default_api:company_directory_find_email_address', 'arguments': {'name': 'Riley Brown'}}, {'call': 'default_api:calendar_search_events', 'arguments': {'query': 'Riley Brown', 'time_min': '2023-11-16 00:00:00', 'time_max': '2023-11-30 23:59:59'}}, {'call': 'default_api:calendar_search_events', 'arguments':...\",\n        \"confidence\": 0.9,\n        \"unresolved_issues\": [\n          \"The identity of 'whoever is assigned to them' is currently unknown and may require further directory or calendar lookups once the email is found.\"\n        ],\n        \"evidence_summary\": [\n          \"The request is conditional on a lack of meetings in the past fortnight (Nov 16 - Nov 30). The target date for the new meeting is tomorrow\",\n          \"Dec 1st.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_6",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: manager\nStage Role: planner\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_7",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"manager\",\n  \"stage_role\": \"planner\",\n  \"directive\": \"Refine the parent task package into child-specific work packages. Do not use sibling information.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_2\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_0\",\n      \"recipients\": [\n        \"agent_2\"\n      ],\n      \"kind\": \"root_task_package\",\n      \"phase\": \"manager_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n      \"content\": \"The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.\",\n      \"payload\": {\n        \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n        \"summary\": \"The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.\",\n        \"answer_artifact\": \"I will check if there have been any meetings with Riley Brown in the last 14 days. If not, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available slot tomorrow, Friday, December 1st.\",\n        \"critique\": \"I need to be careful with the 'assigned to' logic. I'll start by searching for Riley Brown's email and checking the calendar for the past 14 days.\",\n        \"revision_request\": \"[{'call': 'default_api:company_directory_find_email_address', 'arguments': {'name': 'Riley Brown'}}, {'call': 'default_api:calendar_search_events', 'arguments': {'query': 'Riley Brown', 'time_min': '2023-11-16 00:00:00', 'time_max': '2023-11-30 23:59:59'}}, {'call': 'default_api:calendar_search_events', 'arguments':...\",\n        \"confidence\": 0.9,\n        \"unresolved_issues\": [\n          \"The identity of 'whoever is assigned to them' is currently unknown and may require further directory or calendar lookups once the email is found.\"\n        ],\n        \"evidence_summary\": [\n          \"The request is conditional on a lack of meetings in the past fortnight (Nov 16 - Nov 30). The target date for the new meeting is tomorrow\",\n          \"Dec 1st.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_8",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: leaf_worker\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_9",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"leaf_worker\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Work only from your parent manager package. There is no sibling or backflow context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_3\",\n      \"dispatch_id\": 1,\n      \"sender\": \"agent_1\",\n      \"recipients\": [\n        \"agent_3\"\n      ],\n      \"kind\": \"manager_task_package\",\n      \"phase\": \"worker_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"manager_nodes:agent_1:0:0:0\",\n      \"content\": \"I am initiating a search to determine if there have been any meetings with Riley Brown in the last 14 days. Simultaneously, I am looking up Riley Brown's contact information and checking your schedule for tomorrow to find the earliest available slot for a potential meeting.\",\n      \"payload\": {\n        \"artifact_id\": \"manager_nodes:agent_1:0:0:0\",\n        \"summary\": \"I am initiating a search to determine if there have been any meetings with Riley Brown in the last 14 days. Simultaneously, I am looking up Riley Brown's contact information and checking your schedule for tomorrow to find the earliest available slot for a potential meeting.\",\n        \"answer_artifact\": \"I will check for any meetings with Riley Brown between November 16th and today. If none are found, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available time tomorrow, Friday, December 1st.\",\n        \"critique\": \"The primary challenge is identifying 'whoever is assigned to them'. I will start by searching for Riley Brown in the directory and checking past calendar events to see who has been meeting with them or if an 'assignee' is explicitly mentioned in event descriptions.\",\n        \"revision_request\": \"[{'call': 'default_api:company_directory_find_email_address', 'arguments': {'name': 'Riley Brown'}}, {'call': 'default_api:calendar_search_events', 'arguments': {'query': 'Riley Brown', 'time_min': '2023-11-16 00:00:00', 'time_max': '2023-11-30 23:59:59'}}, {'call': 'default_api:calendar_search_events', 'arguments':...\",\n        \"confidence\": 0.8,\n        \"unresolved_issues\": [\n          \"The definition of 'assigned to' is ambiguous and may require inferring from past meeting participants if not explicitly stated in a directory field.\"\n        ],\n        \"evidence_summary\": [\n          \"Current date: Thursday, 2023-11-30.\",\n          \"Past fortnight range: 2023-11-16 to 2023-11-30.\",\n          \"Target meeting date: Friday, 2023-12-01.\",\n          \"Meeting duration: 30 minutes.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_10",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_4\nAgent Role: leaf_worker\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_11",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_4\",\n  \"agent_role\": \"leaf_worker\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Work only from your parent manager package. There is no sibling or backflow context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_4\",\n      \"dispatch_id\": 1,\n      \"sender\": \"agent_2\",\n      \"recipients\": [\n        \"agent_4\"\n      ],\n      \"kind\": \"manager_task_package\",\n      \"phase\": \"worker_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"manager_nodes:agent_2:0:0:0\",\n      \"content\": \"I am refining the plan to check for recent interactions with Riley Brown and, if none exist, identify their assignee and schedule a meeting for tomorrow at the user's first available time.\",\n      \"payload\": {\n        \"artifact_id\": \"manager_nodes:agent_2:0:0:0\",\n        \"summary\": \"I am refining the plan to check for recent interactions with Riley Brown and, if none exist, identify their assignee and schedule a meeting for tomorrow at the user's first available time.\",\n        \"answer_artifact\": \"I will execute the following plan to address your request: 1. **Verify Contact History**: Search for any calendar events involving Riley Brown from November 16, 2023, to today (November 30, 2023). 2. **Identify Assignee**: Determine who is assigned to Riley Brown by searching for relevant contact information or orga...\",\n        \"critique\": \"The plan correctly identifies the 14-day window (Nov 16 - Nov 30) and the target date (Dec 1). The 'assigned to' logic is the most ambiguous part; I will start by searching for Riley Brown in the directory to see if an owner or manager is listed, or look for patterns in past calendar events.\",\n        \"revision_request\": \"\",\n        \"confidence\": 0.9,\n        \"unresolved_issues\": [\n          \"The definition of 'whoever is assigned to them' needs to be clarified through tool outputs (e.g., directory metadata or event descriptions).\"\n        ],\n        \"evidence_summary\": [\n          \"Current date: Thursday, Nov 30, 2023.\",\n          \"Fortnight window: Nov 16, 2023, to Nov 30, 2023.\",\n          \"Target meeting date: Friday, Dec 1, 2023.\",\n          \"Meeting duration: 30 minutes.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_12",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: \nAgent Role: agent\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_13",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"\",\n  \"agent_role\": \"agent\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Aggregate only your child reports into a refined manager artifact.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_14",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: root_orchestrator\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_15",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"root_orchestrator\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Aggregate manager reports into the root artifact. Follow topological order and prevent backflow.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n    \"summary\": \"The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.\",\n    \"answer_artifact\": \"I will check if there have been any meetings with Riley Brown in the last 14 days. If not, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available slot tomorrow, Friday, December 1st.\",\n    \"critique\": \"I need to be careful with the 'assigned to' logic. I'll start by searching for Riley Brown's email and checking the calendar for the past 14 days.\",\n    \"revision_request\": \"[{'call': 'default_api:company_directory_find_email_address', 'arguments': {'name': 'Riley Brown'}}, {'call': 'default_api:calendar_search_events', 'arguments': {'query': 'Riley Brown', 'time_min': '2023-11-16 00:00:00', 'time_max': '2023-11-30 23:59:59'}}, {'call': 'default_api:calendar_search_events', 'arguments':...\",\n    \"confidence\": 0.9,\n    \"unresolved_issues\": [\n      \"The identity of 'whoever is assigned to them' is currently unknown and may require further directory or calendar lookups once the email is found.\"\n    ],\n    \"evidence_summary\": [\n      \"The request is conditional on a lack of meetings in the past fortnight (Nov 16 - Nov 30). The target date for the new meeting is tomorrow\",\n      \"Dec 1st.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_7\",\n      \"dispatch_id\": 1,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"manager_report\",\n      \"phase\": \"manager_relay\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"manager_reducers::0:0:1\",\n      \"content\": \"The user wants to schedule a 30-minute meeting titled 'Update on Riley Brown' for tomorrow at the first available slot, provided there has been no contact with Riley Brown in the past fortnight. The meeting should be with the person assigned to Riley Brown.\",\n      \"payload\": {\n        \"artifact_id\": \"manager_reducers::0:0:1\",\n        \"summary\": \"The user wants to schedule a 30-minute meeting titled 'Update on Riley Brown' for tomorrow at the first available slot, provided there has been no contact with Riley Brown in the past fortnight. The meeting should be with the person assigned to Riley Brown.\",\n        \"answer_artifact\": \"I need to determine if there has been a meeting with Riley Brown in the last 14 days and identify who is assigned to them before I can schedule the 'Update on Riley Brown' meeting for tomorrow.\",\n        \"critique\": \"I need to perform several lookups: 1) Find Riley Brown's email or contact info. 2) Check the calendar for the past 14 days (2023-11-16 to 2023-11-30) for any events involving Riley. 3) Identify the 'assigned' person (likely via directory or calendar history). 4) Check the user's calendar for tomorrow (2023-12-01) to...\",\n        \"revision_request\": \"\",\n        \"confidence\": 0.8,\n        \"unresolved_issues\": [\n          \"Need to clarify who is 'assigned' to Riley Brown if not explicitly listed in a directory field.\",\n          \"Need to confirm if 'spoke to' is strictly defined by calendar events.\"\n        ],\n        \"evidence_summary\": [\n          \"The current date is Thursday\",\n          \"2023-11-30. The 'past fortnight' covers 2023-11-16 to today. 'Tomorrow' is Friday\",\n          \"2023-12-01.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_16",
+      "role": "user",
+      "usage_count": 1
+    }
+  ],
+  "run_index": 0,
+  "steps": [
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3-flash-preview",
+            "token_in": 577,
+            "token_out": 533
+          },
+          "prompt_ids": [],
+          "response": "{\n  \"answer_artifact\": \"I will check if there have been any meetings with Riley Brown in the last 14 days. If not, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available slot tomorrow, Friday, December 1st.\",\n  \"summary\": \"The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.\",\n  \"critique\": \"I need to be careful with the 'assigned to' logic. I'll start by searching for Riley Brown's email and checking the calendar for the past 14 days.\",\n  \"revision_request\": [\n    {\n      \"call\": \"default_api:company_directory_find_email_address\",\n      \"arguments\": {\n        \"name\": \"Riley Brown\"\n      }\n    },\n    {\n      \"call\": \"default_api:calendar_search_events\",\n      \"arguments\": {\n        \"query\": \"Riley Brown\",\n        \"time_min\": \"2023-11-16 00:00:00\",\n        \"time_max\": \"2023-11-30 23:59:59\"\n      }\n    },\n    {\n      \"call\": \"default_api:calendar_search_events\",\n      \"arguments\": {\n        \"time_min\": \"2023-12-01 09:00:00\",\n        \"time_max\": \"2023-12-01 18:00:00\"\n      }\n    }\n  ],\n  \"confidence\": 0.9,\n  \"unresolved_issues\": [\n    \"The identity of 'whoever is assigned to them' is currently unknown and may require further directory or calendar lookups once the email is found.\"\n  ],\n  \"evidence_summary\": \"The request is conditional on a lack of meetings in the past fortnight (Nov 16 - Nov 30). The target date for the new meeting is tomorrow, Dec 1st.\"\n}",
+          "role": "root_orchestrator",
+          "tool_calls": [
+            {
+              "arguments": {},
+              "output_preview": "Event ID not provided.",
+              "status": "completed",
+              "tool_name": "calendar.get_event_information_by_id"
+            }
+          ]
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "messages_sent": [],
+      "outer_step_index": 0,
+      "parallel": false,
+      "phase": "root_plan",
+      "phases": [
+        "root_plan"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_1",
+        "p_2",
+        "p_3",
+        "p_4"
+      ],
+      "step_index": 1,
+      "termination": []
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_1"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3-flash-preview",
+            "token_in": 1231,
+            "token_out": 574
+          },
+          "prompt_ids": [
+            "p_5",
+            "p_6"
+          ],
+          "response": "{\n  \"answer_artifact\": \"I will check for any meetings with Riley Brown between November 16th and today. If none are found, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available time tomorrow, Friday, December 1st.\",\n  \"summary\": \"I am initiating a search to determine if there have been any meetings with Riley Brown in the last 14 days. Simultaneously, I am looking up Riley Brown's contact information and checking your schedule for tomorrow to find the earliest available slot for a potential meeting.\",\n  \"critique\": \"The primary challenge is identifying 'whoever is assigned to them'. I will start by searching for Riley Brown in the directory and checking past calendar events to see who has been meeting with them or if an 'assignee' is explicitly mentioned in event descriptions.\",\n  \"revision_request\": [\n    {\n      \"call\": \"default_api:company_directory_find_email_address\",\n      \"arguments\": {\n        \"name\": \"Riley Brown\"\n      }\n    },\n    {\n      \"call\": \"default_api:calendar_search_events\",\n      \"arguments\": {\n        \"query\": \"Riley Brown\",\n        \"time_min\": \"2023-11-16 00:00:00\",\n        \"time_max\": \"2023-11-30 23:59:59\"\n      }\n    },\n    {\n      \"call\": \"default_api:calendar_search_events\",\n      \"arguments\": {\n        \"time_min\": \"2023-12-01 09:00:00\",\n        \"time_max\": \"2023-12-01 18:00:00\"\n      }\n    }\n  ],\n  \"confidence\": 0.8,\n  \"unresolved_issues\": [\n    \"The definition of 'assigned to' is ambiguous and may require inferring from past meeting participants if not explicitly stated in a directory field.\"\n  ],\n  \"evidence_summary\": [\n    \"Current date: Thursday, 2023-11-30.\",\n    \"Past fortnight range: 2023-11-16 to 2023-11-30.\",\n    \"Target meeting date: Friday, 2023-12-01.\",\n    \"Meeting duration: 30 minutes.\"\n  ]\n}",
+          "role": "manager",
+          "tool_calls": [
+            {
+              "arguments": {},
+              "output_preview": "Event ID not provided.",
+              "status": "completed",
+              "tool_name": "calendar.get_event_information_by_id"
+            }
+          ]
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_2"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3-flash-preview",
+            "token_in": 1231,
+            "token_out": 464
+          },
+          "prompt_ids": [
+            "p_7",
+            "p_8"
+          ],
+          "response": "{\n  \"answer_artifact\": \"I will execute the following plan to address your request:\\n1. **Verify Contact History**: Search for any calendar events involving Riley Brown from November 16, 2023, to today (November 30, 2023).\\n2. **Identify Assignee**: Determine who is assigned to Riley Brown by searching for relevant contact information or organizational records.\\n3. **Check Availability**: Review your calendar for tomorrow, Friday, December 1, 2023, to find the first available 30-minute slot between 9:00 AM and 6:00 PM.\\n4. **Schedule Meeting**: If no contact was found in step 1, I will book the 'Update on Riley Brown' meeting with the identified assignee at the discovered time.\",\n  \"summary\": \"I am refining the plan to check for recent interactions with Riley Brown and, if none exist, identify their assignee and schedule a meeting for tomorrow at the user's first available time.\",\n  \"critique\": \"The plan correctly identifies the 14-day window (Nov 16 - Nov 30) and the target date (Dec 1). The 'assigned to' logic is the most ambiguous part; I will start by searching for Riley Brown in the directory to see if an owner or manager is listed, or look for patterns in past calendar events.\",\n  \"revision_request\": \"\",\n  \"confidence\": 0.9,\n  \"unresolved_issues\": [\n    \"The definition of 'whoever is assigned to them' needs to be clarified through tool outputs (e.g., directory metadata or event descriptions).\"\n  ],\n  \"evidence_summary\": [\n    \"Current date: Thursday, Nov 30, 2023.\",\n    \"Fortnight window: Nov 16, 2023, to Nov 30, 2023.\",\n    \"Target meeting date: Friday, Dec 1, 2023.\",\n    \"Meeting duration: 30 minutes.\",\n    \"Meeting title: 'Update on Riley Brown'.\"\n  ]\n}",
+          "role": "manager",
+          "tool_calls": [
+            {
+              "arguments": {},
+              "output_preview": "Event ID not provided.",
+              "status": "completed",
+              "tool_name": "calendar.get_event_information_by_id"
+            }
+          ]
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [
+        {
+          "artifact_id": "root_plan:agent_0:0:0:-1",
+          "content": "The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "from": "agent_0",
+          "kind": "root_task_package",
+          "message_id": "m_1",
+          "outer_step_index": 0,
+          "phase": "manager_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_1"
+          ]
+        },
+        {
+          "artifact_id": "root_plan:agent_0:0:0:-1",
+          "content": "The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "from": "agent_0",
+          "kind": "root_task_package",
+          "message_id": "m_2",
+          "outer_step_index": 0,
+          "phase": "manager_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_2"
+          ]
+        }
+      ],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "manager_nodes",
+      "phases": [
+        "manager_nodes"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3"
+      ],
+      "step_index": 2,
+      "termination": [
+        {
+          "average_confidence": 0.9,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "finalize",
+          "outer_step_index": 0,
+          "reason": "confidence_threshold_reached",
+          "reason_detail": "Average confidence 0.90 met the 0.85 threshold.",
+          "should_stop": true,
+          "stage_name": "termination_checker",
+          "valid_artifact_count": 1
+        }
+      ]
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3-flash-preview",
+            "token_in": 557,
+            "token_out": 385
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"I need to determine if there has been a meeting with Riley Brown in the last 14 days and identify who is assigned to them before I can schedule the 'Update on Riley Brown' meeting for tomorrow.\",\n  \"summary\": \"The user wants to schedule a 30-minute meeting titled 'Update on Riley Brown' for tomorrow at the first available slot, provided there has been no contact with Riley Brown in the past fortnight. The meeting should be with the person assigned to Riley Brown.\",\n  \"critique\": \"I need to perform several lookups: 1) Find Riley Brown's email or contact info. 2) Check the calendar for the past 14 days (2023-11-16 to 2023-11-30) for any events involving Riley. 3) Identify the 'assigned' person (likely via directory or calendar history). 4) Check the user's calendar for tomorrow (2023-12-01) to find the first free 30-minute slot between 09:00 and 18:00.\",\n  \"revision_request\": \"\",\n  \"confidence\": 0.8,\n  \"unresolved_issues\": [\n    \"Need to clarify who is 'assigned' to Riley Brown if not explicitly listed in a directory field.\",\n    \"Need to confirm if 'spoke to' is strictly defined by calendar events.\"\n  ],\n  \"evidence_summary\": \"The current date is Thursday, 2023-11-30. The 'past fortnight' covers 2023-11-16 to today. 'Tomorrow' is Friday, 2023-12-01.\"\n}",
+          "role": "agent",
+          "tool_calls": [
+            {
+              "arguments": {},
+              "output_preview": "Event ID not provided.",
+              "status": "completed",
+              "tool_name": "calendar.get_event_information_by_id"
+            }
+          ]
+        },
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_7"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3-flash-preview",
+            "token_in": 1599,
+            "token_out": 660
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"I will check if there have been any meetings with Riley Brown in the last 14 days. If not, I will identify the person assigned to Riley Brown and schedule a 30-minute meeting titled 'Update on Riley Brown' at your first available slot tomorrow, Friday, December 1st.\",\n  \"summary\": \"The user wants to schedule a meeting regarding Riley Brown if no contact has been made in the last two weeks. I need to: 1. Search for past events with Riley Brown. 2. Identify the assignee for Riley Brown. 3. Check the user's schedule for tomorrow. 4. Book the meeting if the condition is met.\",\n  \"critique\": \"I need to perform several lookups: 1) Find Riley Brown's email. 2) Check the calendar for the past 14 days (2023-11-16 to 2023-11-30) for any events involving Riley. 3) Identify the 'assigned' person. 4) Check the user's calendar for tomorrow (2023-12-01) to find the first free slot after 9am.\",\n  \"revision_request\": [\n    {\n      \"call\": \"default_api:company_directory_find_email_address\",\n      \"arguments\": {\n        \"name\": \"Riley Brown\"\n      }\n    },\n    {\n      \"call\": \"default_api:calendar_search_events\",\n      \"arguments\": {\n        \"query\": \"Riley Brown\",\n        \"time_min\": \"2023-11-16 00:00:00\",\n        \"time_max\": \"2023-11-30 23:59:59\"\n      }\n    },\n    {\n      \"call\": \"default_api:calendar_search_events\",\n      \"arguments\": {\n        \"time_min\": \"2023-12-01 00:00:00\",\n        \"time_max\": \"2023-12-01 23:59:59\"\n      }\n    }\n  ],\n  \"confidence\": 0.9,\n  \"unresolved_issues\": [\n    \"The identity of 'whoever is assigned to them' is currently unknown and may require further directory or calendar lookups once the email is found.\",\n    \"Need to confirm if 'spoke to' is strictly defined by calendar events.\"\n  ],\n  \"evidence_summary\": [\n    \"The current date is Thursday, 2023-11-30. The 'past fortnight' covers 2023-11-16 to today. 'Tomorrow' is Friday, 2023-12-01.\",\n    \"The request is conditional on a lack of meetings in the past fortnight.\"\n  ]\n}",
+          "role": "root_orchestrator",
+          "tool_calls": [
+            {
+              "arguments": {},
+              "output_preview": "Event ID not provided.",
+              "status": "completed",
+              "tool_name": "calendar.get_event_information_by_id"
+            }
+          ]
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_3"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3-flash-preview",
+            "token_in": 4573,
+            "token_out": 670
+          },
+          "prompt_ids": [
+            "p_9",
+            "p_10"
+          ],
+          "response": "{\n  \"answer_artifact\": \"I have checked for any interactions with Riley Brown in the past fortnight and found none. I also searched the company directory and historical calendar records but could not find an email address for Riley Brown or identify who is assigned to them. Consequently, I am unable to schedule the 'Update on Riley Brown' meeting at this time.\",\n  \"summary\": \"I searched for Riley Brown in the directory and past calendar events to determine if there had been any contact in the last 14 days and to identify the person assigned to them. No records were found for Riley Brown in either the directory or the calendar. I also reviewed your schedule for tomorrow, Friday, December 1st, which shows your first availability at 13:00 (after meetings ending at 10:00, 12:00, and 13:00). However, without knowing who is assigned to Riley Brown, the meeting cannot be booked.\",\n  \"critique\": \"The search for Riley Brown yielded no results in the directory or calendar, making it impossible to fulfill the 'whoever is assigned to them' requirement. I attempted a broad calendar search beyond the fortnight to find any historical context, but that also failed. I should have perhaps searched for 'Riley' or 'Brown' separately to account for potential naming variations, but given the specific prompt, I stuck to the full name.\",\n  \"revision_request\": \"\",\n  \"confidence\": 0.9,\n  \"unresolved_issues\": [\n    \"Could not identify Riley Brown's email or the person assigned to them.\",\n    \"Meeting could not be scheduled due to missing participant information.\"\n  ],\n  \"evidence_summary\": [\n    \"No meetings with 'Riley Brown' found between 2023-11-16 and 2023-11-30.\",\n    \"No directory entry found for 'Riley Brown'.\",\n    \"No historical calendar events found for 'Riley Brown'.\",\n    \"User's schedule for 2023-12-01: Busy 09:00-10:00, 10:00-12:00, 12:00-13:00, 13:30-14:00, 14:30-15:00. First free slot is 13:00-13:30.\"\n  ]\n}",
+          "role": "leaf_worker",
+          "tool_calls": [
+            {
+              "arguments": {
+                "name": "Riley Brown"
+              },
+              "output_preview": "\"<ArrowStringArray>\\n[]\\nLength: 0, dtype: str\"",
+              "status": "completed",
+              "tool_name": "company_directory.find_email_address"
+            },
+            {
+              "arguments": {
+                "query": "Riley Brown",
+                "time_max": "2023-11-30 23:59:59",
+                "time_min": "2023-11-16 00:00:00"
+              },
+              "output_preview": "No events found.",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            },
+            {
+              "arguments": {
+                "time_max": "2023-12-01 18:00:00",
+                "time_min": "2023-12-01 09:00:00"
+              },
+              "output_preview": "[{\"event_id\": \"00000165\", \"event_name\": \"Corporate Social Responsibility Initiative\", \"participant_email\": \"olga.petrova@atlas.com\", \"event_start\": \"2023-12-01 09:00:00\", \"duration\": \"60\"}, {\"event_id\": \"00000091\", \"event_name\": \"Year-End Performance Assessmen",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            },
+            {
+              "arguments": {
+                "query": "Riley Brown"
+              },
+              "output_preview": "No events found.",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            }
+          ]
+        },
+        {
+          "agent_id": "agent_4",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_4"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3-flash-preview",
+            "token_in": 7241,
+            "token_out": 624
+          },
+          "prompt_ids": [
+            "p_11",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"I have checked the records and confirmed that there have been no meetings with Riley Brown in the past fortnight (since November 16, 2023). However, I am currently unable to identify who is assigned to Riley Brown, as they do not appear in the company directory and there are no historical calendar events linking them to a specific staff member. \\n\\nIf you can provide the name or email of the person assigned to Riley Brown, I can proceed with booking the 30-minute meeting for tomorrow, Friday, December 1, at your first available slot (13:00).\",\n  \"summary\": \"Checked for recent interactions with Riley Brown (none found) and attempted to identify their assignee to schedule a meeting for tomorrow. Could not find Riley Brown in the directory or past events to determine the assignee.\",\n  \"critique\": \"I successfully verified the lack of contact in the last 14 days. I also checked the user's availability for tomorrow (first free slot is 13:00). However, the 'assigned to' requirement is a blocker because Riley Brown is not in the directory and has no event history. I need more information to identify the correct participant.\",\n  \"revision_request\": \"Please provide the name or email of the person assigned to Riley Brown so I can schedule the meeting.\",\n  \"confidence\": 0.8,\n  \"unresolved_issues\": [\n    \"Identity of the person assigned to Riley Brown is unknown.\"\n  ],\n  \"evidence_summary\": [\n    \"No events with 'Riley Brown' found between 2023-11-16 and 2023-11-30.\",\n    \"Riley Brown is not listed in the company directory.\",\n    \"No historical events (pre-Nov 16) mention Riley Brown.\",\n    \"User's first 30-minute opening tomorrow (2023-12-01) is at 13:00 (between 'project checkpoint' ending at 13:00 and 'retrospective meeting' starting at 13:30).\"\n  ]\n}",
+          "role": "leaf_worker",
+          "tool_calls": [
+            {
+              "arguments": {
+                "query": "Riley Brown",
+                "time_min": "2023-11-16 00:00:00"
+              },
+              "output_preview": "No events found.",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            },
+            {
+              "arguments": {
+                "name": "Riley Brown"
+              },
+              "output_preview": "\"<ArrowStringArray>\\n[]\\nLength: 0, dtype: str\"",
+              "status": "completed",
+              "tool_name": "company_directory.find_email_address"
+            },
+            {
+              "arguments": {
+                "query": "Riley Brown"
+              },
+              "output_preview": "No events found.",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            },
+            {
+              "arguments": {
+                "time_max": "2023-12-01 18:00:00",
+                "time_min": "2023-12-01 09:00:00"
+              },
+              "output_preview": "[{\"event_id\": \"00000165\", \"event_name\": \"Corporate Social Responsibility Initiative\", \"participant_email\": \"olga.petrova@atlas.com\", \"event_start\": \"2023-12-01 09:00:00\", \"duration\": \"60\"}, {\"event_id\": \"00000091\", \"event_name\": \"Year-End Performance Assessmen",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            },
+            {
+              "arguments": {
+                "query": "Riley"
+              },
+              "output_preview": "No events found.",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            },
+            {
+              "arguments": {
+                "time_max": "2023-11-16 00:00:00"
+              },
+              "output_preview": "[{\"event_id\": \"00000013\", \"event_name\": \"sync up\", \"participant_email\": \"luis.ortiz@atlas.com\", \"event_start\": \"2023-08-01 09:00:00\", \"duration\": \"90\"}, {\"event_id\": \"00000275\", \"event_name\": \"process review\", \"participant_email\": \"fatima.khan@atlas.com\", \"eve",
+              "status": "completed",
+              "tool_name": "calendar.search_events"
+            }
+          ]
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "messages_sent": [
+        {
+          "artifact_id": "manager_nodes:agent_1:0:0:0",
+          "content": "I am initiating a search to determine if there have been any meetings with Riley Brown in the last 14 days. Simultaneously, I am looking up Riley Brown's contact information and checking your schedule for tomorrow to find the earliest available slot for a potential meeting.",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_1",
+          "kind": "manager_task_package",
+          "message_id": "m_3",
+          "outer_step_index": 0,
+          "phase": "worker_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_3"
+          ]
+        },
+        {
+          "artifact_id": "manager_nodes:agent_2:0:0:0",
+          "content": "I am refining the plan to check for recent interactions with Riley Brown and, if none exist, identify their assignee and schedule a meeting for tomorrow at the user's first available time.",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_2",
+          "kind": "manager_task_package",
+          "message_id": "m_4",
+          "outer_step_index": 0,
+          "phase": "worker_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_4"
+          ]
+        },
+        {
+          "artifact_id": "worker_nodes:agent_3:0:0:1",
+          "content": "I searched for Riley Brown in the directory and past calendar events to determine if there had been any contact in the last 14 days and to identify the person assigned to them. No records were found for Riley Brown in either the directory or the calendar. I also reviewed your schedule for tomorrow, Friday, December...",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_3",
+          "kind": "child_report",
+          "message_id": "m_5",
+          "outer_step_index": 0,
+          "phase": "worker_relay",
+          "round_index": 0,
+          "to": [
+            "agent_1"
+          ]
+        },
+        {
+          "artifact_id": "worker_nodes:agent_4:0:0:1",
+          "content": "Checked for recent interactions with Riley Brown (none found) and attempted to identify their assignee to schedule a meeting for tomorrow. Could not find Riley Brown in the directory or past events to determine the assignee.",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_4",
+          "kind": "child_report",
+          "message_id": "m_6",
+          "outer_step_index": 0,
+          "phase": "worker_relay",
+          "round_index": 0,
+          "to": [
+            "agent_2"
+          ]
+        },
+        {
+          "artifact_id": "manager_reducers::0:0:1",
+          "content": "The user wants to schedule a 30-minute meeting titled 'Update on Riley Brown' for tomorrow at the first available slot, provided there has been no contact with Riley Brown in the past fortnight. The meeting should be with the person assigned to Riley Brown.",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "system",
+          "kind": "manager_report",
+          "message_id": "m_7",
+          "outer_step_index": 0,
+          "phase": "manager_relay",
+          "round_index": 0,
+          "to": [
+            "agent_0"
+          ]
+        }
+      ],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "",
+      "phases": [
+        "manager_reducers",
+        "root_reducer",
+        "worker_nodes"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3"
+      ],
+      "step_index": 3,
+      "termination": []
+    }
+  ],
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 5,
+    "agents_per_level": [
+      5
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_tree_structure",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_tree_structure"
+  },
+  "task_id": "multi_domain_1",
+  "tool_definitions": [
+    {
+      "description": "Returns the event for a given ID.",
+      "name": "calendar.get_event_information_by_id",
+      "parameters": {
+        "properties": {
+          "event_id": {
+            "description": "8-digit ID of the event.",
+            "type": "string"
+          },
+          "field": {
+            "description": "Field to return. Available: \"event_id\", \"event_name\", \"participant_email\", \"event_start\", \"duration\".",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Returns events matching the query and optional time bounds.",
+      "name": "calendar.search_events",
+      "parameters": {
+        "properties": {
+          "query": {
+            "description": "Query to search for.",
+            "type": "string"
+          },
+          "time_max": {
+            "description": "Upper bound format \"YYYY-MM-DD HH:MM:SS\".",
+            "type": "string"
+          },
+          "time_min": {
+            "description": "Lower bound format \"YYYY-MM-DD HH:MM:SS\".",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Creates a new event.",
+      "name": "calendar.create_event",
+      "parameters": {
+        "properties": {
+          "duration": {
+            "type": "string"
+          },
+          "event_name": {
+            "type": "string"
+          },
+          "event_start": {
+            "type": "string"
+          },
+          "participant_email": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Deletes an event by ID.",
+      "name": "calendar.delete_event",
+      "parameters": {
+        "properties": {
+          "event_id": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Updates an event field by ID.",
+      "name": "calendar.update_event",
+      "parameters": {
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "new_value": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Finds the email address of an employee by name.",
+      "name": "company_directory.find_email_address",
+      "parameters": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    }
+  ]
+}

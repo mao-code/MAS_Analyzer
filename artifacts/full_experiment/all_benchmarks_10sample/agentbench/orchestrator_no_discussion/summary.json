@@ -1,0 +1,1072 @@
+{
+  "benchmark": "agentbench",
+  "config_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/config/benchmarks/agentbench_10.toml",
+  "experiment_id": "20260401T195507Z",
+  "experiment_settings_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_1": [
+          "agent_0"
+        ],
+        "agent_2": [
+          "agent_0"
+        ],
+        "agent_3": [
+          "agent_0"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        1,
+        3
+      ],
+      "children_by_agent": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ]
+      },
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "managers": [],
+      "orchestrator_id": "agent_0",
+      "parent_by_agent": {
+        "agent_1": "agent_0",
+        "agent_2": "agent_0",
+        "agent_3": "agent_0"
+      },
+      "representatives": [],
+      "roles": {
+        "agent_0": "orchestrator",
+        "agent_1": "specialist",
+        "agent_2": "specialist",
+        "agent_3": "specialist"
+      },
+      "specialists": [
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "orchestrator_no_discussion"
+    },
+    "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/mas_graph.mmd",
+    "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "orchestrator_no_discussion",
+    "workflow": {
+      "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/workflow_graph.mmd",
+      "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "orchestrator_no_discussion",
+      "workflow": {
+        "aggregation_logic": "Specialist artifacts are relayed upward as reports; the orchestrator merges those reports into one artifact.",
+        "conditional_edges": [
+          "dispatch_specialists -> specialist_worker (parallel Send fan-out) else relay_specialist_reports",
+          "termination_checker -> dispatch_specialists | finalize"
+        ],
+        "dispatch_logic": "The orchestrator emits bounded task packages to the activated specialists.",
+        "edges": [
+          "START -> orchestrator_plan",
+          "orchestrator_plan -> dispatch_specialists",
+          "specialist_worker -> relay_specialist_reports",
+          "relay_specialist_reports -> orchestrator_merge",
+          "orchestrator_merge -> descriptor_monitor",
+          "descriptor_monitor -> termination_checker",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "descriptor_monitor": "Shared descriptor hook.",
+          "dispatch_specialists": "Build task packages for specialists.",
+          "finalize": "Finalize the run.",
+          "orchestrator_merge": "Merge specialist reports.",
+          "orchestrator_plan": "Initial planner/orchestrator artifact.",
+          "relay_specialist_reports": "Bounded specialist-to-orchestrator reports.",
+          "specialist_worker": "Independent specialist execution.",
+          "termination_checker": "Explicit round stopper."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max rounds reached",
+          "Consensus across specialist artifacts",
+          "No meaningful change between orchestrator merge artifacts",
+          "Orchestrator confidence threshold reached",
+          "Invalid or failed branch fallback"
+        ],
+        "topology": "orchestrator_no_discussion"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_no_discussion",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_no_discussion"
+  },
+  "system_label": "orchestrator_no_discussion",
+  "task_count": 10,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00000/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00000/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 18341.92474899441,
+        "C2_tokens_total": 8887.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 16590.695207938552,
+        "stage_act_tokens": 7305.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 128.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1739.2295410558581,
+        "stage_verify_tokens": 1454.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 0,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"The objective is to count the number of times 'Alice' sold a stock in '/usr/stock.log'. Specialists agree that the file structure must be inspected first to identify the columns for the user name and the action (sold/bought).\", \"critique\": \"The current state is blocked by a lack of knowledge regarding the file's schema. I must perform a head or cat command to inspect the log format.\", \"revision_request\": \"Execute a command to read the first few lines of /usr/"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00000"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00000",
+      "task_id": "os-std_std-001-stock-00000"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00001/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00001/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 17704.941292205825,
+        "C2_tokens_total": 7868.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 14646.783333271742,
+        "stage_act_tokens": 6822.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 4.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 3046.1579589340836,
+        "stage_verify_tokens": 1042.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 1,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "grep -c 'Bob' /usr/stock.log"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00001"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00001",
+      "task_id": "os-std_std-001-stock-00001"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00002/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00002/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 15417.55924807489,
+        "C2_tokens_total": 8534.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 13424.175332067534,
+        "stage_act_tokens": 7092.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 108.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1981.3839160073549,
+        "stage_verify_tokens": 1334.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 2,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"The objective is to calculate the total number of stocks bought by 'Alice' from '/usr/stock.log'. The file structure needs to be verified to identify the column containing 'Alice' and the column containing the count (which is the last column).\", \"critique\": \"The specialists have correctly identified the need to inspect the file structure before performing the calculation. I will now proceed to inspect the file content.\", \"revision_request\": \"\", \"confidence\": "
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00002"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00002",
+      "task_id": "os-std_std-001-stock-00002"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00003/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00003/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 63662.21370769106,
+        "C2_tokens_total": 42153.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 20.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 20.0,
+        "D3_handoff_count": 35.0,
+        "P1_steps_total": 100.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.75,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 20.0,
+        "stage_act_latency_ms": 54899.26462387666,
+        "stage_act_tokens": 36272.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 4.0,
+        "stage_finalize_latency_ms": 4.0,
+        "stage_finalize_tokens": 593.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 40.0,
+        "stage_retrieve_latency_ms": 40.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 4.0,
+        "stage_revise_latency_ms": 4.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 32.0,
+        "stage_verify_latency_ms": 8714.949083814397,
+        "stage_verify_tokens": 5288.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 3,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 4,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"Multiple attempts to access '/usr/stock.log' and '/usr' have failed, with the OS returning no output for listing or reading commands. This suggests the file path is incorrect, the file does not exist in the current environment, or there is a systemic issue with file visibility.\", \"critique\": \"The previous agents correctly identified that the file is inaccessible, but failed to verify the root directory to confirm the environment's state. The next logical step"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00003"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00003",
+      "task_id": "os-std_std-001-stock-00003"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00004/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00004/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 15137.472458096221,
+        "C2_tokens_total": 8439.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 13190.237957984209,
+        "stage_act_tokens": 7073.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 86.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1935.234500112012,
+        "stage_verify_tokens": 1280.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 4,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"I will inspect the first few lines of /usr/stock.log to determine the column structure, specifically identifying the columns for 'person' and 'action'.\", \"critique\": \"The specialists have correctly identified the need to inspect the file structure before processing. I will now proceed with the inspection.\", \"revision_request\": \"\", \"confidence\": 0.9, \"unresolved_issues\": [ \"Need to confirm the column positions for 'person' and 'action' in /usr/stock.log.\" ], \""
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00004"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00004",
+      "task_id": "os-std_std-001-stock-00004"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00005/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00005/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 15757.932830281556,
+        "C2_tokens_total": 8441.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 13778.86366425082,
+        "stage_act_tokens": 7171.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 54.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1967.0691660307348,
+        "stage_verify_tokens": 1216.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 5,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "Plan: 1. Inspect the first few lines of /usr/stock.log to identify the column containing the trader identifier. 2. Use awk to extract the trader column and the transaction count column. 3. Aggregate the transaction counts per trader using awk. 4. Sort the aggregated results numerically in descending order to identify the most active traders."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00005"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00005",
+      "task_id": "os-std_std-001-stock-00005"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00006/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00006/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 18394.91520906426,
+        "C2_tokens_total": 8173.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 15299.03275007382,
+        "stage_act_tokens": 7030.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 38.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 3083.8824589904398,
+        "stage_verify_tokens": 1105.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 6,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "The stock index with the highest total transaction count will be determined by aggregating the last column (count) grouped by the second-to-last column (stock index) in /usr/stock.log using awk, followed by sorting the results to identify the maximum."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00006"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-001-stock-00006",
+      "task_id": "os-std_std-001-stock-00006"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00000/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00000/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 18650.250460632145,
+        "C2_tokens_total": 8359.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 15606.658126693219,
+        "stage_act_tokens": 6950.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 36.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 3031.5923339389265,
+        "stage_verify_tokens": 1373.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/2/environment.json",
+                "index_in_file": 0,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "The total number of executable files in the directories listed in the PATH environment variable can be determined by iterating through each directory in PATH, identifying files with the executable bit set, and summing the counts."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-002-environment-00000"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00000",
+      "task_id": "os-std_std-002-environment-00000"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00001/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00001/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 14908.899207744747,
+        "C2_tokens_total": 7922.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 25.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 13131.713249953464,
+        "stage_act_tokens": 6840.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 27.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 8.0,
+        "stage_verify_latency_ms": 1765.1859577912837,
+        "stage_verify_tokens": 1055.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/2/environment.json",
+                "index_in_file": 1,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "The number of executable files available in the system's PATH is determined by counting the unique filenames found within the directories specified in the $PATH environment variable."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-002-environment-00001"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00001",
+      "task_id": "os-std_std-002-environment-00001"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00002/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00002/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 49252.692086126655,
+        "C2_tokens_total": 30056.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 15.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 15.0,
+        "D3_handoff_count": 26.0,
+        "P1_steps_total": 75.0,
+        "P2_backtrack_rate": 0.04,
+        "P3_loop_score": 0.6666666666666666,
+        "P4_verification_density": 0.32,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 15.0,
+        "stage_act_latency_ms": 42463.00875185989,
+        "stage_act_tokens": 25518.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 3.0,
+        "stage_finalize_latency_ms": 3.0,
+        "stage_finalize_tokens": 259.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 30.0,
+        "stage_retrieve_latency_ms": 30.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 3.0,
+        "stage_revise_latency_ms": 3.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 24.0,
+        "stage_verify_latency_ms": 6753.683334266767,
+        "stage_verify_tokens": 4279.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/2/environment.json",
+                "index_in_file": 2,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 3,
+              "prediction_preview": "Unable to locate 'echo-love'."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-002-environment-00002"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/orchestrator_no_discussion/os-std_std-002-environment-00002",
+      "task_id": "os-std_std-002-environment-00002"
+    }
+  ],
+  "timestamp": "20260401T195507Z"
+}

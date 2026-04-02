@@ -1,0 +1,4 @@
+import numpy as np
+
+
+ # Background: Householder QR factorization decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. This is achieved by applying a sequence of Householder reflections H_k = I - 2(v_k v_k^T) / (v_k^T v_k), where v_k is a vector chosen to zero out the sub-diagonal elements of the k-th column. The transformation is applied iteratively for each column k from 0 to n-1, resulting in the upper triangular matrix R stored in the upper triangle of A. def householder(A): '''Inputs: A : Matrix of size m*n, m>=n Outputs: A : Matrix of size m*n, with R in the upper triangle ''' m, n = A.shape A = A.astype(float) for k in range(n): x = A[k:m, k] norm_x = np.linalg.norm(x) rho = -np.sign(x[0]) if x[0] != 0 else -1 u1 = x[0] - rho * norm_x v = x / u1 v[0] = 1.0 beta = -rho * u1 / norm_x # Apply reflection to the remaining columns A[k:m, k:n] -= beta * np.outer(v, v.T @ A[k:m, k:n]) return A

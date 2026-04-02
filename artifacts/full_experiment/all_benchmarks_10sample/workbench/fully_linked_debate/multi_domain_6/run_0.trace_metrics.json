@@ -1,0 +1,167 @@
+{
+  "benchmark": "workbench",
+  "evaluation": {
+    "details": {
+      "correct": false,
+      "domains": [
+        "crm",
+        "calendar"
+      ],
+      "error": "",
+      "exact_match": false,
+      "ground_truth": [
+        "calendar.create_event.func(event_name=\"Update on Jamie Anderson\", participant_email=\"nadia.moreau@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+      ],
+      "prediction": [
+        "calendar.get_event_information_by_id.func()",
+        "company_directory.find_email_address.func(name=\"Jamie Anderson\")",
+        "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jamie Anderson\")",
+        "calendar.get_event_information_by_id.func()",
+        "calendar.get_event_information_by_id.func()"
+      ],
+      "query": "If we haven't spoke to Jamie Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jamie Anderson' at the first time I'm free tomorrow",
+      "tool_selection": "domains",
+      "unwanted_side_effects": false
+    },
+    "score": 0.0,
+    "success": false
+  },
+  "final_answer_preview": "I was unable to find a contact or any past meetings for Jamie Anderson in the last fortnight. Additionally, I could not identify who is assigned to them to schedule the 'Update on Jamie Anderson' meeting. If you can provide the name or email of the person assigned to Jamie, I'll be happy to check your availability a...",
+  "metrics": {
+    "backtrack_rate": 0.04,
+    "communication_count": 0.0,
+    "completion": true,
+    "completion_source": "final_answer",
+    "cost_total": 0.0,
+    "handoff_count": 5.0,
+    "latency_total": 33325.81825016998,
+    "loop_score": 0.0,
+    "score": 0.0,
+    "steps_total": 25.0,
+    "success": false,
+    "success_source": "benchmark_evaluation",
+    "tokens_total": 5673.0,
+    "tool_calls_total": 5.0,
+    "tool_fail_total": 0.0,
+    "verification_density": 0.32
+  },
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "run_index": 0,
+  "runtime": {
+    "error": "",
+    "final_reason": "fully_linked_debate:consensus_reached",
+    "function_calls": [
+      "calendar.get_event_information_by_id.func()",
+      "company_directory.find_email_address.func(name=\"Jamie Anderson\")",
+      "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jamie Anderson\")",
+      "calendar.get_event_information_by_id.func()",
+      "calendar.get_event_information_by_id.func()"
+    ],
+    "messages_sent_by_agent": {
+      "agent_0": 0,
+      "agent_1": 0,
+      "agent_2": 0,
+      "agent_3": 0
+    },
+    "messages_sent_total": 0,
+    "retrieved_docids": [],
+    "run_index": 0,
+    "seed": 6042,
+    "task_id": "multi_domain_6",
+    "tool_call_counts": {
+      "calendar.get_event_information_by_id": 3,
+      "calendar.search_events": 1,
+      "company_directory.find_email_address": 1
+    },
+    "tool_calls_total": 5,
+    "topology": "fully_linked_debate",
+    "turns_executed": 1,
+    "vote_tally": {
+      "i need to check if we have spoken to jamie anderson in the past fortnight and identify who is assigned to them before booking the meeting": 1,
+      "i need to check if we have spoken to jamie anderson in the past two weeks and identify who is assigned to them before i can schedule the meeting": 1,
+      "i need to determine if we have spoken to jamie anderson in the past fortnight since 2023 11 16 and identify who is assigned to them before i can schedule the update on jamie anderson meeting for tomorrow friday 2023 12 01": 1,
+      "i was unable to find a contact or any past meetings for jamie anderson in the last fortnight additionally i could not identify who is assigned to them to schedule the update on jamie anderson meeting if you can provide the name or email of the person assigned to jamie i ll be happy to check your availability and book that 30 minute slot for tomorrow": 1
+    }
+  },
+  "stages": {
+    "act": {
+      "events": 4.0,
+      "latency_ms": 20887.51162518747,
+      "tokens": 4942.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "finalize": {
+      "events": 1.0,
+      "latency_ms": 1.0,
+      "tokens": 64.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "plan": {
+      "events": 1.0,
+      "latency_ms": 1.0,
+      "tokens": 0.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "retrieve": {
+      "events": 10.0,
+      "latency_ms": 10.0,
+      "tokens": 0.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "revise": {
+      "events": 1.0,
+      "latency_ms": 1.0,
+      "tokens": 0.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "verify": {
+      "events": 8.0,
+      "latency_ms": 12425.306624982506,
+      "tokens": 667.0,
+      "tool_errors": 0.0,
+      "verify_density": 1.0
+    }
+  },
+  "task_id": "multi_domain_6",
+  "termination": {
+    "average_confidence": 0.9,
+    "consensus_count": 3,
+    "consensus_explanation": "Agents 0, 2, and 3 all correctly identify that they need to perform preliminary checks (checking past communications and identifying the assigned person) before proceeding. Agent 1 is invalid because it hallucinates that it has already performed these checks and failed, whereas the task requires using tools to find this information first.",
+    "consensus_groups": [
+      [
+        0,
+        2,
+        3
+      ]
+    ],
+    "consensus_mode": "llm_judge",
+    "consensus_ratio": 1.0,
+    "consensus_signature": "0,2,3",
+    "consensus_source": "llm_judge",
+    "consensus_valid_count": 3,
+    "control_cost_usd": 0.0,
+    "control_latency_ms": 12418.306624982506,
+    "control_token_in": 583,
+    "control_token_out": 84,
+    "discussion_index": 0,
+    "mean_delta": null,
+    "next_step": "judge",
+    "reason": "consensus_reached",
+    "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+    "round_index": 0,
+    "should_stop": true,
+    "stage_name": "debate_controller",
+    "valid_artifact_count": 4
+  }
+}

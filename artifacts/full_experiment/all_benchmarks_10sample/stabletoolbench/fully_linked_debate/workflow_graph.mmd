@@ -1,0 +1,37 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	START([START<hr/><small><em>kind = terminal
+description = Workflow entrypoint.</em></small>]):::first
+	END([END<hr/><small><em>kind = terminal
+description = Workflow exit.</em></small>]):::last
+	debate_init(debate_init<hr/><small><em>kind = workflow_node
+description = Initialize the debate controller.</em></small>)
+	debate_controller(debate_controller<hr/><small><em>kind = workflow_node
+description = Round controller plus explicit stopping logic.</em></small>)
+	debate_dispatch(debate_dispatch<hr/><small><em>kind = workflow_node
+description = Fan out the next debate round.</em></small>)
+	debate_round(debate_round<hr/><small><em>kind = workflow_node
+description = Parallel debater revision stage.</em></small>)
+	judge(judge<hr/><small><em>kind = workflow_node
+description = Deterministic final judge.</em></small>)
+	descriptor_monitor(descriptor_monitor<hr/><small><em>kind = workflow_node
+description = Shared descriptor hook.</em></small>)
+	finalize(finalize<hr/><small><em>kind = workflow_node
+description = Finalize the run.</em></small>)
+	START --> debate_init;
+	debate_init --> debate_controller;
+	debate_round --> debate_controller;
+	judge --> descriptor_monitor;
+	descriptor_monitor --> finalize;
+	finalize --> END;
+	debate_controller -- &nbsp;conditional&nbsp; --> debate_dispatch;
+	debate_controller -- &nbsp;conditional&nbsp; --> judge;
+	debate_dispatch -- &nbsp;parallel Send fan-out&nbsp; --> debate_round;
+	debate_dispatch -- &nbsp;else&nbsp; --> debate_controller;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

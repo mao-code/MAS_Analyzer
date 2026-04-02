@@ -1,0 +1,1076 @@
+{
+  "benchmark": "agentbench",
+  "config_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/config/benchmarks/agentbench_10.toml",
+  "experiment_id": "20260401T195507Z",
+  "experiment_settings_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1"
+        ],
+        "agent_1": [
+          "agent_0"
+        ],
+        "agent_2": [
+          "agent_3"
+        ],
+        "agent_3": [
+          "agent_2"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        2,
+        2
+      ],
+      "children_by_agent": {},
+      "groups": [
+        [
+          "agent_0",
+          "agent_1"
+        ],
+        [
+          "agent_2",
+          "agent_3"
+        ]
+      ],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 0,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "managers": [],
+      "orchestrator_id": null,
+      "parent_by_agent": {},
+      "representatives": [
+        "agent_0",
+        "agent_2"
+      ],
+      "roles": {
+        "agent_0": "group_0_representative",
+        "agent_1": "group_0_member",
+        "agent_2": "group_1_representative",
+        "agent_3": "group_1_member"
+      },
+      "specialists": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "group_chat_debate"
+    },
+    "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/mas_graph.mmd",
+    "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "group_chat_debate",
+    "workflow": {
+      "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/workflow_graph.mmd",
+      "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "group_chat_debate",
+      "workflow": {
+        "aggregation_logic": "Group members debate locally, representatives merge group summaries, and a shared final judge selects the final answer.",
+        "conditional_edges": [
+          "group_dispatch -> group_debate_round (parallel Send fan-out) else group_controller",
+          "group_controller -> group_dispatch | representative_dispatch",
+          "representative_dispatch -> representative_merge (parallel Send fan-out) else final_judge",
+          "representative_controller -> representative_dispatch | final_judge"
+        ],
+        "dispatch_logic": "Debate is local to groups until the controller emits representative-only summaries. Inter-group traffic is restricted to representative packets.",
+        "edges": [
+          "START -> group_dispatch",
+          "group_debate_round -> group_controller",
+          "representative_merge -> representative_controller",
+          "final_judge -> descriptor_monitor",
+          "descriptor_monitor -> finalize",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "descriptor_monitor": "Shared descriptor hook.",
+          "final_judge": "Deterministic final judge.",
+          "finalize": "Finalize the run.",
+          "group_controller": "Intra-group controller plus stop/merge logic.",
+          "group_debate_round": "Parallel group debate workers.",
+          "group_dispatch": "Fan out the intra-group debate stage.",
+          "representative_controller": "Representative-level controller plus stopping logic.",
+          "representative_dispatch": "Representative fan-out.",
+          "representative_merge": "Representative merge/debate stage."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max group rounds reached",
+          "Consensus inside groups",
+          "No meaningful change between group or representative revisions",
+          "Confidence threshold reached",
+          "Invalid or failed branch fallback",
+          "Max representative rounds reached"
+        ],
+        "topology": "group_chat_debate"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 2,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "group_chat_debate",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "group_chat_debate"
+  },
+  "system_label": "group_chat_debate",
+  "task_count": 10,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00000/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00000/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 25141.252416986972,
+        "C2_tokens_total": 10940.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 19049.173125997186,
+        "stage_act_tokens": 8106.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 112.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 6085.079290989786,
+        "stage_verify_tokens": 2722.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 0,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"The objective is to count the occurrences of 'Alice' performing a 'sold' action in the log file /usr/stock.log. I need to inspect the file content to determine the exact format of the log entries.\", \"critique\": \"The previous step identified the need to inspect the file structure. I will now proceed to read the first few lines of the file to understand the log format.\", \"revision_request\": \"\", \"confidence\": 0.9, \"unresolved_issues\": [ \"Need to verify the forma"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00000"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00000",
+      "task_id": "os-std_std-001-stock-00000"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00001/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00001/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 55213.9252090659,
+        "C2_tokens_total": 29263.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 8.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 4.0,
+        "D3_handoff_count": 23.0,
+        "P1_steps_total": 64.0,
+        "P2_backtrack_rate": 0.078125,
+        "P3_loop_score": 0.46875,
+        "P4_verification_density": 0.390625,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 16.0,
+        "stage_act_latency_ms": 46557.84491752274,
+        "stage_act_tokens": 23269.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 116.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 16.0,
+        "stage_retrieve_latency_ms": 16.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 5.0,
+        "stage_revise_latency_ms": 5.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 25.0,
+        "stage_verify_latency_ms": 8633.080291543156,
+        "stage_verify_tokens": 5878.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 1,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 2,
+              "prediction_preview": "0"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00001"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00001",
+      "task_id": "os-std_std-001-stock-00001"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00002/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00002/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 18063.480790806934,
+        "C2_tokens_total": 11074.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 15070.696166716516,
+        "stage_act_tokens": 8178.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 139.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 2985.784624090418,
+        "stage_verify_tokens": 2757.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 2,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"The objective is to calculate the total number of stocks Alice bought by parsing /usr/stock.log. The last two columns are the stock index and the count. I need to inspect the file content to identify the column containing the name 'Alice' and then sum the values in the last column for all rows where 'Alice' appears.\", \"critique\": \"The file structure is not yet confirmed. I must first view the file content to determine which column contains the user name 'Alic"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00002"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00002",
+      "task_id": "os-std_std-001-stock-00002"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00003/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00003/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 25517.183750038967,
+        "C2_tokens_total": 10779.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 22127.98491702415,
+        "stage_act_tokens": 8142.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 100.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 3382.198833014816,
+        "stage_verify_tokens": 2537.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 3,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"I need to inspect the content of /usr/stock.log to understand the file structure, identify the lines containing 'Bob', and extract the stock index (second to last column) to count the unique types of stocks sold.\", \"critique\": \"The initial plan is sound. I must first verify the file format before applying filtering and counting commands.\", \"revision_request\": \"\", \"confidence\": 0.9, \"unresolved_issues\": [ \"Need to confirm the exact column index for 'Bob' and t"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00003"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00003",
+      "task_id": "os-std_std-001-stock-00003"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00004/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00004/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 40332.74437274784,
+        "C2_tokens_total": 22832.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 4.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 15.0,
+        "P1_steps_total": 46.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 12.0,
+        "stage_act_latency_ms": 31384.668454993516,
+        "stage_act_tokens": 17583.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 145.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 8.0,
+        "stage_retrieve_latency_ms": 8.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 4.0,
+        "stage_revise_latency_ms": 4.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 20.0,
+        "stage_verify_latency_ms": 8934.075917754322,
+        "stage_verify_tokens": 5104.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 4,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 2,
+              "prediction_preview": "0"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00004"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00004",
+      "task_id": "os-std_std-001-stock-00004"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00005/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00005/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 54700.66241800785,
+        "C2_tokens_total": 22317.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 4.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 15.0,
+        "P1_steps_total": 46.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 12.0,
+        "stage_act_latency_ms": 46910.22225213237,
+        "stage_act_tokens": 17022.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 144.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 8.0,
+        "stage_retrieve_latency_ms": 8.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 4.0,
+        "stage_revise_latency_ms": 4.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 20.0,
+        "stage_verify_latency_ms": 7776.44016587548,
+        "stage_verify_tokens": 5151.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 5,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 2,
+              "prediction_preview": "The file /usr/stock.log is empty, therefore no analysis of trader activity can be performed."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00005"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00005",
+      "task_id": "os-std_std-001-stock-00005"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00006/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00006/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 40113.145041018724,
+        "C2_tokens_total": 22225.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 4.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 15.0,
+        "P1_steps_total": 46.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 12.0,
+        "stage_act_latency_ms": 31680.553958984092,
+        "stage_act_tokens": 16969.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 149.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 8.0,
+        "stage_retrieve_latency_ms": 8.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 4.0,
+        "stage_revise_latency_ms": 4.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 20.0,
+        "stage_verify_latency_ms": 8418.591082034633,
+        "stage_verify_tokens": 5107.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/1/stock.json",
+                "index_in_file": 6,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 2,
+              "prediction_preview": "The file /usr/stock.log is empty, therefore no stock index with the highest count of transactions could be identified."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-001-stock-00006"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-001-stock-00006",
+      "task_id": "os-std_std-001-stock-00006"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00000/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00000/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 21364.117960082367,
+        "C2_tokens_total": 10730.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 16566.357125993818,
+        "stage_act_tokens": 7977.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 109.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 4790.760834088549,
+        "stage_verify_tokens": 2644.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/2/environment.json",
+                "index_in_file": 0,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "{ \"answer_artifact\": \"\", \"summary\": \"The goal is to count the total number of executable files across all directories listed in the PATH environment variable.\", \"critique\": \"The task requires parsing the PATH variable, which is colon-separated, and then iterating through each directory to count files with executable permissions. Using 'find' with '-executable' is the most robust approach.\", \"revision_request\": \"\", \"confidence\": 0.95, \"unresolved_issues\": [ \"Handling potential permission denied e"
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-002-environment-00000"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00000",
+      "task_id": "os-std_std-002-environment-00000"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00001/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00001/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 20781.159874387085,
+        "C2_tokens_total": 10015.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 2.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 7.0,
+        "P1_steps_total": 23.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 6.0,
+        "stage_act_latency_ms": 15910.268124192953,
+        "stage_act_tokens": 8105.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 26.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 4.0,
+        "stage_retrieve_latency_ms": 4.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 10.0,
+        "stage_verify_latency_ms": 4863.891750194132,
+        "stage_verify_tokens": 1884.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/2/environment.json",
+                "index_in_file": 1,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 1,
+              "prediction_preview": "The number of executable files in the system's PATH is determined by counting the unique executable files in all directories listed in the $PATH environment variable."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-002-environment-00001"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00001",
+      "task_id": "os-std_std-002-environment-00001"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00002/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00002/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 38367.08154084161,
+        "C2_tokens_total": 22024.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 4.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 0.0,
+        "D3_handoff_count": 15.0,
+        "P1_steps_total": 46.0,
+        "P2_backtrack_rate": 0.08695652173913043,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.43478260869565216,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 12.0,
+        "stage_act_latency_ms": 30272.548749111593,
+        "stage_act_tokens": 17027.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 164.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 8.0,
+        "stage_retrieve_latency_ms": 8.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 4.0,
+        "stage_revise_latency_ms": 4.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 20.0,
+        "stage_verify_latency_ms": 8080.5327917300165,
+        "stage_verify_tokens": 4833.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "agentbench_error": null,
+              "agentbench_result": {
+                "file": "data/os_interaction/data/2/environment.json",
+                "index_in_file": 2,
+                "result": false
+              },
+              "agentbench_status": "agent invalid action",
+              "agentbench_turns": 2,
+              "prediction_preview": "I have searched the entire filesystem for the file 'echo-love', but it could not be found. It is possible that the file does not exist, has been deleted, or is located in a directory that is not accessible."
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "os-std_std-002-environment-00002"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/agentbench/group_chat_debate/os-std_std-002-environment-00002",
+      "task_id": "os-std_std-002-environment-00002"
+    }
+  ],
+  "timestamp": "20260401T195507Z"
+}

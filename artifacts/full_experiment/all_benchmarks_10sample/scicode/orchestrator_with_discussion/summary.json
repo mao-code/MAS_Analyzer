@@ -1,0 +1,1118 @@
+{
+  "benchmark": "scicode",
+  "config_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/config/benchmarks/scicode_10.toml",
+  "experiment_id": "20260401T195507Z",
+  "experiment_settings_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ],
+        "agent_1": [
+          "agent_0"
+        ],
+        "agent_2": [
+          "agent_0"
+        ],
+        "agent_3": [
+          "agent_0"
+        ]
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        1,
+        3
+      ],
+      "children_by_agent": {
+        "agent_0": [
+          "agent_1",
+          "agent_2",
+          "agent_3"
+        ]
+      },
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 1,
+        "agent_2": 1,
+        "agent_3": 1
+      },
+      "managers": [],
+      "orchestrator_id": "agent_0",
+      "parent_by_agent": {
+        "agent_1": "agent_0",
+        "agent_2": "agent_0",
+        "agent_3": "agent_0"
+      },
+      "representatives": [],
+      "roles": {
+        "agent_0": "orchestrator",
+        "agent_1": "specialist",
+        "agent_2": "specialist",
+        "agent_3": "specialist"
+      },
+      "specialists": [
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "orchestrator_with_discussion"
+    },
+    "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/mas_graph.mmd",
+    "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "orchestrator_with_discussion",
+    "workflow": {
+      "mermaid_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/workflow_graph.mmd",
+      "png_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "orchestrator_with_discussion",
+      "workflow": {
+        "aggregation_logic": "Specialists never see raw peer transcripts; only orchestrator-generated peer summaries are routed. The orchestrator performs the final synthesis each outer cycle.",
+        "conditional_edges": [
+          "dispatch_specialists -> specialists_initial_round (parallel Send fan-out) else relay_specialist_reports",
+          "orchestrator_relay -> dispatch_revision_round | orchestrator_merge",
+          "cycle_termination_checker -> dispatch_specialists | finalize"
+        ],
+        "dispatch_logic": "The orchestrator sends initial task packages, then bounded peer-summary bundles for revision rounds.",
+        "edges": [
+          "START -> orchestrator_plan",
+          "orchestrator_plan -> dispatch_specialists",
+          "specialists_initial_round -> relay_specialist_reports",
+          "specialists_revision_round -> relay_specialist_reports",
+          "relay_specialist_reports -> orchestrator_relay",
+          "orchestrator_merge -> descriptor_monitor",
+          "descriptor_monitor -> cycle_termination_checker",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "cycle_termination_checker": "Outer-cycle stopper.",
+          "descriptor_monitor": "Shared descriptor hook.",
+          "dispatch_revision_round": "Revision-round fan-out.",
+          "dispatch_specialists": "Task package fan-out.",
+          "finalize": "Finalize the run.",
+          "orchestrator_merge": "Final orchestrator synthesis for the current cycle.",
+          "orchestrator_plan": "Initial orchestrator planner.",
+          "orchestrator_relay": "Mediated peer-summary relay plus discussion stopping logic.",
+          "relay_specialist_reports": "Specialist-to-orchestrator reports.",
+          "specialists_initial_round": "Initial specialist artifacts.",
+          "specialists_revision_round": "Specialist revision stage."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Max discussion rounds reached",
+          "Consensus across latest specialist artifacts",
+          "No meaningful change between revisions",
+          "Confidence threshold reached",
+          "Invalid or failed branch fallback",
+          "Max outer cycles reached"
+        ],
+        "topology": "orchestrator_with_discussion"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 2,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_with_discussion",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_with_discussion"
+  },
+  "system_label": "orchestrator_with_discussion",
+  "task_count": 10,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/77/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/77/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 348842.9465870112,
+        "C2_tokens_total": 310046.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 60.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 60.0,
+        "D3_handoff_count": 107.0,
+        "P1_steps_total": 312.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 60.0,
+        "stage_act_latency_ms": 295846.7206310015,
+        "stage_act_tokens": 259780.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 3242.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 120.0,
+        "stage_retrieve_latency_ms": 120.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 12.0,
+        "stage_revise_latency_ms": 12.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 108.0,
+        "stage_verify_latency_ms": 52852.2259560097,
+        "stage_verify_tokens": 47024.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import math\nimport numpy as np\nimport scipy as sp\nfrom scipy.constants import  Avogadro\n # Background: Periodic boundary conditions (PBCs) are used in molecular dynamics simulations to mimic an infinite system by placing the simulation box in a periodic array. When a particle moves outside the boundaries of the cubic box of side length L, it is re-inserted from the opposite side. Mathematically, for a box defined in the range [0, L), the wrapped coordinate is given by r_wrapped = r - L * floor(r",
+              "step_results": {
+                "77.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.1.py\", line 17, in <module>\n    assert np.allclose(wrap(particle_position, box_length), targe",
+                "77.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.10.py\", line 30, in <module>\n    assert cmp_tuple_or_list(pressure(N, L, T, positions, sigma,",
+                "77.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.11.py\", line 29, in <module>\n    assert np.allclose(forces(N, positions, L, sigma, epsilon, r",
+                "77.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.12.py\", line 171, in <module>\n    xyz = init_rand(N,L,sigma)\n          ^^^^^^^^^^^^^^^^^^^^\n ",
+                "77.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.2.py\", line 17, in <module>\n    assert np.allclose(dist(r1, r2, box_length), target)\n        ",
+                "77.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.3.py\", line 18, in <module>\n    assert np.allclose(dist_v(r1, r2, box_length), target)\n      ",
+                "77.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.4.py\", line 20, in <module>\n    assert np.allclose(E_ij(r1, sigma1, epsilon1, rc), target)\n  ",
+                "77.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.5.py\", line 21, in <module>\n    assert np.allclose(f_ij(r,sigma,epsilon,rc), target)\n        ",
+                "77.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.6.py\", line 23, in <module>\n    assert np.allclose(E_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.7.py\", line 24, in <module>\n    assert np.allclose(P_tail(N,L,sigma,epsilon,rc), target)\n    ",
+                "77.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.8.py\", line 25, in <module>\n    assert np.allclose(E_pot(positions1, L1, sigma1, epsilon1,rc)",
+                "77.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpitqepw8z/77.9.py\", line 24, in <module>\n    assert np.allclose(temperature(v,m,N), target)\n              "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "77"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/77",
+      "task_id": "77"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/11/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/11/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 336032.18945197016,
+        "C2_tokens_total": 302295.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 60.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 60.0,
+        "D3_handoff_count": 107.0,
+        "P1_steps_total": 312.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.9166666666666666,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 60.0,
+        "stage_act_latency_ms": 282853.69282914326,
+        "stage_act_tokens": 252166.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 12.0,
+        "stage_finalize_latency_ms": 12.0,
+        "stage_finalize_tokens": 2458.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 120.0,
+        "stage_retrieve_latency_ms": 120.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 12.0,
+        "stage_revise_latency_ms": 12.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 108.0,
+        "stage_verify_latency_ms": 53034.496622826904,
+        "stage_verify_tokens": 47671.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 12,
+              "prediction": "import numpy as np\nimport itertools\nimport scipy.linalg\n # Background: In quantum mechanics, a standard basis vector |j> in a d-dimensional Hilbert space is represented as a column vector where the j-th entry (0-indexed) is 1 and all other entries are 0. For composite systems, the state space is the tensor product of individual Hilbert spaces. The tensor product of vectors |v1> and |v2> is computed using the Kronecker product, which results in a vector of dimension dim(v1) * dim(v2). def ket(dim",
+              "step_results": {
+                "11.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.1.py\", line 13, in <module>\n    assert np.allclose(ket(2, 0), target)\n                       ",
+                "11.10": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.10.py\", line 12\n    , D_sys) tensor = X_perm.reshape((D_keep, D_keep, D_sys, D_sys)) # Partial trace: sum over the diagonal of t",
+                "11.11": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.11.py\", line 12\n    , D_sys) tensor = X_perm.reshape((D_keep, D_keep, D_sys, D_sys)) # Partial trace: sum over the diagonal of t",
+                "11.12": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.12.py\", line 12\n    , D_sys) tensor = X_perm.reshape((D_keep, D_keep, D_sys, D_sys)) # Partial trace: sum over the diagonal of t",
+                "11.2": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.2.py\", line 8\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block after",
+                "11.3": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.3.py\", line 9\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block after",
+                "11.4": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.4.py\", line 10\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "11.5": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.5.py\", line 11\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "11.6": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.6.py\", line 12\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "11.7": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.7.py\", line 13\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "11.8": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.8.py\", line 14\n    from scicode.parse.parse import process_hdf5_to_tuple\n    ^\nIndentationError: expected an indented block afte",
+                "11.9": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp9snqc1x8/11.9.py\", line 13\n    , D_sys) tensor = X_perm.reshape((D_keep, D_keep, D_sys, D_sys)) # Partial trace: sum over the diagonal of th"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "11"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/11",
+      "task_id": "11"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/12/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/12/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 402451.5100411922,
+        "C2_tokens_total": 452871.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 70.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 70.0,
+        "D3_handoff_count": 125.0,
+        "P1_steps_total": 364.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 70.0,
+        "stage_act_latency_ms": 341598.61770574935,
+        "stage_act_tokens": 384416.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 3556.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 140.0,
+        "stage_retrieve_latency_ms": 140.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 14.0,
+        "stage_revise_latency_ms": 14.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 126.0,
+        "stage_verify_latency_ms": 60684.892335442826,
+        "stage_verify_tokens": 64899.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 14,
+              "prediction": "from scipy import integrate\nfrom scipy import optimize\nimport numpy as np\n # Background: The radial Schrödinger equation for a particle in a central potential V(r) is given by -1/2 * d^2/dr^2 R(r) + [l(l+1)/(2r^2) + V(r)] R(r) = E R(r) in atomic units. By substituting u(r) = r * R(r), the equation transforms into -1/2 * u''(r) + [l(l+1)/(2r^2) + V(r)] u(r) = E u(r). Rearranging for u''(r) gives u''(r) = [l(l+1)/r^2 + 2(V(r) - E)] u(r). For a hydrogen-like atom with Z=1, the potential is V(r) = -",
+              "step_results": {
+                "12.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.1.py\", line 13, in <module>\n    assert np.allclose(f_Schrod(1,1, np.array([0.1,0.2,0.3])), ta",
+                "12.10": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.10.py\", line 28, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.11": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.11.py\", line 29, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.12": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.12.py\", line 30, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.13": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.13.py\", line 33, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n  ",
+                "12.14": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.14.py\", line 36, in <module>\n    assert cmp_tuple_or_list(scf_routine(r_grid, energy_grid, nm",
+                "12.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.2.py\", line 13, in <module>\n    assert np.allclose(Numerov(f_Schrod(1,3, np.linspace(1e-5,10,",
+                "12.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.3.py\", line 14, in <module>\n    assert np.allclose(compute_Schrod(1, np.linspace(1e-5,10,20),",
+                "12.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.4.py\", line 15, in <module>\n    assert np.allclose(shoot(1.1, np.linspace(1e-7,20,10), 0), ta",
+                "12.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.5.py\", line 16, in <module>\n    assert np.allclose(find_bound_states(np.linspace(1e-8,100,200",
+                "12.6": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.6.py\", line 19, in <module>\n    bound_states += find_bound_states(np.linspace(1e-8,100,2000),",
+                "12.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.7.py\", line 24, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n   ",
+                "12.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.8.py\", line 25, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n   ",
+                "12.9": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpz9lp_kev/12.9.py\", line 27, in <module>\n    bound_states += find_bound_states(r_grid, l, energy_grid)\n   "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "12"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/12",
+      "task_id": "12"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/13/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/13/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 435325.684708016,
+        "C2_tokens_total": 558841.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 70.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 70.0,
+        "D3_handoff_count": 125.0,
+        "P1_steps_total": 364.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.9285714285714286,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 70.0,
+        "stage_act_latency_ms": 374394.45933373645,
+        "stage_act_tokens": 484910.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 14.0,
+        "stage_finalize_latency_ms": 14.0,
+        "stage_finalize_tokens": 3682.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 140.0,
+        "stage_retrieve_latency_ms": 140.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 14.0,
+        "stage_revise_latency_ms": 14.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 126.0,
+        "stage_verify_latency_ms": 60763.225374279544,
+        "stage_verify_tokens": 70249.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.06666666666666667,
+              "Total Correct": 1,
+              "Total Steps": 15,
+              "prediction": "from numpy import zeros, linspace, exp, sqrt\nimport numpy as np\n # Background: The partial derivative of a scalar field f(x, y, z) on a discrete grid is approximated using finite difference methods. For interior points, the second-order central difference formula is used: df/dx ≈ (f(i+1) - f(i-1)) / (2*delta). At the boundaries, one-sided second-order finite difference stencils are used to maintain second-order accuracy: at the left boundary (i=0), df/dx ≈ (-3*f(0) + 4*f(1) - f(2)) / (2*delta); ",
+              "step_results": {
+                "13.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.1.py\", line 15, in <module>\n    assert np.allclose(partial_derivs_vec(fct, delta), target)\n  ",
+                "13.10": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.10.py\", line 11\n    ot, A_y_dot, A_z_dot, phi_dot]: symmetry(f_dot, 1, 1, 1) # Outgoing wave boundary conditions for f_dot, f in",
+                "13.11": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.11.py\", line 11\n    ot, A_y_dot, A_z_dot, phi_dot]: symmetry(f_dot, 1, 1, 1) # Outgoing wave boundary conditions for f_dot, f in",
+                "13.12": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.12.py\", line 11\n    ot, A_y_dot, A_z_dot, phi_dot]: symmetry(f_dot, 1, 1, 1) # Outgoing wave boundary conditions for f_dot, f in",
+                "13.13": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.13.py\", line 11\n    ot, A_y_dot, A_z_dot, phi_dot]: symmetry(f_dot, 1, 1, 1) # Outgoing wave boundary conditions for f_dot, f in",
+                "13.14": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.14.py\", line 11\n    ot, A_y_dot, A_z_dot, phi_dot]: symmetry(f_dot, 1, 1, 1) # Outgoing wave boundary conditions for f_dot, f in",
+                "13.15": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.15.py\", line 11\n    ot, A_y_dot, A_z_dot, phi_dot]: symmetry(f_dot, 1, 1, 1) # Outgoing wave boundary conditions for f_dot, f in",
+                "13.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.2.py\", line 15, in <module>\n    assert np.allclose(laplace(fct, delta), target)\n             ",
+                "13.3": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.3.py\", line 16, in <module>\n    assert np.allclose(gradient(fct, delta), target)\n            ",
+                "13.4": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.4.py\", line 19, in <module>\n    assert np.allclose(divergence(fx, fy, fz, delta), target)\n   ",
+                "13.5": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.5.py\", line 20, in <module>\n    assert np.allclose(grad_div(fx, fy, fz, delta), target)\n     ",
+                "13.6": "skipped (official)",
+                "13.7": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.7.py\", line 19, in <module>\n    assert np.allclose(symmetry(f_dot, 1, 1, -1), target)\n       ",
+                "13.8": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.8.py\", line 18, in <module>\n    maxwell = Maxwell(50,2)\n              ^^^^^^^\nNameError: name",
+                "13.9": "fail:   File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc9oyldtv/13.9.py\", line 12\n    ot, A_y_dot, A_z_dot, phi_dot]: symmetry(f_dot, 1, 1, 1) # Outgoing wave boundary conditions for f_dot, f in "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "13"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/13",
+      "task_id": "13"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/2/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 27249.566581711173,
+        "C2_tokens_total": 16149.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 26.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 23733.808040851727,
+        "stage_act_tokens": 11252.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 265.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 9.0,
+        "stage_verify_latency_ms": 3503.758540859446,
+        "stage_verify_tokens": 4632.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom scipy.integrate import simps\n\n\n # Background: The diffraction of a Gaussian beam through a lens is modeled using the Fresnel diffraction integral. A lens acts as a phase transformer, applying a phase shift phi(r) = -k * (n-1) * h(r), where k = 2*pi/lambda. For a symmetric biconvex lens, the thickness profile is h(r) = d - 2 * (RL - sqrt(RL^2 - r^2)). The incident Gaussian beam is defined by E(r) = exp(-r^2 / R0^2). The field after the lens is E_out(r) = E(r) * exp(i * phi",
+              "step_results": {
+                "2.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpc7e7v3g_/2.1.py\", line 2, in <module>\n    from scipy.integrate import simps\nImportError: cannot import na"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "2"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/2",
+      "task_id": "2"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/74/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/74/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 23116.440958954394,
+        "C2_tokens_total": 11656.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 26.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 19362.13095788844,
+        "stage_act_tokens": 8121.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 169.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 9.0,
+        "stage_verify_latency_ms": 3742.3100010659546,
+        "stage_verify_tokens": 3366.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: QR factorization using Householder reflections decomposes an m x n matrix A into an orthogonal matrix Q and an upper triangular matrix R. A Householder reflection is defined by a vector v such that H = I - 2(vv^T)/(v^Tv). By applying a sequence of these reflections, we zero out the elements below the diagonal of A. The resulting upper triangular matrix R is stored in the upper triangle of the modified matrix A. def householder(A): '''Inputs: A : Matrix of size",
+              "step_results": {
+                "74.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpp9h_mba3/74.1.py\", line 12, in <module>\n    A_transformed = householder(A)\n                    ^^^^^^^^^^"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "74"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/74",
+      "task_id": "74"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/5/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/5/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 28586.98225012608,
+        "C2_tokens_total": 13304.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 26.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 23648.83479126729,
+        "stage_act_tokens": 9236.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 235.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 9.0,
+        "stage_verify_latency_ms": 4926.147458858788,
+        "stage_verify_tokens": 3833.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The Lanczos iteration is an iterative method for constructing an orthonormal basis for the Krylov subspace K_m(A, b) = span{b, Ab, A^2b, ..., A^{m-1}b} of a symmetric matrix A. It uses a three-term recurrence relation to generate vectors q_j such that the matrix Q = [q_1, q_2, ..., q_{m+1}] has orthonormal columns. The algorithm computes alpha_j = q_j^T * A * q_j and beta_j = ||v_j||, where v_j = A * q_j - alpha_j * q_j - beta_{j-1} * q_{j-1}. To maintain nume",
+              "step_results": {
+                "5.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpsvdqzz8w/5.1.py\", line 19, in <module>\n    assert np.allclose(lanczos(A,b,m), target)\n                   "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "5"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/5",
+      "task_id": "5"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/8/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/8/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 30502.104874147102,
+        "C2_tokens_total": 14216.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 26.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 26756.48829084821,
+        "stage_act_tokens": 10292.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 253.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 9.0,
+        "stage_verify_latency_ms": 3733.616583298892,
+        "stage_verify_tokens": 3671.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\nfrom numpy.fft import fft2, ifft2, fftshift, ifftshift\n\n\n # Background: Spatial filtering in Fourier optics relies on the Convolution Theorem, which states that convolution in the spatial domain is equivalent to multiplication in the frequency domain. By performing a 2D Fast Fourier Transform (FFT) on an image, we shift the zero-frequency component to the center using fftshift. A cross-shaped high-pass filter is created by generating a mask that is 0 within a central cross reg",
+              "step_results": {
+                "8.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpunvmbsnu/8.1.py\", line 16, in <module>\n    assert cmp_tuple_or_list(apply_cshband_pass_filter(image_array"
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "8"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/8",
+      "task_id": "8"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/9/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/9/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 23968.176332214847,
+        "C2_tokens_total": 14887.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 5.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 5.0,
+        "D3_handoff_count": 8.0,
+        "P1_steps_total": 26.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 5.0,
+        "stage_act_latency_ms": 20812.16008309275,
+        "stage_act_tokens": 10622.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 247.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 10.0,
+        "stage_retrieve_latency_ms": 10.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 9.0,
+        "stage_verify_latency_ms": 3144.016249122098,
+        "stage_verify_tokens": 4018.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 1,
+              "prediction": "import numpy as np\n\n\n # Background: The weighted Jacobi method is an iterative technique for solving linear systems Ax = b. It decomposes A into D + R, where D is the diagonal component and R is the remainder. The iteration formula is x_{k+1} = (1-omega)x_k + omega * D^{-1}(b - Rx_k), which simplifies to x_{k+1} = x_k + omega * D^{-1}(b - Ax_k). The method converges when the spectral radius of the iteration matrix I - omega * D^{-1}A is less than 1. The iteration continues until the L2 norm of t",
+              "step_results": {
+                "9.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmp7uknx9l2/9.1.py\", line 28, in <module>\n    assert np.allclose(WJ(A, b, eps, x_true, x0,2/3), target)\n    "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "9"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/9",
+      "task_id": "9"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/14/analysis.json",
+        "task_summary_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/14/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 54985.525416268036,
+        "C2_tokens_total": 30888.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 10.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_communication_count": 10.0,
+        "D3_handoff_count": 17.0,
+        "P1_steps_total": 52.0,
+        "P2_backtrack_rate": 0.038461538461538464,
+        "P3_loop_score": 0.5,
+        "P4_verification_density": 0.34615384615384615,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 10.0,
+        "stage_act_latency_ms": 46729.89837406203,
+        "stage_act_tokens": 22394.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 2.0,
+        "stage_finalize_latency_ms": 2.0,
+        "stage_finalize_tokens": 472.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 20.0,
+        "stage_retrieve_latency_ms": 20.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 2.0,
+        "stage_revise_latency_ms": 2.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 18.0,
+        "stage_verify_latency_ms": 8231.627042206004,
+        "stage_verify_tokens": 8022.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "Main Problem Resolve Rate": 0.0,
+              "Subproblem Resolve Rate": 0.0,
+              "Total Correct": 0,
+              "Total Steps": 2,
+              "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t). Mannella's leapfrog method (stochastic leapfrog) integrates this by splitting the dynamics into a deterministic harmonic drift and an exact Ornstein-Uhlenbeck (OU) update for the velocity. The OU update for a time step dt is v_new = v_old * exp(-dt/taup) + vrms * sqrt(1 - exp(-2*dt/taup)) * N(0,1), where N(0,1) is a standard no",
+              "step_results": {
+                "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpdpo5gi1d/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+                "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpdpo5gi1d/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+              }
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "14"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/orchestrator_with_discussion/14",
+      "task_id": "14"
+    }
+  ],
+  "timestamp": "20260401T195507Z"
+}

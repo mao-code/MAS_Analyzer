@@ -1,0 +1,48 @@
+{
+  "completion": true,
+  "details": {
+    "Main Problem Resolve Rate": 0.0,
+    "Subproblem Resolve Rate": 0.0,
+    "Total Correct": 0,
+    "Total Steps": 2,
+    "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t). Mannella's leapfrog method discretizes this by defining coefficients a = (1 - dt/(2*taup)) / (1 + dt/(2*taup)), b = dt / (1 + dt/(2*taup)), and c = sqrt(2 * vrms^2 * dt / taup) / (1 + dt/(2*taup)). The update rules are: v_half = v_n + 0.5 * dt * (-omega0^2 * x_n), x_{n+1} = x_n + dt * v_half, v_{n+1} = a * v_half + b * (-omega0^2 * x_{n",
+    "run_metadata_path": "/Users/powerarena/Documents/GitHub/MAS_Analyzer/artifacts/full_experiment/20260401T195507Z/scicode/group_chat_debate/14/run_0.metadata.json",
+    "run_metadata_summary": {
+      "final_reason": "group_chat_debate:consensus_reached",
+      "messages_sent_by_agent": {
+        "agent_0": 0,
+        "agent_1": 0,
+        "agent_2": 0,
+        "agent_3": 0
+      },
+      "messages_sent_total": 0,
+      "retrieved_docids": [],
+      "run_index": 0,
+      "seed": 9042,
+      "task_id": "14.1",
+      "tool_call_counts": {},
+      "tool_calls_total": 0,
+      "topology": "group_chat_debate",
+      "turns_executed": 2,
+      "vote_tally": {
+        "python background the mean square displacement msd is defined as the ensemble average of the squared displacement x t x 0 2 for an optically trapped particle in thermal equilibrium the initial position x0 and velocity v0 are sampled from the maxwell boltzmann distribution x0 n 0 vrms 2 omega0 2 and v0 n 0 vrms 2 mannella s leapfrog method provides a stable discretization of the langevin equation allowing for the numerical integration of the particle trajectory over time def calculate msd t0 steps taup omega0 vrms navg calculate the mean square displacement msd of an optically trapped microsphere in a gas by averaging navg simulations dt t0 steps a 1 dt 2 taup 1 dt 2 taup b dt 1 dt 2 taup c np sqrt 2 vrms 2 dt taup 1 dt 2 taup squared displacements for in range navg initial conditions from maxwell boltzmann distribution x0 np random normal 0 vrms omega0 v np random normal 0 vrms x x0 for in range steps v half v 0 5 dt omega0 2 x x x dt v half noise np random normal 0 1 v a v half b omega0 2 x c noise squared displacements append x x0 2 x msd np mean squared displacements return x msd": 1,
+        "python background the mean square displacement msd is defined as the ensemble average of the squared displacement x t x 0 2 for an optically trapped particle in thermal equilibrium the initial position x0 and velocity v0 are sampled from the maxwell boltzmann distribution x0 n 0 vrms 2 omega0 2 and v0 n 0 vrms 2 the langevin equation is solved using mannella s leapfrog method which discretizes the stochastic differential equation to maintain stability and accuracy in the presence of the harmonic potential and thermal noise def calculate msd t0 steps taup omega0 vrms navg calculate the mean square displacement msd of an optically trapped microsphere in a gas by averaging navg simulations input t0 float the time point at which to calculate the msd steps int number of simulation steps for the integration taup float momentum relaxation time of the microsphere omega0 float resonant frequency of the optical trap vrms float root mean square velocity of the thermal fluctuations navg int number of simulations to average over for computing the msd output x msd float the computed msd at time point t0 dt t0 steps a 1 dt 2 taup 1 dt 2 taup b dt 1 dt 2 taup c np sqrt 2 vrms 2 dt taup 1 dt 2 taup squared displacements for in range navg sample initial conditions from maxwell boltzmann distribution x0 np random normal 0 vrms omega0 v0 np random normal 0 vrms x x0 v v0 for in range steps v half v 0 5 dt omega0 2 x x x dt v half noise np random normal 0 1 v a v half b omega0 2 x c noise squared displacements append x x0 2 x msd np mean squared displacements return x msd": 1
+      }
+    },
+    "step_results": {
+      "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpmtrppyqm/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+      "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpmtrppyqm/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+    }
+  },
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t). Mannella's leapfrog method discretizes this by defining coefficients a = (1 - dt/(2*taup)) / (1 + dt/(2*taup)), b = dt / (1 + dt/(2*taup)), and c = sqrt(2 * vrms^2 * dt / taup) / (1 + dt/(2*taup)). The update rules are: v_half = v_n + 0.5 * dt * (-omega0^2 * x_n), x_{n+1} = x_n + dt * v_half, v_{n+1} = a * v_half + b * (-omega0^2 * x_{n+1}) + c * W, where W is a standard normal random variable. def harmonic_mannella_leapfrog(x0, v0, t0, steps, taup, omega0, vrms): dt = t0 / steps x = x0 v = v0 # Precompute Mannella coefficients a = (1 - dt / (2 * taup)) / (1 + dt / (2 * taup)) b = dt / (1 + dt / (2 * taup)) c = np.sqrt(2 * (vrms**2) * dt / taup) / (1 + dt / (2 * taup)) for _ in range(steps): # Half-step velocity update v_half = v - 0.5 * dt * (omega0**2 * x) # Full-step position update x = x + dt * v_half # Full-step velocity update noise = np.random.normal(0, 1) v = a * v_half - b * (omega0**2 * x) + c * noise return x \n\n # Background: The Mean-Square Displacement (MSD) is defined as the ensemble average of the squared displacement, <(x(t) - x(0))^2>. For an optically trapped particle in thermal equilibrium, the initial position x0 and velocity v0 are sampled from the Maxwell-Boltzmann distribution: x0 ~ N(0, vrms^2 / omega0^2) and v0 ~ N(0, vrms^2). Mannella's leapfrog method provides a stable discretization of the Langevin equation, allowing for the numerical integration of the particle trajectory over time. def calculate_msd(t0, steps, taup, omega0, vrms, Navg): '''Calculate the mean-square displacement (MSD) of an optically trapped microsphere in a gas by averaging Navg simulations.''' dt = t0 / steps a = (1 - dt / (2 * taup)) / (1 + dt / (2 * taup)) b = dt / (1 + dt / (2 * taup)) c = np.sqrt(2 * (vrms**2) * dt / taup) / (1 + dt / (2 * taup)) squared_displacements = [] for _ in range(Navg): # Initial conditions from Maxwell-Boltzmann distribution x0 = np.random.normal(0, vrms / omega0) v = np.random.normal(0, vrms) x = x0 for _ in range(steps): v_half = v - 0.5 * dt * (omega0**2 * x) x = x + dt * v_half noise = np.random.normal(0, 1) v = a * v_half - b * (omega0**2 * x) + c * noise squared_displacements.append((x - x0)**2) x_MSD = np.mean(squared_displacements) return x_MSD ",
+  "score": 0.0,
+  "success": false,
+  "task_id": "14"
+}

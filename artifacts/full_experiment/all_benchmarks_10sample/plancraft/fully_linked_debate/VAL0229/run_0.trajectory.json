@@ -1,0 +1,587 @@
+{
+  "benchmark": "plancraft",
+  "final": {
+    "answer": "impossible: The inventory does not contain a furnace, which is required to smelt the salmon into cooked_salmon.",
+    "answer_preview": "impossible: The inventory does not contain a furnace, which is required to smelt the salmon into cooked_salmon.",
+    "final_reason": "fully_linked_debate:consensus_reached",
+    "last_termination": {
+      "average_confidence": 1.0,
+      "consensus_count": 4,
+      "consensus_explanation": "All agents correctly identified that the task is impossible, although they incorrectly referenced salmon instead of the requested andesite crafting task.",
+      "consensus_groups": [
+        [
+          0,
+          1,
+          2,
+          3
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "0,1,2,3",
+      "consensus_source": "llm_judge",
+      "consensus_valid_count": 4,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 1828.0157910194248,
+      "control_token_in": 975,
+      "control_token_out": 46,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "judge",
+      "outer_step_index": 2,
+      "reason": "consensus_reached",
+      "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "debate_controller",
+      "valid_artifact_count": 4
+    },
+    "vote_tally": {
+      "impossible the inventory contains raw salmon but there is no furnace or fuel source available to perform the smelting process required to produce cooked salmon": 1,
+      "impossible the inventory does not contain a furnace which is required to smelt the salmon into cooked salmon": 3
+    }
+  },
+  "prompt_catalog": [
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_1",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+      "prompt_id": "p_2",
+      "role": "system",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_3",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "move: from [I18] to [B1] with quantity 1",
+      "prompt_id": "p_4",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_5",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "move: from [I30] to [B2] with quantity 1",
+      "prompt_id": "p_6",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+      "prompt_id": "p_7",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "move: from [0] to [I6] with quantity 1",
+      "prompt_id": "p_8",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_9",
+      "role": "user",
+      "usage_count": 12
+    },
+    {
+      "content": "smelt: from [I36] to [I35] with quantity 1",
+      "prompt_id": "p_10",
+      "role": "assistant",
+      "usage_count": 12
+    },
+    {
+      "content": "Craft an item of type: cooked_salmon\ninventory:\n - birch_trapdoor [I20] quantity 53\n - salmon [I21] quantity 1\n - iron_helmet [I22] quantity 1\n - polished_diorite [I25] quantity 39\n - gold_ore [I31] quantity 49",
+      "prompt_id": "p_11",
+      "role": "user",
+      "usage_count": 24
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_12",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_13",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_14",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_15",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_16",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: debater\nStage Role: critic\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_17",
+      "role": "system",
+      "usage_count": 3
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"debater\",\n  \"stage_role\": \"critic\",\n  \"directive\": \"Debate using only bounded peer summaries from the latest round. Revise your answer if warranted.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_18",
+      "role": "user",
+      "usage_count": 3
+    },
+    {
+      "content": "smelt: from [I21] to [I22] with quantity 1",
+      "prompt_id": "p_19",
+      "role": "assistant",
+      "usage_count": 12
+    }
+  ],
+  "run_index": 0,
+  "steps": [
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 921,
+            "token_out": 171
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I21] to [I22] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_salmon'. The inventory contains raw salmon in slot [I21]. The appropriate action is to smelt the raw salmon in a furnace.\",\n  \"critique\": \"The previous actions were successful in crafting andesite and iron ingots. The current task is to cook salmon. Smelting is the correct process for this item.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains salmon [I21]. Smelting [I21] will result in cooked_salmon.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 911,
+            "token_out": 238
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I21] to [I22] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_salmon'. The inventory contains raw salmon in slot [I21]. The appropriate action to obtain cooked salmon is to smelt the raw salmon in a furnace.\",\n  \"critique\": \"The previous action was a smelt operation, but the target slot [I22] is currently occupied by an iron_helmet. I must ensure the target slot is empty or valid for the smelt operation.\",\n  \"revision_request\": \"Ensure the target slot for the smelt operation is empty to avoid overwriting existing items.\",\n  \"confidence\": 0.9,\n  \"unresolved_issues\": [\n    \"The target slot [I22] is occupied by an iron_helmet, which might prevent the smelt operation from completing successfully if the game logic requires an empty slot.\"\n  ],\n  \"evidence_summary\": \"Inventory contains salmon [I21]. Smelting is the standard Minecraft mechanic for cooking raw food items.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 911,
+            "token_out": 171
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I21] to [I22] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_salmon'. The inventory contains raw salmon in slot [I21]. The appropriate action to obtain cooked salmon is to smelt the raw salmon.\",\n  \"critique\": \"The previous action was a smelt operation for iron ore, but the current goal is to cook salmon. Smelting raw salmon is the correct procedure to produce cooked salmon.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains salmon [I21]. Smelting [I21] results in cooked_salmon.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 911,
+            "token_out": 179
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I21] to [I35] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_salmon'. The inventory contains raw salmon in slot [I21]. The appropriate action to obtain cooked salmon is to smelt the raw salmon in a furnace.\",\n  \"critique\": \"The previous actions were successful in crafting andesite and iron ingots. For the current task, the raw salmon must be processed via a furnace (smelt action) to produce cooked salmon.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains salmon [I21]. Smelting is the standard Minecraft mechanic for cooking raw food items.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "debate_round",
+      "phases": [
+        "debate_round"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11"
+      ],
+      "step_index": 1,
+      "termination": [
+        {
+          "average_confidence": 0.975,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "judge",
+          "outer_step_index": 0,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "debate_controller",
+          "valid_artifact_count": 4
+        }
+      ]
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1011,
+            "token_out": 239
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I21] to [I22] with quantity 1\",\n  \"summary\": \"The agent attempted to smelt raw salmon into cooked salmon using a furnace. The previous action was a smelt command targeting the inventory slot containing the iron helmet, which is incorrect as the output of a smelt operation must be a free slot or a furnace output.\",\n  \"critique\": \"The previous action attempted to smelt salmon into a slot already occupied by an iron_helmet ([I22]). Smelting requires a furnace and an empty output slot. The current inventory does not show a furnace available, making the task impossible with the provided inventory.\",\n  \"revision_request\": \"The task is impossible because there is no furnace available in the inventory to process the raw salmon.\",\n  \"confidence\": 0.9,\n  \"unresolved_issues\": [\n    \"No furnace available in inventory to perform the smelt action.\"\n  ],\n  \"evidence_summary\": \"Inventory contains salmon [I21] but lacks a furnace block or item to perform the smelting process.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1023,
+            "token_out": 237
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I21] to [I22] with quantity 1\",\n  \"summary\": \"The agent attempted to smelt raw salmon into cooked salmon using a furnace. The previous action was a smelt command targeting slot [I22].\",\n  \"critique\": \"The previous action was technically valid as a smelt command, but the target slot [I22] is currently occupied by an iron_helmet. Smelting into an occupied slot may fail or overwrite items depending on game mechanics. The process is otherwise correct for obtaining cooked salmon.\",\n  \"revision_request\": \"Ensure the target slot for the smelt operation is empty to avoid potential item loss or command failure.\",\n  \"confidence\": 0.8,\n  \"unresolved_issues\": [\n    \"Target slot [I22] is occupied by an iron_helmet.\"\n  ],\n  \"evidence_summary\": \"Inventory shows salmon in [I21] and iron_helmet in [I22]. Smelting requires an empty output slot or a furnace output slot.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1011,
+            "token_out": 232
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I21] to [I22] with quantity 1\",\n  \"summary\": \"The agent attempted to smelt raw salmon into cooked salmon using a furnace. However, the previous action was invalid because the target slot [I22] is occupied by an iron_helmet, and the smelt command requires a furnace, which is not present in the inventory.\",\n  \"critique\": \"The previous action is impossible because there is no furnace in the inventory to perform the smelting process. Additionally, attempting to smelt directly into an occupied inventory slot is not a valid operation.\",\n  \"revision_request\": \"The task of crafting cooked_salmon is impossible with the current inventory as there is no furnace available.\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"No furnace available to smelt the salmon.\"\n  ],\n  \"evidence_summary\": \"Inventory contains: birch_trapdoor, salmon, iron_helmet, polished_diorite, gold_ore. No furnace is listed.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1011,
+            "token_out": 214
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"impossible: The inventory does not contain a furnace or fuel required to smelt the salmon into cooked_salmon.\",\n  \"summary\": \"The agent attempted to smelt salmon using an iron_helmet slot, which is not a valid furnace operation, and lacks the necessary furnace and fuel items to complete the task.\",\n  \"critique\": \"The previous action was invalid because it attempted to use an inventory slot as a furnace. The current inventory lacks the required tools (furnace) and fuel (coal/wood) to process the salmon.\",\n  \"revision_request\": \"None, the task is impossible with the current inventory.\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"Missing furnace\",\n    \"Missing fuel\"\n  ],\n  \"evidence_summary\": \"Inventory contains: birch_trapdoor, salmon, iron_helmet, polished_diorite, gold_ore. None of these items are a furnace or fuel.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 1,
+      "parallel": true,
+      "phase": "debate_round",
+      "phases": [
+        "debate_round"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_19"
+      ],
+      "step_index": 2,
+      "termination": [
+        {
+          "average_confidence": 0.925,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "judge",
+          "outer_step_index": 1,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "debate_controller",
+          "valid_artifact_count": 4
+        }
+      ]
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1111,
+            "token_out": 187
+          },
+          "prompt_ids": [
+            "p_1",
+            "p_12"
+          ],
+          "response": "{\n  \"answer_artifact\": \"impossible: The inventory does not contain a furnace, which is required to smelt the salmon into cooked_salmon.\",\n  \"summary\": \"The agent attempted to smelt salmon using an iron_helmet slot, which is not a valid furnace operation. The inventory lacks a furnace.\",\n  \"critique\": \"The previous actions were invalid because they attempted to use an inventory slot as a furnace. Smelting requires a furnace block in the inventory.\",\n  \"revision_request\": \"None, the task is impossible with the current inventory.\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"No furnace available in inventory.\"\n  ],\n  \"evidence_summary\": \"Inventory contains: birch_trapdoor, salmon, iron_helmet, polished_diorite, gold_ore. No furnace present.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1125,
+            "token_out": 224
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"impossible: The inventory contains raw salmon, but there is no furnace or fuel source available to perform the smelting process required to produce cooked salmon.\",\n  \"summary\": \"The agent attempted to smelt raw salmon into cooked salmon using an iron helmet slot, which is invalid, and lacks the necessary furnace and fuel to complete the task.\",\n  \"critique\": \"The previous actions were logically flawed. Smelting requires a furnace block and fuel, neither of which are present in the inventory. Attempting to smelt into an occupied inventory slot (iron_helmet) is also incorrect.\",\n  \"revision_request\": \"None. The task is impossible with the current inventory.\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"No furnace available\",\n    \"No fuel available\"\n  ],\n  \"evidence_summary\": \"Inventory contains: birch_trapdoor, salmon, iron_helmet, polished_diorite, gold_ore. None of these items are furnaces or fuel.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1111,
+            "token_out": 206
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"impossible: The inventory does not contain a furnace, which is required to smelt the salmon into cooked_salmon.\",\n  \"summary\": \"The agent attempted to smelt salmon into cooked_salmon using an iron_helmet slot, but lacks the necessary furnace block to perform the smelting action.\",\n  \"critique\": \"The previous actions were invalid because they attempted to use an iron_helmet slot as a destination for a smelt operation, and there is no furnace present in the inventory to facilitate the transformation of raw salmon to cooked salmon.\",\n  \"revision_request\": \"None required; the task is impossible with the current inventory.\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"Missing furnace to perform smelting.\"\n  ],\n  \"evidence_summary\": \"Inventory contains: birch_trapdoor, salmon, iron_helmet, polished_diorite, gold_ore. No furnace is listed.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1125,
+            "token_out": 195
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"impossible: The inventory does not contain a furnace, which is required to smelt the salmon into cooked_salmon.\",\n  \"summary\": \"The agent attempted to smelt salmon into cooked_salmon using an iron_helmet slot, but lacks the necessary furnace block to perform the smelting action.\",\n  \"critique\": \"The previous actions were invalid because they attempted to use an inventory slot as a furnace and repeated the same failed command without addressing the lack of a furnace.\",\n  \"revision_request\": \"None required; the task is impossible with the current inventory.\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [\n    \"No furnace available in inventory.\"\n  ],\n  \"evidence_summary\": \"Inventory contains: birch_trapdoor, salmon, iron_helmet, polished_diorite, gold_ore. None of these are a furnace.\"\n}",
+          "role": "debater",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [],
+      "outer_step_index": 2,
+      "parallel": true,
+      "phase": "debate_round",
+      "phases": [
+        "debate_round"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_19"
+      ],
+      "step_index": 3,
+      "termination": [
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "judge",
+          "outer_step_index": 2,
+          "reason": "consensus_reached",
+          "reason_detail": "Consensus ratio 1.00 met the 0.75 threshold.",
+          "should_stop": true,
+          "stage_name": "debate_controller",
+          "valid_artifact_count": 4
+        }
+      ]
+    }
+  ],
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "fully_linked_debate",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "fully_linked_debate"
+  },
+  "task_id": "VAL0229",
+  "tool_definitions": []
+}

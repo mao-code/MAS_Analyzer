@@ -1,0 +1,584 @@
+{
+  "benchmark": "plancraft",
+  "final": {
+    "answer": "smelt: from [I9] to [I8] with quantity 1",
+    "answer_preview": "smelt: from [I9] to [I8] with quantity 1",
+    "final_reason": "orchestrator_tree_structure:confidence_threshold_reached",
+    "last_termination": {
+      "average_confidence": 1.0,
+      "consensus_count": 1,
+      "consensus_explanation": "",
+      "consensus_groups": [
+        [
+          0
+        ]
+      ],
+      "consensus_mode": "llm_judge",
+      "consensus_ratio": 1.0,
+      "consensus_signature": "smelt from i9 to i8 with quantity 1",
+      "consensus_source": "lexical_singleton",
+      "consensus_valid_count": 1,
+      "control_cost_usd": 0.0,
+      "control_latency_ms": 1.0,
+      "control_token_in": 0,
+      "control_token_out": 0,
+      "discussion_index": 0,
+      "mean_delta": null,
+      "next_step": "finalize",
+      "outer_step_index": 0,
+      "reason": "confidence_threshold_reached",
+      "reason_detail": "Average confidence 1.00 met the 0.85 threshold.",
+      "round_index": 0,
+      "should_stop": true,
+      "stage_name": "termination_checker",
+      "valid_artifact_count": 1
+    },
+    "vote_tally": {}
+  },
+  "prompt_catalog": [
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: root_orchestrator\nStage Role: planner\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_1",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "You are crafting in Minecraft. You need to decide on the next action.\n\nCrafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:\n    - Top row: [A1] [A2] [A3]\n    - Middle row: [B1] [B2] [B3]\n    - Bottom row: [C1] [C2] [C3]\n\nThe output of the crafting process is placed in a designated output slot labeled [0] You cannot move or smelt items directly into slot [0]\n\nInventory Slots: The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36]\n\nActions:\n\t- move: Transfer a specific quantity of an item from one slot to another\n\t- smelt: Smelt an item in a furnace and moves the output to a specific slot\n\t- impossible: Stop task if it is certain that it is impossible with given inventory\n\nFormat\n\t- `move: from [Source] to [Target] with quantity N`\n\t- `smelt: from [Source] to [Target] with quantity N`\n\t- `impossible: <reason>`\n\nExample:\n    - `move: from [I2] to [A1] with quantity 3`\n    - `smelt: from [I5] to [I6] with quantity 1`\n\nConstraints:\n   - You cannot move or smelt items into [0]\n   - If an item is not in slot [0] then the recipe is incorrect\n   - You need to move items from [0] to a free inventory slot to complete the crafting process",
+      "prompt_id": "p_2",
+      "role": "system",
+      "usage_count": 7
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [I18] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_3",
+      "role": "user",
+      "usage_count": 7
+    },
+    {
+      "content": "move: from [I18] to [B1] with quantity 1",
+      "prompt_id": "p_4",
+      "role": "assistant",
+      "usage_count": 7
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - diorite [B1] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_5",
+      "role": "user",
+      "usage_count": 7
+    },
+    {
+      "content": "move: from [I30] to [B2] with quantity 1",
+      "prompt_id": "p_6",
+      "role": "assistant",
+      "usage_count": 7
+    },
+    {
+      "content": "Craft an item of type: andesite\ninventory:\n - andesite [0] quantity 1\n - diorite [B1] quantity 1\n - cobblestone [B2] quantity 1",
+      "prompt_id": "p_7",
+      "role": "user",
+      "usage_count": 7
+    },
+    {
+      "content": "move: from [0] to [I6] with quantity 1",
+      "prompt_id": "p_8",
+      "role": "assistant",
+      "usage_count": 7
+    },
+    {
+      "content": "Craft an item of type: iron_ingot\ninventory:\n - iron_ore [I36] quantity 1\n - cobblestone [I30] quantity 1",
+      "prompt_id": "p_9",
+      "role": "user",
+      "usage_count": 7
+    },
+    {
+      "content": "smelt: from [I36] to [I35] with quantity 1",
+      "prompt_id": "p_10",
+      "role": "assistant",
+      "usage_count": 7
+    },
+    {
+      "content": "Craft an item of type: cooked_cod\ninventory:\n - emerald [I1] quantity 37\n - cod [I9] quantity 1\n - acacia_button [I21] quantity 62\n - horn_coral_fan [I25] quantity 18\n - pumpkin_seeds [I35] quantity 50",
+      "prompt_id": "p_11",
+      "role": "user",
+      "usage_count": 7
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"root_orchestrator\",\n  \"stage_role\": \"planner\",\n  \"directive\": \"Create manager-level task packages for the tree. Communication must remain parent-child only.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_12",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_1\nAgent Role: manager\nStage Role: planner\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_13",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_1\",\n  \"agent_role\": \"manager\",\n  \"stage_role\": \"planner\",\n  \"directive\": \"Refine the parent task package into child-specific work packages. Do not use sibling information.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_1\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_0\",\n      \"recipients\": [\n        \"agent_1\"\n      ],\n      \"kind\": \"root_task_package\",\n      \"phase\": \"manager_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n      \"content\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n      \"payload\": {\n        \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n        \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n        \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n        \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_14",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_2\nAgent Role: manager\nStage Role: planner\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_15",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_2\",\n  \"agent_role\": \"manager\",\n  \"stage_role\": \"planner\",\n  \"directive\": \"Refine the parent task package into child-specific work packages. Do not use sibling information.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_2\",\n      \"dispatch_id\": 0,\n      \"sender\": \"agent_0\",\n      \"recipients\": [\n        \"agent_2\"\n      ],\n      \"kind\": \"root_task_package\",\n      \"phase\": \"manager_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n      \"content\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n      \"payload\": {\n        \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n        \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n        \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n        \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_16",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_3\nAgent Role: leaf_worker\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_17",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_3\",\n  \"agent_role\": \"leaf_worker\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Work only from your parent manager package. There is no sibling or backflow context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_3\",\n      \"dispatch_id\": 1,\n      \"sender\": \"agent_1\",\n      \"recipients\": [\n        \"agent_3\"\n      ],\n      \"kind\": \"manager_task_package\",\n      \"phase\": \"worker_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"manager_nodes:agent_1:0:0:0\",\n      \"content\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n      \"payload\": {\n        \"artifact_id\": \"manager_nodes:agent_1:0:0:0\",\n        \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n        \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n        \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_18",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_4\nAgent Role: leaf_worker\nStage Role: worker\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_19",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_4\",\n  \"agent_role\": \"leaf_worker\",\n  \"stage_role\": \"worker\",\n  \"directive\": \"Work only from your parent manager package. There is no sibling or backflow context.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_4\",\n      \"dispatch_id\": 1,\n      \"sender\": \"agent_2\",\n      \"recipients\": [\n        \"agent_4\"\n      ],\n      \"kind\": \"manager_task_package\",\n      \"phase\": \"worker_dispatch\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"manager_nodes:agent_2:0:0:0\",\n      \"content\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n      \"payload\": {\n        \"artifact_id\": \"manager_nodes:agent_2:0:0:0\",\n        \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n        \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n        \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_20",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: \nAgent Role: agent\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_21",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"\",\n  \"agent_role\": \"agent\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Aggregate only your child reports into a refined manager artifact.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": null,\n  \"visible_packets\": []\n}",
+      "prompt_id": "p_22",
+      "role": "user",
+      "usage_count": 1
+    },
+    {
+      "content": "You are one agent in a deterministic multi-agent workflow.\nAgent ID: agent_0\nAgent Role: root_orchestrator\nStage Role: aggregator\n\nUse only the task messages, the prior artifact, and the visible packets provided in this conversation. Do not invent hidden context.\nReturn exactly one JSON object and do not wrap it in markdown.\nRequired JSON keys: answer_artifact, summary, critique, revision_request, confidence, unresolved_issues, evidence_summary.\nIf a field is unknown, use an empty string, an empty list, or a conservative confidence score.",
+      "prompt_id": "p_23",
+      "role": "system",
+      "usage_count": 1
+    },
+    {
+      "content": "Stage context follows as JSON. Treat it as the authoritative runtime state for this step.\n\n{\n  \"agent_id\": \"agent_0\",\n  \"agent_role\": \"root_orchestrator\",\n  \"stage_role\": \"aggregator\",\n  \"directive\": \"Aggregate manager reports into the root artifact. Follow topological order and prevent backflow.\",\n  \"round_index\": 0,\n  \"discussion_index\": 0,\n  \"prior_artifact\": {\n    \"artifact_id\": \"root_plan:agent_0:0:0:-1\",\n    \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n    \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n    \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n    \"revision_request\": \"\",\n    \"confidence\": 1.0,\n    \"unresolved_issues\": [],\n    \"evidence_summary\": [\n      \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n    ]\n  },\n  \"visible_packets\": [\n    {\n      \"message_id\": \"m_7\",\n      \"dispatch_id\": 1,\n      \"sender\": \"system\",\n      \"recipients\": [\n        \"agent_0\"\n      ],\n      \"kind\": \"manager_report\",\n      \"phase\": \"manager_relay\",\n      \"round\": 0,\n      \"discussion_index\": 0,\n      \"artifact_id\": \"manager_reducers::0:0:1\",\n      \"content\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n      \"payload\": {\n        \"artifact_id\": \"manager_reducers::0:0:1\",\n        \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n        \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n        \"critique\": \"The process is straightforward as smelting is the required action for cooking raw food items in Minecraft.\",\n        \"revision_request\": \"\",\n        \"confidence\": 1.0,\n        \"unresolved_issues\": [],\n        \"evidence_summary\": [\n          \"Inventory contains cod at [I9]. Smelting [I9] will produce cooked_cod.\"\n        ]\n      }\n    }\n  ]\n}",
+      "prompt_id": "p_24",
+      "role": "user",
+      "usage_count": 1
+    }
+  ],
+  "run_index": 0,
+  "steps": [
+    {
+      "agents": [
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 912,
+            "token_out": 157
+          },
+          "prompt_ids": [],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n  \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n}",
+          "role": "root_orchestrator",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": -1,
+      "messages_sent": [],
+      "outer_step_index": 0,
+      "parallel": false,
+      "phase": "root_plan",
+      "phases": [
+        "root_plan"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_1",
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11",
+        "p_12"
+      ],
+      "step_index": 1,
+      "termination": []
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "agent_1",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_1"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1272,
+            "token_out": 163
+          },
+          "prompt_ids": [
+            "p_13",
+            "p_14"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n  \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n  ]\n}",
+          "role": "manager",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_2",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_2"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1262,
+            "token_out": 157
+          },
+          "prompt_ids": [
+            "p_15",
+            "p_16"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n  \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n}",
+          "role": "manager",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 0,
+      "messages_sent": [
+        {
+          "artifact_id": "root_plan:agent_0:0:0:-1",
+          "content": "The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "from": "agent_0",
+          "kind": "root_task_package",
+          "message_id": "m_1",
+          "outer_step_index": 0,
+          "phase": "manager_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_1"
+          ]
+        },
+        {
+          "artifact_id": "root_plan:agent_0:0:0:-1",
+          "content": "The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].",
+          "discussion_index": 0,
+          "dispatch_id": 0,
+          "from": "agent_0",
+          "kind": "root_task_package",
+          "message_id": "m_2",
+          "outer_step_index": 0,
+          "phase": "manager_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_2"
+          ]
+        }
+      ],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "manager_nodes",
+      "phases": [
+        "manager_nodes"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11"
+      ],
+      "step_index": 2,
+      "termination": [
+        {
+          "average_confidence": 1.0,
+          "consensus_ratio": 1.0,
+          "dispatch_id": 0,
+          "mean_delta": null,
+          "next_step": "finalize",
+          "outer_step_index": 0,
+          "reason": "confidence_threshold_reached",
+          "reason_detail": "Average confidence 1.00 met the 0.85 threshold.",
+          "should_stop": true,
+          "stage_name": "termination_checker",
+          "valid_artifact_count": 1
+        }
+      ]
+    },
+    {
+      "agents": [
+        {
+          "agent_id": "",
+          "agent_type": "general",
+          "inbox_message_ids": [],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 902,
+            "token_out": 156
+          },
+          "prompt_ids": [
+            "p_21",
+            "p_22"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n  \"critique\": \"The process is straightforward as smelting is the required action for cooking raw food items in Minecraft.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": \"Inventory contains cod at [I9]. Smelting [I9] will produce cooked_cod.\"\n}",
+          "role": "agent",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_0",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_7"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1449,
+            "token_out": 162
+          },
+          "prompt_ids": [
+            "p_23",
+            "p_24"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n  \"critique\": \"The process is straightforward as smelting is the required action for cooking raw food items in Minecraft.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"Inventory contains cod at [I9]. Smelting [I9] will produce cooked_cod.\"\n  ]\n}",
+          "role": "root_orchestrator",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_3",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_3"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1264,
+            "token_out": 163
+          },
+          "prompt_ids": [
+            "p_17",
+            "p_18"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n  \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n  ]\n}",
+          "role": "leaf_worker",
+          "tool_calls": []
+        },
+        {
+          "agent_id": "agent_4",
+          "agent_type": "general",
+          "inbox_message_ids": [
+            "m_4"
+          ],
+          "llm": {
+            "cost_usd": 0.0,
+            "metadata": {
+              "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+              "provider": "openrouter"
+            },
+            "mock_used": false,
+            "model": "google/gemini-3.1-flash-lite-preview",
+            "token_in": 1274,
+            "token_out": 163
+          },
+          "prompt_ids": [
+            "p_19",
+            "p_20"
+          ],
+          "response": "{\n  \"answer_artifact\": \"smelt: from [I9] to [I8] with quantity 1\",\n  \"summary\": \"The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].\",\n  \"critique\": \"The task is straightforward as it only requires smelting the raw cod available in the inventory.\",\n  \"revision_request\": \"\",\n  \"confidence\": 1.0,\n  \"unresolved_issues\": [],\n  \"evidence_summary\": [\n    \"Inventory contains cod at [I9]. Smelting is the correct process for cooking raw food items in Minecraft.\"\n  ]\n}",
+          "role": "leaf_worker",
+          "tool_calls": []
+        }
+      ],
+      "discussion_index": 0,
+      "dispatch_id": 1,
+      "messages_sent": [
+        {
+          "artifact_id": "manager_nodes:agent_1:0:0:0",
+          "content": "The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_1",
+          "kind": "manager_task_package",
+          "message_id": "m_3",
+          "outer_step_index": 0,
+          "phase": "worker_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_3"
+          ]
+        },
+        {
+          "artifact_id": "manager_nodes:agent_2:0:0:0",
+          "content": "The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_2",
+          "kind": "manager_task_package",
+          "message_id": "m_4",
+          "outer_step_index": 0,
+          "phase": "worker_dispatch",
+          "round_index": 0,
+          "to": [
+            "agent_4"
+          ]
+        },
+        {
+          "artifact_id": "worker_nodes:agent_3:0:0:1",
+          "content": "The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_3",
+          "kind": "child_report",
+          "message_id": "m_5",
+          "outer_step_index": 0,
+          "phase": "worker_relay",
+          "round_index": 0,
+          "to": [
+            "agent_1"
+          ]
+        },
+        {
+          "artifact_id": "worker_nodes:agent_4:0:0:1",
+          "content": "The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "agent_4",
+          "kind": "child_report",
+          "message_id": "m_6",
+          "outer_step_index": 0,
+          "phase": "worker_relay",
+          "round_index": 0,
+          "to": [
+            "agent_2"
+          ]
+        },
+        {
+          "artifact_id": "manager_reducers::0:0:1",
+          "content": "The user requested to craft 'cooked_cod'. I identified the raw cod in slot [I9] and initiated a smelting process to convert it into cooked_cod in slot [I8].",
+          "discussion_index": 0,
+          "dispatch_id": 1,
+          "from": "system",
+          "kind": "manager_report",
+          "message_id": "m_7",
+          "outer_step_index": 0,
+          "phase": "manager_relay",
+          "round_index": 0,
+          "to": [
+            "agent_0"
+          ]
+        }
+      ],
+      "outer_step_index": 0,
+      "parallel": true,
+      "phase": "",
+      "phases": [
+        "manager_reducers",
+        "root_reducer",
+        "worker_nodes"
+      ],
+      "round_index": 0,
+      "shared_prompt_ids": [
+        "p_2",
+        "p_3",
+        "p_4",
+        "p_5",
+        "p_6",
+        "p_7",
+        "p_8",
+        "p_9",
+        "p_10",
+        "p_11"
+      ],
+      "step_index": 3,
+      "termination": []
+    }
+  ],
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 5,
+    "agents_per_level": [
+      5
+    ],
+    "communication_budget": 2,
+    "discussion_rounds": 1,
+    "group_sizes": null,
+    "max_turns": 2,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "orchestrator_tree_structure",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "orchestrator_tree_structure"
+  },
+  "task_id": "VAL0485",
+  "tool_definitions": []
+}

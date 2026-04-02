@@ -1,0 +1,148 @@
+{
+  "benchmark": "scicode",
+  "evaluation": {
+    "details": {
+      "Main Problem Resolve Rate": 0.0,
+      "Subproblem Resolve Rate": 0.0,
+      "Total Correct": 0,
+      "Total Steps": 2,
+      "prediction": "import numpy as np\n # Background: The Langevin equation for a microsphere in a harmonic trap is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t), where xi(t) is Gaussian white noise. Mannella's leapfrog method is a specialized integration scheme for stochastic differential equations that preserves the correct equilibrium distribution. It updates velocity and position in a staggered manner: v_{n+1/2} = v_n + (dt/2) * F(x_n, v_n), x_{n+1} = x_n + dt * v_{n+1/2}, and v_{n+1",
+      "step_results": {
+        "14.1": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpvzuqpsf5/14.1.py\", line 19, in <module>\n    assert np.allclose(harmonic_mannella_leapfrog(x0, v0, t0, ste",
+        "14.2": "fail: Traceback (most recent call last):\n  File \"/var/folders/0_/r17xfy9d3yx_d5d9ww7d9q400000gn/T/tmpvzuqpsf5/14.2.py\", line 36, in <module>\n    x_MSD = calculate_msd(t0, steps, taup, omega0, vrms, Navg)\n  "
+      }
+    },
+    "score": 0.0,
+    "success": false
+  },
+  "final_answer_preview": "import numpy as np # Background: The Langevin equation for a microsphere in a harmonic trap is given by dv/dt = -v/taup - omega0^2 * x + sqrt(2 * vrms^2 / taup) * xi(t), where xi(t) is Gaussian white noise. Mannella's leapfrog method is a specialized integration scheme for stochastic differential equations that pres...",
+  "metrics": {
+    "backtrack_rate": 0.06666666666666667,
+    "communication_count": 0.0,
+    "completion": true,
+    "completion_source": "final_answer",
+    "cost_total": 0.0,
+    "handoff_count": 11.0,
+    "latency_total": 44680.1474173367,
+    "loop_score": 0.5,
+    "score": 0.0,
+    "steps_total": 30.0,
+    "success": false,
+    "success_source": "benchmark_evaluation",
+    "tokens_total": 19846.0,
+    "tool_calls_total": 0.0,
+    "tool_fail_total": 0.0,
+    "verification_density": 0.5333333333333333
+  },
+  "outcome": {
+    "completion": true,
+    "completion_source": "final_answer",
+    "score": 0.0,
+    "success": false,
+    "success_source": "benchmark_evaluation"
+  },
+  "run_index": 0,
+  "runtime": {
+    "final_reason": "fully_linked_debate:consensus_reached",
+    "messages_sent_by_agent": {
+      "agent_0": 0,
+      "agent_1": 0,
+      "agent_2": 0,
+      "agent_3": 0
+    },
+    "messages_sent_total": 0,
+    "retrieved_docids": [],
+    "run_index": 0,
+    "seed": 9042,
+    "task_id": "14.1",
+    "tool_call_counts": {},
+    "tool_calls_total": 0,
+    "topology": "fully_linked_debate",
+    "turns_executed": 2,
+    "vote_tally": {
+      "python background the mean square displacement msd is defined as the ensemble average of the squared displacement x t 2 for an optically trapped particle the initial conditions for position and velocity must be sampled from the equilibrium maxwell boltzmann distribution x n 0 kbt m omega0 2 and v n 0 kbt m given vrms 2 kbt m the initial position is sampled from n 0 vrms 2 omega0 2 and velocity from n 0 vrms 2 the msd is computed by running navg independent trajectories using mannella s leapfrog method and calculating the average of the squared final positions at time t0 def calculate msd t0 steps taup omega0 vrms navg calculate the mean square displacement msd of an optically trapped microsphere in a gas by averaging navg simulations dt t0 steps sigma np sqrt 2 0 vrms 2 taup dt a np exp dt taup squared displacements for in range navg initial conditions from maxwell boltzmann distribution x np random normal 0 vrms omega0 v np random normal 0 vrms for in range steps noise np random normal 0 sigma mannella s leapfrog step v half v 0 5 dt omega0 2 x 0 5 noise x x dt v half v a v half 0 5 dt omega0 2 x 0 5 noise squared displacements append x 2 x msd np mean squared displacements return x msd": 1,
+      "python background the mean square displacement msd is defined as the ensemble average of the squared displacement x t x 0 2 for an optically trapped particle the initial position x 0 and velocity v 0 are sampled from the equilibrium maxwell boltzmann distribution x 0 n 0 kbt m omega0 2 and v 0 n 0 kbt m given vrms 2 kbt m the distributions are x 0 n 0 vrms 2 omega0 2 and v 0 n 0 vrms 2 to calculate the msd we perform navg independent simulations using mannella s leapfrog method starting from these equilibrium distributions and compute the average of the squared final positions relative to their respective initial positions def calculate msd t0 steps taup omega0 vrms navg calculate the mean square displacement msd of an optically trapped microsphere in a gas by averaging navg simulations dt t0 steps sigma np sqrt 2 0 vrms 2 taup dt a np exp dt taup squared displacements for in range navg initial conditions from maxwell distribution x np random normal 0 vrms omega0 v np random normal 0 vrms x0 init x for in range steps noise np random normal 0 sigma v half v 0 5 dt omega0 2 x 0 5 noise x x dt v half v a v half 0 5 dt omega0 2 x 0 5 noise squared displacements append x x0 init 2 x msd np mean squared displacements return x msd": 1,
+      "python background the mean square displacement msd is defined as the ensemble average of the squared displacement x t x 0 2 for an optically trapped particle the initial position x 0 and velocity v 0 are sampled from the equilibrium maxwell boltzmann distribution x 0 n 0 kbt m omega0 2 and v 0 n 0 kbt m given vrms 2 kbt m the initial conditions are x 0 n 0 vrms 2 omega0 2 and v 0 n 0 vrms 2 mannella s leapfrog method is used to evolve the stochastic langevin equation and the msd is estimated by averaging the squared displacement over navg independent realizations def calculate msd t0 steps taup omega0 vrms navg calculate the mean square displacement msd of an optically trapped microsphere in a gas by averaging navg simulations dt t0 steps sigma np sqrt 2 0 vrms 2 taup dt a np exp dt taup squared displacements for in range navg initial conditions from maxwell distribution x0 np random normal 0 vrms omega0 v0 np random normal 0 vrms x x0 v v0 for in range steps noise np random normal 0 sigma mannella s leapfrog steps v half v 0 5 dt omega0 2 x 0 5 noise x x dt v half v a v half 0 5 dt omega0 2 x 0 5 noise squared displacements append x x0 2 x msd np mean squared displacements return x msd": 1,
+      "python background the mean square displacement msd is defined as the ensemble average of the squared displacement x t x 0 2 for an optically trapped particle the initial position x 0 and velocity v 0 are sampled from the equilibrium maxwell boltzmann distribution x 0 n 0 vrms 2 omega0 2 and v 0 n 0 vrms 2 to compute the msd we perform navg independent simulations using mannella s leapfrog method starting from these equilibrium conditions and calculate the average of the squared final positions at time t0 def calculate msd t0 steps taup omega0 vrms navg calculate the mean square displacement msd of an optically trapped microsphere in a gas by averaging navg simulations dt t0 steps sigma np sqrt 2 0 vrms 2 taup dt a np exp dt taup squared displacements for in range navg initial conditions from maxwell boltzmann distribution x np random normal 0 vrms omega0 v np random normal 0 vrms x0 init x for in range steps noise np random normal 0 sigma mannella s leapfrog step v half v 0 5 dt omega0 2 x 0 5 noise x x dt v half v a v half 0 5 dt omega0 2 x 0 5 noise squared displacements append x x0 init 2 x msd np mean squared displacements return x msd": 1
+    }
+  },
+  "stages": {
+    "act": {
+      "events": 8.0,
+      "latency_ms": 38984.57858432084,
+      "tokens": 14141.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "finalize": {
+      "events": 2.0,
+      "latency_ms": 2.0,
+      "tokens": 487.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "plan": {
+      "events": 2.0,
+      "latency_ms": 2.0,
+      "tokens": 0.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "retrieve": {
+      "events": 0.0,
+      "latency_ms": 0.0,
+      "tokens": 0.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "revise": {
+      "events": 2.0,
+      "latency_ms": 2.0,
+      "tokens": 0.0,
+      "tool_errors": 0.0,
+      "verify_density": 0.0
+    },
+    "verify": {
+      "events": 16.0,
+      "latency_ms": 5689.568833015859,
+      "tokens": 5218.0,
+      "tool_errors": 0.0,
+      "verify_density": 1.0
+    }
+  },
+  "task_id": "14",
+  "termination": {
+    "average_confidence": 1.0,
+    "consensus_count": 3,
+    "consensus_explanation": "Agents 0, 1, and 3 correctly define MSD as the ensemble average of the squared displacement (x(t) - x(0))^2. Agent 2 defines MSD as <x(t)^2>, which is only equivalent to the displacement definition if the mean position is zero and the initial position is zero, but the problem specifies sampling initial conditions from the equilibrium distribution (where x(0) is not necessarily zero).",
+    "consensus_groups": [
+      [
+        0,
+        1,
+        3
+      ],
+      [
+        2
+      ]
+    ],
+    "consensus_mode": "llm_judge",
+    "consensus_ratio": 0.75,
+    "consensus_signature": "0,1,3",
+    "consensus_source": "llm_judge",
+    "consensus_valid_count": 4,
+    "control_cost_usd": 0.0,
+    "control_latency_ms": 3413.270791992545,
+    "control_token_in": 2600,
+    "control_token_out": 110,
+    "discussion_index": 0,
+    "mean_delta": null,
+    "next_step": "judge",
+    "outer_step_index": 1,
+    "reason": "consensus_reached",
+    "reason_detail": "Consensus ratio 0.75 met the 0.75 threshold.",
+    "round_index": 0,
+    "should_stop": true,
+    "stage_name": "debate_controller",
+    "valid_artifact_count": 4
+  }
+}
