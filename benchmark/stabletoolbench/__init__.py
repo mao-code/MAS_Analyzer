@@ -232,17 +232,13 @@ class StableToolBenchBenchmark:
         self.judge_model = str(cfg.get("judge_model", "gpt-4.1-mini"))
         self.judge_api_key = str(cfg.get("judge_api_key") or os.getenv("OPENAI_API_KEY") or "")
         self.judge_api_base = str(
-            cfg.get("judge_api_base")
-            or os.getenv("OPENAI_API_BASE")
-            or "https://api.openai.com/v1"
+            cfg.get("judge_api_base") or os.getenv("OPENAI_API_BASE") or "https://api.openai.com/v1"
         )
         self.judge_temperature = float(cfg.get("judge_temperature", 0.0))
         self.judge_max_tokens = int(cfg.get("judge_max_tokens", 256))
         self.judge_timeout_s = float(cfg.get("judge_timeout_s", 60.0))
         self.judge_http_referer = str(cfg.get("judge_http_referer", "")).strip()
-        self.judge_x_title = str(
-            cfg.get("judge_x_title", "MAS Analyzer StableToolBench")
-        ).strip()
+        self.judge_x_title = str(cfg.get("judge_x_title", "MAS Analyzer StableToolBench")).strip()
 
         self._session = requests.Session()
         self._judge_client: Any | None = None
@@ -267,7 +263,9 @@ class StableToolBenchBenchmark:
             for query_id in id_order:
                 row = rows_by_id.get(str(query_id))
                 if row is None:
-                    logger.warning("StableToolBench query id %s missing from %s", query_id, query_path)
+                    logger.warning(
+                        "StableToolBench query id %s missing from %s", query_id, query_path
+                    )
                     continue
 
                 task_id = str(query_id)
@@ -379,9 +377,9 @@ class StableToolBenchBenchmark:
 
     def _ensure_server_assets(self) -> None:
         missing_labels: list[str] = []
-        if not self.tools_dir.exists():
+        if not self._resolved_tools_dir().exists():
             missing_labels.append(str(self.tools_dir))
-        if not self.tool_cache_dir.exists():
+        if not self._resolved_tool_cache_dir().exists():
             missing_labels.append(str(self.tool_cache_dir))
 
         if not missing_labels:
@@ -395,17 +393,23 @@ class StableToolBenchBenchmark:
             )
             return
 
-        if not self.tools_dir.exists():
+        if not self._resolved_tools_dir().exists():
             self._download_and_extract_hf_archive(
                 repo_id=self.hf_tools_repo,
                 filename=self.hf_tools_file,
                 expected_path=self.tools_dir,
+                alternate_paths=[
+                    self.server_assets_root / "toolenv2404_filtered",
+                ],
             )
-        if not self.tool_cache_dir.exists():
+        if not self._resolved_tool_cache_dir().exists():
             self._download_and_extract_hf_archive(
                 repo_id=self.hf_cache_repo,
                 filename=self.hf_cache_file,
                 expected_path=self.tool_cache_dir,
+                alternate_paths=[
+                    self.server_assets_root / "server_cache",
+                ],
             )
 
     def _download_and_extract_hf_archive(
@@ -414,6 +418,7 @@ class StableToolBenchBenchmark:
         repo_id: str,
         filename: str,
         expected_path: Path,
+        alternate_paths: Sequence[Path] | None = None,
     ) -> None:
         try:
             from huggingface_hub import hf_hub_download
@@ -444,11 +449,37 @@ class StableToolBenchBenchmark:
         else:
             raise RuntimeError(f"Unsupported StableToolBench asset archive: {filename}")
 
+        alternate_paths = list(alternate_paths or [])
+        if not expected_path.exists():
+            for candidate in alternate_paths:
+                if candidate.exists():
+                    expected_path.parent.mkdir(parents=True, exist_ok=True)
+                    if expected_path.exists():
+                        break
+                    candidate.rename(expected_path)
+                    break
+
         if not expected_path.exists():
             raise RuntimeError(
                 "StableToolBench asset download finished but the expected path was not created: "
                 f"{expected_path}"
             )
+
+    def _resolved_tools_dir(self) -> Path:
+        if self.tools_dir.exists():
+            return self.tools_dir
+        alternate = self.server_assets_root / "toolenv2404_filtered"
+        if alternate.exists():
+            return alternate
+        return self.tools_dir
+
+    def _resolved_tool_cache_dir(self) -> Path:
+        if self.tool_cache_dir.exists():
+            return self.tool_cache_dir
+        alternate = self.server_assets_root / "server_cache"
+        if alternate.exists():
+            return alternate
+        return self.tool_cache_dir
 
     @staticmethod
     def _build_task_prompt(query: str) -> list[dict[str, str]]:

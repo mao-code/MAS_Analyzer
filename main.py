@@ -7,7 +7,7 @@ import json
 import math
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,7 @@ from MAS.langgraph_engine import ExperimentSpec, LangGraphMASEngine
 try:
     from datetime import UTC
 except ImportError:  # pragma: no cover - Python < 3.11 fallback
-    UTC = timezone.utc
+    UTC = UTC
 
 
 def _now_stamp() -> str:
@@ -122,6 +122,14 @@ def _write_eval(
     }
     if run_outcome is not None:
         payload["outcome"] = run_outcome.to_dict()
+    _write_json(path, payload)
+
+
+def _write_raw_output(path: Path, *, final_answer: str, run_metadata: dict[str, Any]) -> None:
+    payload = {
+        "final_answer": final_answer,
+        "run_metadata": _redact_secrets(run_metadata),
+    }
     _write_json(path, payload)
 
 
@@ -345,7 +353,9 @@ def _text_preview(text: Any, *, limit: int = 220) -> str:
     return collapsed[: limit - 3] + "..."
 
 
-def _stage_metric_payload(run_metrics: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+def _stage_metric_payload(
+    run_metrics: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     metric_suffixes = (
         "events",
         "latency_ms",
@@ -505,23 +515,32 @@ def _collect_message_catalog(
             recipients = [str(item) for item in recipients_value]
         messages_by_id[message_id] = {
             "message_id": message_id,
-            "outer_step_index": _normalized_int(raw_message.get("outer_step_index", outer_step_index)),
+            "outer_step_index": _normalized_int(
+                raw_message.get("outer_step_index", outer_step_index)
+            ),
             "dispatch_id": _normalized_int(raw_message.get("dispatch_id", 0)),
             "from": str(raw_message.get("sender", raw_message.get("from", "system"))),
             "to": recipients,
             "kind": str(raw_message.get("kind", "")),
             "phase": str(raw_message.get("phase", "")),
-            "round_index": _normalized_int(raw_message.get("round", raw_message.get("round_index", 0))),
+            "round_index": _normalized_int(
+                raw_message.get("round", raw_message.get("round_index", 0))
+            ),
             "discussion_index": _normalized_int(
                 raw_message.get("discussion_index", raw_message.get("discussion", 0))
             ),
-            "artifact_id": str(raw_message.get("artifact_id", "")) if raw_message.get("artifact_id") else "",
+            "artifact_id": str(raw_message.get("artifact_id", ""))
+            if raw_message.get("artifact_id")
+            else "",
             "content": str(raw_message.get("content", "")),
         }
 
     for raw_message in run_metadata.get("relay_messages", []):
         if isinstance(raw_message, dict):
-            register(raw_message, outer_step_index=_normalized_int(raw_message.get("outer_step_index", 0)))
+            register(
+                raw_message,
+                outer_step_index=_normalized_int(raw_message.get("outer_step_index", 0)),
+            )
 
     for log in interaction_logs:
         outer_step_index = _normalized_int(log.get("outer_step_index", 0))
@@ -669,9 +688,7 @@ def _trajectory_payload(
 
         for entry in agent_entries:
             entry["prompt_ids"] = [
-                prompt_id
-                for prompt_id in entry["prompt_ids"]
-                if prompt_id not in shared_prompt_ids
+                prompt_id for prompt_id in entry["prompt_ids"] if prompt_id not in shared_prompt_ids
             ]
 
         steps.append(
@@ -793,9 +810,7 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
         lines.append("")
 
         for agent in step.get("agents", []):
-            lines.append(
-                f"#### {agent.get('agent_id', '')} ({agent.get('role', '') or 'agent'})"
-            )
+            lines.append(f"#### {agent.get('agent_id', '')} ({agent.get('role', '') or 'agent'})")
             lines.append(
                 f"- Unique Prompt IDs: {', '.join(agent.get('prompt_ids', [])) if agent.get('prompt_ids') else '_None_'}"
             )
@@ -805,8 +820,7 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
             tool_calls = list(agent.get("tool_calls", []))
             if tool_calls:
                 tool_summaries = [
-                    f"{call.get('tool_name', '')} ({call.get('status', '')})"
-                    for call in tool_calls
+                    f"{call.get('tool_name', '')} ({call.get('status', '')})" for call in tool_calls
                 ]
                 lines.append(f"- Tool Calls: {', '.join(tool_summaries)}")
             else:
@@ -848,6 +862,8 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
             lines.append("")
 
     return "\n".join(lines).strip() + "\n"
+
+
 def _matplotlib_positions(layout: Any) -> dict[str, tuple[float, float]]:
     topology = str(layout.topology)
     positions: dict[str, tuple[float, float]] = {}
@@ -1037,7 +1053,7 @@ def _write_system_graph_artifact(
             from IPython.display import Image as IPythonImage
 
             rendered = IPythonImage(data=png_bytes)
-            if isinstance(getattr(rendered, "data", None), (bytes, bytearray)):
+            if isinstance(getattr(rendered, "data", None), bytes | bytearray):
                 png_bytes = bytes(rendered.data)
         graph_path.write_bytes(png_bytes)
     except Exception as exc:
@@ -1061,7 +1077,7 @@ def _write_system_graph_artifact(
             from IPython.display import Image as IPythonImage
 
             rendered = IPythonImage(data=workflow_png_bytes)
-            if isinstance(getattr(rendered, "data", None), (bytes, bytearray)):
+            if isinstance(getattr(rendered, "data", None), bytes | bytearray):
                 workflow_png_bytes = bytes(rendered.data)
         workflow_graph_path.write_bytes(workflow_png_bytes)
     except Exception as exc:
@@ -1238,7 +1254,9 @@ def _experiment_settings_payload(
                 "levels": mas_cfg.levels,
                 "number_of_agents": mas_cfg.total_agents,
                 "agents_per_level": mas_cfg.resolved_agents_per_level(),
-                "group_sizes": list(mas_cfg.group_sizes) if mas_cfg.group_sizes is not None else None,
+                "group_sizes": list(mas_cfg.group_sizes)
+                if mas_cfg.group_sizes is not None
+                else None,
                 "agent_types": list(mas_cfg.agent_types),
                 "turn_mode": mas_cfg.turn_mode,
                 "max_turns": mas_cfg.max_turns,
@@ -1388,6 +1406,13 @@ def run_command(args: argparse.Namespace) -> int:
             trace_path = task_dir / f"run_{run_index}.trace.jsonl"
             write_run_trace(run.trace_events, trace_path)
             run_traces.append(run.trace_events)
+
+            raw_output_path = task_dir / f"run_{run_index}.raw.json"
+            _write_raw_output(
+                raw_output_path,
+                final_answer=run.final_answer,
+                run_metadata=run.run_metadata,
+            )
 
             # 4) Let the benchmark score the model output.
             evaluation = benchmark.evaluate(

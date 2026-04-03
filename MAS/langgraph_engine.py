@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import math
 import re
@@ -3228,6 +3230,8 @@ class LangGraphMASEngine:
             error = None
             try:
                 output = handler(args)
+                if inspect.isawaitable(output):
+                    output = asyncio.run(output)
             except Exception as exc:
                 status = "error"
                 error = str(exc)
