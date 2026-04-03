@@ -28,6 +28,7 @@ def build_runtime_config(
     discussion_rounds: int = 1,
     communication_budget_per_agent: int = 1,
     termination_consensus_mode: str = "llm_judge",
+    final_vote_mode: str = "llm_judge",
     peer_artifact_max_chars: int = 320,
     agent_types: list[str] | None = None,
     output_dir: str = "outputs",
@@ -50,6 +51,7 @@ def build_runtime_config(
             max_turns=max(1, int(rounds)),
             discussion_rounds=max(1, int(discussion_rounds)),
             termination_consensus_mode=str(termination_consensus_mode),
+            final_vote_mode=str(final_vote_mode),
             peer_artifact_max_chars=max(32, int(peer_artifact_max_chars)),
         ),
         experiment=ExperimentRuntimeConfig(
@@ -69,6 +71,7 @@ def run_experiment(
     prompt: Any = "Solve the task and provide a concise final answer.",
     rounds: int = 1,
     discussion_rounds: int = 1,
+    final_vote_mode: str = "llm_judge",
     run_index: int = 0,
     seed: int = 42,
     descriptor: DescriptorHook | None = None,
@@ -86,6 +89,7 @@ def run_experiment(
         agents=agents,
         rounds=rounds,
         discussion_rounds=discussion_rounds,
+        final_vote_mode=final_vote_mode,
     )
     cfg.validate()
 
@@ -110,6 +114,7 @@ def run_experiment(
         agents=agents,
         rounds=rounds,
         discussion_rounds=discussion_rounds,
+        final_vote_mode=final_vote_mode,
         group_sizes=group_sizes,
         agents_per_level=agents_per_level,
     )

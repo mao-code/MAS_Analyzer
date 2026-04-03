@@ -197,7 +197,13 @@ Fallback behavior:
 
 The lexical fallback canonicalizes each answer by lowercasing, removing non-alphanumeric characters, and collapsing whitespace, then computes the same `winner_count / valid_count` ratio over exact normalized matches.
 
-Final answer aggregation is separate from this stop-condition ratio. Several topologies still use a deterministic voter such as `vote_artifacts(...)` to choose the final answer after the loop ends.
+Final answer aggregation is separate from this stop-condition ratio. Final answer selection is configurable and can fall back to deterministic `vote_artifacts(...)` after the loop ends.
+
+You can also configure final answer selection separately:
+
+- `mas.final_vote_mode = "llm_judge"` by default
+- the final judge sees the task prompt plus the candidate answers and returns JSON with semantic groups, a `winner_index`, optional `invalid_indices`, and a short explanation
+- if the final judge is unavailable, running in mock mode, or returns unusable JSON, the repo falls back to deterministic `vote_artifacts(...)`
 
 ### Average confidence
 

@@ -63,6 +63,7 @@ SHARED_STATE_FIELDS = [
     "layout",
     "rounds",
     "discussion_rounds",
+    "final_vote_mode",
     "round_index",
     "discussion_index",
     "messages",
@@ -81,6 +82,7 @@ class ExperimentSpec:
     discussion_rounds: int = 1
     communication_budget_per_agent: int = 1
     termination_consensus_mode: str = "llm_judge"
+    final_vote_mode: str = "llm_judge"
     peer_artifact_max_chars: int = 320
     agents_per_level: list[int] | None = None
     group_sizes: list[int] | None = None
@@ -100,6 +102,9 @@ class ExperimentSpec:
             raise ValueError(
                 "termination_consensus_mode must be one of: llm_judge, lexical"
             )
+        final_vote_mode = str(self.final_vote_mode or "llm_judge")
+        if final_vote_mode not in {"llm_judge", "deterministic"}:
+            raise ValueError("final_vote_mode must be one of: llm_judge, deterministic")
         peer_artifact_max_chars = int(self.peer_artifact_max_chars)
         if peer_artifact_max_chars < 32:
             raise ValueError("peer_artifact_max_chars must be >= 32")
@@ -110,6 +115,7 @@ class ExperimentSpec:
             discussion_rounds=discussion_rounds,
             communication_budget_per_agent=budget,
             termination_consensus_mode=termination_consensus_mode,
+            final_vote_mode=final_vote_mode,
             peer_artifact_max_chars=peer_artifact_max_chars,
             agents_per_level=(
                 list(self.agents_per_level) if self.agents_per_level is not None else None
@@ -212,6 +218,7 @@ class LangGraphMASEngine:
             "rounds": int(spec.rounds),
             "discussion_rounds": int(spec.discussion_rounds),
             "termination_consensus_mode": str(spec.termination_consensus_mode),
+            "final_vote_mode": str(spec.final_vote_mode),
             "peer_artifact_max_chars": int(spec.peer_artifact_max_chars),
             "round_index": 0,
             "discussion_index": 0,
@@ -242,6 +249,7 @@ class LangGraphMASEngine:
             "final_answer": "",
             "final_reason": "",
             "vote_tally": {},
+            "final_vote_source": "",
             "termination_decision": {},
             "descriptor_summary": {},
         }
@@ -267,6 +275,7 @@ class LangGraphMASEngine:
             "rounds_configured": spec.rounds,
             "discussion_rounds": spec.discussion_rounds,
             "termination_consensus_mode": str(spec.termination_consensus_mode),
+            "final_vote_mode": str(spec.final_vote_mode),
             "peer_artifact_max_chars": int(spec.peer_artifact_max_chars),
             "turns_executed": max(1, int(end_state.get("round_index", 0)) + 1),
             "messages_sent_total": sum(end_state.get("sent_counts", {}).values()),
@@ -278,6 +287,7 @@ class LangGraphMASEngine:
             "retrieved_docids": retrieved_docids,
             "agent_outputs": latest_outputs,
             "vote_tally": dict(end_state.get("vote_tally", {})),
+            "final_vote_source": str(end_state.get("final_vote_source", "")),
             "phase_history": list(end_state.get("phase_history", [])),
             "relay_messages": messages,
             "message_views": list(end_state.get("message_views", [])),
@@ -1208,11 +1218,16 @@ class LangGraphMASEngine:
             round_index=int(state.get("round_index", 0)),
             latest_only=True,
         )
-        final_answer, tally = vote_artifacts(artifacts)
+        vote_result = self._select_final_answer(
+            state=state,
+            stage_name="voter",
+            artifacts=artifacts,
+        )
         return {
             "phase": "voter",
-            "vote_tally": tally,
-            "final_answer": final_answer or self._fallback_answer_from_artifacts(artifacts),
+            "vote_tally": dict(vote_result["tally"]),
+            "final_vote_source": str(vote_result["source"]),
+            "final_answer": str(vote_result["answer"] or self._fallback_answer_from_artifacts(artifacts)),
             "final_reason": f"{state['topology']}:majority_vote",
             "phase_history": [self._phase_history_entry(state, "voter")],
             "trace_payloads": [
@@ -1226,12 +1241,15 @@ class LangGraphMASEngine:
                     payload={
                         "node": "voter",
                         "candidate_count": len(artifacts),
-                        "vote_tally": tally,
+                        "vote_tally": dict(vote_result["tally"]),
+                        "vote_mode": str(vote_result["mode"]),
+                        "vote_source": str(vote_result["source"]),
+                        "vote_explanation": str(vote_result["explanation"]),
                     },
-                    token_in=0,
-                    token_out=0,
-                    latency_ms=1.0,
-                    cost_usd=0.0,
+                    token_in=int(vote_result["token_in"]),
+                    token_out=int(vote_result["token_out"]),
+                    latency_ms=float(vote_result["latency_ms"]),
+                    cost_usd=float(vote_result["cost_usd"]),
                     state_id=f"run_{state['run_index']}_voter",
                 )
             ],
@@ -1359,11 +1377,16 @@ class LangGraphMASEngine:
             round_index=int(state.get("round_index", 0)),
             latest_only=True,
         )
-        final_answer, tally = vote_artifacts(artifacts)
+        vote_result = self._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
         return {
             "phase": "judge",
-            "vote_tally": tally,
-            "final_answer": final_answer or self._fallback_answer_from_artifacts(artifacts),
+            "vote_tally": dict(vote_result["tally"]),
+            "final_vote_source": str(vote_result["source"]),
+            "final_answer": str(vote_result["answer"] or self._fallback_answer_from_artifacts(artifacts)),
             "final_reason": str(state.get("final_reason") or f"{state['topology']}:judge_vote"),
             "phase_history": [self._phase_history_entry(state, "judge")],
             "trace_payloads": [
@@ -1374,11 +1397,17 @@ class LangGraphMASEngine:
                     event_order=0,
                     actor="judge",
                     event_type="verify",
-                    payload={"node": "judge", "vote_tally": tally},
-                    token_in=0,
-                    token_out=0,
-                    latency_ms=1.0,
-                    cost_usd=0.0,
+                    payload={
+                        "node": "judge",
+                        "vote_tally": dict(vote_result["tally"]),
+                        "vote_mode": str(vote_result["mode"]),
+                        "vote_source": str(vote_result["source"]),
+                        "vote_explanation": str(vote_result["explanation"]),
+                    },
+                    token_in=int(vote_result["token_in"]),
+                    token_out=int(vote_result["token_out"]),
+                    latency_ms=float(vote_result["latency_ms"]),
+                    cost_usd=float(vote_result["cost_usd"]),
                     state_id=f"run_{state['run_index']}_debate_judge",
                 )
             ],
@@ -1526,11 +1555,16 @@ class LangGraphMASEngine:
             round_index=int(state.get("round_index", 0)),
             latest_only=True,
         )
-        final_answer, tally = vote_artifacts(artifacts)
+        vote_result = self._select_final_answer(
+            state=state,
+            stage_name="final_judge",
+            artifacts=artifacts,
+        )
         return {
             "phase": "final_judge",
-            "vote_tally": tally,
-            "final_answer": final_answer or self._fallback_answer_from_artifacts(artifacts),
+            "vote_tally": dict(vote_result["tally"]),
+            "final_vote_source": str(vote_result["source"]),
+            "final_answer": str(vote_result["answer"] or self._fallback_answer_from_artifacts(artifacts)),
             "final_reason": str(state.get("final_reason") or f"{state['topology']}:judge_vote"),
             "phase_history": [self._phase_history_entry(state, "final_judge")],
             "trace_payloads": [
@@ -1541,11 +1575,17 @@ class LangGraphMASEngine:
                     event_order=0,
                     actor="judge",
                     event_type="verify",
-                    payload={"node": "final_judge", "vote_tally": tally},
-                    token_in=0,
-                    token_out=0,
-                    latency_ms=1.0,
-                    cost_usd=0.0,
+                    payload={
+                        "node": "final_judge",
+                        "vote_tally": dict(vote_result["tally"]),
+                        "vote_mode": str(vote_result["mode"]),
+                        "vote_source": str(vote_result["source"]),
+                        "vote_explanation": str(vote_result["explanation"]),
+                    },
+                    token_in=int(vote_result["token_in"]),
+                    token_out=int(vote_result["token_out"]),
+                    latency_ms=float(vote_result["latency_ms"]),
+                    cost_usd=float(vote_result["cost_usd"]),
                     state_id=f"run_{state['run_index']}_group_judge",
                 )
             ],
@@ -2557,6 +2597,212 @@ class LangGraphMASEngine:
             "latency_ms": latency_ms,
         }
 
+    def _select_final_answer(
+        self,
+        *,
+        state: WorkflowState,
+        stage_name: str,
+        artifacts: list[ArtifactRecord],
+    ) -> dict[str, Any]:
+        mode = str(state.get("final_vote_mode", "llm_judge") or "llm_judge")
+        deterministic_answer, deterministic_tally = vote_artifacts(artifacts)
+        deterministic_result = {
+            "mode": mode,
+            "source": "deterministic",
+            "answer": deterministic_answer,
+            "tally": dict(deterministic_tally),
+            "explanation": "",
+            "token_in": 0,
+            "token_out": 0,
+            "cost_usd": 0.0,
+            "latency_ms": 1.0,
+        }
+        if mode != "llm_judge":
+            return deterministic_result
+
+        candidates: list[dict[str, Any]] = []
+        for index, artifact in enumerate(artifacts):
+            answer = str(artifact.get("answer", ""))
+            if not answer_signature(answer):
+                continue
+            candidates.append(
+                {
+                    "index": index,
+                    "agent_id": str(artifact.get("agent_id", "")),
+                    "role": str(artifact.get("role", "")),
+                    "confidence": float(artifact.get("confidence", 0.5)),
+                    "answer": self._trim_text(answer, max_chars=1600),
+                }
+            )
+
+        if len(candidates) <= 1:
+            return {
+                **deterministic_result,
+                "source": "deterministic_singleton",
+            }
+
+        prompt = self._build_final_vote_prompt(
+            state=state,
+            stage_name=stage_name,
+            candidates=candidates,
+        )
+
+        t0 = time.perf_counter()
+        llm = state["llm_client"].generate(
+            prompt=prompt,
+            agent_type="judge",
+            task_id=str(state.get("task_id", "")),
+            run_index=int(state.get("run_index", 0)),
+            agent_id=f"{stage_name}_final_vote_judge",
+            tools=None,
+            max_tool_iterations=1,
+            temperature=0.0,
+        )
+        latency_ms = max((time.perf_counter() - t0) * 1000.0, 1.0)
+        if bool(llm.mock_used):
+            return {
+                **deterministic_result,
+                "source": "deterministic_fallback_mock",
+                "explanation": "Final vote judge fell back to deterministic voting because the LLM client ran in mock mode.",
+            }
+
+        parsed = self._parse_final_vote_judgment(str(llm.text or ""))
+        if parsed is None:
+            return {
+                **deterministic_result,
+                "source": "deterministic_fallback_parse_error",
+                "explanation": "Final vote judge returned invalid JSON; deterministic voting was used instead.",
+                "token_in": int(llm.token_in),
+                "token_out": int(llm.token_out),
+                "cost_usd": float(llm.cost_usd),
+                "latency_ms": latency_ms,
+            }
+
+        valid_indices = {int(item["index"]) for item in candidates}
+        invalid_indices = {index for index in parsed["invalid_indices"] if index in valid_indices}
+        remaining_valid = valid_indices - invalid_indices
+
+        groups: list[list[int]] = []
+        seen: set[int] = set()
+        for group in parsed["groups"]:
+            cleaned = sorted({index for index in group if index in remaining_valid and index not in seen})
+            if not cleaned:
+                continue
+            groups.append(cleaned)
+            seen.update(cleaned)
+        for index in sorted(remaining_valid - seen):
+            groups.append([index])
+
+        if not remaining_valid or not groups:
+            return {
+                **deterministic_result,
+                "source": "deterministic_fallback_empty_judgment",
+                "explanation": "Final vote judge did not return any usable valid groups; deterministic voting was used instead.",
+                "token_in": int(llm.token_in),
+                "token_out": int(llm.token_out),
+                "cost_usd": float(llm.cost_usd),
+                "latency_ms": latency_ms,
+            }
+
+        winner_index = parsed["winner_index"] if parsed["winner_index"] in remaining_valid else None
+        winner_group = next((group for group in groups if winner_index in group), None)
+        if winner_group is None:
+            winner_group = max(groups, key=lambda group: (len(group), -self._group_mean_confidence(artifacts, group)))
+            winner_index = self._best_artifact_index(artifacts, winner_group)
+
+        if winner_index is None:
+            return {
+                **deterministic_result,
+                "source": "deterministic_fallback_no_winner",
+                "explanation": "Final vote judge did not identify a usable winner; deterministic voting was used instead.",
+                "token_in": int(llm.token_in),
+                "token_out": int(llm.token_out),
+                "cost_usd": float(llm.cost_usd),
+                "latency_ms": latency_ms,
+            }
+
+        tally: dict[str, int] = {}
+        for group in groups:
+            representative_index = self._best_artifact_index(artifacts, group)
+            if representative_index is None:
+                continue
+            signature = answer_signature(str(artifacts[representative_index].get("answer", "")))
+            if not signature:
+                signature = f"group_{representative_index}"
+            tally[signature] = len(group)
+
+        return {
+            "mode": mode,
+            "source": "llm_judge",
+            "answer": str(artifacts[winner_index].get("answer", "")),
+            "tally": tally,
+            "explanation": str(parsed.get("explanation", "")),
+            "token_in": int(llm.token_in),
+            "token_out": int(llm.token_out),
+            "cost_usd": float(llm.cost_usd),
+            "latency_ms": latency_ms,
+        }
+
+    @staticmethod
+    def _best_artifact_index(artifacts: list[ArtifactRecord], indices: list[int]) -> int | None:
+        ranked: list[tuple[float, str, int]] = []
+        for index in indices:
+            if index < 0 or index >= len(artifacts):
+                continue
+            artifact = artifacts[index]
+            ranked.append(
+                (
+                    -float(artifact.get("confidence", 0.5)),
+                    str(artifact.get("agent_id", "")),
+                    int(index),
+                )
+            )
+        if not ranked:
+            return None
+        return sorted(ranked)[0][2]
+
+    @staticmethod
+    def _group_mean_confidence(artifacts: list[ArtifactRecord], indices: list[int]) -> float:
+        scores = [
+            float(artifacts[index].get("confidence", 0.5))
+            for index in indices
+            if 0 <= index < len(artifacts)
+        ]
+        if not scores:
+            return 0.0
+        return sum(scores) / len(scores)
+
+    def _build_final_vote_prompt(
+        self,
+        *,
+        state: WorkflowState,
+        stage_name: str,
+        candidates: list[dict[str, Any]],
+    ) -> list[dict[str, str]]:
+        payload = {
+            "task_prompt": self._trim_text(str(state.get("task_prompt", "")), max_chars=2000),
+            "stage_name": stage_name,
+            "answers": candidates,
+        }
+        return [
+            {
+                "role": "system",
+                "content": (
+                    "You are the final judge for a multi-agent workflow. "
+                    "Group materially equivalent answers together, mark unusable answers invalid, "
+                    "and choose the single best answer index for the task. "
+                    "Prefer the most correct answer; use cross-agent support as a secondary signal when quality is otherwise comparable. "
+                    "Return strict JSON only with this schema: "
+                    '{"groups":[[0,2],[1]],"winner_index":0,"invalid_indices":[3],"explanation":"short reason"}. '
+                    "The winner_index must refer to one valid answer."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(payload, ensure_ascii=False),
+            },
+        ]
+
     def _build_termination_consensus_prompt(
         self,
         *,
@@ -2625,6 +2871,50 @@ class LangGraphMASEngine:
 
         return {
             "groups": groups,
+            "invalid_indices": invalid_indices,
+            "explanation": str(payload.get("explanation", "")),
+        }
+
+    @staticmethod
+    def _parse_final_vote_judgment(text: str) -> dict[str, Any] | None:
+        payload = LangGraphMASEngine._extract_json_object(text)
+        if not isinstance(payload, dict):
+            return None
+
+        groups_raw = payload.get("groups")
+        invalid_raw = payload.get("invalid_indices", [])
+        if not isinstance(groups_raw, list):
+            return None
+
+        try:
+            winner_index = int(payload.get("winner_index"))
+        except Exception:
+            winner_index = None
+
+        groups: list[list[int]] = []
+        for item in groups_raw:
+            if not isinstance(item, list):
+                continue
+            group: list[int] = []
+            for value in item:
+                try:
+                    group.append(int(value))
+                except Exception:
+                    continue
+            if group:
+                groups.append(group)
+
+        invalid_indices: list[int] = []
+        if isinstance(invalid_raw, list):
+            for value in invalid_raw:
+                try:
+                    invalid_indices.append(int(value))
+                except Exception:
+                    continue
+
+        return {
+            "groups": groups,
+            "winner_index": winner_index,
             "invalid_indices": invalid_indices,
             "explanation": str(payload.get("explanation", "")),
         }
@@ -3440,7 +3730,7 @@ class LangGraphMASEngine:
                 nodes={
                     "dispatch_independent_agents": "Selects all workers for independent solving.",
                     "worker": "Independent worker branch.",
-                    "voter": "Deterministic majority vote with explicit tie-breaks.",
+                    "voter": "Configurable final voter. Default is an LLM judge with deterministic fallback.",
                     "descriptor_monitor": "Shared descriptor hook.",
                     "finalize": "Finalize the run.",
                 },
@@ -3455,7 +3745,7 @@ class LangGraphMASEngine:
                     "dispatch_independent_agents -> worker (one Send per active agent) else voter",
                 ],
                 dispatch_logic="Fan out to every worker with no peer packets.",
-                aggregation_logic="`voter` canonicalizes answers, counts votes, and breaks ties by mean confidence then canonical answer.",
+                aggregation_logic="`voter` either uses an LLM judge to select the best final answer or falls back to deterministic voting with explicit tie-breaks.",
                 stopping_criteria=["Single-turn topology. It stops after the voter."],
                 state_fields=SHARED_STATE_FIELDS,
                 logging_outputs=COMMON_LOG_OUTPUTS,
@@ -3596,7 +3886,7 @@ class LangGraphMASEngine:
                     "debate_controller": "Round controller plus explicit stopping logic.",
                     "debate_dispatch": "Fan out the next debate round.",
                     "debate_round": "Parallel debater revision stage.",
-                    "judge": "Deterministic final judge.",
+                    "judge": "Configurable final judge. Default is an LLM judge with deterministic fallback.",
                     "descriptor_monitor": "Shared descriptor hook.",
                     "finalize": "Finalize the run.",
                 },
@@ -3613,7 +3903,7 @@ class LangGraphMASEngine:
                     "debate_dispatch -> debate_round (parallel Send fan-out) else debate_controller",
                 ],
                 dispatch_logic="The controller sends bounded summaries of each debater artifact to all peers for the next round.",
-                aggregation_logic="Debaters revise in parallel; the final judge performs deterministic voting over the latest debate artifacts.",
+                aggregation_logic="Debaters revise in parallel; the final judge uses an LLM judge by default and falls back to deterministic voting when needed.",
                 stopping_criteria=[
                     "Max rounds reached",
                     "Consensus across debater artifacts",
@@ -3634,7 +3924,7 @@ class LangGraphMASEngine:
                     "representative_dispatch": "Representative fan-out.",
                     "representative_merge": "Representative merge/debate stage.",
                     "representative_controller": "Representative-level controller plus stopping logic.",
-                    "final_judge": "Deterministic final judge.",
+                    "final_judge": "Configurable final judge. Default is an LLM judge with deterministic fallback.",
                     "descriptor_monitor": "Shared descriptor hook.",
                     "finalize": "Finalize the run.",
                 },
@@ -3653,7 +3943,7 @@ class LangGraphMASEngine:
                     "representative_controller -> representative_dispatch | final_judge",
                 ],
                 dispatch_logic="Debate is local to groups until the controller emits representative-only summaries. Inter-group traffic is restricted to representative packets.",
-                aggregation_logic="Group members debate locally, representatives merge group summaries, and a shared final judge selects the final answer.",
+                aggregation_logic="Group members debate locally, representatives merge group summaries, and a shared final judge selects the final answer with an LLM judge by default and deterministic fallback.",
                 stopping_criteria=[
                     "Max group rounds reached",
                     "Consensus inside groups",

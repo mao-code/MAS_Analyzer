@@ -11,8 +11,10 @@ import signal
 import subprocess
 import sys
 import time
-import tomllib
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
+    import tomli as tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,11 +25,6 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-from benchmark.agentbench import AgentBenchBenchmark
-from benchmark.browsecomp import BrowseCompBenchmark
-from benchmark.registry import get_benchmark
-from benchmark.stabletoolbench import StableToolBenchBenchmark
 
 SYSTEMS: list[tuple[str, str, int, int, int, int]] = [
     ("sas", "sas", 1, 1, 1, 0),
@@ -81,8 +78,7 @@ class BatchOptions:
     benchmarks: list[str] | None
     task_limit: int | None
     runs_per_task: int | None
-    retry_failures: int
-    max_parallel: int
+    final_vote_mode: str | None
     skip_setup: bool
     setup_only: bool
 
@@ -179,8 +175,12 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
     )
     parser.add_argument("--task-limit", type=int, default=None)
     parser.add_argument("--runs-per-task", type=int, default=None)
-    parser.add_argument("--retry-failures", type=int, default=1)
-    parser.add_argument("--max-parallel", type=int, default=1)
+    parser.add_argument(
+        "--final-vote-mode",
+        choices=["llm_judge", "deterministic"],
+        default=None,
+        help="Override MAS final answer selection mode for every launched system.",
+    )
     parser.add_argument("--skip-setup", action="store_true")
     parser.add_argument("--setup-only", action="store_true")
     args = parser.parse_args(argv)
@@ -193,8 +193,7 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         benchmarks=selected or None,
         task_limit=args.task_limit,
         runs_per_task=args.runs_per_task,
-        retry_failures=max(0, int(args.retry_failures)),
-        max_parallel=max(1, int(args.max_parallel)),
+        final_vote_mode=args.final_vote_mode,
         skip_setup=bool(args.skip_setup),
         setup_only=bool(args.setup_only),
     )
@@ -338,12 +337,16 @@ def ensure_symlink_or_copy(source: Path, target: Path) -> None:
 
 
 def warmup_benchmark(name: str, config: dict[str, Any], *, task_limit: int = 1) -> None:
+    from benchmark.registry import get_benchmark
+
     benchmark = get_benchmark(name, config)
     tasks = benchmark.load_tasks(task_limit=task_limit)
     info(f"Prepared benchmark={name} sample_tasks={len(tasks)}")
 
 
 def prepare_browsecomp(config: dict[str, Any]) -> None:
+    from benchmark.browsecomp import BrowseCompBenchmark
+
     cfg = dict(config)
     decrypted_path_value = str(cfg.get("decrypted_path", "") or "").strip()
     default_repo_path = (
@@ -377,7 +380,7 @@ def stabletoolbench_health_url(virtual_server_url: str) -> str:
 
 
 def verify_local_stabletoolbench_server(
-    benchmark: StableToolBenchBenchmark,
+    benchmark: Any,
     *,
     timeout_s: float = 60.0,
 ) -> None:
@@ -412,6 +415,8 @@ def verify_local_stabletoolbench_server(
 
 
 def prepare_stabletoolbench(config: dict[str, Any]) -> None:
+    from benchmark.stabletoolbench import StableToolBenchBenchmark
+
     cfg = dict(config)
     cfg["auto_download"] = True
     cfg["auto_download_server_assets"] = True
@@ -617,6 +622,8 @@ def controller_health_check(controller_address: str, task_name: str) -> Any:
 
 
 def prepare_agentbench(config: dict[str, Any]) -> None:
+    from benchmark.agentbench import AgentBenchBenchmark
+
     cfg = dict(config)
     controller_address = str(cfg.get("controller_address", "http://localhost:5000/api")).rstrip("/")
     task_name = str(cfg.get("task_name", "os-std")).strip()
@@ -798,20 +805,8 @@ def batch_run(options: BatchOptions) -> int:
                         cmd.extend(["--task-limit", str(options.task_limit)])
                     if options.runs_per_task is not None:
                         cmd.extend(["--runs-per-task", str(options.runs_per_task)])
-                    jobs.append(
-                        RunJob(
-                            benchmark_name=benchmark_name,
-                            config_path=config_path,
-                            system_label=system_label,
-                            topology=topology,
-                            agents=agents,
-                            rounds=rounds,
-                            discussion_rounds=discussion_rounds,
-                            communication_budget=communication_budget,
-                            cmd=cmd,
-                            log_path=logs_root / f"{benchmark_name}__{system_label}.log",
-                        )
-                    )
+                    if options.final_vote_mode is not None:
+                        cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
 
             info("")
             info(

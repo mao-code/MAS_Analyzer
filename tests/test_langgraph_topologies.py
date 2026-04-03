@@ -4,10 +4,17 @@ from MAS import ExperimentSpec, LangGraphMASEngine, run_experiment
 from MAS.llm import LLMResult, OpenRouterLLMClient
 
 
-class _TerminationJudgeLLM(OpenRouterLLMClient):
-    def __init__(self, *, mock_used: bool = False, text: str = "") -> None:
+class _JudgeLLM(OpenRouterLLMClient):
+    def __init__(
+        self,
+        *,
+        mock_used: bool = False,
+        text: str = "",
+        text_by_agent_id: dict[str, str] | None = None,
+    ) -> None:
         self._mock_used = mock_used
         self._text = text
+        self._text_by_agent_id = dict(text_by_agent_id or {})
 
     def generate(
         self,
@@ -22,7 +29,7 @@ class _TerminationJudgeLLM(OpenRouterLLMClient):
         temperature=0.0,
     ) -> LLMResult:
         return LLMResult(
-            text=self._text,
+            text=self._text_by_agent_id.get(agent_id, self._text),
             token_in=11,
             token_out=7,
             cost_usd=0.0,
@@ -137,7 +144,7 @@ class TestLangGraphTopologies(unittest.TestCase):
 
     def test_termination_consensus_uses_llm_judge_when_available(self) -> None:
         engine = LangGraphMASEngine(
-            _TerminationJudgeLLM(
+            _JudgeLLM(
                 text='{"groups":[[0,1],[2]],"invalid_indices":[],"explanation":"0 and 1 match"}'
             )
         )
@@ -170,7 +177,7 @@ class TestLangGraphTopologies(unittest.TestCase):
 
     def test_termination_consensus_falls_back_to_lexical_in_mock_mode(self) -> None:
         engine = LangGraphMASEngine(
-            _TerminationJudgeLLM(
+            _JudgeLLM(
                 mock_used=True,
                 text='{"groups":[[0,1]],"invalid_indices":[],"explanation":"unused in mock"}',
             )
@@ -198,6 +205,75 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(consensus["source"], "lexical_fallback_mock")
         self.assertEqual(consensus["mode"], "llm_judge")
         self.assertEqual(consensus["valid_count"], 2)
+
+    def test_final_vote_uses_llm_judge_when_available(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text_by_agent_id={
+                    "judge_final_vote_judge": (
+                        '{"groups":[[0,1],[2]],"winner_index":1,"invalid_indices":[],"explanation":"1 is clearer and supported by 0"}'
+                    )
+                }
+            )
+        )
+        state = {
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris is the capital of France.", "confidence": 0.6},
+            {"agent_id": "agent_1", "answer": "The capital of France is Paris.", "confidence": 0.8},
+            {"agent_id": "agent_2", "answer": "London", "confidence": 0.2},
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["source"], "llm_judge")
+        self.assertEqual(vote["answer"], "The capital of France is Paris.")
+        self.assertEqual(sorted(vote["tally"].values()), [1, 2])
+        self.assertEqual(vote["token_in"], 11)
+        self.assertEqual(vote["token_out"], 7)
+
+    def test_final_vote_falls_back_to_deterministic_in_mock_mode(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                mock_used=True,
+                text_by_agent_id={
+                    "judge_final_vote_judge": (
+                        '{"groups":[[0,1]],"winner_index":1,"invalid_indices":[],"explanation":"unused in mock"}'
+                    )
+                },
+            )
+        )
+        state = {
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris", "confidence": 0.6},
+            {"agent_id": "agent_1", "answer": "Paris", "confidence": 0.7},
+            {"agent_id": "agent_2", "answer": "London", "confidence": 0.2},
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["source"], "deterministic_fallback_mock")
+        self.assertEqual(vote["answer"], "Paris")
+        self.assertEqual(vote["tally"]["paris"], 2)
 
 
 if __name__ == "__main__":

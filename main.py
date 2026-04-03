@@ -215,6 +215,8 @@ def _apply_mas_overrides(config: Any, args: argparse.Namespace) -> None:
         mas_cfg.discussion_rounds = max(1, int(args.discussion_rounds))
     if args.termination_consensus_mode is not None:
         mas_cfg.termination_consensus_mode = str(args.termination_consensus_mode)
+    if getattr(args, "final_vote_mode", None) is not None:
+        mas_cfg.final_vote_mode = str(args.final_vote_mode)
     if args.peer_artifact_max_chars is not None:
         mas_cfg.peer_artifact_max_chars = max(32, int(args.peer_artifact_max_chars))
     if args.default_model is not None:
@@ -1262,6 +1264,7 @@ def _experiment_settings_payload(
                 "max_turns": mas_cfg.max_turns,
                 "discussion_rounds": mas_cfg.discussion_rounds,
                 "termination_consensus_mode": mas_cfg.termination_consensus_mode,
+                "final_vote_mode": mas_cfg.final_vote_mode,
                 "peer_artifact_max_chars": mas_cfg.peer_artifact_max_chars,
                 "communication_count_internally": mas_cfg.communication_count_internally,
                 "intra_level_link_ratio": mas_cfg.intra_level_link_ratio,
@@ -1359,6 +1362,7 @@ def run_command(args: argparse.Namespace) -> int:
         "max_turns": int(config.mas.max_turns),
         "discussion_rounds": int(config.mas.discussion_rounds),
         "termination_consensus_mode": str(config.mas.termination_consensus_mode),
+        "final_vote_mode": str(config.mas.final_vote_mode),
         "peer_artifact_max_chars": int(config.mas.peer_artifact_max_chars),
         "communication_budget": int(config.mas.communication_count_internally),
     }
@@ -1659,6 +1663,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--termination-consensus-mode",
         choices=["llm_judge", "lexical"],
+        default=None,
+    )
+    run_parser.add_argument(
+        "--final-vote-mode",
+        choices=["llm_judge", "deterministic"],
         default=None,
     )
     run_parser.add_argument("--default-model", default=None)

@@ -5,6 +5,7 @@ set -euo pipefail
 # Examples:
 #   TASK_LIMIT=2 RUNS_PER_TASK=1 bash scripts/full_experiment.sh
 #   BENCHMARKS=workbench,scicode SKIP_SETUP=1 bash scripts/full_experiment.sh
+#   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 
 TASK_LIMIT="${TASK_LIMIT:-5}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
@@ -16,6 +17,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"
 SKIP_SETUP="${SKIP_SETUP:-0}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
+FINAL_VOTE_MODE="${FINAL_VOTE_MODE:-}"
 
 # ============================================================================
 # Global MAS override args
@@ -107,6 +109,9 @@ if [[ "${SKIP_SETUP}" == "1" ]]; then
 fi
 if [[ "${SETUP_ONLY}" == "1" ]]; then
   args+=(--setup-only)
+fi
+if [[ -n "${FINAL_VOTE_MODE}" ]]; then
+  args+=(--final-vote-mode "${FINAL_VOTE_MODE}")
 fi
 
 export MAS_GLOBAL_ARGS

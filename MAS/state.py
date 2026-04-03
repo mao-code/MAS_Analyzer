@@ -27,6 +27,7 @@ class WorkflowState(TypedDict, total=False):
     rounds: int
     discussion_rounds: int
     termination_consensus_mode: str
+    final_vote_mode: str
     peer_artifact_max_chars: int
     round_index: int
     discussion_index: int
@@ -60,5 +61,6 @@ class WorkflowState(TypedDict, total=False):
     final_answer: str
     final_reason: str
     vote_tally: dict[str, int]
+    final_vote_source: str
     termination_decision: TerminationDecision
     descriptor_summary: dict[str, Any]

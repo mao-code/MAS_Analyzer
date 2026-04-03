@@ -47,6 +47,7 @@ class MASConfig:
     max_turns: int = 1
     discussion_rounds: int = 1
     termination_consensus_mode: str = "llm_judge"
+    final_vote_mode: str = "llm_judge"
     peer_artifact_max_chars: int = 320
 
     def validate(self) -> None:
@@ -71,6 +72,11 @@ class MASConfig:
         if self.termination_consensus_mode not in {"llm_judge", "lexical"}:
             raise ValueError(
                 "mas.termination_consensus_mode must be one of: llm_judge, lexical"
+            )
+
+        if self.final_vote_mode not in {"llm_judge", "deterministic"}:
+            raise ValueError(
+                "mas.final_vote_mode must be one of: llm_judge, deterministic"
             )
 
         if self.peer_artifact_max_chars < 32:
@@ -253,6 +259,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         termination_consensus_mode=str(
             mas_raw.get("termination_consensus_mode", "llm_judge")
         ),
+        final_vote_mode=str(mas_raw.get("final_vote_mode", "llm_judge")),
         peer_artifact_max_chars=int(mas_raw.get("peer_artifact_max_chars", 320)),
     )
 

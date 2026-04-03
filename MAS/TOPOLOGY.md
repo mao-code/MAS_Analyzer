@@ -81,6 +81,12 @@ Fallbacks:
 
 Stopping a loop and selecting a final answer are different steps.
 
+The default config is now:
+
+- `mas.final_vote_mode = "llm_judge"`
+
+That means the final voter/judge can call a judge model to group materially equivalent answers and choose the best final answer. If that judge is unavailable, running in mock mode, or returns unusable JSON, the system falls back to deterministic artifact voting.
+
 Examples:
 
 - `fully_linked_debate` stops in `debate_controller`, then chooses the final answer in `judge`
@@ -105,12 +111,12 @@ Typical usage:
 | Topology | Main communication pattern | Final answer source |
 |---|---|---|
 | `sas` | No communication | single agent artifact |
-| `only_voting` | No communication between workers | deterministic voter over worker artifacts |
+| `only_voting` | No communication between workers | configurable voter over worker artifacts, default LLM judge |
 | `orchestrator_no_discussion` | orchestrator -> specialists -> orchestrator | latest orchestrator merge |
 | `orchestrator_with_discussion` | orchestrator-mediated specialist summaries | latest orchestrator merge |
 | `orchestrator_tree_structure` | root -> managers -> leaves -> managers -> root | latest root reducer artifact |
-| `fully_linked_debate` | all-to-all bounded peer summaries | deterministic judge over latest debate artifacts |
-| `group_chat_debate` | intra-group debate, then representative-only exchange | deterministic final judge over representative artifacts |
+| `fully_linked_debate` | all-to-all bounded peer summaries | configurable judge over latest debate artifacts, default LLM judge |
+| `group_chat_debate` | intra-group debate, then representative-only exchange | configurable final judge over representative artifacts, default LLM judge |
 
 ## 1. SAS
 
@@ -155,9 +161,14 @@ Typical usage:
 
 ### Final aggregation
 
-`voter` calls `vote_artifacts(...)`:
+`voter` uses `mas.final_vote_mode`:
 
-- primary key: higher vote count
+- default: `llm_judge`
+- fallback or explicit deterministic mode: `vote_artifacts(...)`
+
+Deterministic tie-break order:
+
+- higher vote count
 - tie-break 1: higher mean confidence
 - tie-break 2: lexicographically smaller canonical answer
 
@@ -431,9 +442,12 @@ If continue:
 
 ### Final answer selection
 
-`judge` calls `vote_artifacts(...)` on the latest debate artifacts.
+`judge` uses `mas.final_vote_mode` on the latest debate artifacts.
 
-That judge is deterministic and separate from the LLM judge used by termination consensus.
+- default: `llm_judge`
+- fallback or explicit deterministic mode: `vote_artifacts(...)`
+
+That final judge is separate from the LLM judge used by termination consensus, even though both can use a judge model.
 
 ## 7. Group Chat Debate
 
@@ -467,7 +481,7 @@ Representative phase:
 11. `representative_controller` checks whether representative debate should continue.
 12. If yes, it emits representative-only bounded peer packets and increments `discussion_index`.
 13. If stop, control goes to `final_judge`.
-14. `final_judge` deterministically votes over the latest representative artifacts.
+14. `final_judge` applies `mas.final_vote_mode` over the latest representative artifacts.
 
 ### Message flow
 
