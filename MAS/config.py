@@ -44,7 +44,7 @@ class MASConfig:
     agent_types: list[str] = field(default_factory=lambda: ["general"])
     communication_count_internally: int = 1
     turn_mode: str = "single_turn"
-    max_turns: int = 1
+    max_turns: int = 20
     discussion_rounds: int = 1
     termination_consensus_mode: str = "llm_judge"
     final_vote_mode: str = "llm_judge"
@@ -254,7 +254,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         agent_types=[str(item) for item in agent_types],
         communication_count_internally=int(mas_raw.get("communication_count_internally", 1)),
         turn_mode=str(mas_raw.get("turn_mode", "single_turn")),
-        max_turns=int(mas_raw.get("max_turns", 1)),
+        max_turns=int(mas_raw.get("max_turns", 20)),
         discussion_rounds=int(mas_raw.get("discussion_rounds", 1)),
         termination_consensus_mode=str(
             mas_raw.get("termination_consensus_mode", "llm_judge")

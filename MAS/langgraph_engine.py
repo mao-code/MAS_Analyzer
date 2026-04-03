@@ -2368,7 +2368,12 @@ class LangGraphMASEngine:
             "consensus_valid_count": 0,
             "consensus_groups": [],
             "consensus_explanation": "",
+            "consensus_is_substantive": None,
             "consensus_ratio": 0.0,
+            "progress_source": "uncomputed",
+            "progress_status": None,
+            "expected_improvement": None,
+            "progress_explanation": "",
             "average_confidence": 0.0,
             "mean_delta": None,
             "valid_artifact_count": valid_count,
@@ -2388,67 +2393,88 @@ class LangGraphMASEngine:
                 ),
             }
 
-        consensus = self._compute_termination_consensus(
+        assessment = self._compute_termination_assessment(
             state=state,
             stage_name=stage_name,
             round_index=round_index,
             discussion_index=discussion_index,
-            artifacts=consensus_artifacts or candidate_artifacts,
+            candidate_artifacts=candidate_artifacts,
+            previous_candidate_artifacts=previous_candidate_artifacts,
+            consensus_artifacts=consensus_artifacts or candidate_artifacts,
         )
         avg_conf = average_confidence(candidate_artifacts or consensus_artifacts)
         mean_delta = compute_mean_delta(previous_candidate_artifacts, candidate_artifacts)
 
         decision_common: TerminationDecision = {
             **base_decision,
-            "consensus_mode": str(consensus.get("mode", base_decision["consensus_mode"])),
-            "consensus_source": str(consensus.get("source", "lexical")),
-            "consensus_signature": str(consensus.get("signature", "")),
-            "consensus_count": int(consensus.get("count", 0)),
-            "consensus_valid_count": int(consensus.get("valid_count", 0)),
+            "consensus_mode": str(assessment.get("mode", base_decision["consensus_mode"])),
+            "consensus_source": str(assessment.get("source", "lexical")),
+            "consensus_signature": str(assessment.get("signature", "")),
+            "consensus_count": int(assessment.get("count", 0)),
+            "consensus_valid_count": int(assessment.get("valid_count", 0)),
             "consensus_groups": [
                 [int(index) for index in group]
-                for group in consensus.get("groups", [])
+                for group in assessment.get("groups", [])
                 if isinstance(group, list)
             ],
-            "consensus_explanation": str(consensus.get("explanation", "")),
-            "consensus_ratio": float(consensus.get("ratio", 0.0)),
+            "consensus_explanation": str(assessment.get("explanation", "")),
+            "consensus_is_substantive": assessment.get("is_substantive"),
+            "consensus_ratio": float(assessment.get("ratio", 0.0)),
+            "progress_source": str(assessment.get("progress_source", assessment.get("source", "lexical"))),
+            "progress_status": assessment.get("progress_status"),
+            "expected_improvement": assessment.get("expected_improvement"),
+            "progress_explanation": str(
+                assessment.get("progress_explanation", assessment.get("explanation", ""))
+            ),
             "average_confidence": avg_conf,
             "mean_delta": mean_delta,
             "valid_artifact_count": valid_count,
-            "control_token_in": int(consensus.get("token_in", 0)),
-            "control_token_out": int(consensus.get("token_out", 0)),
-            "control_cost_usd": float(consensus.get("cost_usd", 0.0)),
-            "control_latency_ms": float(consensus.get("latency_ms", 1.0)),
+            "control_token_in": int(assessment.get("token_in", 0)),
+            "control_token_out": int(assessment.get("token_out", 0)),
+            "control_cost_usd": float(assessment.get("cost_usd", 0.0)),
+            "control_latency_ms": float(assessment.get("latency_ms", 1.0)),
         }
 
-        if int(consensus.get("valid_count", 0)) > 1 and float(consensus.get("ratio", 0.0)) >= 0.75:
-            return {
-                **decision_common,
-                "should_stop": True,
-                "next_step": stop_next_step,
-                "reason": "consensus_reached",
-                "reason_detail": (
-                    f"Consensus ratio {float(consensus['ratio']):.2f} met the 0.75 threshold."
-                ),
-            }
+        assessment_source = str(assessment.get("source", "lexical"))
+        consensus_is_substantive = assessment.get("is_substantive")
+        consensus_supported = assessment_source != "llm_judge" or consensus_is_substantive is True
 
-        if mean_delta is not None and mean_delta <= 0.05:
-            return {
-                **decision_common,
-                "should_stop": True,
-                "next_step": stop_next_step,
-                "reason": "no_meaningful_change",
-                "reason_detail": f"Mean artifact delta {mean_delta:.3f} stayed below 0.05.",
-            }
+        if int(assessment.get("valid_count", 0)) > 1 and float(assessment.get("ratio", 0.0)) >= 0.75:
+            if consensus_supported:
+                return {
+                    **decision_common,
+                    "should_stop": True,
+                    "next_step": stop_next_step,
+                    "reason": "consensus_reached",
+                    "reason_detail": (
+                        f"Consensus ratio {float(assessment['ratio']):.2f} met the 0.75 threshold."
+                    ),
+                }
 
-        if avg_conf >= 0.85:
-            return {
-                **decision_common,
-                "should_stop": True,
-                "next_step": stop_next_step,
-                "reason": "confidence_threshold_reached",
-                "reason_detail": f"Average confidence {avg_conf:.2f} met the 0.85 threshold.",
-            }
+        if mean_delta is not None:
+            if assessment_source == "llm_judge":
+                if bool(assessment.get("should_stop_for_no_progress", False)):
+                    return {
+                        **decision_common,
+                        "should_stop": True,
+                        "next_step": stop_next_step,
+                        "reason": "no_meaningful_change",
+                        "reason_detail": (
+                            str(
+                                assessment.get("progress_explanation")
+                                or assessment.get("explanation")
+                                or "The termination judge determined that another round was unlikely to materially improve correctness."
+                            )
+                        ),
+                    }
+            elif mean_delta <= 0.05:
+                return {
+                    **decision_common,
+                    "should_stop": True,
+                    "next_step": stop_next_step,
+                    "reason": "no_meaningful_change",
+                    "reason_detail": f"Mean artifact delta {mean_delta:.3f} stayed below 0.05.",
+                }
 
         if max_reached:
             return {
@@ -2467,17 +2493,19 @@ class LangGraphMASEngine:
             "reason_detail": "No explicit stop condition fired; proceed to the next routed stage.",
         }
 
-    def _compute_termination_consensus(
+    def _compute_termination_assessment(
         self,
         *,
         state: WorkflowState,
         stage_name: str,
         round_index: int,
         discussion_index: int,
-        artifacts: list[ArtifactRecord],
+        candidate_artifacts: list[ArtifactRecord],
+        previous_candidate_artifacts: list[ArtifactRecord],
+        consensus_artifacts: list[ArtifactRecord],
     ) -> dict[str, Any]:
         mode = str(state.get("termination_consensus_mode", "llm_judge") or "llm_judge")
-        lexical = compute_consensus(artifacts)
+        lexical = compute_consensus(consensus_artifacts)
         lexical_result = {
             "mode": mode,
             "source": "lexical",
@@ -2487,6 +2515,12 @@ class LangGraphMASEngine:
             "valid_count": int(lexical.get("valid_count", 0)),
             "groups": [],
             "explanation": "",
+            "is_substantive": None,
+            "progress_source": "lexical",
+            "progress_status": "unclear",
+            "expected_improvement": None,
+            "progress_explanation": "",
+            "should_stop_for_no_progress": False,
             "token_in": 0,
             "token_out": 0,
             "cost_usd": 0.0,
@@ -2495,33 +2529,34 @@ class LangGraphMASEngine:
         if mode != "llm_judge":
             return lexical_result
 
-        candidates: list[dict[str, Any]] = []
-        for index, artifact in enumerate(artifacts):
-            answer = str(artifact.get("answer", ""))
-            if not answer_signature(answer):
-                continue
-            candidates.append(
-                {
-                    "index": index,
-                    "agent_id": str(artifact.get("agent_id", "")),
-                    "role": str(artifact.get("role", "")),
-                    "answer": self._trim_text(answer, max_chars=1600),
-                }
-            )
-
-        if len(candidates) <= 1:
+        consensus_candidates = self._serialize_termination_assessment_artifacts(
+            consensus_artifacts,
+            previous_by_agent={},
+        )
+        if len(consensus_candidates) <= 1:
             return {
                 **lexical_result,
                 "source": "lexical_singleton",
-                "groups": [[item["index"]] for item in candidates],
+                "progress_source": "lexical_singleton",
+                "groups": [[item["index"]] for item in consensus_candidates],
             }
 
-        prompt = self._build_termination_consensus_prompt(
+        previous_by_agent = {
+            str(artifact.get("agent_id", "")): artifact
+            for artifact in previous_candidate_artifacts
+            if str(artifact.get("agent_id", "")).strip()
+        }
+        current_candidates = self._serialize_termination_assessment_artifacts(
+            candidate_artifacts,
+            previous_by_agent=previous_by_agent,
+        )
+        prompt = self._build_termination_assessment_prompt(
             state=state,
             stage_name=stage_name,
             round_index=round_index,
             discussion_index=discussion_index,
-            candidates=candidates,
+            current_candidates=current_candidates,
+            consensus_candidates=consensus_candidates,
         )
 
         t0 = time.perf_counter()
@@ -2540,22 +2575,26 @@ class LangGraphMASEngine:
             return {
                 **lexical_result,
                 "source": "lexical_fallback_mock",
+                "progress_source": "lexical_fallback_mock",
                 "explanation": "Termination judge fell back to lexical consensus because the LLM client ran in mock mode.",
+                "progress_explanation": "Semantic progress judgment was unavailable because the LLM client ran in mock mode.",
             }
 
-        parsed = self._parse_termination_consensus_judgment(str(llm.text or ""))
+        parsed = self._parse_termination_assessment_judgment(str(llm.text or ""))
         if parsed is None:
             return {
                 **lexical_result,
                 "source": "lexical_fallback_parse_error",
+                "progress_source": "lexical_fallback_parse_error",
                 "explanation": "Termination judge returned invalid JSON; lexical consensus was used instead.",
+                "progress_explanation": "Semantic progress judgment was unavailable because the termination judge returned invalid JSON.",
                 "token_in": int(llm.token_in),
                 "token_out": int(llm.token_out),
                 "cost_usd": float(llm.cost_usd),
                 "latency_ms": latency_ms,
             }
 
-        valid_indices = {int(item["index"]) for item in candidates}
+        valid_indices = {int(item["index"]) for item in consensus_candidates}
         invalid_indices = {index for index in parsed["invalid_indices"] if index in valid_indices}
         remaining_valid = valid_indices - invalid_indices
 
@@ -2574,7 +2613,9 @@ class LangGraphMASEngine:
             return {
                 **lexical_result,
                 "source": "lexical_fallback_empty_judgment",
+                "progress_source": "lexical_fallback_empty_judgment",
                 "explanation": "Termination judge did not return any usable valid groups; lexical consensus was used instead.",
+                "progress_explanation": "Semantic progress judgment was unavailable because the termination judge did not return usable valid groups.",
                 "token_in": int(llm.token_in),
                 "token_out": int(llm.token_out),
                 "cost_usd": float(llm.cost_usd),
@@ -2591,11 +2632,71 @@ class LangGraphMASEngine:
             "valid_count": len(remaining_valid),
             "groups": groups,
             "explanation": str(parsed.get("explanation", "")),
+            "is_substantive": parsed.get("is_substantive"),
+            "progress_source": "llm_judge",
+            "progress_status": parsed.get("progress_status"),
+            "expected_improvement": parsed.get("expected_improvement"),
+            "progress_explanation": str(parsed.get("explanation", "")),
+            "should_stop_for_no_progress": bool(parsed.get("should_stop_for_no_progress", False)),
             "token_in": int(llm.token_in),
             "token_out": int(llm.token_out),
             "cost_usd": float(llm.cost_usd),
             "latency_ms": latency_ms,
         }
+
+    def _compute_termination_consensus(
+        self,
+        *,
+        state: WorkflowState,
+        stage_name: str,
+        round_index: int,
+        discussion_index: int,
+        artifacts: list[ArtifactRecord],
+    ) -> dict[str, Any]:
+        return self._compute_termination_assessment(
+            state=state,
+            stage_name=stage_name,
+            round_index=round_index,
+            discussion_index=discussion_index,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=[],
+            consensus_artifacts=artifacts,
+        )
+
+    def _serialize_termination_assessment_artifacts(
+        self,
+        artifacts: list[ArtifactRecord],
+        *,
+        previous_by_agent: dict[str, ArtifactRecord],
+    ) -> list[dict[str, Any]]:
+        serialized: list[dict[str, Any]] = []
+        for index, artifact in enumerate(artifacts):
+            answer = str(artifact.get("answer", ""))
+            if not answer_signature(answer):
+                continue
+            agent_id = str(artifact.get("agent_id", ""))
+            previous = previous_by_agent.get(agent_id)
+            serialized.append(
+                {
+                    "index": index,
+                    "agent_id": agent_id,
+                    "role": str(artifact.get("role", "")),
+                    "answer": self._trim_text(answer, max_chars=1600),
+                    "summary": self._trim_text(str(artifact.get("summary", "")), max_chars=400),
+                    "confidence": float(artifact.get("confidence", 0.5)),
+                    "previous_answer": (
+                        self._trim_text(str(previous.get("answer", "")), max_chars=1200)
+                        if previous is not None
+                        else None
+                    ),
+                    "previous_summary": (
+                        self._trim_text(str(previous.get("summary", "")), max_chars=300)
+                        if previous is not None
+                        else None
+                    ),
+                }
+            )
+        return serialized
 
     def _select_final_answer(
         self,
@@ -2803,32 +2904,45 @@ class LangGraphMASEngine:
             },
         ]
 
-    def _build_termination_consensus_prompt(
+    def _build_termination_assessment_prompt(
         self,
         *,
         state: WorkflowState,
         stage_name: str,
         round_index: int,
         discussion_index: int,
-        candidates: list[dict[str, Any]],
+        current_candidates: list[dict[str, Any]],
+        consensus_candidates: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
         payload = {
             "task_prompt": self._trim_text(str(state.get("task_prompt", "")), max_chars=2000),
             "stage_name": stage_name,
             "round_index": round_index,
             "discussion_index": discussion_index,
-            "answers": candidates,
+            "candidate_artifacts": current_candidates,
+            "consensus_answers": consensus_candidates,
         }
         return [
             {
                 "role": "system",
                 "content": (
-                    "You judge whether multiple agent answers express the same final answer for task-solving purposes. "
+                    "You are the termination judge for a multi-agent workflow. "
+                    "Use consensus_answers to decide whether multiple answers express the same final answer for task-solving purposes. "
                     "Group answers together only when they are materially equivalent in final claim, decision, or action. "
                     "Ignore wording and formatting differences. "
+                    "Also assess whether the largest group's shared answer is a substantive task solution "
+                    "(a concrete claim, decision, or result) rather than merely planning, acknowledging ignorance, "
+                    "or restating the task without answering it. "
+                    "Use candidate_artifacts, including any previous_answer fields, to judge progress. "
+                    "Set should_stop_for_no_progress to true only when another round is unlikely to materially improve correctness; "
+                    "do not use it merely because wording is similar. "
+                    "Planning-only updates, 'need more information', and task restatements are not substantive answers. "
                     "Return strict JSON only with this schema: "
-                    '{"groups":[[0,2],[1]],"invalid_indices":[3],"explanation":"short reason"}. '
-                    "Every non-empty valid answer index should appear in exactly one group unless it belongs in invalid_indices."
+                    '{"groups":[[0,2],[1]],"invalid_indices":[3],"is_substantive":true,"progress_status":"stalled","expected_improvement":"low","should_stop_for_no_progress":true,"explanation":"short reason"}. '
+                    "Every non-empty valid consensus_answers index should appear in exactly one group unless it belongs in invalid_indices. "
+                    "progress_status must be one of improving, stalled, unclear. "
+                    "expected_improvement must be one of high, medium, low. "
+                    "Set is_substantive to true only when the majority group provides a definite answer to the task."
                 ),
             },
             {
@@ -2838,7 +2952,7 @@ class LangGraphMASEngine:
         ]
 
     @staticmethod
-    def _parse_termination_consensus_judgment(text: str) -> dict[str, Any] | None:
+    def _parse_termination_assessment_judgment(text: str) -> dict[str, Any] | None:
         payload = LangGraphMASEngine._extract_json_object(text)
         if not isinstance(payload, dict):
             return None
@@ -2869,11 +2983,47 @@ class LangGraphMASEngine:
                 except Exception:
                     continue
 
+        is_substantive_raw = payload.get("is_substantive")
+        is_substantive: bool | None = None
+        if isinstance(is_substantive_raw, bool):
+            is_substantive = is_substantive_raw
+        elif isinstance(is_substantive_raw, str):
+            is_substantive = is_substantive_raw.lower() in ("true", "1", "yes")
+
+        progress_status_raw = str(payload.get("progress_status", "")).strip().lower()
+        progress_status = (
+            progress_status_raw
+            if progress_status_raw in {"improving", "stalled", "unclear"}
+            else "unclear"
+        )
+
+        expected_improvement_raw = str(payload.get("expected_improvement", "")).strip().lower()
+        expected_improvement = (
+            expected_improvement_raw
+            if expected_improvement_raw in {"high", "medium", "low"}
+            else "medium"
+        )
+
+        should_stop_raw = payload.get("should_stop_for_no_progress")
+        should_stop_for_no_progress = False
+        if isinstance(should_stop_raw, bool):
+            should_stop_for_no_progress = should_stop_raw
+        elif isinstance(should_stop_raw, str):
+            should_stop_for_no_progress = should_stop_raw.lower() in ("true", "1", "yes")
+
         return {
             "groups": groups,
             "invalid_indices": invalid_indices,
             "explanation": str(payload.get("explanation", "")),
+            "is_substantive": is_substantive,
+            "progress_status": progress_status,
+            "expected_improvement": expected_improvement,
+            "should_stop_for_no_progress": should_stop_for_no_progress,
         }
+
+    @staticmethod
+    def _parse_termination_consensus_judgment(text: str) -> dict[str, Any] | None:
+        return LangGraphMASEngine._parse_termination_assessment_judgment(text)
 
     @staticmethod
     def _parse_final_vote_judgment(text: str) -> dict[str, Any] | None:
@@ -3137,6 +3287,9 @@ class LangGraphMASEngine:
                 "Return exactly one JSON object and do not wrap it in markdown.\n"
                 "Required JSON keys: answer_artifact, summary, critique, revision_request, confidence, "
                 "unresolved_issues, evidence_summary.\n"
+                "Set confidence to reflect confidence in the current answer_artifact only, using this rubric: "
+                "0.0 = no answer or pure planning; 0.25 = weak hypothesis; 0.5 = plausible but incomplete; "
+                "0.75 = likely correct with remaining gaps; 1.0 = strongly supported final answer. "
                 "If a field is unknown, use an empty string, an empty list, or a conservative confidence score."
             ),
         }
@@ -3781,8 +3934,7 @@ class LangGraphMASEngine:
                 stopping_criteria=[
                     "Max rounds reached",
                     "Consensus across specialist artifacts",
-                    "No meaningful change between orchestrator merge artifacts",
-                    "Orchestrator confidence threshold reached",
+                    "Semantic no-progress across orchestrator merge artifacts",
                     "Invalid or failed branch fallback",
                 ],
                 state_fields=SHARED_STATE_FIELDS,
@@ -3871,8 +4023,7 @@ class LangGraphMASEngine:
                 stopping_criteria=[
                     "Max rounds reached",
                     "Consensus across manager reducer artifacts",
-                    "No meaningful change between root artifacts",
-                    "Root confidence threshold reached",
+                    "Semantic no-progress across root artifacts",
                     "Invalid or failed branch fallback",
                 ],
                 state_fields=SHARED_STATE_FIELDS,

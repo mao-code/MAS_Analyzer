@@ -57,7 +57,6 @@ The controller calls `_termination_decision(...)` in `MAS/langgraph_engine.py`, 
 - `invalid_or_failed_branch`
 - `consensus_reached`
 - `no_meaningful_change`
-- `confidence_threshold_reached`
 - `max_rounds_reached`
 
 Those checks are workflow-control logic, not benchmark evaluation.
@@ -76,6 +75,26 @@ Fallbacks:
 
 - if `termination_consensus_mode = "lexical"`, normalized string matching is used
 - if `llm_judge` is configured but unavailable or unparsable, the controller falls back to lexical consensus
+
+### 5a. Unified semantic termination judge
+
+In `llm_judge` mode the controller now uses one termination-judge call to assess both:
+
+1. semantic agreement across the current answers
+2. whether another round is likely to materially improve correctness
+
+The judge returns:
+
+- semantic groups
+- invalid indices
+- `is_substantive`
+- `progress_status`
+- `expected_improvement`
+- `should_stop_for_no_progress`
+
+Consensus-based stopping is blocked when the judge says the majority answer is not substantive. Planning-only updates, "need more information", and task restatements are treated as non-substantive.
+
+If the judge is unavailable or returns unusable JSON, the controller falls back to lexical consensus plus lexical `SequenceMatcher` delta for `no_meaningful_change`.
 
 ### 6. Final answer selection is separate from termination
 
@@ -425,10 +444,9 @@ It does not see:
 Then it checks, in order:
 
 1. too few valid artifacts survived
-2. consensus ratio `>= 0.75`
-3. mean artifact delta `<= 0.05`
-4. average confidence `>= 0.85`
-5. max rounds reached
+2. consensus ratio `>= 0.75` and the semantic judge says the answer is substantive
+3. semantic no-progress on another round, or lexical delta `<= 0.05` in fallback mode
+4. max rounds reached
 
 If stop:
 

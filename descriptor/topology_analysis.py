@@ -22,6 +22,8 @@ DEFAULT_DESCRIPTOR_COLUMNS = [
     "C4_tool_calls_total",
     "D1_tool_error_rate",
     "D2_communication_count",
+    "D2_agent_to_agent_communication_count",
+    "D2_system_mediated_communication_count",
     "D3_handoff_count",
     "R1_success_var",
     "R2_latency_var",

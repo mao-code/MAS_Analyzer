@@ -70,7 +70,9 @@ For one run `r`, the trace code computes:
 - `backtrack_rate_r = (#revise events + payload.redo) / steps_total_r`
 - `loop_score_r = repeated-state or repeated-pattern ratio from the trace`
 - `verification_density_r = #verify / steps_total_r`
-- `communication_count_r = directed inter-agent send edges`
+- `communication_count_r = directed relay/message edges from all inter-agent sends, including system-mediated sends`
+- `communication_agent_to_agent_count_r = directed send edges whose sender is a non-system agent`
+- `communication_system_mediated_count_r = directed send edges whose sender is system / mediator`
 - `handoff_count_r = actor switches across consecutive non-system events`
 
 ### Task-level descriptor aggregation
@@ -93,6 +95,8 @@ Given `N` repeated runs for the same task and system:
 
 - `D1_tool_error_rate = sum_r(tool_fail_total_r) / sum_r(tool_calls_total_r)`
 - `D2_communication_count = mean_r(communication_count_r)`
+- `D2_agent_to_agent_communication_count = mean_r(communication_agent_to_agent_count_r)`
+- `D2_system_mediated_communication_count = mean_r(communication_system_mediated_count_r)`
 - `D3_handoff_count = mean_r(handoff_count_r)`
 
 These `D*` metrics are logged as coordination diagnostics. They are not part of the paper’s direct execution-cost definition `C`.
@@ -171,6 +175,10 @@ The JSON schema is:
 
 - `groups`: lists of artifact indices that express the same final answer
 - `invalid_indices`: indices the judge considers unusable or non-answers
+- `is_substantive`: whether the largest agreement group is an actual task answer
+- `progress_status`: `improving | stalled | unclear`
+- `expected_improvement`: `high | medium | low`
+- `should_stop_for_no_progress`: whether another round is unlikely to materially improve correctness
 - `explanation`: short rationale
 
 The controller then computes:
@@ -183,6 +191,7 @@ The stage stops with `consensus_reached` when:
 
 - `valid_count > 1`
 - `consensus_ratio >= 0.75`
+- the semantic judge marks the majority answer as substantive
 
 Interpretation:
 
@@ -219,41 +228,28 @@ Then:
 
 across the current `candidate_artifacts` (or `consensus_artifacts` if needed).
 
-The stage stops with `confidence_threshold_reached` when:
-
-- `average_confidence >= 0.85`
-
 Interpretation:
 
 - this is self-reported model confidence averaged over the active artifacts
-- it is not calibrated against benchmark correctness
+- it is logged as a diagnostic only and does not directly terminate a run
+- the prompt now defines confidence as confidence in the current `answer_artifact`, not general optimism
 
-### Mean artifact change
+### Progress / stall judgment
 
-Change is measured per agent by comparing the current answer with that same agent's previous answer.
-
-For each agent with both a previous and current artifact:
-
-- canonicalize both answers with the repo's normalized-string signature
-- if both are empty, delta is `0`
-- if the canonicalized strings are identical, delta is `0`
-- otherwise compute string similarity with `difflib.SequenceMatcher`
-- `delta_agent = 1 - similarity(previous_signature, current_signature)`
-
-Then:
-
-- `mean_delta = mean(delta_agent)`
-
-over all comparable agents.
+In `llm_judge` mode, `no_meaningful_change` is semantic. The termination judge sees the current candidate artifacts plus each agent's previous answer when available and decides whether another round is likely to materially improve correctness.
 
 The stage stops with `no_meaningful_change` when:
 
-- `mean_delta <= 0.05`
+- previous comparable artifacts exist
+- the semantic judge returns `should_stop_for_no_progress = true`
 
-Interpretation:
+Fallback behavior:
 
-- this is a lexical revision-size test, not a semantic-improvement test
-- if agents keep making only tiny textual changes, the loop is treated as converged or stalled
+- if the termination judge is unavailable, mocked, or unparsable, the repo falls back to lexical change detection
+- lexical fallback computes `mean_delta` with `difflib.SequenceMatcher`
+- lexical fallback stops when `mean_delta <= 0.05`
+
+`mean_delta` is still logged for compatibility, but in successful `llm_judge` mode it is diagnostic rather than the stop criterion.
 
 ### Max-round stop
 
@@ -266,8 +262,7 @@ The checks are applied in this order:
 1. `invalid_or_failed_branch`
 2. `consensus_reached`
 3. `no_meaningful_change`
-4. `confidence_threshold_reached`
-5. `max_rounds_reached`
+4. `max_rounds_reached`
 
 So if multiple conditions are true, the first one in this list is the recorded stop reason.
 
@@ -282,6 +277,10 @@ Each termination decision logs:
 - `consensus_ratio`
 - `consensus_groups`
 - `consensus_explanation`
+- `progress_source`
+- `progress_status`
+- `expected_improvement`
+- `progress_explanation`
 - `average_confidence`
 - `mean_delta`
 - `valid_artifact_count`

@@ -67,6 +67,11 @@ class TerminationDecision(TypedDict, total=False):
     consensus_valid_count: int
     consensus_groups: list[list[int]]
     consensus_explanation: str
+    consensus_is_substantive: bool | None
+    progress_source: str
+    progress_status: str | None
+    expected_improvement: str | None
+    progress_explanation: str
     average_confidence: float
     mean_delta: float | None
     valid_artifact_count: int
