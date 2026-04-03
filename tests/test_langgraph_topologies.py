@@ -206,6 +206,170 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(consensus["mode"], "llm_judge")
         self.assertEqual(consensus["valid_count"], 2)
 
+    def test_non_substantive_consensus_does_not_stop(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text=(
+                    '{"groups":[[0,1]],"invalid_indices":[],"is_substantive":false,'
+                    '"progress_status":"improving","expected_improvement":"high",'
+                    '"should_stop_for_no_progress":false,"explanation":"Both answers are still planning."}'
+                )
+            )
+        )
+        state = {
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "Need more searching before I can answer.", "confidence": 0.95},
+            {"agent_id": "agent_1", "answer": "I still need more information before answering.", "confidence": 0.9},
+        ]
+
+        decision = engine._termination_decision(
+            state,
+            stage_name="debate_controller",
+            round_index=0,
+            discussion_index=0,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=[],
+            consensus_artifacts=artifacts,
+            expected_count=2,
+            max_reached=False,
+            continue_next_step="debate_dispatch",
+            stop_next_step="judge",
+        )
+
+        self.assertFalse(decision["should_stop"])
+        self.assertEqual(decision["reason"], "continue")
+        self.assertEqual(decision["consensus_source"], "llm_judge")
+        self.assertFalse(decision["consensus_is_substantive"])
+
+    def test_semantic_no_progress_triggers_stop(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text=(
+                    '{"groups":[[0],[1]],"invalid_indices":[],"is_substantive":false,'
+                    '"progress_status":"stalled","expected_improvement":"low",'
+                    '"should_stop_for_no_progress":true,'
+                    '"explanation":"Another round is unlikely to materially improve correctness."}'
+                )
+            )
+        )
+        state = {
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        previous_artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris is probably right but unverified."},
+            {"agent_id": "agent_1", "answer": "London is probably right but unverified."},
+        ]
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "My current guess remains Paris.", "confidence": 0.55},
+            {"agent_id": "agent_1", "answer": "My current guess remains London.", "confidence": 0.6},
+        ]
+
+        decision = engine._termination_decision(
+            state,
+            stage_name="debate_controller",
+            round_index=1,
+            discussion_index=0,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=previous_artifacts,
+            consensus_artifacts=artifacts,
+            expected_count=2,
+            max_reached=False,
+            continue_next_step="debate_dispatch",
+            stop_next_step="judge",
+        )
+
+        self.assertTrue(decision["should_stop"])
+        self.assertEqual(decision["reason"], "no_meaningful_change")
+        self.assertEqual(decision["progress_source"], "llm_judge")
+        self.assertEqual(decision["progress_status"], "stalled")
+        self.assertEqual(decision["expected_improvement"], "low")
+
+    def test_high_confidence_is_diagnostic_only(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text=(
+                    '{"groups":[[0],[1]],"invalid_indices":[],"is_substantive":true,'
+                    '"progress_status":"improving","expected_improvement":"high",'
+                    '"should_stop_for_no_progress":false,"explanation":"The agents still disagree."}'
+                )
+            )
+        )
+        state = {
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris", "confidence": 0.99},
+            {"agent_id": "agent_1", "answer": "London", "confidence": 0.97},
+        ]
+
+        decision = engine._termination_decision(
+            state,
+            stage_name="debate_controller",
+            round_index=0,
+            discussion_index=0,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=[],
+            consensus_artifacts=artifacts,
+            expected_count=2,
+            max_reached=False,
+            continue_next_step="debate_dispatch",
+            stop_next_step="judge",
+        )
+
+        self.assertFalse(decision["should_stop"])
+        self.assertEqual(decision["reason"], "continue")
+        self.assertGreaterEqual(decision["average_confidence"], 0.95)
+
+    def test_termination_uses_lexical_delta_on_parse_error(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="not json"))
+        state = {
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+        }
+        previous_artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris"},
+            {"agent_id": "agent_1", "answer": "London"},
+        ]
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "Paris", "confidence": 0.8},
+            {"agent_id": "agent_1", "answer": "London", "confidence": 0.8},
+        ]
+
+        decision = engine._termination_decision(
+            state,
+            stage_name="debate_controller",
+            round_index=1,
+            discussion_index=0,
+            candidate_artifacts=artifacts,
+            previous_candidate_artifacts=previous_artifacts,
+            consensus_artifacts=artifacts,
+            expected_count=2,
+            max_reached=False,
+            continue_next_step="debate_dispatch",
+            stop_next_step="judge",
+        )
+
+        self.assertTrue(decision["should_stop"])
+        self.assertEqual(decision["reason"], "no_meaningful_change")
+        self.assertEqual(decision["consensus_source"], "lexical_fallback_parse_error")
+
     def test_final_vote_uses_llm_judge_when_available(self) -> None:
         engine = LangGraphMASEngine(
             _JudgeLLM(

@@ -61,6 +61,15 @@ class TestMetrics(unittest.TestCase):
                 {"tool_name": "inter_agent_send", "status": "ok"},
                 actor="system",
             ),
+            self._make_event(
+                "tool_call",
+                0,
+                0,
+                1.0,
+                0.0,
+                {"tool_name": "inter_agent_send", "to": ["agent_rep"]},
+                actor="system",
+            ),
             self._make_event("act", 1, 1, 2.0, 0.0, actor="agent_a"),
             self._make_event("act", 1, 1, 2.0, 0.0, actor="agent_b"),
             self._make_event("verify", 1, 1, 3.0, 0.003, state_id="s2"),
@@ -74,21 +83,25 @@ class TestMetrics(unittest.TestCase):
         self.assertTrue(run_metrics["success"])
         self.assertTrue(run_metrics["completion"])
         self.assertEqual(run_metrics["success_source"], "trace_inference")
-        self.assertEqual(run_metrics["tool_calls_total"], 2.0)
+        self.assertEqual(run_metrics["tool_calls_total"], 3.0)
         self.assertEqual(run_metrics["tool_fail_total"], 1.0)
-        self.assertAlmostEqual(run_metrics["backtrack_rate"], 1.0 / 11.0, places=6)
-        self.assertEqual(run_metrics["communication_count"], 2.0)
+        self.assertAlmostEqual(run_metrics["backtrack_rate"], 1.0 / 12.0, places=6)
+        self.assertEqual(run_metrics["communication_count"], 3.0)
+        self.assertEqual(run_metrics["communication_count_agent_to_agent"], 2.0)
+        self.assertEqual(run_metrics["communication_count_system_mediated"], 1.0)
         self.assertEqual(run_metrics["handoff_count"], 3.0)
         self.assertEqual(run_metrics["stage_plan_events"], 1.0)
 
         task_metrics = compute_task_metrics([run_metrics])
         self.assertEqual(task_metrics["Q1_success_rate"], 1.0)
         self.assertEqual(task_metrics["Q2_completion_rate"], 1.0)
-        self.assertEqual(task_metrics["D1_tool_error_rate"], 0.5)
-        self.assertEqual(task_metrics["D2_communication_count"], 2.0)
+        self.assertEqual(task_metrics["D1_tool_error_rate"], 1.0 / 3.0)
+        self.assertEqual(task_metrics["D2_communication_count"], 3.0)
+        self.assertEqual(task_metrics["D2_agent_to_agent_communication_count"], 2.0)
+        self.assertEqual(task_metrics["D2_system_mediated_communication_count"], 1.0)
         self.assertEqual(task_metrics["D3_handoff_count"], 3.0)
-        self.assertEqual(task_metrics["P1_steps_total"], 11.0)
-        self.assertAlmostEqual(task_metrics["P4_verification_density"], 1.0 / 11.0, places=6)
+        self.assertEqual(task_metrics["P1_steps_total"], 12.0)
+        self.assertAlmostEqual(task_metrics["P4_verification_density"], 1.0 / 12.0, places=6)
 
     def test_benchmark_evaluation_overrides_trace_success(self) -> None:
         events = [

@@ -10,7 +10,7 @@ from .schema import TraceEvent
 from .stages import compute_stage_metrics
 from .utils import (
     compute_avg_branching,
-    compute_communication_count,
+    compute_communication_counts,
     compute_failure_mode_hist,
     compute_handoff_count,
     compute_loop_score,
@@ -22,7 +22,13 @@ from .utils import (
 
 QUALITY_METRICS = ("Q1_success_rate", "Q2_completion_rate")
 COST_METRICS = ("C1_latency_p95", "C2_tokens_total", "C3_cost_total", "C4_tool_calls_total")
-DIAGNOSTIC_METRICS = ("D1_tool_error_rate", "D2_communication_count", "D3_handoff_count")
+DIAGNOSTIC_METRICS = (
+    "D1_tool_error_rate",
+    "D2_communication_count",
+    "D2_agent_to_agent_communication_count",
+    "D2_system_mediated_communication_count",
+    "D3_handoff_count",
+)
 RELIABILITY_METRICS = ("R1_success_var", "R2_latency_var", "R3_tokens_var")
 PROCESS_METRICS = ("P1_steps_total", "P2_backtrack_rate", "P3_loop_score", "P4_verification_density")
 
@@ -126,7 +132,7 @@ def compute_run_metrics(
     verification_density = verify_count / steps_total if steps_total else 0.0
 
     loop_score = compute_loop_score(events)
-    communication_count = compute_communication_count(events)
+    communication_counts = compute_communication_counts(events)
     handoff_count = compute_handoff_count(events)
 
     run_metrics: dict[str, Any] = {
@@ -143,7 +149,9 @@ def compute_run_metrics(
         "backtrack_rate": float(backtrack_rate),
         "loop_score": float(loop_score),
         "verification_density": float(verification_density),
-        "communication_count": float(communication_count),
+        "communication_count": float(communication_counts.total),
+        "communication_count_agent_to_agent": float(communication_counts.agent_to_agent),
+        "communication_count_system_mediated": float(communication_counts.system_mediated),
         "handoff_count": float(handoff_count),
     }
     if outcome.score is not None:
@@ -204,6 +212,12 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
     loop_scores = np.array([float(rm["loop_score"]) for rm in run_metrics])
     verify_density = np.array([float(rm["verification_density"]) for rm in run_metrics])
     communication_counts = np.array([float(rm.get("communication_count", 0.0)) for rm in run_metrics])
+    communication_counts_agent = np.array(
+        [float(rm.get("communication_count_agent_to_agent", 0.0)) for rm in run_metrics]
+    )
+    communication_counts_system = np.array(
+        [float(rm.get("communication_count_system_mediated", 0.0)) for rm in run_metrics]
+    )
     handoff_counts = np.array([float(rm.get("handoff_count", 0.0)) for rm in run_metrics])
 
     total_tool_calls = tool_calls.sum()
@@ -220,6 +234,8 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
         if total_tool_calls
         else 0.0,
         "D2_communication_count": float(communication_counts.mean()),
+        "D2_agent_to_agent_communication_count": float(communication_counts_agent.mean()),
+        "D2_system_mediated_communication_count": float(communication_counts_system.mean()),
         "D3_handoff_count": float(handoff_counts.mean()),
         "R1_success_var": _nanvar(successes.tolist()),
         "R2_latency_var": _nanvar(latencies.tolist()),

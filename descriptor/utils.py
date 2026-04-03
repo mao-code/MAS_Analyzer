@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 
 from .schema import TraceEvent
 
 SUCCESS_STATUSES = {"success", "ok", "pass", "passed"}
 COMPLETION_STATUSES = SUCCESS_STATUSES | {"complete", "completed", "done", "finalized"}
 FAIL_STATUSES = {"fail", "failed", "error", "timeout", "cancelled", "canceled"}
+
+
+@dataclass(frozen=True)
+class CommunicationCounts:
+    total: int
+    agent_to_agent: int
+    system_mediated: int
 
 
 def is_tool_error(event: TraceEvent) -> bool:
@@ -191,8 +199,9 @@ def _extract_recipients(payload: dict[str, object], *, sender: str) -> set[str]:
     return recipients
 
 
-def compute_communication_count(events: Iterable[TraceEvent]) -> int:
-    total = 0
+def compute_communication_counts(events: Iterable[TraceEvent]) -> CommunicationCounts:
+    agent_to_agent = 0
+    system_mediated = 0
     for event in events:
         payload = event.payload or {}
         if event.event_type != "tool_call":
@@ -200,11 +209,23 @@ def compute_communication_count(events: Iterable[TraceEvent]) -> int:
         if str(payload.get("tool_name", "")) != "inter_agent_send":
             continue
         sender = str(event.actor or "").strip()
-        if not sender or sender == "system":
-            continue
         recipients = _extract_recipients(payload, sender=sender)
-        total += len(recipients)
-    return total
+        edge_count = len(recipients)
+        if edge_count == 0:
+            continue
+        if sender and sender != "system":
+            agent_to_agent += edge_count
+        else:
+            system_mediated += edge_count
+    return CommunicationCounts(
+        total=agent_to_agent + system_mediated,
+        agent_to_agent=agent_to_agent,
+        system_mediated=system_mediated,
+    )
+
+
+def compute_communication_count(events: Iterable[TraceEvent]) -> int:
+    return compute_communication_counts(events).total
 
 
 def compute_handoff_count(events: Iterable[TraceEvent]) -> int:

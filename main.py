@@ -608,6 +608,10 @@ def _trajectory_payload(
             "consensus_ratio": raw_item.get("consensus_ratio"),
             "average_confidence": raw_item.get("average_confidence"),
             "mean_delta": raw_item.get("mean_delta"),
+            "progress_source": raw_item.get("progress_source"),
+            "progress_status": raw_item.get("progress_status"),
+            "expected_improvement": raw_item.get("expected_improvement"),
+            "progress_explanation": raw_item.get("progress_explanation"),
             "valid_artifact_count": raw_item.get("valid_artifact_count"),
         }
         group_key = (entry["outer_step_index"], entry["dispatch_id"])

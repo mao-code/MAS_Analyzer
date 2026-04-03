@@ -4,7 +4,40 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from benchmark.base import BenchmarkTask
 from MAS.config import load_experiment_config
+from MAS.llm import LLMResult, OpenRouterLLMClient
+from MAS.runner import MASRunner
+
+
+class _ArtifactLLM(OpenRouterLLMClient):
+    def __init__(self) -> None:
+        pass
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        return LLMResult(
+            text=(
+                '{"answer_artifact":"4","summary":"4","critique":"","revision_request":"",'
+                '"confidence":1.0,"unresolved_issues":[],"evidence_summary":[]}'
+            ),
+            token_in=3,
+            token_out=5,
+            cost_usd=0.0,
+            model="mock-model",
+            mock_used=False,
+            metadata={},
+        )
 
 
 class TestMASConfig(unittest.TestCase):
@@ -171,6 +204,69 @@ class TestMASConfig(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             load_experiment_config(path)
+
+    def test_default_max_turns_is_20_when_omitted(self) -> None:
+        path = self._write(
+            """
+            [openrouter]
+            api_key = ""
+
+            [experiment]
+            runs_per_task = 1
+            seed = 1
+
+            [mas]
+            levels = 1
+            intra_level_link_ratio = 1.0
+            full_linked = true
+            number_of_agents = 1
+            agent_types = ["general"]
+            communication_count_internally = 0
+            turn_mode = "single_turn"
+
+            [models]
+            default = "openai/gpt-4o-mini"
+            """
+        )
+
+        cfg = load_experiment_config(path)
+        self.assertEqual(cfg.mas.max_turns, 20)
+
+    def test_single_turn_runtime_uses_one_round_even_with_default_max_turns(self) -> None:
+        path = self._write(
+            """
+            [openrouter]
+            api_key = ""
+
+            [experiment]
+            runs_per_task = 1
+            seed = 1
+
+            [mas]
+            levels = 1
+            intra_level_link_ratio = 1.0
+            full_linked = true
+            number_of_agents = 1
+            agent_types = ["general"]
+            communication_count_internally = 0
+            turn_mode = "single_turn"
+
+            [models]
+            default = "openai/gpt-4o-mini"
+            """
+        )
+
+        cfg = load_experiment_config(path)
+        runner = MASRunner(cfg, _ArtifactLLM())
+        run = runner.run_task(
+            task=BenchmarkTask(task_id="t1", prompt="What is 2 + 2?", reference_answer="4"),
+            run_index=0,
+            seed=1,
+        )
+
+        self.assertEqual(cfg.mas.max_turns, 20)
+        self.assertEqual(run.run_metadata["rounds_configured"], 1)
+        self.assertEqual(run.run_metadata["turns_executed"], 1)
 
 
 if __name__ == "__main__":

@@ -68,25 +68,37 @@ def load_task_rows(experiment_root: Path) -> pd.DataFrame:
 
 
 def aggregate_system_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
+    agg_spec: dict[str, tuple[str, str]] = {
+        "task_count": ("task_id", "nunique"),
+        "avg_score": ("eval_avg_score", "mean"),
+        "median_score": ("eval_avg_score", "median"),
+        "avg_success_rate": ("eval_success_rate", "mean"),
+        "avg_latency_ms": ("C1_latency_p95", "mean"),
+        "median_latency_ms": ("C1_latency_p95", "median"),
+        "avg_tokens": ("C2_tokens_total", "mean"),
+        "median_tokens": ("C2_tokens_total", "median"),
+        "avg_cost_usd": ("C3_cost_total", "mean"),
+        "avg_tool_calls": ("C4_tool_calls_total", "mean"),
+        "avg_communication": ("D2_communication_count", "mean"),
+        "avg_handoffs": ("D3_handoff_count", "mean"),
+        "avg_steps": ("P1_steps_total", "mean"),
+        "avg_loop_score": ("P3_loop_score", "mean"),
+        "avg_verification_density": ("P4_verification_density", "mean"),
+    }
+    if "D2_agent_to_agent_communication_count" in task_df.columns:
+        agg_spec["avg_agent_to_agent_communication"] = (
+            "D2_agent_to_agent_communication_count",
+            "mean",
+        )
+    if "D2_system_mediated_communication_count" in task_df.columns:
+        agg_spec["avg_system_mediated_communication"] = (
+            "D2_system_mediated_communication_count",
+            "mean",
+        )
+
     grouped = (
         task_df.groupby(["benchmark", "system_label", "topology"], as_index=False)
-        .agg(
-            task_count=("task_id", "nunique"),
-            avg_score=("eval_avg_score", "mean"),
-            median_score=("eval_avg_score", "median"),
-            avg_success_rate=("eval_success_rate", "mean"),
-            avg_latency_ms=("C1_latency_p95", "mean"),
-            median_latency_ms=("C1_latency_p95", "median"),
-            avg_tokens=("C2_tokens_total", "mean"),
-            median_tokens=("C2_tokens_total", "median"),
-            avg_cost_usd=("C3_cost_total", "mean"),
-            avg_tool_calls=("C4_tool_calls_total", "mean"),
-            avg_communication=("D2_communication_count", "mean"),
-            avg_handoffs=("D3_handoff_count", "mean"),
-            avg_steps=("P1_steps_total", "mean"),
-            avg_loop_score=("P3_loop_score", "mean"),
-            avg_verification_density=("P4_verification_density", "mean"),
-        )
+        .agg(**agg_spec)
         .sort_values(
             by=["benchmark", "avg_score", "avg_success_rate", "avg_tokens", "system_label"],
             ascending=[True, False, False, True, True],
