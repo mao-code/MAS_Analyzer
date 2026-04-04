@@ -189,6 +189,24 @@ def answer_signature(text: str) -> str:
     """Canonicalize an answer for deterministic voting and agreement checks."""
 
     normalized = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", (text or "").lower())).strip()
+    if not normalized:
+        return ""
+
+    raw = str(text or "").strip().lower()
+    if any(
+        raw.startswith(prefix)
+        for prefix in (
+            "thought:",
+            "analysis:",
+            "thinking:",
+            "plan:",
+            "scratchpad:",
+            "note:",
+        )
+    ):
+        return ""
+    if normalized in {"thought", "analysis", "thinking", "plan", "scratchpad", "none", "null"}:
+        return ""
     return normalized
 
 

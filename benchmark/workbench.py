@@ -1047,6 +1047,7 @@ class WorkBenchBenchmark:
             seed=seed,
             tools=tools,
             max_tool_iterations=self.max_tool_iterations,
+            benchmark_name="workbench",
         )
         function_calls = self._extract_function_calls(result.trace_events)
         return MASRunResult(

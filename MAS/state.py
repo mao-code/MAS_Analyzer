@@ -64,3 +64,6 @@ class WorkflowState(TypedDict, total=False):
     final_vote_source: str
     termination_decision: TerminationDecision
     descriptor_summary: dict[str, Any]
+
+    domain_personas: dict[str, dict[str, str]]
+    role_assignment: dict[str, Any]

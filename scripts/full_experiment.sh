@@ -6,6 +6,7 @@ set -euo pipefail
 #   TASK_LIMIT=2 RUNS_PER_TASK=1 bash scripts/full_experiment.sh
 #   BENCHMARKS=workbench,scicode SKIP_SETUP=1 bash scripts/full_experiment.sh
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
+#   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 
 TASK_LIMIT="${TASK_LIMIT:-3}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
@@ -18,6 +19,8 @@ CONFIG_DIR="${CONFIG_DIR:-}"
 SKIP_SETUP="${SKIP_SETUP:-0}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
 FINAL_VOTE_MODE="${FINAL_VOTE_MODE:-}"
+# Set DISABLE_DYNAMIC_ROLES=1 to skip LLM-based role assignment (uses structural roles only).
+DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
 
 # ============================================================================
 # Global MAS override args
@@ -112,6 +115,9 @@ if [[ "${SETUP_ONLY}" == "1" ]]; then
 fi
 if [[ -n "${FINAL_VOTE_MODE}" ]]; then
   args+=(--final-vote-mode "${FINAL_VOTE_MODE}")
+fi
+if [[ "${DISABLE_DYNAMIC_ROLES}" == "1" ]]; then
+  args+=(--no-dynamic-roles)
 fi
 
 export MAS_GLOBAL_ARGS

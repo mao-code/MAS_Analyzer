@@ -40,6 +40,20 @@ class _JudgeLLM(OpenRouterLLMClient):
 
 
 class TestLangGraphTopologies(unittest.TestCase):
+    def test_experiment_spec_normalized_preserves_role_assignment_fields(self) -> None:
+        spec = ExperimentSpec(
+            topology="sas",
+            num_agents=1,
+            rounds=1,
+            benchmark_name="browsecomp",
+            enable_dynamic_roles=False,
+        )
+
+        normalized = spec.normalized()
+
+        self.assertEqual(normalized.benchmark_name, "browsecomp")
+        self.assertFalse(normalized.enable_dynamic_roles)
+
     def test_run_all_required_topologies(self) -> None:
         scenarios = [
             ("sas", 1, 1),
@@ -122,6 +136,27 @@ class TestLangGraphTopologies(unittest.TestCase):
             recipients = set(message["recipients"])
             sender_group = next(group for group in groups if sender in group)
             self.assertTrue(recipients.issubset(sender_group - {sender}))
+
+    def test_orchestrator_tree_manager_reducers_execute_per_manager(self) -> None:
+        valid_worker_json = (
+            '{"answer_artifact":"Paris","summary":"Paris","critique":"","revision_request":"",'
+            '"confidence":1.0,"unresolved_issues":[],"evidence_summary":[]}'
+        )
+        result = run_experiment(
+            topology="orchestrator_tree_structure",
+            agents=5,
+            rounds=1,
+            prompt="Which city is correct?",
+            seed=13,
+            llm_client=_JudgeLLM(text=valid_worker_json),
+        )
+
+        reducer_logs = [
+            log for log in result.run_metadata["interaction_logs"] if log["phase"] == "manager_reducers"
+        ]
+        self.assertTrue(reducer_logs)
+        self.assertTrue(all(str(log.get("agent_id", "")).strip() for log in reducer_logs))
+        self.assertTrue(all(log.get("visible_messages") for log in reducer_logs))
 
     def test_workflow_visual_graph_includes_control_flow_nodes(self) -> None:
         workflow, graph = LangGraphMASEngine.build_workflow_visual_graph(
@@ -438,6 +473,64 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(vote["source"], "deterministic_fallback_mock")
         self.assertEqual(vote["answer"], "Paris")
         self.assertEqual(vote["tally"]["paris"], 2)
+
+    def test_only_voting_ignores_placeholder_worker_outputs(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
+        state = {
+            "topology": "only_voting",
+            "final_vote_mode": "deterministic",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+            "round_index": 0,
+            "discussion_index": 0,
+            "dispatch_id": 0,
+            "artifacts": [
+                {"node_name": "worker", "round_index": 0, "agent_id": "agent_0", "answer": "thought:"},
+                {"node_name": "worker", "round_index": 0, "agent_id": "agent_1", "answer": "Paris"},
+            ],
+        }
+
+        vote = engine._only_voting_voter_node(state)
+
+        self.assertEqual(vote["final_answer"], "Paris")
+        self.assertEqual(vote["vote_tally"], {"paris": 1})
+        self.assertEqual(vote["final_reason"], "only_voting:majority_vote")
+
+    def test_only_voting_reports_judge_tiebreak_when_tally_is_tied(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text_by_agent_id={
+                    "voter_final_vote_judge": (
+                        '{"groups":[[0,1],[2,3]],"winner_index":2,"invalid_indices":[],"explanation":"2 and 3 are better supported"}'
+                    )
+                }
+            )
+        )
+        state = {
+            "topology": "only_voting",
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which brand is correct?",
+            "round_index": 0,
+            "discussion_index": 0,
+            "dispatch_id": 0,
+            "artifacts": [
+                {"node_name": "worker", "round_index": 0, "agent_id": "agent_0", "answer": "VKO", "confidence": 0.4},
+                {"node_name": "worker", "round_index": 0, "agent_id": "agent_1", "answer": "VKO", "confidence": 0.5},
+                {"node_name": "worker", "round_index": 0, "agent_id": "agent_2", "answer": "Vakkorama", "confidence": 0.9},
+                {"node_name": "worker", "round_index": 0, "agent_id": "agent_3", "answer": "Vakkorama", "confidence": 0.8},
+            ],
+        }
+
+        vote = engine._only_voting_voter_node(state)
+
+        self.assertEqual(vote["final_answer"], "Vakkorama")
+        self.assertEqual(vote["vote_tally"], {"vko": 2, "vakkorama": 2})
+        self.assertEqual(vote["final_reason"], "only_voting:judge_tiebreak")
 
 
 if __name__ == "__main__":

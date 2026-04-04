@@ -49,6 +49,7 @@ class MASConfig:
     termination_consensus_mode: str = "llm_judge"
     final_vote_mode: str = "llm_judge"
     peer_artifact_max_chars: int = 320
+    enable_dynamic_roles: bool = True
 
     def validate(self) -> None:
         if self.levels < 1:
@@ -261,6 +262,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         ),
         final_vote_mode=str(mas_raw.get("final_vote_mode", "llm_judge")),
         peer_artifact_max_chars=int(mas_raw.get("peer_artifact_max_chars", 320)),
+        enable_dynamic_roles=bool(mas_raw.get("enable_dynamic_roles", True)),
     )
 
     experiment = ExperimentRuntimeConfig(

@@ -84,6 +84,7 @@ class BatchOptions:
     final_vote_mode: str | None
     skip_setup: bool
     setup_only: bool
+    no_dynamic_roles: bool
 
 
 @dataclass(frozen=True)
@@ -198,6 +199,13 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
     )
     parser.add_argument("--skip-setup", action="store_true")
     parser.add_argument("--setup-only", action="store_true")
+    parser.add_argument(
+        "--no-dynamic-roles",
+        dest="no_dynamic_roles",
+        action="store_true",
+        default=False,
+        help="Disable LLM-based dynamic role assignment for every launched system.",
+    )
     args = parser.parse_args(argv)
 
     selected = [item.strip() for item in args.benchmarks.split(",") if item.strip()]
@@ -213,6 +221,7 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         final_vote_mode=args.final_vote_mode,
         skip_setup=bool(args.skip_setup),
         setup_only=bool(args.setup_only),
+        no_dynamic_roles=bool(args.no_dynamic_roles),
     )
 
 
@@ -824,6 +833,8 @@ def batch_run(options: BatchOptions) -> int:
                         cmd.extend(["--runs-per-task", str(options.runs_per_task)])
                     if options.final_vote_mode is not None:
                         cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
+                    if options.no_dynamic_roles:
+                        cmd.append("--no-dynamic-roles")
                     jobs.append(
                         RunJob(
                             benchmark_name=benchmark_name,

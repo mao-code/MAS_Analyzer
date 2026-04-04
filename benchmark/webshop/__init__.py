@@ -133,7 +133,7 @@ class WebShopBenchmark:
                 },
             )
 
-            result = runner.run_task(task=step_task, run_index=run_index, seed=seed + step_index)
+            result = runner.run_task(task=step_task, run_index=run_index, seed=seed + step_index, benchmark_name="webshop")
             trace_events.extend(result.trace_events)
 
             run_metadata = dict(result.run_metadata)

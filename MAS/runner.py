@@ -42,6 +42,7 @@ class MASRunner:
         final_vote_mode: str | None = None,
         group_sizes: list[int] | None = None,
         agents_per_level: list[int] | None = None,
+        benchmark_name: str | None = None,
     ) -> MASRunResult:
         mas_cfg = self.config.mas
 
@@ -85,6 +86,8 @@ class MASRunner:
             peer_artifact_max_chars=int(mas_cfg.peer_artifact_max_chars),
             agents_per_level=resolved_agents_per_level,
             group_sizes=resolved_group_sizes,
+            benchmark_name=benchmark_name,
+            enable_dynamic_roles=bool(mas_cfg.enable_dynamic_roles),
         )
 
         run_result = self.engine.run(

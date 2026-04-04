@@ -86,6 +86,8 @@ class ExperimentSpec:
     peer_artifact_max_chars: int = 320
     agents_per_level: list[int] | None = None
     group_sizes: list[int] | None = None
+    benchmark_name: str | None = None
+    enable_dynamic_roles: bool = True
 
     def normalized(self) -> ExperimentSpec:
         topology = normalize_topology_name(self.topology)
@@ -121,6 +123,8 @@ class ExperimentSpec:
                 list(self.agents_per_level) if self.agents_per_level is not None else None
             ),
             group_sizes=(list(self.group_sizes) if self.group_sizes is not None else None),
+            benchmark_name=self.benchmark_name,
+            enable_dynamic_roles=bool(self.enable_dynamic_roles),
         )
 
 
@@ -204,6 +208,62 @@ class LangGraphMASEngine:
             agent_id: agent_types[idx % len(agent_types)] for idx, agent_id in enumerate(layout.agent_ids)
         }
 
+        # -- Dynamic domain-role assignment --------------------------------
+        domain_personas: dict[str, dict[str, str]] = {}
+        role_assignment_payload: dict[str, Any] = {
+            "enabled": bool(spec.enable_dynamic_roles),
+            "benchmark_name": str(spec.benchmark_name or ""),
+            "used_fallback": False,
+            "fallback_reason": "",
+            "prompt_messages": [],
+            "response": "",
+            "llm": {},
+            "assignments": {},
+        }
+        if spec.benchmark_name and spec.enable_dynamic_roles:
+            from .role_assigner import RoleAssignmentResult, assign_domain_roles, assign_domain_roles_deterministic
+
+            try:
+                assignment_result = assign_domain_roles(
+                    benchmark_name=spec.benchmark_name,
+                    layout=layout,
+                    task_prompt=getattr(task, "prompt", ""),
+                    llm_client=self.llm_client,
+                )
+            except Exception:
+                assignments = assign_domain_roles_deterministic(
+                    benchmark_name=spec.benchmark_name, layout=layout,
+                )
+                assignment_result = RoleAssignmentResult(
+                    assignments=assignments,
+                    prompt_messages=[],
+                    response_text="",
+                    llm={},
+                    used_fallback=True,
+                    fallback_reason="engine_role_assignment_error",
+                )
+            domain_personas = {
+                agent_id: {"role_name": a.role_name, "persona": a.persona}
+                for agent_id, a in assignment_result.assignments.items()
+            }
+            role_assignment_payload = {
+                "enabled": True,
+                "benchmark_name": str(spec.benchmark_name),
+                "used_fallback": bool(assignment_result.used_fallback),
+                "fallback_reason": str(assignment_result.fallback_reason),
+                "prompt_messages": self._serialize_for_json(list(assignment_result.prompt_messages)),
+                "response": str(assignment_result.response_text),
+                "llm": self._serialize_for_json(dict(assignment_result.llm)),
+                "assignments": {
+                    agent_id: {"role_name": info.role_name, "persona": info.persona}
+                    for agent_id, info in assignment_result.assignments.items()
+                },
+            }
+        elif spec.benchmark_name and not spec.enable_dynamic_roles:
+            role_assignment_payload["fallback_reason"] = "disabled"
+        elif not spec.benchmark_name:
+            role_assignment_payload["fallback_reason"] = "missing_benchmark_name"
+
         descriptor_hook = descriptor or NullDescriptor()
         state: WorkflowState = {
             "task_id": str(getattr(task, "task_id", "task")),
@@ -252,6 +312,8 @@ class LangGraphMASEngine:
             "final_vote_source": "",
             "termination_decision": {},
             "descriptor_summary": {},
+            "domain_personas": domain_personas,
+            "role_assignment": role_assignment_payload,
         }
 
         end_state = graph.invoke(state)
@@ -295,6 +357,8 @@ class LangGraphMASEngine:
             "descriptor_records": list(end_state.get("descriptor_records", [])),
             "descriptor_summary": dict(end_state.get("descriptor_summary", {})),
             "termination_history": list(end_state.get("termination_history", [])),
+            "domain_personas": dict(end_state.get("domain_personas", {})),
+            "role_assignment": dict(end_state.get("role_assignment", role_assignment_payload)),
             "topology_layout": layout.to_payload(),
             "workflow_definition": workflow_definition,
             "artifact_records": artifacts,
@@ -772,6 +836,13 @@ class LangGraphMASEngine:
             ),
         )
         graph.add_node(
+            "manager_reduce_dispatch",
+            self._make_dispatch_node(
+                node_name="manager_reduce_dispatch",
+                active_agents_resolver=lambda state: list(layout.managers),
+            ),
+        )
+        graph.add_node(
             "manager_relay",
             self._make_packet_node(
                 node_name="manager_relay",
@@ -831,7 +902,12 @@ class LangGraphMASEngine:
             ["worker_nodes", "worker_relay"],
         )
         graph.add_edge("worker_nodes", "worker_relay")
-        graph.add_edge("worker_relay", "manager_reducers")
+        graph.add_edge("worker_relay", "manager_reduce_dispatch")
+        graph.add_conditional_edges(
+            "manager_reduce_dispatch",
+            self._make_parallel_router(worker_node="manager_reducers", fallback_node="manager_relay"),
+            ["manager_reducers", "manager_relay"],
+        )
         graph.add_edge("manager_reducers", "manager_relay")
         graph.add_edge("manager_relay", "root_reducer")
         graph.add_edge("root_reducer", "descriptor_monitor")
@@ -1223,12 +1299,13 @@ class LangGraphMASEngine:
             stage_name="voter",
             artifacts=artifacts,
         )
+        final_reason = f"{state['topology']}:{self._vote_outcome_reason(vote_result)}"
         return {
             "phase": "voter",
             "vote_tally": dict(vote_result["tally"]),
             "final_vote_source": str(vote_result["source"]),
             "final_answer": str(vote_result["answer"] or self._fallback_answer_from_artifacts(artifacts)),
-            "final_reason": f"{state['topology']}:majority_vote",
+            "final_reason": final_reason,
             "phase_history": [self._phase_history_entry(state, "voter")],
             "trace_payloads": [
                 self._draft_event(
@@ -1244,6 +1321,7 @@ class LangGraphMASEngine:
                         "vote_tally": dict(vote_result["tally"]),
                         "vote_mode": str(vote_result["mode"]),
                         "vote_source": str(vote_result["source"]),
+                        "vote_outcome_reason": self._vote_outcome_reason(vote_result),
                         "vote_explanation": str(vote_result["explanation"]),
                     },
                     token_in=int(vote_result["token_in"]),
@@ -1771,6 +1849,7 @@ class LangGraphMASEngine:
         round_index = int(state.get("round_index", 0))
         discussion_index = int(state.get("discussion_index", 0))
         prior_artifact = self._latest_agent_artifact(state, agent_id)
+        persona_info = state.get("domain_personas", {}).get(agent_id, {})
 
         prompt = self._build_agent_prompt(
             state=state,
@@ -1783,6 +1862,7 @@ class LangGraphMASEngine:
             discussion_index=discussion_index,
             visible_messages=visible_messages,
             prior_artifact=prior_artifact,
+            persona_info=persona_info,
         )
         prompt_messages = self._normalize_prompt_messages(prompt)
         agent_type = state["agent_type_by_agent"].get(agent_id, "general")
@@ -1945,6 +2025,8 @@ class LangGraphMASEngine:
             "dispatch_id": dispatch_id,
             "agent_id": agent_id,
             "agent_role": role,
+            "domain_role": persona_info.get("role_name", "") if persona_info else "",
+            "domain_persona": persona_info.get("persona", "") if persona_info else "",
             "stage_role": stage_role,
             "agent_type": agent_type,
             "phase": node_name,
@@ -3274,24 +3356,40 @@ class LangGraphMASEngine:
         discussion_index: int,
         visible_messages: list[RelayPacket],
         prior_artifact: ArtifactRecord | None,
+        persona_info: dict[str, str] | None = None,
     ) -> list[dict[str, Any]]:
+        # Build system message lines, injecting domain persona when available
+        system_lines = [
+            "You are one agent in a deterministic multi-agent workflow.",
+            f"Agent ID: {agent_id}",
+            f"Agent Role: {role}",
+            f"Stage Role: {stage_role}",
+        ]
+        if persona_info:
+            system_lines.append(f"Domain Role: {persona_info.get('role_name', '')}")
+            system_lines.append(f"Persona: {persona_info.get('persona', '')}")
+        system_lines.append("")
+        system_lines.append(
+            "Use only the task messages, the prior artifact, and the visible packets provided in this conversation. "
+            "Do not invent hidden context."
+        )
+        system_lines.append(
+            "Return exactly one JSON object and do not wrap it in markdown."
+        )
+        system_lines.append(
+            "Required JSON keys: answer_artifact, summary, critique, revision_request, confidence, "
+            "unresolved_issues, evidence_summary."
+        )
+        system_lines.append(
+            "Set confidence to reflect confidence in the current answer_artifact only, using this rubric: "
+            "0.0 = no answer or pure planning; 0.25 = weak hypothesis; 0.5 = plausible but incomplete; "
+            "0.75 = likely correct with remaining gaps; 1.0 = strongly supported final answer. "
+            "If a field is unknown, use an empty string, an empty list, or a conservative confidence score."
+        )
+
         system_message = {
             "role": "system",
-            "content": (
-                "You are one agent in a deterministic multi-agent workflow.\n"
-                f"Agent ID: {agent_id}\n"
-                f"Agent Role: {role}\n"
-                f"Stage Role: {stage_role}\n\n"
-                "Use only the task messages, the prior artifact, and the visible packets provided in this conversation. "
-                "Do not invent hidden context.\n"
-                "Return exactly one JSON object and do not wrap it in markdown.\n"
-                "Required JSON keys: answer_artifact, summary, critique, revision_request, confidence, "
-                "unresolved_issues, evidence_summary.\n"
-                "Set confidence to reflect confidence in the current answer_artifact only, using this rubric: "
-                "0.0 = no answer or pure planning; 0.25 = weak hypothesis; 0.5 = plausible but incomplete; "
-                "0.75 = likely correct with remaining gaps; 1.0 = strongly supported final answer. "
-                "If a field is unknown, use an empty string, an empty list, or a conservative confidence score."
-            ),
+            "content": "\n".join(system_lines),
         }
 
         messages = [system_message]
@@ -3300,7 +3398,7 @@ class LangGraphMASEngine:
         else:
             messages.append({"role": "user", "content": f"Task:\n{task_prompt}"})
 
-        payload = {
+        payload: dict[str, Any] = {
             "agent_id": agent_id,
             "agent_role": role,
             "stage_role": stage_role,
@@ -3312,6 +3410,9 @@ class LangGraphMASEngine:
             else None,
             "visible_packets": self._serialize_for_json(visible_messages),
         }
+        if persona_info:
+            payload["domain_role"] = persona_info.get("role_name", "")
+            payload["persona"] = persona_info.get("persona", "")
         messages.append(
             {
                 "role": "user",
@@ -3386,6 +3487,23 @@ class LangGraphMASEngine:
             return ""
         winner, _ = vote_majority(candidates)
         return winner
+
+    @staticmethod
+    def _vote_outcome_reason(vote_result: dict[str, Any]) -> str:
+        tally = vote_result.get("tally", {})
+        if not isinstance(tally, dict) or not tally:
+            return "no_valid_votes"
+
+        counts = sorted((int(value) for value in tally.values()), reverse=True)
+        if len(counts) == 1 or counts[0] > counts[1]:
+            return "majority_vote"
+
+        source = str(vote_result.get("source", ""))
+        if source.startswith("llm_judge"):
+            return "judge_tiebreak"
+        if source.startswith("deterministic"):
+            return "deterministic_tiebreak"
+        return "vote_tiebreak"
 
     @staticmethod
     def _phase_history_entry(
@@ -3994,6 +4112,7 @@ class LangGraphMASEngine:
                     "worker_dispatch": "Manager-to-leaf routing.",
                     "worker_nodes": "Leaf execution stage.",
                     "worker_relay": "Leaf-to-manager bounded reports.",
+                    "manager_reduce_dispatch": "Selects managers for reduction.",
                     "manager_reducers": "Per-manager aggregation.",
                     "manager_relay": "Manager-to-root bounded reports.",
                     "root_reducer": "Root aggregation.",
@@ -4006,7 +4125,7 @@ class LangGraphMASEngine:
                     "root_plan -> manager_dispatch",
                     "manager_nodes -> worker_dispatch",
                     "worker_nodes -> worker_relay",
-                    "worker_relay -> manager_reducers",
+                    "worker_relay -> manager_reduce_dispatch",
                     "manager_reducers -> manager_relay",
                     "manager_relay -> root_reducer",
                     "root_reducer -> descriptor_monitor",
@@ -4016,6 +4135,7 @@ class LangGraphMASEngine:
                 conditional_edges=[
                     "manager_dispatch -> manager_nodes (parallel Send fan-out) else worker_dispatch",
                     "worker_dispatch -> worker_nodes (parallel Send fan-out) else worker_relay",
+                    "manager_reduce_dispatch -> manager_reducers (parallel Send fan-out) else manager_relay",
                     "termination_checker -> manager_dispatch | finalize",
                 ],
                 dispatch_logic="Root routes only to managers, managers route only to their own children, and aggregation always follows the parent-child DAG upward.",
