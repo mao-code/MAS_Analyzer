@@ -498,6 +498,72 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(vote["vote_tally"], {"paris": 1})
         self.assertEqual(vote["final_reason"], "only_voting:majority_vote")
 
+    def test_final_vote_ignores_plan_artifacts_and_extracts_structured_answer(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
+        state = {
+            "final_vote_mode": "deterministic",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Who is the correct person?",
+        }
+        artifacts = [
+            {"agent_id": "agent_0", "answer": "{'plan': ['search', 'verify']}", "confidence": 0.9},
+            {
+                "agent_id": "agent_1",
+                "answer": (
+                    "{'individual_name': 'Laura Lojo-Rodriguez', "
+                    "'verification_details': {'book': 'Routledge 2018'}}"
+                ),
+                "confidence": 0.6,
+            },
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["source"], "deterministic")
+        self.assertEqual(vote["answer"], "Laura Lojo-Rodriguez")
+        self.assertEqual(vote["tally"], {"laura lojo rodriguez": 1})
+
+    def test_resolve_final_answer_skips_planner_fallback(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
+        state = {
+            "topology": "orchestrator_tree_structure",
+            "artifacts": [
+                {
+                    "node_name": "root_plan",
+                    "agent_id": "agent_0",
+                    "round_index": 0,
+                    "discussion_index": 0,
+                    "dispatch_id": 0,
+                    "answer": "{'plan': ['break into subquestions']}",
+                },
+                {
+                    "node_name": "root_reducer",
+                    "agent_id": "agent_0",
+                    "round_index": 0,
+                    "discussion_index": 0,
+                    "dispatch_id": 1,
+                    "answer": "{'sub_questions': ['verify candidate']}",
+                },
+                {
+                    "node_name": "worker_nodes",
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "discussion_index": 0,
+                    "dispatch_id": 2,
+                    "answer": "Queen Arwa University",
+                    "confidence": 0.8,
+                },
+            ],
+        }
+
+        self.assertEqual(engine._resolve_final_answer(state), "Queen Arwa University")
+
     def test_only_voting_reports_judge_tiebreak_when_tally_is_tied(self) -> None:
         engine = LangGraphMASEngine(
             _JudgeLLM(

@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from answer_utils import extract_substantive_answer, has_substantive_answer
 from langchain_core.runnables.graph import Edge, Graph, Node
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
@@ -83,7 +84,8 @@ class ExperimentSpec:
     communication_budget_per_agent: int = 1
     termination_consensus_mode: str = "llm_judge"
     final_vote_mode: str = "llm_judge"
-    peer_artifact_max_chars: int = 320
+    peer_artifact_max_chars: int = 0
+    minimum_discussion_rounds: int = 1
     agents_per_level: list[int] | None = None
     group_sizes: list[int] | None = None
     benchmark_name: str | None = None
@@ -108,8 +110,11 @@ class ExperimentSpec:
         if final_vote_mode not in {"llm_judge", "deterministic"}:
             raise ValueError("final_vote_mode must be one of: llm_judge, deterministic")
         peer_artifact_max_chars = int(self.peer_artifact_max_chars)
-        if peer_artifact_max_chars < 32:
-            raise ValueError("peer_artifact_max_chars must be >= 32")
+        if peer_artifact_max_chars < 0:
+            raise ValueError("peer_artifact_max_chars must be >= 0 (0 = unlimited)")
+        minimum_discussion_rounds = int(self.minimum_discussion_rounds)
+        if minimum_discussion_rounds < 0:
+            raise ValueError("minimum_discussion_rounds must be >= 0")
         return ExperimentSpec(
             topology=topology,
             num_agents=num_agents,
@@ -119,6 +124,7 @@ class ExperimentSpec:
             termination_consensus_mode=termination_consensus_mode,
             final_vote_mode=final_vote_mode,
             peer_artifact_max_chars=peer_artifact_max_chars,
+            minimum_discussion_rounds=minimum_discussion_rounds,
             agents_per_level=(
                 list(self.agents_per_level) if self.agents_per_level is not None else None
             ),
@@ -277,6 +283,7 @@ class LangGraphMASEngine:
             "workflow_definition": workflow_definition,
             "rounds": int(spec.rounds),
             "discussion_rounds": int(spec.discussion_rounds),
+            "minimum_discussion_rounds": int(spec.minimum_discussion_rounds),
             "termination_consensus_mode": str(spec.termination_consensus_mode),
             "final_vote_mode": str(spec.final_vote_mode),
             "peer_artifact_max_chars": int(spec.peer_artifact_max_chars),
@@ -2436,7 +2443,7 @@ class LangGraphMASEngine:
             [
                 artifact
                 for artifact in consensus_artifacts or candidate_artifacts
-                if str(artifact.get("answer", "")).strip()
+                if has_substantive_answer(artifact.get("answer", ""))
             ]
         )
         base_decision: TerminationDecision = {
@@ -2520,6 +2527,18 @@ class LangGraphMASEngine:
         assessment_source = str(assessment.get("source", "lexical"))
         consensus_is_substantive = assessment.get("is_substantive")
         consensus_supported = assessment_source != "llm_judge" or consensus_is_substantive is True
+
+        min_rounds = int(state.get("minimum_discussion_rounds", 1))
+        if round_index < min_rounds:
+            return {
+                **decision_common,
+                "should_stop": False,
+                "next_step": continue_next_step,
+                "reason": "continue",
+                "reason_detail": (
+                    f"Minimum {min_rounds} discussion round(s) required; currently at round {round_index}."
+                ),
+            }
 
         if int(assessment.get("valid_count", 0)) > 1 and float(assessment.get("ratio", 0.0)) >= 0.75:
             if consensus_supported:
@@ -2753,11 +2772,16 @@ class LangGraphMASEngine:
     ) -> list[dict[str, Any]]:
         serialized: list[dict[str, Any]] = []
         for index, artifact in enumerate(artifacts):
-            answer = str(artifact.get("answer", ""))
-            if not answer_signature(answer):
+            answer = extract_substantive_answer(artifact.get("answer", ""))
+            if not answer:
                 continue
             agent_id = str(artifact.get("agent_id", ""))
             previous = previous_by_agent.get(agent_id)
+            previous_answer = (
+                extract_substantive_answer(previous.get("answer", ""))
+                if previous is not None
+                else None
+            )
             serialized.append(
                 {
                     "index": index,
@@ -2767,9 +2791,7 @@ class LangGraphMASEngine:
                     "summary": self._trim_text(str(artifact.get("summary", "")), max_chars=400),
                     "confidence": float(artifact.get("confidence", 0.5)),
                     "previous_answer": (
-                        self._trim_text(str(previous.get("answer", "")), max_chars=1200)
-                        if previous is not None
-                        else None
+                        self._trim_text(previous_answer, max_chars=1200) if previous_answer else None
                     ),
                     "previous_summary": (
                         self._trim_text(str(previous.get("summary", "")), max_chars=300)
@@ -2805,8 +2827,8 @@ class LangGraphMASEngine:
 
         candidates: list[dict[str, Any]] = []
         for index, artifact in enumerate(artifacts):
-            answer = str(artifact.get("answer", ""))
-            if not answer_signature(answer):
+            answer = extract_substantive_answer(artifact.get("answer", ""))
+            if not answer:
                 continue
             candidates.append(
                 {
@@ -2917,7 +2939,8 @@ class LangGraphMASEngine:
         return {
             "mode": mode,
             "source": "llm_judge",
-            "answer": str(artifacts[winner_index].get("answer", "")),
+            "answer": extract_substantive_answer(artifacts[winner_index].get("answer", ""))
+            or str(artifacts[winner_index].get("answer", "")),
             "tally": tally,
             "explanation": str(parsed.get("explanation", "")),
             "token_in": int(llm.token_in),
@@ -3276,6 +3299,21 @@ class LangGraphMASEngine:
             return None
         return sorted(artifacts, key=self._artifact_sort_key)[-1]
 
+    def _latest_substantive_artifact_for_nodes(
+        self,
+        state: WorkflowState,
+        *,
+        node_names: set[str],
+    ) -> ArtifactRecord | None:
+        artifacts = [
+            artifact
+            for artifact in self._artifacts_for_nodes(state, node_names=node_names)
+            if has_substantive_answer(artifact.get("answer", ""))
+        ]
+        if not artifacts:
+            return None
+        return sorted(artifacts, key=self._artifact_sort_key)[-1]
+
     def _latest_agent_artifact(self, state: WorkflowState, agent_id: str) -> ArtifactRecord | None:
         latest = latest_artifact_by_agent(list(state.get("artifacts", [])))
         return latest.get(agent_id)
@@ -3386,6 +3424,15 @@ class LangGraphMASEngine:
             "0.75 = likely correct with remaining gaps; 1.0 = strongly supported final answer. "
             "If a field is unknown, use an empty string, an empty list, or a conservative confidence score."
         )
+        if stage_role == "planner":
+            system_lines.append(
+                "Because this is a planner stage, answer_artifact should contain a bounded work plan or task package."
+            )
+        else:
+            system_lines.append(
+                "Because this is not a planner stage, answer_artifact must be the current best direct answer or a concise blocked-status explanation. "
+                "Do not use answer_artifact for plans, tool lists, search strategies, or sub-question lists."
+            )
 
         system_message = {
             "role": "system",
@@ -3435,7 +3482,7 @@ class LangGraphMASEngine:
 
     @staticmethod
     def _peer_artifact_max_chars(state: WorkflowState) -> int:
-        return max(32, int(state.get("peer_artifact_max_chars", 320)))
+        return max(0, int(state.get("peer_artifact_max_chars", 0)))
 
     def _packet_payload_from_artifact(
         self,
@@ -3456,17 +3503,51 @@ class LangGraphMASEngine:
     def _resolve_final_answer(self, state: WorkflowState) -> str:
         artifacts = list(state.get("artifacts", []))
         topology = str(state.get("topology", ""))
-        layout = state["layout"]
 
         if topology == TOPOLOGY_SAS:
-            artifact = self._latest_artifact_for_nodes(state, node_names={"single_agent"})
-            return str(artifact.get("answer", "")) if artifact else ""
+            artifact = self._latest_substantive_artifact_for_nodes(state, node_names={"single_agent"})
+            if artifact:
+                return extract_substantive_answer(artifact.get("answer", "")) or str(
+                    artifact.get("answer", "")
+                )
+            return ""
         if topology in {TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION, TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION}:
-            artifact = self._latest_artifact_for_nodes(state, node_names={"orchestrator_merge", "orchestrator_plan"})
-            return str(artifact.get("answer", "")) if artifact else ""
+            artifact = self._latest_substantive_artifact_for_nodes(
+                state,
+                node_names={"orchestrator_merge"},
+            )
+            if artifact:
+                return extract_substantive_answer(artifact.get("answer", "")) or str(
+                    artifact.get("answer", "")
+                )
+            return self._fallback_answer_from_artifacts(
+                self._artifacts_for_nodes(
+                    state,
+                    node_names={
+                        "orchestrator_merge",
+                        "specialist_worker",
+                        "specialists_initial_round",
+                        "specialists_revision_round",
+                    },
+                    latest_only=True,
+                )
+            )
         if topology == TOPOLOGY_ORCHESTRATOR_TREE:
-            artifact = self._latest_artifact_for_nodes(state, node_names={"root_reducer", "root_plan"})
-            return str(artifact.get("answer", "")) if artifact else ""
+            artifact = self._latest_substantive_artifact_for_nodes(
+                state,
+                node_names={"root_reducer"},
+            )
+            if artifact:
+                return extract_substantive_answer(artifact.get("answer", "")) or str(
+                    artifact.get("answer", "")
+                )
+            return self._fallback_answer_from_artifacts(
+                self._artifacts_for_nodes(
+                    state,
+                    node_names={"root_reducer", "manager_reducers", "worker_nodes"},
+                    latest_only=True,
+                )
+            )
         if topology == TOPOLOGY_ONLY_VOTING:
             answer, _ = vote_artifacts(self._artifacts_for_nodes(state, node_names={"worker"}, latest_only=True))
             return answer
@@ -3482,7 +3563,11 @@ class LangGraphMASEngine:
 
     @staticmethod
     def _fallback_answer_from_artifacts(artifacts: list[ArtifactRecord]) -> str:
-        candidates = [str(artifact.get("answer", "")) for artifact in artifacts if artifact.get("answer")]
+        candidates = [
+            extract_substantive_answer(artifact.get("answer", "")) or str(artifact.get("answer", ""))
+            for artifact in artifacts
+            if has_substantive_answer(artifact.get("answer", ""))
+        ]
         if not candidates:
             return ""
         winner, _ = vote_majority(candidates)

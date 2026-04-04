@@ -21,6 +21,7 @@ from typing import Any
 import pandas as pd
 from loguru import logger
 
+from answer_utils import has_substantive_answer
 from benchmark.base import BenchmarkEvaluation, BenchmarkTask
 from MAS import MASRunner, MASRunResult
 
@@ -1146,10 +1147,15 @@ class WorkBenchBenchmark:
         ground_truth_actions = list(task.metadata.get("answer", []))
         predicted_actions = list(run_metadata.get("function_calls", []))
         error = str(run_metadata.get("error", ""))
+        prediction_text = str(prediction or "")
+        substantive_prediction = has_substantive_answer(prediction_text)
 
         exact_match = self._is_exact_match(predicted_actions, ground_truth_actions)
         correct = self._is_correct(predicted_actions, ground_truth_actions, error)
         unwanted_side_effects = self._has_side_effects(predicted_actions, ground_truth_actions)
+        if not ground_truth_actions:
+            exact_match = exact_match and substantive_prediction
+            correct = correct and substantive_prediction
 
         return BenchmarkEvaluation(
             task_id=task.task_id,
@@ -1162,6 +1168,7 @@ class WorkBenchBenchmark:
                 "error": error,
                 "exact_match": exact_match,
                 "correct": correct,
+                "prediction_substantive": substantive_prediction,
                 "unwanted_side_effects": unwanted_side_effects,
                 "tool_selection": self.tool_selection,
                 "domains": task.metadata.get("domains", []),

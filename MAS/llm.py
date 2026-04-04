@@ -180,6 +180,7 @@ class OpenRouterLLMClient:
         tool_call_records: list[dict[str, Any]] = []
         final_text = ""
         stopped_early = False
+        duplicate_call_counts: dict[str, int] = {}
 
         for _ in range(max(1, int(max_tool_iterations))):
             completion = self.client.chat.completions.create(
@@ -286,6 +287,24 @@ class OpenRouterLLMClient:
                     }
                 )
 
+                sig = f"{api_tool_name}:{args_text}"
+                duplicate_call_counts[sig] = duplicate_call_counts.get(sig, 0) + 1
+                if duplicate_call_counts[sig] >= 3:
+                    working_messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_id,
+                            "name": api_tool_name,
+                            "content": (
+                                "Repeated identical tool call detected. This exact call has been made "
+                                "3 or more times with the same arguments and is returning the same result. "
+                                "Please stop repeating this call and provide your final answer now."
+                            ),
+                        }
+                    )
+                    stopped_early = True
+                    break
+
                 if isinstance(output, str):
                     output_payload = output
                 else:
@@ -298,6 +317,9 @@ class OpenRouterLLMClient:
                         "content": output_payload,
                     }
                 )
+
+            if stopped_early:
+                break
         else:
             stopped_early = True
 
@@ -319,9 +341,15 @@ class OpenRouterLLMClient:
             "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
         }
         if stopped_early:
-            metadata["tool_loop_stopped_reason"] = (
-                f"Reached max_tool_iterations={max(1, int(max_tool_iterations))}"
-            )
+            repeated = [sig for sig, cnt in duplicate_call_counts.items() if cnt >= 3]
+            if repeated:
+                metadata["tool_loop_stopped_reason"] = (
+                    f"Duplicate tool call detected (repeated >=3 times): {repeated[0]}"
+                )
+            else:
+                metadata["tool_loop_stopped_reason"] = (
+                    f"Reached max_tool_iterations={max(1, int(max_tool_iterations))}"
+                )
             if final_text:
                 metadata["tool_loop_forced_final_answer"] = True
 

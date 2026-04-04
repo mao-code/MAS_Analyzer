@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from answer_utils import extract_substantive_answer
+
 from .artifacts import ArtifactRecord, answer_signature
 
 TOPOLOGY_SAS = "sas"
@@ -251,8 +253,9 @@ def vote_majority(candidates: list[str]) -> tuple[str, dict[str, int]]:
         signature = answer_signature(text)
         if not signature:
             continue
+        substantive = extract_substantive_answer(text) or str(text)
         tally[signature] = tally.get(signature, 0) + 1
-        surface.setdefault(signature, str(text))
+        surface.setdefault(signature, substantive)
 
     if not tally:
         return ("", {})
@@ -301,7 +304,10 @@ def vote_artifacts(artifacts: list[ArtifactRecord]) -> tuple[str, dict[str, int]
         ),
     )[0]
     tally = {signature: len(items) for signature, items in groups.items()}
-    return (str(best_artifact.get("answer", "")), tally)
+    answer = extract_substantive_answer(best_artifact.get("answer", "")) or str(
+        best_artifact.get("answer", "")
+    )
+    return (answer, tally)
 
 
 def _resolve_tree_levels(num_agents: int, agents_per_level: list[int] | None) -> list[int]:

@@ -26,6 +26,7 @@ class WorkflowState(TypedDict, total=False):
     workflow_definition: dict[str, Any]
     rounds: int
     discussion_rounds: int
+    minimum_discussion_rounds: int
     termination_consensus_mode: str
     final_vote_mode: str
     peer_artifact_max_chars: int
