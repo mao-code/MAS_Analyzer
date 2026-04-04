@@ -1,0 +1,475 @@
+{
+  "benchmark": "workbench",
+  "config_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/config/benchmarks/workbench_10.toml",
+  "experiment_id": "20260403T225842Z",
+  "experiment_settings_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/experiment_settings.json",
+  "graph": {
+    "layout": {
+      "adjacency": {
+        "agent_0": [],
+        "agent_1": [],
+        "agent_2": [],
+        "agent_3": []
+      },
+      "agent_ids": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "agents_per_level": [
+        4
+      ],
+      "children_by_agent": {},
+      "groups": [],
+      "leaves": [],
+      "level_by_agent": {
+        "agent_0": 0,
+        "agent_1": 0,
+        "agent_2": 0,
+        "agent_3": 0
+      },
+      "managers": [],
+      "orchestrator_id": null,
+      "parent_by_agent": {},
+      "representatives": [],
+      "roles": {
+        "agent_0": "voter",
+        "agent_1": "voter",
+        "agent_2": "voter",
+        "agent_3": "voter"
+      },
+      "specialists": [],
+      "topological_order": [
+        "agent_0",
+        "agent_1",
+        "agent_2",
+        "agent_3"
+      ],
+      "topology": "only_voting"
+    },
+    "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/mas_graph.mmd",
+    "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/mas_graph.png",
+    "render_backend": "langgraph_mermaid_api",
+    "render_error": "",
+    "topology": "only_voting",
+    "workflow": {
+      "mermaid_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/workflow_graph.mmd",
+      "png_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/workflow_graph.png",
+      "render_backend": "langgraph_mermaid_api",
+      "render_error": "",
+      "topology": "only_voting",
+      "workflow": {
+        "aggregation_logic": "`voter` either uses an LLM judge to select the best final answer or falls back to deterministic voting with explicit tie-breaks.",
+        "conditional_edges": [
+          "dispatch_independent_agents -> worker (one Send per active agent) else voter"
+        ],
+        "dispatch_logic": "Fan out to every worker with no peer packets.",
+        "edges": [
+          "START -> dispatch_independent_agents",
+          "worker -> voter",
+          "voter -> descriptor_monitor",
+          "descriptor_monitor -> finalize",
+          "finalize -> END"
+        ],
+        "logging_outputs": [
+          "trace_events",
+          "relay_messages",
+          "message_views",
+          "interaction_logs",
+          "descriptor_records",
+          "termination_history"
+        ],
+        "nodes": {
+          "descriptor_monitor": "Shared descriptor hook.",
+          "dispatch_independent_agents": "Selects all workers for independent solving.",
+          "finalize": "Finalize the run.",
+          "voter": "Configurable final voter. Default is an LLM judge with deterministic fallback.",
+          "worker": "Independent worker branch."
+        },
+        "state_fields": [
+          "task_id",
+          "task_prompt",
+          "topology",
+          "layout",
+          "rounds",
+          "discussion_rounds",
+          "final_vote_mode",
+          "round_index",
+          "discussion_index",
+          "messages",
+          "artifacts",
+          "termination_decision",
+          "vote_tally",
+          "descriptor_records"
+        ],
+        "stopping_criteria": [
+          "Single-turn topology. It stops after the voter."
+        ],
+        "topology": "only_voting"
+      }
+    }
+  },
+  "output_layout": "hierarchical",
+  "runs_per_task": 1,
+  "system": {
+    "agent_types": [
+      "general"
+    ],
+    "agents": 4,
+    "agents_per_level": [
+      4
+    ],
+    "communication_budget": 0,
+    "discussion_rounds": 1,
+    "final_vote_mode": "llm_judge",
+    "group_sizes": null,
+    "max_turns": 1,
+    "mode": "MAS",
+    "peer_artifact_max_chars": 320,
+    "system_label": "only_voting",
+    "termination_consensus_mode": "llm_judge",
+    "topology": "only_voting"
+  },
+  "system_label": "only_voting",
+  "task_count": 3,
+  "tasks": [
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_0/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_0/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 35515.18233201461,
+        "C2_tokens_total": 20570.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 17.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_agent_to_agent_communication_count": 0.0,
+        "D2_communication_count": 0.0,
+        "D2_system_mediated_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 46.0,
+        "P2_backtrack_rate": 0.021739130434782608,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.13043478260869565,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 33059.30541601265,
+        "stage_act_tokens": 19677.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 70.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 34.0,
+        "stage_retrieve_latency_ms": 34.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 6.0,
+        "stage_verify_latency_ms": 2419.8769160019583,
+        "stage_verify_tokens": 823.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Cameron Anderson\", participant_email=\"sofia.santos@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\")",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron\")",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Cameron Anderson\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\")",
+                "company_directory.find_email_address.func(name=\"Cameron Anderson\")",
+                "calendar.search_events.func(query=\"Cameron Anderson\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.create_event.func(duration=\"30\", participant_email=\"cameron.anderson@atlas.com\", event_name=\"Update on Cameron Anderson\", event_start=\"2023-12-01 14:00:00\")"
+              ],
+              "query": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": true
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_0"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Cameron Anderson in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Cameron Anderson' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_0",
+      "task_id": "multi_domain_0"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_1/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_1/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 26592.121583995468,
+        "C2_tokens_total": 15335.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 14.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_agent_to_agent_communication_count": 0.0,
+        "D2_communication_count": 0.0,
+        "D2_system_mediated_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 40.0,
+        "P2_backtrack_rate": 0.025,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.15,
+        "Q1_success_rate": 0.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 25080.62658400013,
+        "stage_act_tokens": 14488.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 71.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 28.0,
+        "stage_retrieve_latency_ms": 28.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 6.0,
+        "stage_verify_latency_ms": 1481.4949999953387,
+        "stage_verify_tokens": 776.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 0.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": false,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": false,
+              "ground_truth": [
+                "calendar.create_event.func(event_name=\"Update on Riley Brown\", participant_email=\"lena.schmidt@atlas.com\", event_start=\"2023-12-01 13:00:00\", duration=\"30\")"
+              ],
+              "prediction": [
+                "calendar.get_event_information_by_id.func()",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")",
+                "calendar.create_event.func(duration=\"30\", event_name=\"Update on Riley Brown\", participant_email=\"riley.brown@atlas.com\", event_start=\"2023-12-01 13:00:00\")",
+                "company_directory.find_email_address.func(name=\"Riley Brown\")",
+                "calendar.search_events.func(query=\"Riley Brown\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Riley Brown\")"
+              ],
+              "query": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": true
+            },
+            "score": 0.0,
+            "success": false,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_1"
+          }
+        ],
+        "success_rate": 0.0
+      },
+      "prompt_preview": "If we haven't spoke to Riley Brown in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Riley Brown' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_1",
+      "task_id": "multi_domain_1"
+    },
+    {
+      "artifacts": {
+        "analysis_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_2/analysis.json",
+        "task_summary_path": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_2/task_summary.json"
+      },
+      "descriptor": {
+        "C1_latency_p95": 27414.305332011834,
+        "C2_tokens_total": 15080.0,
+        "C3_cost_total": 0.0,
+        "C4_tool_calls_total": 13.0,
+        "D1_tool_error_rate": 0.0,
+        "D2_agent_to_agent_communication_count": 0.0,
+        "D2_communication_count": 0.0,
+        "D2_system_mediated_communication_count": 0.0,
+        "D3_handoff_count": 5.0,
+        "P1_steps_total": 38.0,
+        "P2_backtrack_rate": 0.02631578947368421,
+        "P3_loop_score": 0.0,
+        "P4_verification_density": 0.15789473684210525,
+        "Q1_success_rate": 1.0,
+        "Q2_completion_rate": 1.0,
+        "R1_success_var": 0.0,
+        "R2_latency_var": 0.0,
+        "R3_tokens_var": 0.0,
+        "stage_act_events": 4.0,
+        "stage_act_latency_ms": 25810.818374011433,
+        "stage_act_tokens": 14064.0,
+        "stage_act_tool_errors": 0.0,
+        "stage_act_verify_density": 0.0,
+        "stage_finalize_events": 1.0,
+        "stage_finalize_latency_ms": 1.0,
+        "stage_finalize_tokens": 99.0,
+        "stage_finalize_tool_errors": 0.0,
+        "stage_finalize_verify_density": 0.0,
+        "stage_plan_events": 0.0,
+        "stage_plan_latency_ms": 0.0,
+        "stage_plan_tokens": 0.0,
+        "stage_plan_tool_errors": 0.0,
+        "stage_plan_verify_density": 0.0,
+        "stage_retrieve_events": 26.0,
+        "stage_retrieve_latency_ms": 26.0,
+        "stage_retrieve_tokens": 0.0,
+        "stage_retrieve_tool_errors": 0.0,
+        "stage_retrieve_verify_density": 0.0,
+        "stage_revise_events": 1.0,
+        "stage_revise_latency_ms": 1.0,
+        "stage_revise_tokens": 0.0,
+        "stage_revise_tool_errors": 0.0,
+        "stage_revise_verify_density": 0.0,
+        "stage_verify_events": 6.0,
+        "stage_verify_latency_ms": 1575.4869580004015,
+        "stage_verify_tokens": 917.0,
+        "stage_verify_tool_errors": 0.0,
+        "stage_verify_verify_density": 1.0
+      },
+      "evaluation": {
+        "avg_score": 1.0,
+        "completion_rate": 1.0,
+        "count": 1,
+        "runs": [
+          {
+            "completion": true,
+            "completion_source": "final_answer",
+            "details": {
+              "correct": true,
+              "domains": [
+                "crm",
+                "calendar"
+              ],
+              "error": "",
+              "exact_match": true,
+              "ground_truth": [],
+              "prediction": [
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\", time_min=\"2023-11-16 00:00:00\")",
+                "calendar.search_events.func(time_min=\"2023-12-01 00:00:00\", time_max=\"2023-12-01 23:59:59\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "company_directory.find_email_address.func(name=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_min=\"2023-11-16 00:00:00\", query=\"Jessie Thomas\")",
+                "calendar.search_events.func(time_max=\"2023-12-01 23:59:59\", time_min=\"2023-12-01 00:00:00\")",
+                "calendar.search_events.func(query=\"Jessie Thomas\")",
+                "calendar.get_event_information_by_id.func()"
+              ],
+              "query": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+              "tool_selection": "domains",
+              "unwanted_side_effects": false
+            },
+            "score": 1.0,
+            "success": true,
+            "success_source": "benchmark_evaluation",
+            "task_id": "multi_domain_2"
+          }
+        ],
+        "success_rate": 1.0
+      },
+      "prompt_preview": "If we haven't spoke to Jessie Thomas in the past fortnight book a 30-minute meeting with whoever is assigned to them called 'Update on Jessie Thomas' at the first time I'm free tomorrow",
+      "reference_answer": "",
+      "stage_bottleneck": {
+        "findings": [],
+        "peak_latency_stage": "stage_act_latency_ms",
+        "peak_token_stage": "stage_act_tokens"
+      },
+      "task_dir": "/Users/maoxunhuang/Desktop/MAS_Analyzer/artifacts/full_experiment/20260403T225842Z/workbench/only_voting/multi_domain_2",
+      "task_id": "multi_domain_2"
+    }
+  ],
+  "timestamp": "20260403T225842Z"
+}

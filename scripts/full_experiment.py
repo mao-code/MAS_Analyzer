@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import time
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
@@ -78,6 +79,8 @@ class BatchOptions:
     benchmarks: list[str] | None
     task_limit: int | None
     runs_per_task: int | None
+    retry_failures: int
+    max_parallel: int
     final_vote_mode: str | None
     skip_setup: bool
     setup_only: bool
@@ -176,6 +179,18 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
     parser.add_argument("--task-limit", type=int, default=None)
     parser.add_argument("--runs-per-task", type=int, default=None)
     parser.add_argument(
+        "--retry-failures",
+        type=int,
+        default=0,
+        help="Retry each failed run job this many additional times.",
+    )
+    parser.add_argument(
+        "--max-parallel",
+        type=int,
+        default=1,
+        help="Maximum number of run jobs to execute concurrently.",
+    )
+    parser.add_argument(
         "--final-vote-mode",
         choices=["llm_judge", "deterministic"],
         default=None,
@@ -193,6 +208,8 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         benchmarks=selected or None,
         task_limit=args.task_limit,
         runs_per_task=args.runs_per_task,
+        retry_failures=max(int(args.retry_failures), 0),
+        max_parallel=max(int(args.max_parallel), 1),
         final_vote_mode=args.final_vote_mode,
         skip_setup=bool(args.skip_setup),
         setup_only=bool(args.setup_only),
@@ -807,6 +824,20 @@ def batch_run(options: BatchOptions) -> int:
                         cmd.extend(["--runs-per-task", str(options.runs_per_task)])
                     if options.final_vote_mode is not None:
                         cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
+                    jobs.append(
+                        RunJob(
+                            benchmark_name=benchmark_name,
+                            config_path=config_path,
+                            system_label=system_label,
+                            topology=topology,
+                            agents=agents,
+                            rounds=rounds,
+                            discussion_rounds=discussion_rounds,
+                            communication_budget=communication_budget,
+                            cmd=cmd,
+                            log_path=logs_root / benchmark_name / f"{system_label}.log",
+                        )
+                    )
 
             info("")
             info(

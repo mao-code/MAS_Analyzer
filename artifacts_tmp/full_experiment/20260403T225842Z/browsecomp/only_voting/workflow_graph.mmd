@@ -1,0 +1,30 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	START([START<hr/><small><em>kind = terminal
+description = Workflow entrypoint.</em></small>]):::first
+	END([END<hr/><small><em>kind = terminal
+description = Workflow exit.</em></small>]):::last
+	dispatch_independent_agents(dispatch_independent_agents<hr/><small><em>kind = workflow_node
+description = Selects all workers for independent solving.</em></small>)
+	worker(worker<hr/><small><em>kind = workflow_node
+description = Independent worker branch.</em></small>)
+	voter(voter<hr/><small><em>kind = workflow_node
+description = Configurable final voter. Default is an LLM judge with deterministic fallback.</em></small>)
+	descriptor_monitor(descriptor_monitor<hr/><small><em>kind = workflow_node
+description = Shared descriptor hook.</em></small>)
+	finalize(finalize<hr/><small><em>kind = workflow_node
+description = Finalize the run.</em></small>)
+	START --> dispatch_independent_agents;
+	worker --> voter;
+	voter --> descriptor_monitor;
+	descriptor_monitor --> finalize;
+	finalize --> END;
+	dispatch_independent_agents -- &nbsp;one Send per active agent&nbsp; --> worker;
+	dispatch_independent_agents -- &nbsp;else&nbsp; --> voter;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

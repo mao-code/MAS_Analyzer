@@ -1,0 +1,45 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	START([START<hr/><small><em>kind = terminal
+description = Workflow entrypoint.</em></small>]):::first
+	END([END<hr/><small><em>kind = terminal
+description = Workflow exit.</em></small>]):::last
+	group_dispatch(group_dispatch<hr/><small><em>kind = workflow_node
+description = Fan out the intra-group debate stage.</em></small>)
+	group_debate_round(group_debate_round<hr/><small><em>kind = workflow_node
+description = Parallel group debate workers.</em></small>)
+	group_controller(group_controller<hr/><small><em>kind = workflow_node
+description = Intra-group controller plus stop/merge logic.</em></small>)
+	representative_dispatch(representative_dispatch<hr/><small><em>kind = workflow_node
+description = Representative fan-out.</em></small>)
+	representative_merge(representative_merge<hr/><small><em>kind = workflow_node
+description = Representative merge/debate stage.</em></small>)
+	representative_controller(representative_controller<hr/><small><em>kind = workflow_node
+description = Representative-level controller plus stopping logic.</em></small>)
+	final_judge(final_judge<hr/><small><em>kind = workflow_node
+description = Configurable final judge. Default is an LLM judge with deterministic fallback.</em></small>)
+	descriptor_monitor(descriptor_monitor<hr/><small><em>kind = workflow_node
+description = Shared descriptor hook.</em></small>)
+	finalize(finalize<hr/><small><em>kind = workflow_node
+description = Finalize the run.</em></small>)
+	START --> group_dispatch;
+	group_debate_round --> group_controller;
+	representative_merge --> representative_controller;
+	final_judge --> descriptor_monitor;
+	descriptor_monitor --> finalize;
+	finalize --> END;
+	group_dispatch -- &nbsp;parallel Send fan-out&nbsp; --> group_debate_round;
+	group_dispatch -- &nbsp;else&nbsp; --> group_controller;
+	group_controller -- &nbsp;conditional&nbsp; --> group_dispatch;
+	group_controller -- &nbsp;conditional&nbsp; --> representative_dispatch;
+	representative_dispatch -- &nbsp;parallel Send fan-out&nbsp; --> representative_merge;
+	representative_dispatch -- &nbsp;else&nbsp; --> final_judge;
+	representative_controller -- &nbsp;conditional&nbsp; --> representative_dispatch;
+	representative_controller -- &nbsp;conditional&nbsp; --> final_judge;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

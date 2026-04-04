@@ -7,11 +7,11 @@ set -euo pipefail
 #   BENCHMARKS=workbench,scicode SKIP_SETUP=1 bash scripts/full_experiment.sh
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 
-TASK_LIMIT="${TASK_LIMIT:-5}"
+TASK_LIMIT="${TASK_LIMIT:-3}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
 BENCHMARKS="${BENCHMARKS:-browsecomp,workbench}"
-RETRY_FAILURES="${RETRY_FAILURES:-1}"
-MAX_PARALLEL="${MAX_PARALLEL:-1}"
+RETRY_FAILURES="${RETRY_FAILURES:-2}"
+MAX_PARALLEL="${MAX_PARALLEL:-2}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"
@@ -123,12 +123,39 @@ export ONLY_VOTING_ARGS
 export FULLY_LINKED_DEBATE_ARGS
 export GROUP_CHAT_DEBATE_ARGS
 
+python_is_compatible() {
+  local python_cmd="${1}"
+  "${python_cmd}" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1
+}
+
 if command -v conda >/dev/null 2>&1; then
-  exec conda run -n agents python scripts/full_experiment.py "${args[@]}" "$@"
+  if conda run -n agents python -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then
+    exec conda run -n agents python scripts/full_experiment.py "${args[@]}" "$@"
+  fi
 fi
 
-if command -v python3 >/dev/null 2>&1; then
+if command -v python3.11 >/dev/null 2>&1; then
+  exec python3.11 scripts/full_experiment.py "${args[@]}" "$@"
+fi
+
+if command -v python3 >/dev/null 2>&1 && python_is_compatible python3; then
   exec python3 scripts/full_experiment.py "${args[@]}" "$@"
 fi
 
-exec python scripts/full_experiment.py "${args[@]}" "$@"
+if command -v python >/dev/null 2>&1 && python_is_compatible python; then
+  exec python scripts/full_experiment.py "${args[@]}" "$@"
+fi
+
+cat >&2 <<'EOF'
+scripts/full_experiment.sh requires Python 3.11+.
+
+Recommended fix:
+  conda env create -f environment.yml
+  conda run -n agents python -V
+  bash scripts/full_experiment.sh
+
+If the 'agents' environment already exists but is stale, recreate or update it:
+  conda env remove -n agents
+  conda env create -f environment.yml
+EOF
+exit 1
