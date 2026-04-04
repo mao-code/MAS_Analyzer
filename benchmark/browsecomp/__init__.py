@@ -366,6 +366,7 @@ class BrowseCompBenchmark:
             seed=seed,
             tools=tools,
             max_tool_iterations=self.max_tool_iterations,
+            benchmark_name="browsecomp",
         )
 
     def _merge_task_docs(

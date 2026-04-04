@@ -189,7 +189,7 @@ class PlancraftBenchmark:
             )
 
             # Delegate exactly one step of generation to the MAS
-            mas_result = runner.run_task(task=step_task, run_index=run_index, seed=seed)
+            mas_result = runner.run_task(task=step_task, run_index=run_index, seed=seed, benchmark_name="plancraft")
             all_events.extend(mas_result.trace_events)
             merge_step_run_metadata(
                 aggregate_metadata,

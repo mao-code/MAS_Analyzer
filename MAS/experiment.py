@@ -29,7 +29,7 @@ def build_runtime_config(
     communication_budget_per_agent: int = 1,
     termination_consensus_mode: str = "llm_judge",
     final_vote_mode: str = "llm_judge",
-    peer_artifact_max_chars: int = 320,
+    peer_artifact_max_chars: int = 0,
     agent_types: list[str] | None = None,
     output_dir: str = "outputs",
     seed: int = 42,
@@ -52,7 +52,7 @@ def build_runtime_config(
             discussion_rounds=max(1, int(discussion_rounds)),
             termination_consensus_mode=str(termination_consensus_mode),
             final_vote_mode=str(final_vote_mode),
-            peer_artifact_max_chars=max(32, int(peer_artifact_max_chars)),
+            peer_artifact_max_chars=max(0, int(peer_artifact_max_chars)),
         ),
         experiment=ExperimentRuntimeConfig(
             output_dir=output_dir,

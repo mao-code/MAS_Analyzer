@@ -314,6 +314,7 @@ class StableToolBenchBenchmark:
             seed=seed,
             tools=tools,
             max_tool_iterations=self.max_tool_iterations,
+            benchmark_name="stabletoolbench",
         )
 
     def evaluate(

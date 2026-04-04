@@ -7,6 +7,8 @@ from typing import Any
 
 from typing_extensions import TypedDict
 
+from answer_utils import extract_substantive_answer
+
 
 class ArtifactRecord(TypedDict, total=False):
     """Structured output produced by one agent stage."""
@@ -188,7 +190,10 @@ def packet_content(payload: dict[str, Any], *, max_chars: int = 320) -> str:
 def answer_signature(text: str) -> str:
     """Canonicalize an answer for deterministic voting and agreement checks."""
 
-    normalized = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", (text or "").lower())).strip()
+    substantive = extract_substantive_answer(text)
+    normalized = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", substantive.lower())).strip()
+    if not normalized:
+        return ""
     return normalized
 
 
@@ -332,6 +337,8 @@ def _coerce_confidence(value: Any) -> float:
 
 def _bounded_text(value: Any, *, max_chars: int) -> str:
     text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if max_chars <= 0:
+        return text
     if len(text) <= max_chars:
         return text
     return text[: max(0, max_chars - 3)].rstrip() + "..."

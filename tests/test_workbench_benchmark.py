@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from benchmark.base import BenchmarkTask
 from benchmark.workbench import WorkBenchBenchmark
 
 
@@ -182,6 +183,60 @@ class TestWorkBenchBenchmark(unittest.TestCase):
             self.assertEqual(result.score, 0.0)
             self.assertFalse(result.details["exact_match"])
             self.assertTrue(result.details["unwanted_side_effects"])
+
+    def test_evaluate_noop_task_requires_substantive_prediction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = self._build_fixture(Path(tmpdir))
+            benchmark = WorkBenchBenchmark({"domain": "calendar", "data_dir": str(data_dir)})
+            task = BenchmarkTask(
+                task_id="noop_0",
+                prompt="If needed, book a meeting with Jessie Thomas.",
+                reference_answer="",
+                metadata={
+                    "query": "If needed, book a meeting with Jessie Thomas.",
+                    "answer": [],
+                    "domains": ["calendar", "crm"],
+                },
+            )
+
+            result = benchmark.evaluate(
+                task,
+                "To complete the request, I will execute the following plan: 1. Search CRM. 2. Find the assignee.",
+                run_metadata={"function_calls": [], "error": ""},
+            )
+
+            self.assertFalse(result.success)
+            self.assertEqual(result.score, 0.0)
+            self.assertFalse(result.details["exact_match"])
+            self.assertFalse(result.details["correct"])
+            self.assertFalse(result.details["prediction_substantive"])
+
+    def test_evaluate_noop_task_accepts_substantive_blocked_answer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = self._build_fixture(Path(tmpdir))
+            benchmark = WorkBenchBenchmark({"domain": "calendar", "data_dir": str(data_dir)})
+            task = BenchmarkTask(
+                task_id="noop_1",
+                prompt="If needed, book a meeting with Jessie Thomas.",
+                reference_answer="",
+                metadata={
+                    "query": "If needed, book a meeting with Jessie Thomas.",
+                    "answer": [],
+                    "domains": ["calendar", "crm"],
+                },
+            )
+
+            result = benchmark.evaluate(
+                task,
+                "I could not book the meeting because no assigned contact for Jessie Thomas was found.",
+                run_metadata={"function_calls": [], "error": ""},
+            )
+
+            self.assertTrue(result.success)
+            self.assertEqual(result.score, 1.0)
+            self.assertTrue(result.details["exact_match"])
+            self.assertTrue(result.details["correct"])
+            self.assertTrue(result.details["prediction_substantive"])
 
 
 def benchmark_module_sandbox(data_dir: Path):

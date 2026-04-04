@@ -46,9 +46,11 @@ class MASConfig:
     turn_mode: str = "single_turn"
     max_turns: int = 20
     discussion_rounds: int = 1
+    minimum_discussion_rounds: int = 1
     termination_consensus_mode: str = "llm_judge"
     final_vote_mode: str = "llm_judge"
-    peer_artifact_max_chars: int = 320
+    peer_artifact_max_chars: int = 0
+    enable_dynamic_roles: bool = True
 
     def validate(self) -> None:
         if self.levels < 1:
@@ -69,6 +71,9 @@ class MASConfig:
         if self.discussion_rounds < 1:
             raise ValueError("mas.discussion_rounds must be >= 1")
 
+        if self.minimum_discussion_rounds < 0:
+            raise ValueError("mas.minimum_discussion_rounds must be >= 0")
+
         if self.termination_consensus_mode not in {"llm_judge", "lexical"}:
             raise ValueError(
                 "mas.termination_consensus_mode must be one of: llm_judge, lexical"
@@ -79,8 +84,8 @@ class MASConfig:
                 "mas.final_vote_mode must be one of: llm_judge, deterministic"
             )
 
-        if self.peer_artifact_max_chars < 32:
-            raise ValueError("mas.peer_artifact_max_chars must be >= 32")
+        if self.peer_artifact_max_chars < 0:
+            raise ValueError("mas.peer_artifact_max_chars must be >= 0 (0 = unlimited)")
 
         if self.agents_per_level is not None:
             if len(self.agents_per_level) != self.levels:
@@ -256,11 +261,13 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         turn_mode=str(mas_raw.get("turn_mode", "single_turn")),
         max_turns=int(mas_raw.get("max_turns", 20)),
         discussion_rounds=int(mas_raw.get("discussion_rounds", 1)),
+        minimum_discussion_rounds=int(mas_raw.get("minimum_discussion_rounds", 1)),
         termination_consensus_mode=str(
             mas_raw.get("termination_consensus_mode", "llm_judge")
         ),
         final_vote_mode=str(mas_raw.get("final_vote_mode", "llm_judge")),
-        peer_artifact_max_chars=int(mas_raw.get("peer_artifact_max_chars", 320)),
+        peer_artifact_max_chars=int(mas_raw.get("peer_artifact_max_chars", 0)),
+        enable_dynamic_roles=bool(mas_raw.get("enable_dynamic_roles", True)),
     )
 
     experiment = ExperimentRuntimeConfig(

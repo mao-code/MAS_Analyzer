@@ -155,6 +155,10 @@ class TestMainHierarchicalOutput(unittest.TestCase):
 
             trajectory = json.loads((task_dir / "run_0.trajectory.json").read_text(encoding="utf-8"))
             self.assertTrue(trajectory["tool_definitions"])
+            self.assertIn("role_assignment", trajectory)
+            self.assertTrue(trajectory["role_assignment"]["enabled"])
+            self.assertTrue(trajectory["role_assignment"]["assignments"])
+            self.assertTrue(trajectory["role_assignment"]["prompt_messages"])
             self.assertTrue(trajectory["prompt_catalog"])
             self.assertTrue(trajectory["steps"])
             first_step = trajectory["steps"][0]

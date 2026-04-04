@@ -225,6 +225,8 @@ def _apply_mas_overrides(config: Any, args: argparse.Namespace) -> None:
         config.models["judge"] = str(args.judge_model)
     if agent_types is not None:
         mas_cfg.agent_types = list(agent_types)
+    if getattr(args, "no_dynamic_roles", False):
+        mas_cfg.enable_dynamic_roles = False
 
     config.validate()
 
@@ -580,6 +582,40 @@ def _trajectory_payload(
             final_answer=final_answer,
         )
 
+    raw_role_assignment = (
+        dict(run_metadata.get("role_assignment", {}))
+        if isinstance(run_metadata.get("role_assignment"), dict)
+        else {}
+    )
+    role_assignment = {
+        "enabled": bool(raw_role_assignment.get("enabled", False)),
+        "benchmark_name": str(raw_role_assignment.get("benchmark_name", "")),
+        "used_fallback": bool(raw_role_assignment.get("used_fallback", False)),
+        "fallback_reason": str(raw_role_assignment.get("fallback_reason", "")),
+        "prompt_messages": [
+            {
+                "role": str(message.get("role", "user")),
+                "content": str(message.get("content", "")),
+            }
+            for message in raw_role_assignment.get("prompt_messages", [])
+            if isinstance(message, dict)
+        ],
+        "response": str(raw_role_assignment.get("response", "")),
+        "llm": dict(raw_role_assignment.get("llm", {}))
+        if isinstance(raw_role_assignment.get("llm"), dict)
+        else {},
+        "assignments": {
+            str(agent_id): {
+                "role_name": str(details.get("role_name", "")),
+                "persona": str(details.get("persona", "")),
+            }
+            for agent_id, details in raw_role_assignment.get("assignments", {}).items()
+            if isinstance(details, dict)
+        }
+        if isinstance(raw_role_assignment.get("assignments"), dict)
+        else {},
+    }
+
     prompt_catalog, prompt_id_by_key, prompt_order = _build_prompt_catalog(interaction_logs)
     message_catalog = _collect_message_catalog(
         run_metadata=run_metadata,
@@ -721,6 +757,7 @@ def _trajectory_payload(
         "run_index": int(run_index),
         "system": system_info,
         "tool_definitions": list(run_metadata.get("tool_definitions", [])),
+        "role_assignment": role_assignment,
         "prompt_catalog": prompt_catalog,
         "steps": steps,
         "final": {
@@ -773,6 +810,69 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
             )
             lines.append("```")
             lines.append("")
+
+    lines.extend(["## Role Assignment", ""])
+    role_assignment = payload.get("role_assignment", {})
+    if not isinstance(role_assignment, dict):
+        role_assignment = {}
+    lines.append(f"- Enabled: {bool(role_assignment.get('enabled', False))}")
+    benchmark_name = str(role_assignment.get("benchmark_name", "")).strip()
+    if benchmark_name:
+        lines.append(f"- Benchmark: {benchmark_name}")
+    lines.append(f"- Used Fallback: {bool(role_assignment.get('used_fallback', False))}")
+    lines.append(
+        f"- Fallback Reason: {str(role_assignment.get('fallback_reason', '')).strip() or '_None_'}"
+    )
+    llm = role_assignment.get("llm", {})
+    if isinstance(llm, dict) and llm:
+        lines.append(
+            f"- LLM: model={llm.get('model', '')} mock_used={bool(llm.get('mock_used', False))} token_in={llm.get('token_in', 0)} token_out={llm.get('token_out', 0)}"
+        )
+    lines.append("")
+    lines.append("### Assigned Roles")
+    lines.append("")
+    assignments = role_assignment.get("assignments", {})
+    if not isinstance(assignments, dict) or not assignments:
+        lines.append("_None_")
+        lines.append("")
+    else:
+        for agent_id, details in assignments.items():
+            if not isinstance(details, dict):
+                continue
+            lines.append(f"- {agent_id}: {details.get('role_name', '') or '_None_'}")
+            persona = str(details.get("persona", "")).strip()
+            if persona:
+                lines.append(f"  {persona}")
+        lines.append("")
+
+    lines.append("### Prompt")
+    lines.append("")
+    prompt_messages = role_assignment.get("prompt_messages", [])
+    if not isinstance(prompt_messages, list) or not prompt_messages:
+        lines.append("_None_")
+        lines.append("")
+    else:
+        for index, message in enumerate(prompt_messages, start=1):
+            if not isinstance(message, dict):
+                continue
+            lines.append(f"#### Prompt {index} [{str(message.get('role', '')).upper()}]")
+            lines.append("")
+            lines.append("```text")
+            lines.append(str(message.get("content", "")))
+            lines.append("```")
+            lines.append("")
+
+    lines.append("### Response")
+    lines.append("")
+    response = str(role_assignment.get("response", ""))
+    if response.strip():
+        lines.append("```text")
+        lines.append(response)
+        lines.append("```")
+        lines.append("")
+    else:
+        lines.append("_None_")
+        lines.append("")
 
     lines.extend(["## Prompt Catalog", ""])
     prompt_catalog = list(payload.get("prompt_catalog", []))
@@ -1680,6 +1780,13 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--agents-per-level", default=None)
     run_parser.add_argument("--group-sizes", default=None)
     run_parser.add_argument("--agent-types", default=None)
+    run_parser.add_argument(
+        "--no-dynamic-roles",
+        dest="no_dynamic_roles",
+        action="store_true",
+        default=False,
+        help="Disable LLM-based dynamic role assignment and use only structural roles.",
+    )
     run_parser.set_defaults(func=run_command)
 
     list_parser = subparsers.add_parser("list-benchmarks", help="List available benchmarks")

@@ -566,3 +566,280 @@ Use both together:
 - topology layouts: `MAS/relay.py`
 - shared state: `MAS/state.py`
 - shared artifact schema: `MAS/artifacts.py`
+
+---
+
+## 8. Dynamic Domain-Specific Role Assignment
+
+### Motivation
+
+The structural roles described above (orchestrator, specialist, debater, manager, leaf_worker, etc.) define an agent's *position* in the communication graph. They control routing, message visibility, and workflow transitions. However, they carry no domain expertise — a "specialist" in a financial QA task behaves identically to a "specialist" in a web retrieval task.
+
+With 8 benchmarks spanning very different domains (web retrieval, finance, Minecraft crafting, scientific code generation, API orchestration, workplace tools, e-commerce, and cross-domain OS/DB/KG tasks), generic roles leave significant performance on the table. Agents benefit from domain-specific personas that guide their reasoning toward the expertise areas most relevant to the task.
+
+This system implements dynamic, benchmark-aware role assignment inspired by the communication-aware agent design in *Cut the Crap: An Economical Communication Pipeline for LLM-based Multi-Agent Systems* ([arXiv 2410.02506](https://arxiv.org/pdf/2410.02506)).
+
+### Two-layer role architecture
+
+Each agent now carries two orthogonal role labels:
+
+| Layer | Source | Purpose | Example |
+|---|---|---|---|
+| **Structural role** | `TopologyLayout.roles` | Controls routing, message visibility, workflow transitions | `orchestrator`, `specialist`, `debater` |
+| **Domain role + persona** | `WorkflowState.domain_personas` | Shapes the agent's reasoning, expertise, and behavioral style | `Financial Analyst`, `Web Search Strategist` |
+
+Both are injected into the agent's system prompt. The structural role is never replaced — it is augmented with the domain persona.
+
+### Role assignment workflow
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  1. Load benchmark role pool                                  │
+│     get_role_pool(benchmark_name) → list[DomainRole]         │
+│                                                               │
+│  2. Build assignment prompt                                   │
+│     - Describe topology structure (agents, hierarchy, links) │
+│     - List available domain roles with personas              │
+│     - Include task preview                                    │
+│                                                               │
+│  3. Send to LLM                                               │
+│     LLM returns JSON: {agent_id: role_name, ...}            │
+│                                                               │
+│  4. Parse and validate                                        │
+│     - Match role names to pool (case-insensitive)            │
+│     - Verify all agents are assigned                         │
+│     - On failure → deterministic round-robin fallback        │
+│                                                               │
+│  5. Inject into WorkflowState                                 │
+│     state["domain_personas"][agent_id] = {                   │
+│       "role_name": "...", "persona": "..."                   │
+│     }                                                         │
+│                                                               │
+│  6. Each _build_agent_prompt() call reads domain_personas    │
+│     and appends Domain Role + Persona to the system message  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+This happens once before the main workflow graph executes (inside `LangGraphMASEngine.run()`), so it adds a single LLM call overhead per task.
+
+### LLM assignment prompt template
+
+The assigner LLM receives:
+
+```
+System: You are a multi-agent system architect. Your task is to assign
+domain-specific roles to agents in a multi-agent topology.
+
+User:
+Assign domain-specific roles to the agents in a **{topology}** topology
+for the **{benchmark_name}** benchmark.
+
+## Topology Structure
+- Topology type: {topology}
+- Number of agents: {N}
+- Agents (id, structural role, hierarchy level):
+  - agent_0: structural_role=orchestrator, level=0
+  - agent_1: structural_role=specialist, level=1
+  ...
+- Communication links:
+  - agent_0 -> agent_1, agent_2
+  ...
+
+## Task Preview
+{task_prompt_preview (max 600 chars)}
+
+## Available Domain Roles
+  1. **Role Name** — persona description
+  2. ...
+
+## Instructions
+Assign exactly one domain role to each agent. Consider:
+1. The agent's structural position ...
+2. The specific task requirements ...
+3. Diversity ...
+4. For hierarchical topologies: higher=broader, lower=focused
+5. You may assign the same role to multiple agents if needed.
+
+Return a JSON object: {"agent_0": "Role Name A", ...}
+Return ONLY the JSON object, no other text.
+```
+
+### Benchmark role pools
+
+The following role pools are defined in `MAS/role_pools.py`. Each benchmark has 5–6 curated domain roles.
+
+#### browsecomp — Open-ended web information retrieval
+
+| Role | Persona |
+|---|---|
+| Web Search Strategist | Expert at formulating effective search queries. Decomposes complex questions into targeted sub-queries, considers alternate phrasings and synonyms, identifies the most promising search angles. Prioritizes precision over breadth. |
+| Information Analyst | Specializes in analyzing and synthesizing information from multiple retrieved documents. Identifies relevant passages, cross-references claims across sources, resolves contradictions, extracts precise factual answers from noisy retrieval results. |
+| Fact Verifier | Meticulous fact-checker. Verifies candidate answers against available evidence, checks for consistency with known facts, identifies unsupported claims, flags speculation. |
+| Document Navigator | Excels at understanding document structure and relevance. Quickly assesses document utility, identifies informative sections, determines when to fetch more documents vs. use existing evidence. |
+| Answer Synthesizer | Expert at producing concise, exact-match answers from complex evidence. Distills lengthy analyses into the precise format required, ensures specificity (names, numbers, dates). |
+| Query Decomposer | Specializes in breaking complex multi-hop questions into simpler, answerable sub-questions. Identifies logical dependencies and optimal investigation order. |
+
+#### finance_agent — Financial question answering (EDGAR / web search)
+
+| Role | Persona |
+|---|---|
+| Financial Data Retriever | Expert at navigating financial data sources, particularly SEC EDGAR filings. Locates 10-K, 10-Q, 8-K, proxy statements. Extracts relevant tables and identifies correct reporting periods. |
+| Financial Analyst | Specializes in interpreting financial statements, computing ratios, analyzing trends. Reads balance sheets, income statements, and cash flow statements to derive answers. |
+| Regulatory Knowledge Expert | Deep knowledge of financial regulations, SEC requirements, GAAP/IFRS, corporate governance. Provides context on reporting implications. |
+| Quantitative Reasoner | Excels at precise financial calculations: growth rates, margin analysis, YoY comparisons, weighted averages, unit conversions. Double-checks arithmetic. |
+| Market Context Analyst | Understands broader market context, industry dynamics, macroeconomic factors. Distinguishes company-specific from sector-wide trends. |
+| Answer Quality Auditor | Reviews financial answers for accuracy, completeness, proper units. Verifies numbers match sources, time periods are correct, and the answer addresses the question. |
+
+#### plancraft — Sequential planning / Minecraft crafting
+
+| Role | Persona |
+|---|---|
+| Recipe Knowledge Expert | Comprehensive knowledge of Minecraft crafting recipes. Knows ingredients, grid patterns, and intermediate components for complex recipes. |
+| Inventory Manager | Tracks available resources meticulously. Knows inventory state at each step, anticipates resource consumption, identifies insufficiencies. |
+| Plan Sequencer | Determines optimal crafting step order. Identifies prerequisites, finds shortest sequences, avoids dead-end paths that waste resources. |
+| Action Executor | Translates high-level plans into precise, executable actions. Specifies slot placements, handles move-to-inventory steps, ensures syntactic validity. |
+| Plan Verifier | Validates proposed plans by simulating inventory state after each step. Catches missing ingredients, impossible recipes, incorrect placements, resource conflicts. |
+
+#### scicode — Scientific code generation
+
+| Role | Persona |
+|---|---|
+| Algorithm Designer | Translates scientific problems into computational algorithms. Identifies appropriate numerical methods, data structures, and mathematical formulations. |
+| Scientific Domain Expert | Broad knowledge of physics, chemistry, biology, applied mathematics. Understands scientific context and verifies implementations model phenomena correctly. |
+| Code Implementer | Writes clean, correct, efficient scientific Python (NumPy, SciPy). Handles edge cases, numerical stability, array broadcasting. |
+| Test Case Designer | Designs validation tests for scientific code. Creates inputs with known analytical solutions, checks boundaries, verifies conservation laws, ensures convergence. |
+| Numerical Methods Specialist | Expert in ODE/PDE solvers, optimization, linear algebra, interpolation, integration. Selects solver parameters, understands convergence, diagnoses instabilities. |
+| Code Reviewer | Reviews scientific code for correctness and best practices. Checks off-by-one errors, formula translations, unit handling, common pitfalls. |
+
+#### stabletoolbench — API tool-calling coordination (1000+ tools)
+
+| Role | Persona |
+|---|---|
+| API Discovery Specialist | Identifies relevant API tools from a large catalog. Understands categorization, reads descriptions efficiently, selects minimal tool sets. |
+| API Call Planner | Designs API call sequences for complex tasks. Understands dependencies, handles pagination, plans error recovery. |
+| Parameter Mapper | Correctly maps task requirements to API parameters. Understands types, required/optional fields, format constraints, value extraction. |
+| Response Interpreter | Parses and interprets API responses accurately. Handles JSON/nested formats, extracts needed data points, identifies errors or partial results. |
+| Tool Orchestration Coordinator | Coordinates multi-step workflows. Tracks gathered information, determines next calls, pipes outputs, decides when to finalize. |
+| Error Recovery Specialist | Handles API failures gracefully. Diagnoses failures, devises alternatives, substitutes equivalent tools, ensures task completion. |
+
+#### workbench — Workplace tool workflows (calendar, email, CRM)
+
+| Role | Persona |
+|---|---|
+| Workflow Planner | Analyzes workplace tasks and decomposes them into tool operation sequences across calendar, email, CRM, and project management systems. |
+| Calendar Operations Specialist | Expert at scheduling, availability checking, conflict resolution, recurring events, timezone conversions. |
+| Email and Communication Expert | Handles email composition, retrieval, analysis. Understands threading, searches messages, drafts responses, extracts actionable information. |
+| CRM Data Analyst | Navigates CRM data effectively. Looks up contacts, analyzes interactions, tracks pipelines, generates insights. |
+| Cross-System Integrator | Specializes in cross-system tasks. Correlates data across calendar, email, CRM, project management. Ensures consistency. |
+| Task Completion Verifier | Verifies operations executed correctly and completely. Checks all actions taken, data updated, final state matches requirements. |
+
+#### webshop — Interactive e-commerce shopping
+
+| Role | Persona |
+|---|---|
+| Product Search Specialist | Formulates effective product search queries. Identifies key attributes (brand, size, color, price), uses appropriate terms, filters efficiently. |
+| Product Evaluator | Compares products against buyer requirements. Reads descriptions, specs, reviews. Assesses criteria match, ranks candidates by fit. |
+| Navigation Strategist | Efficiently navigates e-commerce interfaces. Knows when to search, browse, filter, or click details. Minimizes steps to target item. |
+| Purchase Decision Maker | Makes final buying decisions weighing all information: price-to-value, seller reliability, specs vs. requirements. |
+| Attribute Matcher | Meticulously matches product attributes to requirements. Parses size charts, color variations, materials, compatibility information. |
+
+#### agentbench — General cross-domain tasks (OS, DB, KG)
+
+| Role | Persona |
+|---|---|
+| Operating System Expert | Proficient with Linux/Unix command-line. Navigates filesystems, manipulates files, writes scripts, manages processes. |
+| Database Query Specialist | Expert at SQL queries. Understands schemas, writes complex joins/aggregations/subqueries, optimizes for requested information. |
+| Knowledge Graph Navigator | Specializes in querying/traversing knowledge graphs. Understands entity-relationship structures, formulates SPARQL-like queries, navigates multi-hop relationships. |
+| Task Decomposer | Breaks complex cross-domain tasks into subtasks. Identifies which domain each belongs to, determines dependencies, plans execution order. |
+| Output Formatter | Ensures outputs match exact format requirements. Parses instructions carefully, extracts format specs, produces precisely conforming responses. |
+| Error Diagnostician | Diagnoses and recovers from execution errors. Analyzes error messages, identifies root causes, devises corrected approaches. |
+
+### Topology-specific assignment guidelines
+
+The LLM assigner considers the agent's structural position when choosing domain roles:
+
+| Topology | Structural position | Recommended domain role style |
+|---|---|---|
+| **sas** | single_agent | Assign the single most broadly capable role |
+| **only_voting** | all voters | Assign diverse roles for perspective diversity |
+| **orchestrator_no_discussion** | orchestrator | Coordinator / planner / auditor roles |
+| | specialists | Focused execution / retrieval / analysis roles |
+| **orchestrator_with_discussion** | orchestrator | Coordinator / synthesis / auditor roles |
+| | specialists | Complementary analysis / verification roles |
+| **orchestrator_tree_structure** | root_orchestrator | Broad coordinator / planner role |
+| | managers | Domain-specific coordination roles |
+| | leaf_workers | Focused execution / retrieval roles |
+| **fully_linked_debate** | debaters | Diverse complementary roles for productive debate |
+| **group_chat_debate** | representatives | Synthesis / coordination roles |
+| | members | Focused analysis / verification roles |
+
+### Edge cases
+
+- **More agents than roles**: The LLM may assign the same role to multiple agents. The deterministic fallback uses round-robin.
+- **Fewer agents than roles**: The LLM picks the most appropriate subset for the task.
+- **SAS (1 agent)**: The single most relevant role is assigned.
+- **LLM failure**: Falls back to deterministic round-robin assignment from the pool.
+- **Unknown benchmark**: `get_role_pool()` returns an empty list; no persona injection occurs. Behavior is identical to the pre-dynamic-roles system.
+- **`enable_dynamic_roles = false`**: Skips the LLM call entirely. Agents use only structural roles.
+
+### Prompt integration
+
+Before dynamic roles, each agent's system message looked like:
+
+```
+You are one agent in a deterministic multi-agent workflow.
+Agent ID: agent_1
+Agent Role: specialist
+Stage Role: worker
+
+Use only the task messages ...
+```
+
+After dynamic roles, it becomes:
+
+```
+You are one agent in a deterministic multi-agent workflow.
+Agent ID: agent_1
+Agent Role: specialist
+Stage Role: worker
+Domain Role: Financial Analyst
+Persona: You specialize in interpreting financial statements, computing
+financial ratios, analyzing revenue trends, and understanding corporate
+financial disclosures. You can read balance sheets, income statements,
+and cash flow statements to derive answers.
+
+Use only the task messages ...
+```
+
+The stage context JSON payload also gains `domain_role` and `persona` keys:
+
+```json
+{
+  "agent_id": "agent_1",
+  "agent_role": "specialist",
+  "stage_role": "worker",
+  "domain_role": "Financial Analyst",
+  "persona": "You specialize in interpreting financial statements ...",
+  "directive": "...",
+  ...
+}
+```
+
+### Configuration
+
+Add to `[mas]` in the TOML config to control dynamic role assignment:
+
+```toml
+[mas]
+enable_dynamic_roles = true   # default: true; set false to disable
+```
+
+### Implementation pointers
+
+- role pool definitions: `MAS/role_pools.py`
+- LLM-based role assigner: `MAS/role_assigner.py`
+- config flag: `MAS/config.py` (`MASConfig.enable_dynamic_roles`)
+- state field: `MAS/state.py` (`WorkflowState.domain_personas`)
+- integration point: `MAS/langgraph_engine.py` (`LangGraphMASEngine.run()`)
+- prompt injection: `MAS/langgraph_engine.py` (`_build_agent_prompt()`)
+- benchmark threading: each benchmark adapter passes `benchmark_name` to `runner.run_task()`
