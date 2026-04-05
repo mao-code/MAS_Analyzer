@@ -30,7 +30,9 @@ DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
 # Example:
 # MAS_GLOBAL_ARGS="--default-model google/gemini-3-flash-preview --judge-model google/gemini-3-flash-preview --peer-artifact-max-chars 240"
 # ============================================================================
-MAS_GLOBAL_ARGS="${MAS_GLOBAL_ARGS:---default-model google/gemini-3-flash-preview --judge-model google/gemini-3-flash-preview}"
+# google/gemini-3.1-flash-lite-preview:nitro
+# google/gemini-3-flash-preview
+MAS_GLOBAL_ARGS="${MAS_GLOBAL_ARGS:---default-model google/gemini-3.1-flash-lite-preview:nitro --judge-model google/gemini-3.1-flash-lite-preview:nitro}"
 
 # ============================================================================
 # SAS

@@ -543,6 +543,161 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertTrue(updates["termination_decision"]["should_stop"])
         self.assertEqual(updates["termination_decision"]["reason"], "max_rounds_reached")
 
+    def test_group_chat_representative_controller_stops_on_discussion_limit_in_round_zero(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text=(
+                    '{"groups":[[0],[1]],"invalid_indices":[],"is_substantive":true,'
+                    '"progress_status":"improving","expected_improvement":"medium",'
+                    '"should_stop_for_no_progress":false,"explanation":"Representatives still disagree."}'
+                )
+            )
+        )
+        state = {
+            "topology": "group_chat_debate",
+            "discussion_rounds": 2,
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+            "round_index": 0,
+            "discussion_index": 2,
+            "dispatch_id": 3,
+            "layout": build_layout(topology="group_chat_debate", num_agents=4),
+            "artifacts": [
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_0",
+                    "round_index": 0,
+                    "discussion_index": 1,
+                    "dispatch_id": 2,
+                    "answer": "Paris",
+                    "confidence": 0.8,
+                },
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "discussion_index": 1,
+                    "dispatch_id": 2,
+                    "answer": "London",
+                    "confidence": 0.75,
+                },
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_0",
+                    "round_index": 0,
+                    "discussion_index": 2,
+                    "dispatch_id": 3,
+                    "answer": "Paris",
+                    "confidence": 0.82,
+                },
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "discussion_index": 2,
+                    "dispatch_id": 3,
+                    "answer": "London",
+                    "confidence": 0.77,
+                },
+            ],
+        }
+
+        updates = engine._representative_controller_node(state)
+
+        self.assertEqual(updates["next_step"], "final_judge")
+        self.assertTrue(updates["termination_decision"]["should_stop"])
+        self.assertEqual(updates["termination_decision"]["reason"], "max_rounds_reached")
+
+    def test_orchestrator_relay_stops_on_discussion_limit_in_round_zero(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text=(
+                    '{"groups":[[0],[1],[2]],"invalid_indices":[],"is_substantive":true,'
+                    '"progress_status":"improving","expected_improvement":"medium",'
+                    '"should_stop_for_no_progress":false,"explanation":"Specialists still disagree."}'
+                )
+            )
+        )
+        state = {
+            "topology": "orchestrator_with_discussion",
+            "discussion_rounds": 2,
+            "minimum_discussion_rounds": 1,
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+            "round_index": 0,
+            "discussion_index": 2,
+            "dispatch_id": 4,
+            "layout": build_layout(topology="orchestrator_with_discussion", num_agents=4),
+            "artifacts": [
+                {
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_1",
+                    "round_index": 0,
+                    "discussion_index": 1,
+                    "dispatch_id": 3,
+                    "answer": "Paris",
+                    "confidence": 0.7,
+                },
+                {
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "discussion_index": 1,
+                    "dispatch_id": 3,
+                    "answer": "London",
+                    "confidence": 0.65,
+                },
+                {
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_3",
+                    "round_index": 0,
+                    "discussion_index": 1,
+                    "dispatch_id": 3,
+                    "answer": "Berlin",
+                    "confidence": 0.6,
+                },
+                {
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_1",
+                    "round_index": 0,
+                    "discussion_index": 2,
+                    "dispatch_id": 4,
+                    "answer": "Paris",
+                    "confidence": 0.72,
+                },
+                {
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "discussion_index": 2,
+                    "dispatch_id": 4,
+                    "answer": "London",
+                    "confidence": 0.68,
+                },
+                {
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_3",
+                    "round_index": 0,
+                    "discussion_index": 2,
+                    "dispatch_id": 4,
+                    "answer": "Berlin",
+                    "confidence": 0.62,
+                },
+            ],
+        }
+
+        updates = engine._orchestrator_relay_controller(state)
+
+        self.assertEqual(updates["next_step"], "orchestrator_merge")
+        self.assertTrue(updates["termination_decision"]["should_stop"])
+        self.assertEqual(updates["termination_decision"]["reason"], "max_rounds_reached")
+
     def test_only_voting_ignores_placeholder_worker_outputs(self) -> None:
         engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
         state = {
