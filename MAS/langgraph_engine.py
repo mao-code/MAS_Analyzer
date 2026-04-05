@@ -1267,6 +1267,8 @@ class LangGraphMASEngine:
                 stage_name=node_name,
                 round_index=current_round,
                 discussion_index=int(state.get("discussion_index", 0)),
+                minimum_round_index=current_round,
+                minimum_round_label="round",
                 candidate_artifacts=candidate_artifacts,
                 previous_candidate_artifacts=previous_candidates,
                 consensus_artifacts=consensus_artifacts,
@@ -1411,6 +1413,8 @@ class LangGraphMASEngine:
             stage_name="debate_controller",
             round_index=current_round,
             discussion_index=0,
+            minimum_round_index=current_round,
+            minimum_round_label="round",
             candidate_artifacts=artifacts,
             previous_candidate_artifacts=previous_artifacts,
             consensus_artifacts=artifacts,
@@ -1519,6 +1523,8 @@ class LangGraphMASEngine:
             stage_name="group_controller",
             round_index=current_round,
             discussion_index=0,
+            minimum_round_index=current_round,
+            minimum_round_label="round",
             candidate_artifacts=artifacts,
             previous_candidate_artifacts=previous_artifacts,
             consensus_artifacts=artifacts,
@@ -1588,6 +1594,8 @@ class LangGraphMASEngine:
             stage_name="representative_controller",
             round_index=int(state.get("round_index", 0)),
             discussion_index=current_discussion,
+            minimum_round_index=current_discussion,
+            minimum_round_label="discussion round",
             candidate_artifacts=artifacts,
             previous_candidate_artifacts=previous_artifacts,
             consensus_artifacts=artifacts,
@@ -1707,6 +1715,8 @@ class LangGraphMASEngine:
                 stage_name="orchestrator_relay",
                 round_index=current_round,
                 discussion_index=current_discussion,
+                minimum_round_index=current_discussion,
+                minimum_round_label="discussion round",
                 candidate_artifacts=artifacts,
                 previous_candidate_artifacts=previous_artifacts,
                 consensus_artifacts=artifacts,
@@ -2429,6 +2439,8 @@ class LangGraphMASEngine:
         stage_name: str,
         round_index: int,
         discussion_index: int,
+        minimum_round_index: int | None = None,
+        minimum_round_label: str = "round",
         candidate_artifacts: list[ArtifactRecord],
         previous_candidate_artifacts: list[ArtifactRecord],
         consensus_artifacts: list[ArtifactRecord],
@@ -2529,14 +2541,18 @@ class LangGraphMASEngine:
         consensus_supported = assessment_source != "llm_judge" or consensus_is_substantive is True
 
         min_rounds = int(state.get("minimum_discussion_rounds", 1))
-        if round_index < min_rounds:
+        effective_minimum_round_index = (
+            round_index if minimum_round_index is None else int(minimum_round_index)
+        )
+        if effective_minimum_round_index < min_rounds:
             return {
                 **decision_common,
                 "should_stop": False,
                 "next_step": continue_next_step,
                 "reason": "continue",
                 "reason_detail": (
-                    f"Minimum {min_rounds} discussion round(s) required; currently at round {round_index}."
+                    f"Minimum {min_rounds} discussion round(s) required; "
+                    f"currently at {minimum_round_label} {effective_minimum_round_index}."
                 ),
             }
 
