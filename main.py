@@ -27,6 +27,10 @@ def _now_stamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _log_progress(message: str) -> None:
+    print(f"[{_now_stamp()}] {message}", flush=True)
+
+
 @dataclass(frozen=True)
 class OutputPaths:
     output_layout: str
@@ -1431,6 +1435,14 @@ def run_command(args: argparse.Namespace) -> int:
     tasks = list(benchmark.load_tasks(task_limit=task_limit))
     if not tasks:
         raise RuntimeError(f"No tasks loaded for benchmark '{benchmark_name}'")
+    _log_progress(
+        "Loaded run configuration "
+        f"benchmark={benchmark_name} system={args.system_label or config.mas.resolved_topology()} "
+        f"tasks={len(tasks)} runs_per_task={runs_per_task} seed={seed} "
+        f"topology={config.mas.resolved_topology()} agents={config.mas.total_agents} "
+        f"rounds={int(config.mas.max_turns)} discussion_rounds={int(config.mas.discussion_rounds)} "
+        f"communication_budget={int(config.mas.communication_count_internally)}"
+    )
 
     experiment_settings = _experiment_settings_payload(
         args=args,
@@ -1489,6 +1501,9 @@ def run_command(args: argparse.Namespace) -> int:
         summary_json["graph"] = graph_payload
 
     for task_idx, task in enumerate(tasks):
+        _log_progress(
+            f"TASK_START index={task_idx + 1}/{len(tasks)} task_id={task.task_id}"
+        )
         task_dir = (
             output_paths.run_root / task.task_id
             if output_paths.output_layout == "hierarchical"
@@ -1503,17 +1518,35 @@ def run_command(args: argparse.Namespace) -> int:
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
-
-            run = benchmark.run(
-                task=task,
-                runner=runner,
-                run_index=run_index,
-                seed=run_seed,
+            run_started = datetime.now(UTC)
+            _log_progress(
+                f"RUN_START task_id={task.task_id} run_index={run_index} seed={run_seed}"
+            )
+            try:
+                run = benchmark.run(
+                    task=task,
+                    runner=runner,
+                    run_index=run_index,
+                    seed=run_seed,
+                )
+            except Exception as exc:
+                _log_progress(
+                    f"RUN_ERROR task_id={task.task_id} run_index={run_index} "
+                    f"seed={run_seed} error={type(exc).__name__}:{exc}"
+                )
+                raise
+            _log_progress(
+                f"RUN_FINISH task_id={task.task_id} run_index={run_index} "
+                f"elapsed_s={(datetime.now(UTC) - run_started).total_seconds():.2f} "
+                f"trace_events={len(run.trace_events)} final_answer_chars={len(str(run.final_answer or ''))}"
             )
 
             trace_path = task_dir / f"run_{run_index}.trace.jsonl"
             write_run_trace(run.trace_events, trace_path)
             run_traces.append(run.trace_events)
+            _log_progress(
+                f"TRACE_WRITTEN task_id={task.task_id} run_index={run_index} path={trace_path}"
+            )
 
             raw_output_path = task_dir / f"run_{run_index}.raw.json"
             _write_raw_output(
@@ -1521,12 +1554,19 @@ def run_command(args: argparse.Namespace) -> int:
                 final_answer=run.final_answer,
                 run_metadata=run.run_metadata,
             )
+            _log_progress(
+                f"RAW_OUTPUT_WRITTEN task_id={task.task_id} run_index={run_index} path={raw_output_path}"
+            )
 
             # 4) Let the benchmark score the model output.
             evaluation = benchmark.evaluate(
                 task,
                 run.final_answer,
                 run_metadata=run.run_metadata,
+            )
+            _log_progress(
+                f"EVAL_FINISH task_id={task.task_id} run_index={run_index} "
+                f"score={float(evaluation.score):.4f} success={bool(evaluation.success)}"
             )
             run_outcome = resolve_run_outcome(
                 run.trace_events,
@@ -1568,8 +1608,13 @@ def run_command(args: argparse.Namespace) -> int:
                     "completion": bool(run_outcome.completion),
                 }
             )
+            _log_progress(
+                f"RUN_ARTIFACTS_WRITTEN task_id={task.task_id} run_index={run_index} "
+                f"metadata_path={artifact_paths['metadata_path']} eval_path={eval_path}"
+            )
 
         # 5) Convert trace+eval into descriptor artifacts and analysis outputs.
+        _log_progress(f"TASK_ANALYZE_START task_id={task.task_id}")
         analysis = analyze_task_runs(
             task_id=task.task_id,
             benchmark_name=benchmark_name,
@@ -1577,6 +1622,12 @@ def run_command(args: argparse.Namespace) -> int:
             evaluations=evaluations,
             run_outcomes=run_outcomes,
             output_dir=task_dir,
+        )
+        _log_progress(
+            f"TASK_ANALYZE_FINISH task_id={task.task_id} "
+            f"avg_score={float(analysis['evaluation'].get('avg_score', 0.0)):.4f} "
+            f"success_rate={float(analysis['evaluation'].get('success_rate', 0.0)):.4f} "
+            f"completion_rate={float(analysis['evaluation'].get('completion_rate', 0.0)):.4f}"
         )
 
         task_summary_payload = {
@@ -1627,11 +1678,17 @@ def run_command(args: argparse.Namespace) -> int:
         }
         row.update(analysis["descriptor"])
         summary_rows.append(row)
+        _log_progress(
+            f"TASK_FINISH index={task_idx + 1}/{len(tasks)} task_id={task.task_id} task_dir={task_dir}"
+        )
 
     summary_json_path = output_paths.run_root / "summary.json"
     summary_csv_path = output_paths.run_root / "summary.csv"
     _write_json(summary_json_path, summary_json)
     _write_summary_csv(summary_csv_path, summary_rows)
+    _log_progress(
+        f"SUMMARY_WRITTEN summary_json={summary_json_path} summary_csv={summary_csv_path}"
+    )
 
     print(f"Run complete: {output_paths.run_root}")
     return 0

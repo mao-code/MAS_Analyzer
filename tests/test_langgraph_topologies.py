@@ -2,6 +2,7 @@ import unittest
 
 from MAS import ExperimentSpec, LangGraphMASEngine, run_experiment
 from MAS.llm import LLMResult, OpenRouterLLMClient
+from MAS.relay import build_layout
 
 
 class _JudgeLLM(OpenRouterLLMClient):
@@ -473,6 +474,74 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(vote["source"], "deterministic_fallback_mock")
         self.assertEqual(vote["answer"], "Paris")
         self.assertEqual(vote["tally"]["paris"], 2)
+
+    def test_group_chat_representative_controller_respects_discussion_round_limit(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text=(
+                    '{"groups":[[0],[1]],"invalid_indices":[],"is_substantive":true,'
+                    '"progress_status":"improving","expected_improvement":"medium",'
+                    '"should_stop_for_no_progress":false,"explanation":"Representatives still disagree."}'
+                )
+            )
+        )
+        state = {
+            "topology": "group_chat_debate",
+            "discussion_rounds": 2,
+            "termination_consensus_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which city is correct?",
+            "round_index": 1,
+            "discussion_index": 1,
+            "dispatch_id": 3,
+            "layout": build_layout(topology="group_chat_debate", num_agents=4),
+            "artifacts": [
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_0",
+                    "round_index": 1,
+                    "discussion_index": 0,
+                    "dispatch_id": 1,
+                    "answer": "Paris",
+                    "confidence": 0.7,
+                },
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_2",
+                    "round_index": 1,
+                    "discussion_index": 0,
+                    "dispatch_id": 1,
+                    "answer": "London",
+                    "confidence": 0.6,
+                },
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_0",
+                    "round_index": 1,
+                    "discussion_index": 1,
+                    "dispatch_id": 2,
+                    "answer": "Paris",
+                    "confidence": 0.8,
+                },
+                {
+                    "node_name": "representative_merge",
+                    "agent_id": "agent_2",
+                    "round_index": 1,
+                    "discussion_index": 1,
+                    "dispatch_id": 2,
+                    "answer": "London",
+                    "confidence": 0.75,
+                },
+            ],
+        }
+
+        updates = engine._representative_controller_node(state)
+
+        self.assertEqual(updates["next_step"], "final_judge")
+        self.assertTrue(updates["termination_decision"]["should_stop"])
+        self.assertEqual(updates["termination_decision"]["reason"], "max_rounds_reached")
 
     def test_only_voting_ignores_placeholder_worker_outputs(self) -> None:
         engine = LangGraphMASEngine(_JudgeLLM(text="unused"))

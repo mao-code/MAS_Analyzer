@@ -11,8 +11,8 @@ set -euo pipefail
 TASK_LIMIT="${TASK_LIMIT:-3}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
 BENCHMARKS="${BENCHMARKS:-browsecomp,workbench}"
-RETRY_FAILURES="${RETRY_FAILURES:-2}"
-MAX_PARALLEL="${MAX_PARALLEL:-2}" # A "job" here is one (benchmark, system) pair, not one individual task.
+RETRY_FAILURES="${RETRY_FAILURES:-1}"
+MAX_PARALLEL="${MAX_PARALLEL:-1}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"

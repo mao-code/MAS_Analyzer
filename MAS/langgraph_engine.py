@@ -1592,7 +1592,7 @@ class LangGraphMASEngine:
             previous_candidate_artifacts=previous_artifacts,
             consensus_artifacts=artifacts,
             expected_count=len(state["layout"].representatives),
-            max_reached=current_discussion >= int(state.get("discussion_rounds", 1)),
+            max_reached=current_discussion + 1 >= int(state.get("discussion_rounds", 1)),
             continue_next_step="representative_dispatch",
             stop_next_step="final_judge",
         )

@@ -7,7 +7,11 @@ import json
 import os
 import random
 import re
+import signal
+import threading
+import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -26,6 +30,10 @@ class LLMResult:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
+class _HardTimeoutExpired(RuntimeError):
+    """Raised when an LLM request exceeds the configured wall-clock timeout."""
+
+
 class OpenRouterLLMClient:
     """OpenRouter chat client with deterministic local fallback."""
 
@@ -33,6 +41,8 @@ class OpenRouterLLMClient:
         self.config = config
         self.models = dict(models)
         self.client = None
+        self._request_seq = 0
+        self._request_seq_lock = threading.Lock()
         self.require_live = os.getenv("MAS_REQUIRE_LIVE_LLM", "").strip().lower() in {
             "1",
             "true",
@@ -94,6 +104,16 @@ class OpenRouterLLMClient:
     ) -> LLMResult:
         model = self.model_for_agent_type(agent_type)
         tool_defs, tool_handlers, original_tool_names = self._normalize_tools(tools or [])
+        request_id = self._next_request_id()
+        started = time.perf_counter()
+        message_count = len(prompt) if isinstance(prompt, list) else 1
+        self._log(
+            "START "
+            f"request_id={request_id} task_id={task_id} run_index={run_index} "
+            f"agent_id={agent_id} agent_type={agent_type} model={model} "
+            f"messages={message_count} tools={len(tool_defs)} "
+            f"max_tool_iterations={max(1, int(max_tool_iterations))}"
+        )
 
         if self.client is not None:
             try:
@@ -103,7 +123,7 @@ class OpenRouterLLMClient:
                     messages = [{"role": "user", "content": str(prompt)}]
 
                 if tool_defs:
-                    return self._generate_with_tools(
+                    result = self._generate_with_tools(
                         model=model,
                         messages=messages,
                         tool_defs=tool_defs,
@@ -111,9 +131,22 @@ class OpenRouterLLMClient:
                         original_tool_names=original_tool_names,
                         max_tool_iterations=max_tool_iterations,
                         temperature=temperature,
+                        request_id=request_id,
+                        task_id=task_id,
+                        run_index=run_index,
+                        agent_id=agent_id,
                     )
+                    elapsed_s = max(time.perf_counter() - started, 0.0)
+                    self._log(
+                        "DONE "
+                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                        f"agent_id={agent_id} model={model} mode=tools "
+                        f"elapsed_s={elapsed_s:.2f} token_in={result.token_in} "
+                        f"token_out={result.token_out} tool_calls={len(result.tool_calls)}"
+                    )
+                    return result
 
-                completion = self.client.chat.completions.create(
+                completion = self._create_chat_completion(
                     model=model,
                     messages=messages,
                     temperature=temperature,
@@ -123,7 +156,7 @@ class OpenRouterLLMClient:
                 token_in = int(getattr(usage, "prompt_tokens", self._estimate_tokens(prompt)))
                 token_out = int(getattr(usage, "completion_tokens", self._estimate_tokens(text)))
 
-                return LLMResult(
+                result = LLMResult(
                     text=text,
                     token_in=token_in,
                     token_out=token_out,
@@ -135,10 +168,25 @@ class OpenRouterLLMClient:
                         "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
                     },
                 )
+                elapsed_s = max(time.perf_counter() - started, 0.0)
+                self._log(
+                    "DONE "
+                    f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                    f"agent_id={agent_id} model={model} mode=chat "
+                    f"elapsed_s={elapsed_s:.2f} token_in={token_in} token_out={token_out}"
+                )
+                return result
             except Exception as exc:
+                elapsed_s = max(time.perf_counter() - started, 0.0)
+                self._log(
+                    "ERROR "
+                    f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                    f"agent_id={agent_id} model={model} elapsed_s={elapsed_s:.2f} "
+                    f"error={type(exc).__name__}:{exc}"
+                )
                 if self.require_live:
                     raise RuntimeError(f"Live OpenRouter generation failed: {exc}") from exc
-                return self._mock_result(
+                result = self._mock_result(
                     prompt=prompt,
                     agent_type=agent_type,
                     task_id=task_id,
@@ -148,11 +196,18 @@ class OpenRouterLLMClient:
                     fallback_reason=str(exc),
                     tools_available=bool(tool_defs),
                 )
+                self._log(
+                    "FALLBACK "
+                    f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                    f"agent_id={agent_id} model={model} mock_used=true "
+                    f"reason={type(exc).__name__}:{exc}"
+                )
+                return result
 
         if self.require_live:
             raise RuntimeError("Live OpenRouter generation is required but the client is unavailable.")
 
-        return self._mock_result(
+        result = self._mock_result(
             prompt=prompt,
             agent_type=agent_type,
             task_id=task_id,
@@ -162,6 +217,14 @@ class OpenRouterLLMClient:
             fallback_reason="OpenRouter client unavailable or API key missing",
             tools_available=bool(tool_defs),
         )
+        elapsed_s = max(time.perf_counter() - started, 0.0)
+        self._log(
+            "FALLBACK "
+            f"request_id={request_id} task_id={task_id} run_index={run_index} "
+            f"agent_id={agent_id} model={model} elapsed_s={elapsed_s:.2f} "
+            "mock_used=true reason=client_unavailable_or_api_key_missing"
+        )
+        return result
 
     def _generate_with_tools(
         self,
@@ -173,6 +236,10 @@ class OpenRouterLLMClient:
         original_tool_names: dict[str, str],
         max_tool_iterations: int,
         temperature: float,
+        request_id: str,
+        task_id: str,
+        run_index: int,
+        agent_id: str,
     ) -> LLMResult:
         working_messages = [dict(item) for item in messages]
         total_token_in = 0
@@ -182,8 +249,14 @@ class OpenRouterLLMClient:
         stopped_early = False
         duplicate_call_counts: dict[str, int] = {}
 
-        for _ in range(max(1, int(max_tool_iterations))):
-            completion = self.client.chat.completions.create(
+        for iteration_index in range(max(1, int(max_tool_iterations))):
+            self._log(
+                "TOOL_LOOP "
+                f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                f"agent_id={agent_id} iteration={iteration_index + 1}/"
+                f"{max(1, int(max_tool_iterations))} messages={len(working_messages)}"
+            )
+            completion = self._create_chat_completion(
                 model=model,
                 messages=working_messages,
                 temperature=temperature,
@@ -242,6 +315,12 @@ class OpenRouterLLMClient:
             if serialized_tool_calls:
                 assistant_msg["tool_calls"] = serialized_tool_calls
             working_messages.append(assistant_msg)
+            self._log(
+                "TOOL_LOOP_RESULT "
+                f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                f"agent_id={agent_id} iteration={iteration_index + 1} "
+                f"tool_calls={len(serialized_tool_calls)} assistant_text_chars={len(assistant_text)}"
+            )
 
             if not serialized_tool_calls:
                 break
@@ -269,6 +348,12 @@ class OpenRouterLLMClient:
                     output = {"error": error}
                 else:
                     try:
+                        self._log(
+                            "TOOL_CALL "
+                            f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                            f"agent_id={agent_id} iteration={iteration_index + 1} "
+                            f"tool_name={tool_name} args={self._truncate_for_log(args)}"
+                        )
                         output = handler(args)
                         if inspect.isawaitable(output):
                             output = asyncio.run(output)
@@ -276,6 +361,13 @@ class OpenRouterLLMClient:
                         status = "error"
                         error = str(exc)
                         output = {"error": error}
+                self._log(
+                    "TOOL_CALL_RESULT "
+                    f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                    f"agent_id={agent_id} iteration={iteration_index + 1} "
+                    f"tool_name={tool_name} status={status} "
+                    f"output={self._truncate_for_log(output)}"
+                )
 
                 tool_call_records.append(
                     {
@@ -290,6 +382,11 @@ class OpenRouterLLMClient:
                 sig = f"{api_tool_name}:{args_text}"
                 duplicate_call_counts[sig] = duplicate_call_counts.get(sig, 0) + 1
                 if duplicate_call_counts[sig] >= 3:
+                    self._log(
+                        "TOOL_LOOP_STOP "
+                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                        f"agent_id={agent_id} reason=duplicate_tool_call signature={sig}"
+                    )
                     working_messages.append(
                         {
                             "role": "tool",
@@ -324,6 +421,11 @@ class OpenRouterLLMClient:
             stopped_early = True
 
         if stopped_early and not final_text:
+            self._log(
+                "FORCE_FINAL "
+                f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                f"agent_id={agent_id}"
+            )
             final_text, extra_in, extra_out = self._force_final_response(
                 model=model,
                 messages=working_messages,
@@ -466,7 +568,7 @@ class OpenRouterLLMClient:
                 ),
             }
         )
-        completion = self.client.chat.completions.create(
+        completion = self._create_chat_completion(
             model=model,
             messages=follow_up_messages,
             temperature=temperature,
@@ -476,6 +578,83 @@ class OpenRouterLLMClient:
         token_in = int(getattr(usage, "prompt_tokens", self._estimate_tokens(follow_up_messages)))
         token_out = int(getattr(usage, "completion_tokens", self._estimate_tokens(text)))
         return text, token_in, token_out
+
+    def _create_chat_completion(self, **kwargs: Any) -> Any:
+        if self.client is None:
+            raise RuntimeError("OpenRouter client unavailable")
+        kwargs.setdefault("timeout", self.config.timeout_s)
+        timeout_value = float(self.config.timeout_s or 0.0)
+        # On the main thread we can use SIGALRM for a true wall-clock deadline.
+        # On worker threads (LangGraph Send branches) SIGALRM is unavailable, so
+        # we run the HTTP call in a disposable thread and join with a timeout.
+        # This ensures every API call is bounded regardless of which thread calls it.
+        if (
+            timeout_value > 0.0
+            and threading.current_thread() is not threading.main_thread()
+        ):
+            import concurrent.futures
+
+            # Do NOT use the context-manager form of ThreadPoolExecutor here.
+            # Its __exit__ calls shutdown(wait=True), which would block forever
+            # waiting for the background API thread even after a timeout fires.
+            _ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            _future = _ex.submit(self.client.chat.completions.create, **kwargs)
+            try:
+                result = _future.result(timeout=timeout_value)
+                _ex.shutdown(wait=False)
+                return result
+            except concurrent.futures.TimeoutError:
+                _ex.shutdown(wait=False)
+                self._log(
+                    "TIMEOUT "
+                    f"mode=worker_thread timeout_s={timeout_value:.3f} "
+                    f"model={kwargs.get('model', '')}"
+                )
+                raise _HardTimeoutExpired(
+                    f"LLM request exceeded configured timeout of {timeout_value:.3f}s"
+                )
+            except Exception:
+                _ex.shutdown(wait=False)
+                raise
+        with self._hard_timeout(self.config.timeout_s):
+            return self.client.chat.completions.create(**kwargs)
+
+    @contextmanager
+    def _hard_timeout(self, timeout_s: float | None):
+        timeout_value = float(timeout_s or 0.0)
+        signal_supported = (
+            timeout_value > 0.0
+            and os.name != "nt"
+            and hasattr(signal, "SIGALRM")
+            and hasattr(signal, "setitimer")
+            and hasattr(signal, "ITIMER_REAL")
+            and threading.current_thread() is threading.main_thread()
+        )
+        if not signal_supported:
+            yield
+            return
+
+        previous_handler = signal.getsignal(signal.SIGALRM)
+        previous_delay, previous_interval = signal.setitimer(signal.ITIMER_REAL, 0.0)
+
+        def _handle_timeout(signum: int, frame: Any) -> None:
+            self._log(
+                "TIMEOUT "
+                f"mode=main_thread timeout_s={timeout_value:.3f}"
+            )
+            raise _HardTimeoutExpired(
+                f"LLM request exceeded configured timeout of {timeout_value:.3f}s"
+            )
+
+        signal.signal(signal.SIGALRM, _handle_timeout)
+        signal.setitimer(signal.ITIMER_REAL, timeout_value)
+        try:
+            yield
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0.0)
+            signal.signal(signal.SIGALRM, previous_handler)
+            if previous_delay > 0.0 or previous_interval > 0.0:
+                signal.setitimer(signal.ITIMER_REAL, previous_delay, previous_interval)
 
     @staticmethod
     def _sanitize_tool_name(name: str, used_names: set[str]) -> str:
@@ -568,3 +747,20 @@ class OpenRouterLLMClient:
         data = "||".join(parts).encode("utf-8")
         digest = hashlib.sha256(data).hexdigest()
         return int(digest[:16], 16)
+
+    def _next_request_id(self) -> str:
+        with self._request_seq_lock:
+            self._request_seq += 1
+            return f"llm-{self._request_seq}"
+
+    @staticmethod
+    def _truncate_for_log(value: Any, *, limit: int = 240) -> str:
+        text = OpenRouterLLMClient._safe_json_dumps(value)
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) <= limit:
+            return text
+        return text[: limit - 3] + "..."
+
+    @staticmethod
+    def _log(message: str) -> None:
+        print(f"[llm] {message}", flush=True)

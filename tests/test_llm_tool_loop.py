@@ -1,4 +1,5 @@
 import unittest
+import time
 from types import SimpleNamespace
 
 from MAS.config import OpenRouterConfig
@@ -42,6 +43,17 @@ class _FakeClient:
         self.chat = SimpleNamespace(completions=_FakeCompletions())
 
 
+class _SlowCompletions:
+    def create(self, **kwargs):
+        time.sleep(0.2)
+        return _make_completion(content="late answer", prompt_tokens=3, completion_tokens=2)
+
+
+class _SlowClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_SlowCompletions())
+
+
 class TestLLMToolLoop(unittest.TestCase):
     def test_forces_final_answer_after_tool_limit(self) -> None:
         client = OpenRouterLLMClient(
@@ -70,6 +82,23 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertEqual(result.text, "FINAL ANSWER: done")
         self.assertTrue(result.metadata.get("tool_loop_forced_final_answer"))
         self.assertEqual(result.tool_calls[0]["tool_name"], "search.tool")
+
+    def test_generate_falls_back_to_mock_on_hard_timeout(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test", timeout_s=0.05), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _SlowClient()
+
+        result = client.generate(
+            prompt="solve this",
+            agent_type="general",
+            task_id="t1",
+            run_index=0,
+            agent_id="agent_0",
+        )
+
+        self.assertTrue(result.mock_used)
+        self.assertIn("timeout", str(result.metadata.get("fallback_reason", "")).lower())
 
 
 if __name__ == "__main__":
