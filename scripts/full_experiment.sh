@@ -8,7 +8,7 @@ set -euo pipefail
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 
-TASK_LIMIT="${TASK_LIMIT:-3}"
+TASK_LIMIT="${TASK_LIMIT:-5}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
 BENCHMARKS="${BENCHMARKS:-browsecomp,workbench}"
 RETRY_FAILURES="${RETRY_FAILURES:-1}"
