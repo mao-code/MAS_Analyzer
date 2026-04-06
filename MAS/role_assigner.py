@@ -191,7 +191,10 @@ def _build_assignment_prompt(
 
     system_msg = (
         "You are a multi-agent system architect. Your task is to assign "
-        "domain-specific roles to agents in a multi-agent topology."
+        "domain-specific roles to agents in a multi-agent topology. "
+        "Structural workflow contracts remain authoritative; personas should "
+        "specialize how each agent approaches its assigned stage, especially "
+        "for tool use, evidence gathering, verification, and synthesis."
     )
 
     user_msg = (
@@ -212,6 +215,9 @@ def _build_assignment_prompt(
         f"from specialist or executor roles.\n"
         f"2. The specific task requirements — which expertise areas are "
         f"most needed for this task.\n"
+        f"2a. The likely tool workflow — retrieval-heavy tasks should map "
+        f"querying, evidence-reading, verification, and synthesis roles to "
+        f"different agents when the topology supports specialization.\n"
         f"3. Diversity — avoid assigning the same role to all agents "
         f"unless the topology requires uniform roles (e.g. voting).\n"
         f"4. For hierarchical topologies: higher-level agents should have "

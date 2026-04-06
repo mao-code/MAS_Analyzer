@@ -41,7 +41,9 @@ ROLE_POOLS: dict[str, list[DomainRole]] = {
                 "sub-queries, consider alternate phrasings and synonyms, and "
                 "identify the most promising search angles. You prioritize "
                 "precision over breadth and know when to reformulate a "
-                "failing query."
+                "failing query. When search tools are available, you convert "
+                "that strategy into concrete search calls instead of merely "
+                "describing what should be searched."
             ),
         ),
         DomainRole(
@@ -51,7 +53,8 @@ ROLE_POOLS: dict[str, list[DomainRole]] = {
                 "from multiple retrieved documents. You identify relevant "
                 "passages, cross-reference claims across sources, resolve "
                 "contradictions, and extract the precise factual answer from "
-                "noisy retrieval results."
+                "noisy retrieval results. You summarize the strongest "
+                "evidence plainly so a coordinator can compare candidates."
             ),
         ),
         DomainRole(
@@ -61,7 +64,8 @@ ROLE_POOLS: dict[str, list[DomainRole]] = {
                 "candidate answer, you verify it against the available "
                 "evidence, check for consistency with known facts, identify "
                 "unsupported claims, and flag answers that rely on "
-                "speculation rather than documentary evidence."
+                "speculation rather than documentary evidence. You prefer "
+                "supported answers over confident but weak claims."
             ),
         ),
         DomainRole(
@@ -71,7 +75,9 @@ ROLE_POOLS: dict[str, list[DomainRole]] = {
                 "You quickly assess whether a retrieved document contains "
                 "useful information, identify the most informative sections, "
                 "and determine when additional documents need to be fetched "
-                "versus when existing evidence suffices."
+                "versus when existing evidence suffices. When a relevant "
+                "docid is available, you know to fetch and inspect it rather "
+                "than stopping at search snippets."
             ),
         ),
         DomainRole(
@@ -81,7 +87,8 @@ ROLE_POOLS: dict[str, list[DomainRole]] = {
                 "from complex evidence. You distill lengthy analyses into "
                 "the precise format required, ensure the final answer "
                 "matches the question's specificity (names, numbers, dates), "
-                "and avoid over-elaboration."
+                "avoid over-elaboration, and keep unsupported caveats out of "
+                "the final answer."
             ),
         ),
         DomainRole(
@@ -90,7 +97,9 @@ ROLE_POOLS: dict[str, list[DomainRole]] = {
                 "You specialize in breaking complex multi-hop questions into "
                 "simpler, answerable sub-questions. You identify the logical "
                 "dependencies between sub-questions and determine the "
-                "optimal order in which they should be investigated."
+                "optimal order in which they should be investigated. Your "
+                "decomposition should lead directly to actionable retrieval "
+                "and verification steps."
             ),
         ),
     ],

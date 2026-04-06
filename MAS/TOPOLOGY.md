@@ -590,6 +590,12 @@ Each agent now carries two orthogonal role labels:
 
 Both are injected into the agent's system prompt. The structural role is never replaced — it is augmented with the domain persona.
 
+Important:
+
+- structural stage rules remain authoritative
+- tool-use and output contracts remain authoritative
+- the persona specializes how the agent approaches the work; it does not relax the workflow rules
+
 ### Role assignment workflow
 
 ```
@@ -656,6 +662,7 @@ for the **{benchmark_name}** benchmark.
 Assign exactly one domain role to each agent. Consider:
 1. The agent's structural position ...
 2. The specific task requirements ...
+2a. The likely tool workflow ...
 3. Diversity ...
 4. For hierarchical topologies: higher=broader, lower=focused
 5. You may assign the same role to multiple agents if needed.
@@ -824,6 +831,15 @@ The stage context JSON payload also gains `domain_role` and `persona` keys:
   ...
 }
 ```
+
+The prompt layering is therefore:
+
+1. structural stage contract
+2. tool-use contract
+3. task / benchmark instructions
+4. domain persona
+
+This mirrors the intended supervisor/subagent pattern: routing and control flow come from topology and stage logic, while personas provide benchmark-specific specialization inside those boundaries.
 
 ### Configuration
 

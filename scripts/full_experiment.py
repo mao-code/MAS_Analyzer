@@ -113,6 +113,10 @@ def info(message: str) -> None:
     print(message, flush=True)
 
 
+def env_flag(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def run_command(
     cmd: list[str],
     *,
@@ -750,7 +754,10 @@ def batch_run(options: BatchOptions) -> int:
     experiment_root = options.output_root / options.experiment_id
     experiment_root.mkdir(parents=True, exist_ok=True)
     live_env = dict(os.environ)
-    live_env["MAS_REQUIRE_LIVE_LLM"] = "1"
+    if env_flag(live_env.get("MAS_DISABLE_LIVE_LLM")):
+        live_env["MAS_DISABLE_LIVE_LLM"] = "1"
+    else:
+        live_env["MAS_REQUIRE_LIVE_LLM"] = "1"
 
     jobs: list[RunJob] = []
     logs_root = experiment_root / "logs"

@@ -1,6 +1,7 @@
 import unittest
 import time
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from MAS.config import OpenRouterConfig
 from MAS.llm import OpenRouterLLMClient
@@ -55,6 +56,24 @@ class _SlowClient:
 
 
 class TestLLMToolLoop(unittest.TestCase):
+    def test_disable_live_override_forces_mock_even_with_api_key(self) -> None:
+        with patch.dict("os.environ", {"MAS_DISABLE_LIVE_LLM": "1"}, clear=False):
+            client = OpenRouterLLMClient(
+                OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+            )
+
+        self.assertIsNone(client.client)
+
+        result = client.generate(
+            prompt="solve this",
+            agent_type="general",
+            task_id="t1",
+            run_index=0,
+            agent_id="agent_0",
+        )
+
+        self.assertTrue(result.mock_used)
+
     def test_forces_final_answer_after_tool_limit(self) -> None:
         client = OpenRouterLLMClient(
             OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
