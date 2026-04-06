@@ -1174,16 +1174,13 @@ def _write_system_graph_artifact(
         _write_matplotlib_graph_png(graph_path, layout)
 
     workflow_definition, workflow_graph = runner.engine.build_workflow_visual_graph(spec)
-    workflow_mermaid_text = LangGraphMASEngine.render_workflow_mermaid(workflow_definition.topology)
+    workflow_mermaid_text = workflow_graph.draw_mermaid()
     workflow_mermaid_path.write_text(workflow_mermaid_text, encoding="utf-8")
 
     workflow_render_backend = "langgraph_mermaid_api"
     workflow_render_error = ""
     try:
-        from langchain_core.runnables.graph_mermaid import draw_mermaid_png as _render_mermaid_png
-
-        workflow_png_bytes = _render_mermaid_png(
-            workflow_mermaid_text,
+        workflow_png_bytes = workflow_graph.draw_mermaid_png(
             output_file_path=str(workflow_graph_path),
             background_color="white",
             max_retries=0,
