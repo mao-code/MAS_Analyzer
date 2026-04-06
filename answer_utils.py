@@ -31,8 +31,46 @@ _PLAN_INTROS = (
     "here is the plan",
     "search strategy:",
 )
+_BLOCKED_TEXT_SNIPPETS = (
+    "insufficient information",
+    "insufficient evidence",
+    "cannot be determined",
+    "cannot be provided at this time",
+    "cannot be provided from the provided context",
+    "cannot be provided from the available context",
+    "no evidence has been",
+    "no evidence was",
+    "no evidence provided",
+    "no evidence gathered",
+    "no evidence retrieved",
+    "no documents have been retrieved",
+    "no information has been retrieved",
+    "no search has been performed",
+    "no search has been executed",
+    "no search or retrieval operations have been performed",
+    "no research has been conducted",
+    "remains unknown",
+    "remain unknown",
+    "not yet been identified",
+    "task is currently blocked",
+    "need more information",
+    "need additional information",
+    "requires external research",
+    "requires further research",
+)
+_PROGRESS_STATUS_PATTERNS = (
+    re.compile(r"^i am currently (investigating|searching)\b"),
+    re.compile(r"^i have (initiated|begun) (?:the )?(?:process of )?search(?:ing)?\b"),
+    re.compile(r"^i am initiating (?:a )?targeted search"),
+    re.compile(r"^i need to (?:perform )?(?:additional )?search(?:es)?\b"),
+    re.compile(r"^i attempted to search\b"),
+    re.compile(r"^the initial search(?:es)?\b"),
+    re.compile(r"^the search results provided do not contain\b"),
+    re.compile(r"^i have performed searches\b.*\b(?:have not|did not|no specific|not yielded)\b"),
+)
 _DIRECT_ANSWER_KEYS = (
     "final_answer",
+    "answer_artifact",
     "answer",
     "result",
     "winner",
@@ -122,6 +160,15 @@ def _looks_like_plan_text(raw: str) -> bool:
     return False
 
 
+def _looks_like_blocked_text(raw: str) -> bool:
+    lowered = raw.strip().lower()
+    if not lowered:
+        return False
+    if any(snippet in lowered for snippet in _BLOCKED_TEXT_SNIPPETS):
+        return True
+    return any(pattern.search(lowered) for pattern in _PROGRESS_STATUS_PATTERNS)
+
+
 def _parse_structured_value(raw: str) -> Any | None:
     raw = raw.strip()
     if not raw or raw[0] not in "{[" or raw[-1] not in "}]":
@@ -195,7 +242,7 @@ def extract_substantive_answer(value: Any) -> str:
         return _normalized_text(_extract_from_sequence(value))
 
     raw = _normalized_text(value)
-    if not raw or _looks_like_plan_text(raw):
+    if not raw or _looks_like_plan_text(raw) or _looks_like_blocked_text(raw):
         return ""
 
     parsed = _parse_structured_value(raw)
@@ -203,6 +250,42 @@ def extract_substantive_answer(value: Any) -> str:
         return _normalized_text(extract_substantive_answer(parsed))
 
     return raw
+
+
+def classify_answer_mode(value: Any) -> str:
+    raw = _normalized_text(value)
+    if not raw:
+        return "empty"
+
+    parsed = _parse_structured_value(raw)
+    if parsed is not None:
+        direct = extract_substantive_answer(parsed)
+        if direct:
+            return "direct"
+        support_text = ""
+        if isinstance(parsed, Mapping):
+            lowered = {str(key).strip().lower(): item for key, item in parsed.items()}
+            if _is_plan_mapping(lowered):
+                return "plan"
+            support_values = [
+                _normalized_text(item)
+                for key, item in lowered.items()
+                if key in _SUPPORT_KEYS or key in _PLANNING_KEYS
+            ]
+            support_text = " ".join(item for item in support_values if item)
+        elif isinstance(parsed, Sequence) and not isinstance(parsed, (str, bytes, bytearray)):
+            support_text = " ".join(_normalized_text(item) for item in parsed if _normalized_text(item))
+        if support_text and _looks_like_blocked_text(support_text):
+            return "blocked"
+        if support_text and _looks_like_plan_text(support_text):
+            return "plan"
+        return "empty"
+
+    if _looks_like_plan_text(raw):
+        return "plan"
+    if _looks_like_blocked_text(raw):
+        return "blocked"
+    return "direct"
 
 
 def has_substantive_answer(value: Any) -> bool:

@@ -16,6 +16,7 @@ class WorkflowState(TypedDict, total=False):
 
     task_id: str
     task_prompt: Any
+    benchmark_name: str
     reference_answer: str
     task_metadata: dict[str, Any]
     run_index: int

@@ -3,6 +3,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import main as main_module
 
@@ -64,19 +65,28 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            exit_code = main_module.main(
-                [
-                    "run",
-                    "--config",
-                    str(cfg_path),
-                    "--benchmark",
-                    "browsecomp",
-                    "--task-limit",
-                    "1",
-                    "--runs-per-task",
-                    "1",
-                ]
-            )
+            with patch.dict(
+                "os.environ",
+                {
+                    "MAS_DISABLE_LIVE_LLM": "1",
+                    "MAS_REQUIRE_LIVE_LLM": "0",
+                    "OPENROUTER_API_KEY": "",
+                },
+                clear=False,
+            ):
+                exit_code = main_module.main(
+                    [
+                        "run",
+                        "--config",
+                        str(cfg_path),
+                        "--benchmark",
+                        "browsecomp",
+                        "--task-limit",
+                        "1",
+                        "--runs-per-task",
+                        "1",
+                    ]
+                )
             self.assertEqual(exit_code, 0)
 
             run_dirs = [item for item in out_dir.iterdir() if item.is_dir()]
@@ -89,13 +99,16 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
             self.assertTrue((task_dir / "descriptor.json").exists())
             self.assertTrue((task_dir / "descriptor.csv").exists())
             self.assertTrue((task_dir / "analysis.json").exists())
+            self.assertTrue((task_dir / "run_0.answer.txt").exists())
 
             analysis = json.loads((task_dir / "analysis.json").read_text(encoding="utf-8"))
-            self.assertGreater(analysis["descriptor"]["C4_tool_calls_total"], 0.0)
+            self.assertEqual(analysis["descriptor"]["C4_tool_calls_total"], 0.0)
 
             eval_payload = json.loads((task_dir / "run_0.eval.json").read_text(encoding="utf-8"))
             run_metadata = eval_payload["details"]["run_metadata"]
-            self.assertIn("search", run_metadata.get("tool_call_counts", {}))
+            self.assertNotIn("search", run_metadata.get("tool_call_counts", {}))
+            answer_text = (task_dir / "run_0.answer.txt").read_text(encoding="utf-8").strip()
+            self.assertTrue(answer_text)
 
             settings_path = root / "experiment_settings.json"
             self.assertTrue(settings_path.exists())

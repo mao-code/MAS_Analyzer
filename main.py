@@ -20,7 +20,9 @@ from MAS.langgraph_engine import ExperimentSpec, LangGraphMASEngine
 try:
     from datetime import UTC
 except ImportError:  # pragma: no cover - Python < 3.11 fallback
-    UTC = UTC
+    from datetime import timezone
+
+    UTC = timezone.utc
 
 
 def _now_stamp() -> str:

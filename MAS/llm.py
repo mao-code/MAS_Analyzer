@@ -43,12 +43,11 @@ class OpenRouterLLMClient:
         self.client = None
         self._request_seq = 0
         self._request_seq_lock = threading.Lock()
-        self.require_live = os.getenv("MAS_REQUIRE_LIVE_LLM", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        self.disable_live = self._env_flag("MAS_DISABLE_LIVE_LLM")
+        self.require_live = (not self.disable_live) and self._env_flag("MAS_REQUIRE_LIVE_LLM")
+
+        if self.disable_live:
+            return
 
         if not config.api_key:
             if self.require_live:
@@ -89,6 +88,10 @@ class OpenRouterLLMClient:
 
     def model_for_agent_type(self, agent_type: str) -> str:
         return self.models.get(agent_type, self.models.get("default", "qwen/qwen3-8b"))
+
+    @staticmethod
+    def _env_flag(name: str) -> bool:
+        return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
     def generate(
         self,

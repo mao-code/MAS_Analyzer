@@ -197,19 +197,28 @@ class TestMainStableToolBenchSmoke(unittest.TestCase):
             )
 
             with patch("requests.sessions.Session.post", new=_fake_virtual_post):
-                exit_code = main_module.main(
-                    [
-                        "run",
-                        "--config",
-                        str(cfg_path),
-                        "--benchmark",
-                        "stabletoolbench",
-                        "--task-limit",
-                        "1",
-                        "--runs-per-task",
-                        "1",
-                    ]
-                )
+                with patch.dict(
+                    "os.environ",
+                    {
+                        "MAS_DISABLE_LIVE_LLM": "1",
+                        "MAS_REQUIRE_LIVE_LLM": "0",
+                        "OPENROUTER_API_KEY": "",
+                    },
+                    clear=False,
+                ):
+                    exit_code = main_module.main(
+                        [
+                            "run",
+                            "--config",
+                            str(cfg_path),
+                            "--benchmark",
+                            "stabletoolbench",
+                            "--task-limit",
+                            "1",
+                            "--runs-per-task",
+                            "1",
+                        ]
+                    )
 
             self.assertEqual(exit_code, 0)
 
@@ -223,14 +232,17 @@ class TestMainStableToolBenchSmoke(unittest.TestCase):
             self.assertTrue((task_dir / "descriptor.json").exists())
             self.assertTrue((task_dir / "descriptor.csv").exists())
             self.assertTrue((task_dir / "analysis.json").exists())
+            self.assertTrue((task_dir / "run_0.answer.txt").exists())
 
             analysis = json.loads((task_dir / "analysis.json").read_text(encoding="utf-8"))
-            self.assertGreater(analysis["descriptor"]["C4_tool_calls_total"], 0.0)
+            self.assertEqual(analysis["descriptor"]["C4_tool_calls_total"], 0.0)
 
             eval_payload = json.loads((task_dir / "run_0.eval.json").read_text(encoding="utf-8"))
             self.assertEqual(eval_payload["details"]["eval_mode"], "heuristic")
             run_metadata = eval_payload["details"]["run_metadata"]
-            self.assertIn("lookup_title_for_demotool", run_metadata.get("tool_call_counts", {}))
+            self.assertNotIn("lookup_title_for_demotool", run_metadata.get("tool_call_counts", {}))
+            answer_text = (task_dir / "run_0.answer.txt").read_text(encoding="utf-8").strip()
+            self.assertTrue(answer_text)
 
             settings = json.loads((root / "experiment_settings.json").read_text(encoding="utf-8"))
             self.assertEqual(settings["benchmark"]["name"], "stabletoolbench")

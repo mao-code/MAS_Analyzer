@@ -28,6 +28,30 @@ The descriptor follows the paper’s `Q / C / D / R / P` split:
 
 The paper defines higher-level economic quantities such as utility `U = Q - C`, collaboration gain `G`, and coordination cost `K`. This repo produces the trace-derived ingredients needed for those analyses.
 
+## Agent Prompting And Tool-Use Design
+
+The MAS runtime follows a supervisor/subagent design while keeping the current custom topology engine and provider-native OpenAI-compatible tool loop.
+
+- Structural workflow roles remain authoritative: planner/orchestrator/worker/critic/aggregator roles determine routing, visibility, and output contract.
+- Dynamic personas specialize the agent within that structural role. They do not override stage rules or tool requirements.
+- Tool-enabled answer-producing stages are expected to call tools when evidence is missing or weak. The runtime does not fabricate tool calls or synthetic retrieval after the fact.
+- Final judges and deterministic fallbacks prefer direct, evidence-backed answers over blocked-status, planning-only, or "no evidence" outputs.
+- Context sharing is explicit. Agents see only task messages, selected relay packets, their prior artifact, and the tool outputs they actually received.
+
+This design aligns with current primary-source guidance on agent systems:
+
+- OpenAI, *A practical guide to building agents*: start with clear instructions, explicit tool loops, and manager-pattern orchestration when specialization is useful.
+- LangChain, *Subagents*: the main agent should see concise subagent outputs and treat tool/subagent descriptions as routing levers.
+- LangChain, *Handoffs*: explicit context engineering matters; malformed or overly broad context degrades multi-agent behavior.
+- LangChain, *Deep Agents overview*: keep the main context clean and isolate specialized work into bounded subagent contexts.
+
+References:
+
+- https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf
+- https://docs.langchain.com/oss/python/langchain/multi-agent/subagents
+- https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs
+- https://docs.langchain.com/oss/python/deepagents/index
+
 ## Exact metric contract
 
 The metric contract is intentionally strict and reproducible.
@@ -149,18 +173,19 @@ For one controller decision:
 - `consensus_artifacts`: the artifacts whose answers are compared for agreement
 - `expected_count`: how many active branches or agents were expected to produce an artifact
 
-### Valid artifact count
+### Branch artifact count
 
 The code first counts:
 
-- `valid_artifact_count = count(artifact.answer.strip() != "")`
+- `valid_artifact_count = count(non-empty branch artifacts available at the current controller step)`
 
 If `valid_artifact_count < ceil(expected_count / 2)`, the stage stops with `invalid_or_failed_branch`.
 
 Interpretation:
 
 - this is a branch-survival check
-- if fewer than half of the expected branches produced a non-empty answer, the collaboration stage is considered too broken to continue
+- if fewer than half of the expected branches produced any usable artifact at all, the collaboration stage is considered too broken to continue
+- blocked or planning artifacts do not count as good final answers, but they no longer trigger branch-collapse handling by themselves
 
 ### Consensus ratio
 
@@ -254,6 +279,12 @@ Fallback behavior:
 ### Max-round stop
 
 The stage stops with `max_rounds_reached` when the topology-specific configured round or discussion limit has been exhausted.
+
+Important:
+
+- `mas.minimum_discussion_rounds` applies only to discussion/debate controllers
+- outer collaboration cycles are controlled by `rounds`
+- `rounds=1` means one outer cycle; it does not force a second pass
 
 ### Stop order
 

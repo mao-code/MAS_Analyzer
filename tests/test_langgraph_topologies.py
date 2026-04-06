@@ -1,8 +1,11 @@
 import unittest
+from dataclasses import dataclass
+from typing import Any
 
 from MAS import ExperimentSpec, LangGraphMASEngine, run_experiment
 from MAS.llm import LLMResult, OpenRouterLLMClient
 from MAS.relay import build_layout
+from answer_utils import extract_substantive_answer
 
 
 class _JudgeLLM(OpenRouterLLMClient):
@@ -36,6 +39,87 @@ class _JudgeLLM(OpenRouterLLMClient):
             cost_usd=0.0,
             model="judge-model",
             mock_used=self._mock_used,
+            metadata={},
+        )
+
+
+@dataclass(frozen=True)
+class _Task:
+    task_id: str
+    prompt: Any
+    reference_answer: str = ""
+    metadata: dict[str, Any] | None = None
+
+
+class _SequencedLLM(OpenRouterLLMClient):
+    def __init__(self, responses: list[LLMResult]) -> None:
+        self._responses = list(responses)
+        self.calls: list[dict[str, Any]] = []
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        self.calls.append(
+            {
+                "prompt": prompt,
+                "agent_type": agent_type,
+                "task_id": task_id,
+                "run_index": run_index,
+                "agent_id": agent_id,
+                "tools": tools,
+            }
+        )
+        index = min(len(self.calls), len(self._responses)) - 1
+        return self._responses[index]
+
+
+class _RoleAwareLLM(OpenRouterLLMClient):
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        self.calls.append(agent_id)
+        if agent_id == "role_assigner":
+            return LLMResult(
+                text='{"agent_0":"Web Search Strategist"}',
+                token_in=9,
+                token_out=6,
+                cost_usd=0.0,
+                model="judge-model",
+                mock_used=False,
+                metadata={},
+            )
+        return LLMResult(
+            text=(
+                '{"answer_artifact":"Queen Arwa University","summary":"Queen Arwa University",'
+                '"critique":"","revision_request":"","confidence":0.8,'
+                '"unresolved_issues":[],"evidence_summary":["Document 82002 confirms the graduation ceremony date."]}'
+            ),
+            token_in=13,
+            token_out=8,
+            cost_usd=0.0,
+            model="judge-model",
+            mock_used=False,
             metadata={},
         )
 
@@ -475,6 +559,82 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(vote["answer"], "Paris")
         self.assertEqual(vote["tally"]["paris"], 2)
 
+    def test_final_vote_prefers_direct_answer_over_blocked_candidate(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text_by_agent_id={
+                    "judge_final_vote_judge": (
+                        '{"groups":[[0],[1]],"winner_index":1,"invalid_indices":[],"explanation":"wrong winner"}'
+                    )
+                }
+            )
+        )
+        state = {
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which institution is correct?",
+        }
+        artifacts = [
+            {
+                "agent_id": "agent_0",
+                "answer": "Queen Arwa University",
+                "summary": "Queen Arwa University",
+                "confidence": 0.6,
+                "evidence_summary": ["Document 82002 confirms the graduation ceremony date."],
+            },
+            {
+                "agent_id": "agent_1",
+                "answer": "The requested information cannot be determined because no evidence has been retrieved.",
+                "summary": "Blocked",
+                "confidence": 0.95,
+                "evidence_summary": ["No evidence has been retrieved."],
+            },
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["answer"], "Queen Arwa University")
+
+    def test_deterministic_vote_prefers_evidence_backed_direct_answer(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
+        state = {
+            "final_vote_mode": "deterministic",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which institution is correct?",
+        }
+        artifacts = [
+            {
+                "agent_id": "agent_0",
+                "answer": "University of the Philippines Diliman",
+                "summary": "UP Diliman",
+                "confidence": 0.95,
+                "evidence_summary": ["No evidence gathered yet."],
+            },
+            {
+                "agent_id": "agent_1",
+                "answer": "Queen Arwa University",
+                "summary": "Queen Arwa University",
+                "confidence": 0.6,
+                "evidence_summary": ["Document 82002 confirms the graduation ceremony date."],
+            },
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["answer"], "Queen Arwa University")
+
     def test_group_chat_representative_controller_respects_discussion_round_limit(self) -> None:
         engine = LangGraphMASEngine(
             _JudgeLLM(
@@ -787,6 +947,363 @@ class TestLangGraphTopologies(unittest.TestCase):
         }
 
         self.assertEqual(engine._resolve_final_answer(state), "Queen Arwa University")
+
+    def test_fallback_answer_returns_explicit_failure_when_artifacts_are_empty(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
+
+        self.assertEqual(
+            engine._fallback_answer_from_artifacts([]),
+            "Unable to determine a supported final answer from the available agent outputs.",
+        )
+
+    def test_execute_agent_stage_does_not_fabricate_tool_calls(self) -> None:
+        llm = _SequencedLLM(
+            [
+                LLMResult(
+                    text=(
+                        '{"answer_artifact":"Queen Arwa University","summary":"Queen Arwa University",'
+                        '"critique":"","revision_request":"","confidence":0.7,'
+                        '"unresolved_issues":[],"evidence_summary":["Visible evidence supports Queen Arwa University."]}'
+                    ),
+                    token_in=12,
+                    token_out=8,
+                    cost_usd=0.0,
+                    model="judge-model",
+                    mock_used=False,
+                    metadata={},
+                    tool_calls=[],
+                )
+            ]
+        )
+        engine = LangGraphMASEngine(llm)
+        state = {
+            "layout": build_layout(topology="sas", num_agents=1),
+            "dispatch_id": 0,
+            "round_index": 0,
+            "discussion_index": 0,
+            "artifacts": [],
+            "domain_personas": {},
+            "task_prompt": "Which institution is correct?",
+            "benchmark_name": "browsecomp",
+            "llm_client": llm,
+            "task_id": "task",
+            "run_index": 0,
+            "tools": [
+                {
+                    "name": "search",
+                    "description": "Search documents.",
+                    "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                    "handler": lambda args: [],
+                },
+                {
+                    "name": "get_document",
+                    "description": "Fetch a document.",
+                    "parameters": {"type": "object", "properties": {"docid": {"type": "string"}}},
+                    "handler": lambda args: {"docid": args.get("docid", "")},
+                },
+            ],
+            "max_tool_iterations": 4,
+            "agent_type_by_agent": {"agent_0": "general"},
+        }
+
+        result = engine._execute_agent_stage(
+            state,
+            agent_id="agent_0",
+            node_name="single_agent",
+            stage_role="worker",
+            directive="Solve the task.",
+            visible_messages=[],
+        )
+
+        artifact = result["artifacts"][0]
+        self.assertEqual(artifact.get("tool_records", []), [])
+        self.assertEqual(result["tool_records_log"], [])
+        self.assertFalse(result["interaction_logs"][0]["tool_use_retry"])
+
+    def test_execute_agent_stage_retries_once_for_missing_tool_use(self) -> None:
+        llm = _SequencedLLM(
+            [
+                LLMResult(
+                    text=(
+                        '{"answer_artifact":"The task is currently blocked because no evidence has been retrieved.",'
+                        '"summary":"Blocked","critique":"","revision_request":"","confidence":0.0,'
+                        '"unresolved_issues":[],"evidence_summary":["No evidence has been retrieved."]}'
+                    ),
+                    token_in=11,
+                    token_out=7,
+                    cost_usd=0.0,
+                    model="judge-model",
+                    mock_used=False,
+                    metadata={},
+                    tool_calls=[],
+                ),
+                LLMResult(
+                    text=(
+                        '{"answer_artifact":"Queen Arwa University","summary":"Queen Arwa University",'
+                        '"critique":"","revision_request":"","confidence":0.8,'
+                        '"unresolved_issues":[],"evidence_summary":["Document 82002 confirms the graduation ceremony date."]}'
+                    ),
+                    token_in=14,
+                    token_out=9,
+                    cost_usd=0.0,
+                    model="judge-model",
+                    mock_used=False,
+                    metadata={},
+                    tool_calls=[
+                        {
+                            "tool_name": "search",
+                            "arguments": {"query": "Queen Arwa University graduation June 22 2003"},
+                            "status": "completed",
+                            "error": None,
+                            "output": [{"docid": "82002", "snippet": "Graduation ceremony..."}],
+                        }
+                    ],
+                ),
+            ]
+        )
+        engine = LangGraphMASEngine(llm)
+        state = {
+            "layout": build_layout(topology="sas", num_agents=1),
+            "dispatch_id": 0,
+            "round_index": 0,
+            "discussion_index": 0,
+            "artifacts": [],
+            "domain_personas": {},
+            "task_prompt": "Which institution is correct?",
+            "benchmark_name": "browsecomp",
+            "llm_client": llm,
+            "task_id": "task",
+            "run_index": 0,
+            "tools": [
+                {
+                    "name": "search",
+                    "description": "Search documents.",
+                    "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                    "handler": lambda args: [],
+                }
+            ],
+            "max_tool_iterations": 4,
+            "agent_type_by_agent": {"agent_0": "general"},
+        }
+
+        result = engine._execute_agent_stage(
+            state,
+            agent_id="agent_0",
+            node_name="single_agent",
+            stage_role="worker",
+            directive="Solve the task.",
+            visible_messages=[],
+        )
+
+        artifact = result["artifacts"][0]
+        self.assertEqual(len(llm.calls), 2)
+        self.assertTrue(result["interaction_logs"][0]["tool_use_retry"])
+        self.assertEqual(len(artifact.get("tool_records", [])), 1)
+        self.assertEqual(artifact["tool_records"][0]["tool_name"], "search")
+
+    def test_execute_agent_stage_retries_for_progress_status_without_tools(self) -> None:
+        llm = _SequencedLLM(
+            [
+                LLMResult(
+                    text=(
+                        "I am currently investigating the identity of the learning institution. "
+                        "I have initiated a search but have not yet identified the institution."
+                    ),
+                    token_in=10,
+                    token_out=7,
+                    cost_usd=0.0,
+                    model="judge-model",
+                    mock_used=False,
+                    metadata={},
+                    tool_calls=[],
+                ),
+                LLMResult(
+                    text=(
+                        '{"answer_artifact":"Queen Arwa University","summary":"Queen Arwa University",'
+                        '"critique":"","revision_request":"","confidence":0.8,'
+                        '"unresolved_issues":[],"evidence_summary":["Document 82002 confirms the graduation ceremony date."]}'
+                    ),
+                    token_in=14,
+                    token_out=9,
+                    cost_usd=0.0,
+                    model="judge-model",
+                    mock_used=False,
+                    metadata={},
+                    tool_calls=[
+                        {
+                            "tool_name": "search",
+                            "arguments": {"query": "Queen Arwa University graduation June 22 2003"},
+                            "status": "completed",
+                            "error": None,
+                            "output": [{"docid": "82002", "snippet": "Graduation ceremony..."}],
+                        }
+                    ],
+                ),
+            ]
+        )
+        engine = LangGraphMASEngine(llm)
+        state = {
+            "layout": build_layout(topology="sas", num_agents=1),
+            "dispatch_id": 0,
+            "round_index": 0,
+            "discussion_index": 0,
+            "artifacts": [],
+            "domain_personas": {},
+            "task_prompt": "Which institution is correct?",
+            "benchmark_name": "browsecomp",
+            "llm_client": llm,
+            "task_id": "task",
+            "run_index": 0,
+            "tools": [
+                {
+                    "name": "search",
+                    "description": "Search documents.",
+                    "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                    "handler": lambda args: [],
+                }
+            ],
+            "max_tool_iterations": 4,
+            "agent_type_by_agent": {"agent_0": "general"},
+        }
+
+        result = engine._execute_agent_stage(
+            state,
+            agent_id="agent_0",
+            node_name="single_agent",
+            stage_role="worker",
+            directive="Solve the task.",
+            visible_messages=[],
+        )
+
+        artifact = result["artifacts"][0]
+        self.assertEqual(len(llm.calls), 2)
+        self.assertTrue(result["interaction_logs"][0]["tool_use_retry"])
+        self.assertEqual(len(artifact.get("tool_records", [])), 1)
+
+    def test_opening_debate_round_retries_after_blocked_tool_attempt(self) -> None:
+        llm = _SequencedLLM(
+            [
+                LLMResult(
+                    text=(
+                        '{"answer_artifact":"","summary":"The initial search did not yield a direct match.",'
+                        '"critique":"","revision_request":"","confidence":0.0,'
+                        '"unresolved_issues":["Need different query angle."],"evidence_summary":["No evidence was retrieved."]}'
+                    ),
+                    token_in=12,
+                    token_out=8,
+                    cost_usd=0.0,
+                    model="judge-model",
+                    mock_used=False,
+                    metadata={},
+                    tool_calls=[
+                        {
+                            "tool_name": "search",
+                            "arguments": {"query": "2022 plant trip academic department"},
+                            "status": "completed",
+                            "error": None,
+                            "output": [{"docid": "59188", "snippet": "Irrelevant result"}],
+                        }
+                    ],
+                ),
+                LLMResult(
+                    text=(
+                        '{"answer_artifact":"Queen Arwa University","summary":"Queen Arwa University",'
+                        '"critique":"","revision_request":"","confidence":0.8,'
+                        '"unresolved_issues":[],"evidence_summary":["Refined search found the institution."]}'
+                    ),
+                    token_in=16,
+                    token_out=10,
+                    cost_usd=0.0,
+                    model="judge-model",
+                    mock_used=False,
+                    metadata={},
+                    tool_calls=[
+                        {
+                            "tool_name": "search",
+                            "arguments": {"query": "\"Queen Arwa University\" 2002 2022"},
+                            "status": "completed",
+                            "error": None,
+                            "output": [{"docid": "82002", "snippet": "Queen Arwa University..."}],
+                        }
+                    ],
+                ),
+            ]
+        )
+        engine = LangGraphMASEngine(llm)
+        state = {
+            "layout": build_layout(topology="fully_linked_debate", num_agents=4),
+            "dispatch_id": 0,
+            "round_index": 0,
+            "discussion_index": 0,
+            "artifacts": [],
+            "domain_personas": {},
+            "task_prompt": "Which institution is correct?",
+            "benchmark_name": "browsecomp",
+            "llm_client": llm,
+            "task_id": "task",
+            "run_index": 0,
+            "tools": [
+                {
+                    "name": "search",
+                    "description": "Search documents.",
+                    "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                    "handler": lambda args: [],
+                }
+            ],
+            "max_tool_iterations": 4,
+            "agent_type_by_agent": {"agent_0": "general"},
+        }
+
+        result = engine._execute_agent_stage(
+            state,
+            agent_id="agent_0",
+            node_name="debate_round",
+            stage_role="critic",
+            directive="Debate using bounded peer summaries.",
+            visible_messages=[],
+        )
+
+        artifact = result["artifacts"][0]
+        self.assertEqual(len(llm.calls), 2)
+        self.assertTrue(result["interaction_logs"][0]["tool_use_retry"])
+        self.assertEqual(extract_substantive_answer(artifact["answer"]), "Queen Arwa University")
+
+    def test_dynamic_role_assignment_is_persisted_and_prompt_injected(self) -> None:
+        llm = _RoleAwareLLM()
+        engine = LangGraphMASEngine(llm)
+        task = _Task(
+            task_id="role_task",
+            prompt="Identify the institution from the retrieved evidence.",
+            metadata={},
+        )
+
+        result = engine.run(
+            task=task,
+            run_index=0,
+            seed=7,
+            spec=ExperimentSpec(
+                topology="sas",
+                num_agents=1,
+                rounds=1,
+                benchmark_name="browsecomp",
+                enable_dynamic_roles=True,
+            ),
+            agent_types=["general"],
+            tools=[],
+            max_tool_iterations=1,
+        )
+
+        self.assertIn("role_assigner", llm.calls)
+        self.assertEqual(
+            result.run_metadata["role_assignment"]["assignments"]["agent_0"]["role_name"],
+            "Web Search Strategist",
+        )
+        self.assertEqual(
+            result.run_metadata["domain_personas"]["agent_0"]["role_name"],
+            "Web Search Strategist",
+        )
+        first_prompt = result.run_metadata["interaction_logs"][0]["prompt_messages"][0]["content"]
+        self.assertIn("Domain Role: Web Search Strategist", first_prompt)
 
     def test_only_voting_reports_judge_tiebreak_when_tally_is_tied(self) -> None:
         engine = LangGraphMASEngine(
