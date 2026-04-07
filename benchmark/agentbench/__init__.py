@@ -48,6 +48,7 @@ You must start the AgentBench Task Server before running this benchmark.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -246,7 +247,9 @@ class AgentBenchBenchmark:
             )
 
             try:
-                mas_result = runner.run_task(task=step_task, run_index=run_index, seed=seed, benchmark_name="agentbench")
+                mas_result = runner.run_task(
+                    task=step_task, run_index=run_index, seed=seed, benchmark_name="agentbench"
+                )
                 all_events.extend(mas_result.trace_events)
                 merge_step_run_metadata(
                     aggregate_metadata,
@@ -255,7 +258,10 @@ class AgentBenchBenchmark:
                     step_task_id=step_task.task_id,
                     final_answer=mas_result.final_answer,
                 )
-                agent_content = mas_result.final_answer
+                agent_content = self._normalize_agent_content(
+                    raw_content=mas_result.final_answer,
+                    history=history,
+                )
                 agent_response = {
                     "status": _AgentOutputStatus.NORMAL,
                     "content": agent_content,
@@ -446,3 +452,86 @@ class AgentBenchBenchmark:
             else:
                 messages.append({"role": "user", "content": content})
         return messages
+
+    def _normalize_agent_content(
+        self,
+        *,
+        raw_content: str,
+        history: list[dict[str, str]],
+    ) -> str:
+        """Normalize model output to match strict AgentBench action protocol.
+
+        We only enforce formatting for tasks that explicitly use the
+        Think/Act shell interaction protocol (e.g., OS task).
+        """
+        content = str(raw_content or "").strip()
+        if not content:
+            return content
+
+        if not self._uses_think_act_protocol(history):
+            return content
+
+        if self._looks_like_valid_action(content):
+            return self._canonicalize_think_act(content)
+
+        # Fallback: convert free-form final text into an answer action.
+        answer = re.sub(r"\s+", " ", content).strip()
+        answer = answer.replace(")", "]")
+        return f"Think: I now have the answer.\n\nAct: answer({answer})"
+
+    @staticmethod
+    def _uses_think_act_protocol(history: list[dict[str, str]]) -> bool:
+        if not history:
+            return False
+        first_user = ""
+        for item in history:
+            if item.get("role") == "user":
+                first_user = str(item.get("content", ""))
+                break
+        if not first_user:
+            return False
+        return "Think:" in first_user and "Act: bash" in first_user and "Act: answer(" in first_user
+
+    @staticmethod
+    def _looks_like_valid_action(content: str) -> bool:
+        text = content.strip()
+        if "Act: finish" in text:
+            return True
+        if re.search(r"Act:\s*answer\s*\(", text):
+            return True
+        return bool(re.search(r"Act:\s*bash\b", text))
+
+    @staticmethod
+    def _canonicalize_think_act(content: str) -> str:
+        text = content.strip()
+        think_match = re.search(r"Think:\s*(.*?)(?:\n\s*\n|$)", text, flags=re.DOTALL)
+        think = (think_match.group(1).strip() if think_match else "").strip()
+        if not think:
+            think = "I will proceed with the required action."
+
+        if re.search(r"Act:\s*finish\b", text):
+            return f"Think: {think}\n\nAct: finish"
+
+        answer_match = re.search(r"Act:\s*answer\s*\((.*?)\)\s*$", text, flags=re.DOTALL)
+        if answer_match:
+            answer = re.sub(r"\s+", " ", answer_match.group(1)).strip()
+            answer = answer.replace(")", "]")
+            return f"Think: {think}\n\nAct: answer({answer})"
+
+        if re.search(r"Act:\s*answer\b", text):
+            tail = re.split(r"Act:\s*answer\b", text, maxsplit=1)[-1]
+            tail = re.sub(r"^[\s:：-]+", "", tail).strip()
+            tail = re.sub(r"\s+", " ", tail)
+            tail = tail.replace(")", "]")
+            return f"Think: {think}\n\nAct: answer({tail})"
+
+        bash_match = re.search(r"```(?:bash)?\s*(.*?)```", text, flags=re.DOTALL)
+        if bash_match:
+            code = bash_match.group(1).strip()
+        else:
+            after_act = re.split(r"Act:\s*bash\b", text, maxsplit=1)
+            code = after_act[-1].strip() if len(after_act) > 1 else text
+            code = re.sub(r"^[\s:：-]+", "", code).strip()
+        if not code:
+            code = "echo"
+        return f"Think: {think}\n\nAct: bash\n\n```bash\n{code}\n```"

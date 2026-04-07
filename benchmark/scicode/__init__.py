@@ -152,7 +152,7 @@ class SciCodeBenchmark:
         self.with_background: bool = bool(cfg.get("with_background", False))
         self.h5py_file: str = str(cfg.get("h5py_file", "data/test_data.h5"))
         self.execution_timeout_s: int = max(1, int(cfg.get("execution_timeout_s", 1800)))
-        self.llm_repair: bool = bool(cfg.get("llm_repair", False))
+        self.llm_repair: bool = bool(cfg.get("llm_repair", True))
         self.llm_repair_model: str | None = (
             str(cfg.get("llm_repair_model")).strip() if cfg.get("llm_repair_model") else None
         )
@@ -290,7 +290,9 @@ class SciCodeBenchmark:
                 metadata=task.metadata,
             )
 
-            mas_result = runner.run_task(task=step_task, run_index=run_index, seed=seed, benchmark_name="scicode")
+            mas_result = runner.run_task(
+                task=step_task, run_index=run_index, seed=seed, benchmark_name="scicode"
+            )
             all_events.extend(mas_result.trace_events)
             merge_step_run_metadata(
                 aggregate_metadata,
