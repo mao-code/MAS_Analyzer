@@ -10,7 +10,8 @@ OpenAI-compatible tools to the MAS runtime, and each tool call is proxied to
 
 Evaluation modes:
     1. heuristic   - Cheap local smoke-test grading. Useful for plumbing checks.
-    2. llm_judge   - SoPR-style answer-status grading on solvable queries.
+    2. llm_judge   - Legacy local approximation (Solved/Unsolved/Unsure).
+    3. fac         - FAC-style final-answer correctness judge (Solved/Unsolved).
 
 Official StableToolBench also reports pairwise SoWR (win rate) via a separate
 cross-model evaluation pass. That is not folded into ``main.py`` because the
@@ -89,6 +90,41 @@ Judging rules:
    whether it satisfies the whole request.
 4. Do not require perfect wording. Focus on whether the information need is
    satisfied.
+
+Query:
+{query}
+
+Answer:
+{answer}
+"""
+
+FAC_JUDGE_PROMPT = """\
+Given a query and an answer provided by an AI agent, determine whether the
+answer_status is "Solved" or "Unsolved". You must obey the following rules.
+
+You should respond "Solved" when:
+1. The answer makes a genuine attempt to address the query.
+2. Judge completeness, not perfection; minor imperfections are acceptable.
+3. For multi-part queries, all parts should be addressed.
+4. If "nothing / unavailable" is a reasonable outcome and the answer clearly
+   communicates that outcome after reasonable attempts, it can still be Solved.
+
+You should respond "Unsolved" when:
+1. The answer is refusal/apology/non-engagement.
+2. At least one required part of a multi-part query is not addressed.
+3. There is a severe factual error that breaks usefulness.
+
+Additional guidelines:
+1. Do not be too harsh.
+2. Do not use external factual knowledge to nitpick correctness; focus on
+   whether the query's information need is addressed.
+3. Only evaluate the final answer (ignore intermediate reasoning/process).
+
+Return in the following format:
+Answer Status
+Solved or Unsolved
+Reason
+<short reason>
 
 Query:
 {query}
@@ -181,11 +217,12 @@ class StableToolBenchBenchmark:
         enable_tools        Enable virtual API tools for MAS.
         max_tools_per_task  Optional cap on APIs exposed per task.
         max_tool_iterations Max tool-calling rounds for the MAS runtime.
-        eval_mode           heuristic | llm_judge | sopr.
-        judge_model         OpenAI-compatible model for llm_judge.
-        judge_api_key       API key for llm_judge. Falls back to OPENAI_API_KEY.
-        judge_api_base      Base URL for llm_judge. Falls back to OPENAI_API_BASE
-                            or https://api.openai.com/v1.
+        eval_mode           heuristic | llm_judge | fac.
+        judge_model         OpenAI-compatible model for llm_judge/fac.
+        judge_api_key       API key for llm_judge/fac. Falls back to OPENAI_API_KEY,
+                            then OPENROUTER_API_KEY.
+        judge_api_base      Base URL for llm_judge/fac. Falls back to OPENAI_API_BASE,
+                            then OPENROUTER base, then https://api.openai.com/v1.
     """
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
@@ -230,10 +267,25 @@ class StableToolBenchBenchmark:
 
         self.eval_mode = str(cfg.get("eval_mode", "heuristic")).strip().lower()
         self.judge_model = str(cfg.get("judge_model", "gpt-4.1-mini"))
-        self.judge_api_key = str(cfg.get("judge_api_key") or os.getenv("OPENAI_API_KEY") or "")
-        self.judge_api_base = str(
-            cfg.get("judge_api_base") or os.getenv("OPENAI_API_BASE") or "https://api.openai.com/v1"
+
+        judge_api_key_cfg = str(cfg.get("judge_api_key") or "").strip()
+        judge_api_key_env_openai = str(os.getenv("OPENAI_API_KEY") or "").strip()
+        judge_api_key_env_openrouter = str(os.getenv("OPENROUTER_API_KEY") or "").strip()
+        self.judge_api_key = (
+            judge_api_key_cfg or judge_api_key_env_openai or judge_api_key_env_openrouter
         )
+
+        judge_api_base_cfg = str(cfg.get("judge_api_base") or "").strip()
+        judge_api_base_env_openai = str(os.getenv("OPENAI_API_BASE") or "").strip()
+        openrouter_base_default = "https://openrouter.ai/api/v1"
+        if judge_api_base_cfg:
+            self.judge_api_base = judge_api_base_cfg
+        elif judge_api_base_env_openai:
+            self.judge_api_base = judge_api_base_env_openai
+        elif self.judge_api_key == judge_api_key_env_openrouter and self.judge_api_key:
+            self.judge_api_base = openrouter_base_default
+        else:
+            self.judge_api_base = "https://api.openai.com/v1"
         self.judge_temperature = float(cfg.get("judge_temperature", 0.0))
         self.judge_max_tokens = int(cfg.get("judge_max_tokens", 256))
         self.judge_timeout_s = float(cfg.get("judge_timeout_s", 60.0))
@@ -324,6 +376,8 @@ class StableToolBenchBenchmark:
         *,
         run_metadata: dict[str, Any] | None = None,
     ) -> BenchmarkEvaluation:
+        if self.eval_mode in {"fac", "fac_judge", "official_fac"}:
+            return self._evaluate_fac_judge(task, prediction, run_metadata or {})
         if self.eval_mode in {"llm_judge", "sopr", "sopr_llm"}:
             return self._evaluate_llm_judge(task, prediction, run_metadata or {})
         return self._evaluate_heuristic(task, prediction, run_metadata or {})
@@ -343,7 +397,8 @@ class StableToolBenchBenchmark:
                 "Requires the upstream virtual server to be started separately.",
                 "GPT-based virtual server uses cache/tools from StableToolBench upstream.",
                 "Local tools/cache assets can be auto-downloaded from Hugging Face when enabled.",
-                "llm_judge mode approximates official SoPR on the solvable-query split.",
+                "fac mode follows FAC-style final-answer correctness (Solved/Unsolved).",
+                "llm_judge mode is retained as a legacy local approximation.",
                 "Official pairwise SoWR is not integrated into main.py because it is cross-run, cross-model evaluation.",
             ],
         }
@@ -708,6 +763,38 @@ class StableToolBenchBenchmark:
             },
         )
 
+    def _evaluate_fac_judge(
+        self,
+        task: BenchmarkTask,
+        prediction: str,
+        run_metadata: dict[str, Any],
+    ) -> BenchmarkEvaluation:
+        text = str(prediction or "").strip()
+        if not text:
+            answer_status = "Unsolved"
+            reason = "Empty final answer."
+            raw_judge = {"answer_status": answer_status, "reason": reason}
+        else:
+            raw_judge = self._judge_answer_fac(task.metadata.get("query", ""), text)
+            answer_status = raw_judge["answer_status"]
+            reason = raw_judge["reason"]
+
+        return BenchmarkEvaluation(
+            task_id=task.task_id,
+            score=self._score_for_status(answer_status),
+            success=answer_status == "Solved",
+            details={
+                "eval_mode": "fac",
+                "answer_status": answer_status,
+                "reason": reason,
+                "judge_model": self.judge_model,
+                "judge_raw": raw_judge,
+                "task_set": task.metadata.get("task_set", ""),
+                "query_id": task.metadata.get("query_id", task.task_id),
+                "run_metadata": run_metadata,
+            },
+        )
+
     def _judge_answer(self, query: str, answer: str) -> dict[str, str]:
         client = self._judge_client_instance()
         prompt = LLM_JUDGE_PROMPT.format(query=query, answer=answer)
@@ -733,12 +820,30 @@ class StableToolBenchBenchmark:
         content = self._extract_message_text(completion)
         return self._parse_judge_payload(content)
 
+    def _judge_answer_fac(self, query: str, answer: str) -> dict[str, str]:
+        client = self._judge_client_instance()
+        prompt = FAC_JUDGE_PROMPT.format(query=query, answer=answer)
+        messages = [
+            {"role": "system", "content": "Return plain text only."},
+            {"role": "user", "content": prompt},
+        ]
+        request_kwargs = {
+            "model": self.judge_model,
+            "messages": messages,
+            "temperature": self.judge_temperature,
+            "max_tokens": self.judge_max_tokens,
+        }
+
+        completion = client.chat.completions.create(**request_kwargs)
+        content = self._extract_message_text(completion)
+        return self._parse_fac_payload(content)
+
     def _judge_client_instance(self) -> Any:
         if self._judge_client is not None:
             return self._judge_client
         if not self.judge_api_key:
             raise RuntimeError(
-                "stabletoolbench.eval_mode=llm_judge requires judge_api_key or OPENAI_API_KEY"
+                "stabletoolbench eval_mode (fac/llm_judge) requires judge_api_key, OPENAI_API_KEY, or OPENROUTER_API_KEY"
             )
 
         try:
@@ -818,6 +923,50 @@ class StableToolBenchBenchmark:
             "answer_status": normalized_status,
             "reason": reason,
         }
+
+    @classmethod
+    def _parse_fac_payload(cls, content: str) -> dict[str, str]:
+        text = str(content or "").strip()
+        parsed_status = ""
+        reason = ""
+
+        if text:
+            try:
+                parsed = json.loads(text)
+                parsed_status = cls._normalize_answer_status(str(parsed.get("answer_status", "")))
+                reason = str(parsed.get("reason", "") or "").strip()
+            except ValueError:
+                status_match = re.search(
+                    r"answer\s*status\s*[:\n-]*\s*(solved|unsolved)",
+                    text,
+                    flags=re.IGNORECASE,
+                )
+                if status_match:
+                    parsed_status = cls._normalize_answer_status(status_match.group(1))
+                elif re.search(r"\bunsolved\b", text, flags=re.IGNORECASE):
+                    parsed_status = "Unsolved"
+                elif re.search(r"\bsolved\b", text, flags=re.IGNORECASE):
+                    parsed_status = "Solved"
+
+                reason_match = re.search(
+                    r"reason\s*[:\n-]+\s*(.*)$", text, flags=re.IGNORECASE | re.DOTALL
+                )
+                if reason_match:
+                    reason = reason_match.group(1).strip()
+
+        if not parsed_status:
+            lowered = text.lower()
+            if any(marker in lowered for marker in HEURISTIC_REFUSAL_MARKERS):
+                parsed_status = "Unsolved"
+            elif text:
+                parsed_status = "Solved"
+            else:
+                parsed_status = "Unsolved"
+
+        if not reason:
+            reason = text[:400]
+
+        return {"answer_status": parsed_status, "reason": reason}
 
     @staticmethod
     def _normalize_answer_status(value: str) -> str:

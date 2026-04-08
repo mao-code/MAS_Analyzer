@@ -34,8 +34,13 @@ def solve():
         self.assertNotIn("from math import sin", code)
 
     @patch.object(SciCodeBenchmark, "_ensure_data_exists", autospec=True)
-    def test_llm_repair_is_disabled_by_default(self, _mock_ensure: object) -> None:
+    def test_llm_repair_is_enabled_by_default(self, _mock_ensure: object) -> None:
         bench = SciCodeBenchmark({})
+        self.assertTrue(bench.llm_repair)
+
+    @patch.object(SciCodeBenchmark, "_ensure_data_exists", autospec=True)
+    def test_llm_repair_can_be_disabled_explicitly(self, _mock_ensure: object) -> None:
+        bench = SciCodeBenchmark({"llm_repair": False})
         runner = SimpleNamespace(llm_client=SimpleNamespace(client=None))
         raw = "```python # Background: x def solve(): return 1```"
         self.assertEqual(
