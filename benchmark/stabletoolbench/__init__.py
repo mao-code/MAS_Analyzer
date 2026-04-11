@@ -192,6 +192,23 @@ def _task_sets_from_config(value: Any) -> list[str]:
     raise ValueError("stabletoolbench.task_sets must be a string or list of strings")
 
 
+def _cache_candidate_paths(
+    cache_root: Path, category: str, tool_name: str, api_name: str
+) -> list[Path]:
+    category_dir = cache_root / str(category or "").strip()
+    tool_dir = category_dir / f"{_standardize(tool_name)}_for_{_standardize(category)}"
+    api_filename = f"{_standardize(api_name)}.json"
+    api_filename_raw = f"{str(api_name or '').strip()}.json"
+    return [
+        tool_dir / api_filename,
+        tool_dir / api_filename_raw,
+        category_dir / api_filename,
+        category_dir / api_filename_raw,
+        cache_root / api_filename,
+        cache_root / api_filename_raw,
+    ]
+
+
 class StableToolBenchBenchmark:
     """StableToolBench adapter backed by the GPT-based virtual server.
 
@@ -217,6 +234,9 @@ class StableToolBenchBenchmark:
         enable_tools        Enable virtual API tools for MAS.
         max_tools_per_task  Optional cap on APIs exposed per task.
         max_tool_iterations Max tool-calling rounds for the MAS runtime.
+        skip_missing_cache_tasks
+                            Skip tasks that reference APIs with no matching local
+                            cache files.
         eval_mode           heuristic | llm_judge | fac.
         judge_model         OpenAI-compatible model for llm_judge/fac.
         judge_api_key       API key for llm_judge/fac. Falls back to OPENAI_API_KEY,
@@ -264,6 +284,7 @@ class StableToolBenchBenchmark:
         else:
             self.max_tools_per_task = max(1, int(max_tools_per_task))
         self.max_tool_iterations = max(1, int(cfg.get("max_tool_iterations", 8)))
+        self.skip_missing_cache_tasks = bool(cfg.get("skip_missing_cache_tasks", False))
 
         self.eval_mode = str(cfg.get("eval_mode", "heuristic")).strip().lower()
         self.judge_model = str(cfg.get("judge_model", "gpt-4.1-mini"))
@@ -303,6 +324,7 @@ class StableToolBenchBenchmark:
 
         tasks: list[BenchmarkTask] = []
         seen_task_ids: set[str] = set()
+        skipped_missing_cache = 0
 
         for task_set in self.task_sets:
             query_path = self.query_root / "test_instruction" / f"{task_set}.json"
@@ -328,6 +350,12 @@ class StableToolBenchBenchmark:
                 query = str(row.get("query", "")).strip()
                 api_list = list(row.get("api_list") or [])
                 tool_names = [_canonical_tool_name(item) for item in api_list]
+                missing_cache_apis = self._missing_cache_apis(api_list)
+                cache_ready = len(missing_cache_apis) == 0
+
+                if self.skip_missing_cache_tasks and not cache_ready:
+                    skipped_missing_cache += 1
+                    continue
 
                 self._task_api_lists[task_id] = api_list
                 tasks.append(
@@ -342,13 +370,33 @@ class StableToolBenchBenchmark:
                             "source": "stabletoolbench",
                             "available_tool_names": tool_names,
                             "relevant_apis": list(row.get("relevant APIs") or []),
+                            "cache_ready": cache_ready,
+                            "missing_cache_count": len(missing_cache_apis),
+                            "missing_cache_apis": missing_cache_apis,
                         },
                     )
                 )
                 if task_limit is not None and len(tasks) >= task_limit:
                     return tasks
 
+        if self.skip_missing_cache_tasks:
+            logger.info(
+                "StableToolBench skipped %s tasks due to missing API cache files.",
+                skipped_missing_cache,
+            )
         return tasks
+
+    def _missing_cache_apis(self, api_list: list[dict[str, Any]]) -> list[str]:
+        cache_root = self._resolved_tool_cache_dir()
+        missing: list[str] = []
+        for item in api_list:
+            category = str(item.get("category_name", "") or "")
+            tool_name = str(item.get("tool_name", "") or "")
+            api_name = str(item.get("api_name", "") or "")
+            candidate_paths = _cache_candidate_paths(cache_root, category, tool_name, api_name)
+            if not any(path.exists() for path in candidate_paths):
+                missing.append(f"{category}/{tool_name}/{api_name}")
+        return missing
 
     def run(
         self,
