@@ -238,6 +238,48 @@ class TestWorkBenchBenchmark(unittest.TestCase):
             self.assertTrue(result.details["correct"])
             self.assertTrue(result.details["prediction_substantive"])
 
+    def test_selected_lineage_function_calls_excludes_losing_branch_side_effects(self) -> None:
+        run_metadata = {
+            "selected_artifact_id": "winner",
+            "artifact_records": [
+                {
+                    "artifact_id": "root",
+                    "source_artifact_ids": [],
+                    "tool_records": [
+                        {
+                            "tool_name": "company_directory.find_email_address",
+                            "arguments": {"name": "Jessie Thomas"},
+                        }
+                    ],
+                },
+                {
+                    "artifact_id": "losing",
+                    "source_artifact_ids": ["root"],
+                    "tool_records": [
+                        {
+                            "tool_name": "calendar.create_event",
+                            "arguments": {
+                                "event_name": "Bad branch",
+                                "participant_email": "jessie@company.com",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "artifact_id": "winner",
+                    "source_artifact_ids": ["root"],
+                    "tool_records": [],
+                },
+            ],
+        }
+
+        calls = WorkBenchBenchmark._extract_selected_function_calls(run_metadata, trace_events=[])
+
+        self.assertEqual(
+            calls,
+            ['company_directory.find_email_address.func(name="Jessie Thomas")'],
+        )
+
 
 def benchmark_module_sandbox(data_dir: Path):
     from benchmark.workbench import WorkBenchSandbox

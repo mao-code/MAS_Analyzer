@@ -1,3 +1,4 @@
+import json
 import unittest
 from dataclasses import dataclass
 from typing import Any
@@ -600,6 +601,201 @@ class TestLangGraphTopologies(unittest.TestCase):
         )
 
         self.assertEqual(vote["answer"], "Queen Arwa University")
+
+    def test_plancraft_control_prompts_use_current_turn_not_few_shot_examples(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
+        state = {
+            "benchmark_name": "plancraft",
+            "task_prompt": [
+                {"role": "system", "content": "Use the benchmark action grammar exactly."},
+                {"role": "user", "content": "Example target: andesite"},
+                {"role": "assistant", "content": "craft: from [I1] to [A1] with quantity 1"},
+                {"role": "user", "content": "Example target: iron_ingot"},
+                {"role": "assistant", "content": "smelt: from [I2] to [I3] with quantity 1"},
+                {"role": "user", "content": "Target item: quartz\nInventory: nether quartz ore in [I19]."},
+            ],
+        }
+        candidates = [
+            {
+                "index": 0,
+                "agent_id": "agent_0",
+                "answer_mode": "direct",
+                "answer": "smelt: from [I19] to [I18] with quantity 1",
+                "summary": "Smelt the ore.",
+                "confidence": 0.8,
+                "evidence_summary": ["Quartz can be smelted from the provided ore."],
+                "unresolved_issues": [],
+                "evidence_count": 1,
+                "used_tools": False,
+            }
+        ]
+
+        final_prompt = engine._build_final_vote_prompt(
+            state=state,
+            stage_name="judge",
+            candidates=candidates,
+        )
+        termination_prompt = engine._build_termination_assessment_prompt(
+            state=state,
+            stage_name="debate_controller",
+            round_index=0,
+            discussion_index=0,
+            current_candidates=candidates,
+            consensus_candidates=candidates,
+        )
+
+        final_payload = json.loads(final_prompt[1]["content"])
+        termination_payload = json.loads(termination_prompt[1]["content"])
+
+        for payload in (final_payload, termination_payload):
+            serialized = json.dumps(payload, ensure_ascii=False)
+            self.assertIn("quartz", serialized)
+            self.assertNotIn("andesite", serialized)
+            self.assertNotIn("iron_ingot", serialized)
+            self.assertEqual(
+                payload["task_context"]["current_task"],
+                "Target item: quartz\nInventory: nether quartz ore in [I19].",
+            )
+
+    def test_plancraft_final_vote_rejects_furnace_fuel_impossible_answer(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text_by_agent_id={
+                    "voter_final_vote_judge": (
+                        '{"groups":[[0,1],[2,3]],"winner_index":2,"invalid_indices":[],"explanation":"The impossible answer is more cautious."}'
+                    )
+                }
+            )
+        )
+        state = {
+            "benchmark_name": "plancraft",
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "VAL0491",
+            "run_index": 0,
+            "task_prompt": [
+                {"role": "system", "content": "Use benchmark actions only."},
+                {"role": "user", "content": "Target item: quartz"},
+            ],
+        }
+        artifacts = [
+            {
+                "artifact_id": "a0",
+                "agent_id": "agent_0",
+                "answer": "smelt: from [I19] to [I18] with quantity 1",
+                "summary": "Smelt the ore into quartz.",
+                "confidence": 0.7,
+                "unresolved_issues": [],
+                "evidence_summary": ["The benchmark action grammar allows smelt here."],
+                "source_artifact_ids": [],
+            },
+            {
+                "artifact_id": "a1",
+                "agent_id": "agent_1",
+                "answer": "smelt: from [I19] to [I18] with quantity 1",
+                "summary": "Smelt the ore into quartz.",
+                "confidence": 0.75,
+                "unresolved_issues": [],
+                "evidence_summary": ["Quartz is obtained by smelting the provided ore."],
+                "source_artifact_ids": [],
+            },
+            {
+                "artifact_id": "a2",
+                "agent_id": "agent_2",
+                "answer": "impossible: no furnace or fuel is present",
+                "summary": "Blocked because no furnace is in inventory.",
+                "confidence": 0.8,
+                "unresolved_issues": ["No furnace or fuel is available in inventory."],
+                "evidence_summary": ["No furnace or fuel is available in inventory."],
+                "source_artifact_ids": [],
+            },
+            {
+                "artifact_id": "a3",
+                "agent_id": "agent_3",
+                "answer": "impossible: cannot smelt without a furnace or fuel",
+                "summary": "Smelting is impossible without furnace inventory.",
+                "confidence": 0.78,
+                "unresolved_issues": ["Smelting would require furnace or fuel ownership."],
+                "evidence_summary": ["The inventory does not contain a furnace or fuel."],
+                "source_artifact_ids": [],
+            },
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="voter",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["answer"], "smelt: from [I19] to [I18] with quantity 1")
+        self.assertEqual(vote["source"], "deterministic_fallback_inadmissible_winner")
+        self.assertEqual(vote["selected_artifact_id"], "a1")
+
+    def test_retrieval_singleton_with_open_criteria_does_not_override_non_substantive_majority(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text_by_agent_id={
+                    "judge_final_vote_judge": (
+                        '{"groups":[[1,2],[0]],"winner_index":0,"invalid_indices":[],"explanation":"Agent 0 gives the only concrete answer."}'
+                    )
+                }
+            )
+        )
+        state = {
+            "benchmark_name": "browsecomp",
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "769",
+            "run_index": 0,
+            "task_prompt": "Which institution matches all criteria?",
+            "termination_decision": {
+                "consensus_is_substantive": False,
+                "progress_status": "stalled",
+                "expected_improvement": "low",
+            },
+        }
+        artifacts = [
+            {
+                "artifact_id": "direct_guess",
+                "agent_id": "agent_0",
+                "answer": "Lingnan University",
+                "summary": "Possible match, but criteria remain open.",
+                "confidence": 0.92,
+                "unresolved_issues": ["I could not verify that all degree criteria are satisfied."],
+                "evidence_summary": ["One source names Lingnan University, but the required criteria remain unverified."],
+                "source_artifact_ids": [],
+            },
+            {
+                "artifact_id": "blocked_1",
+                "agent_id": "agent_1",
+                "answer": "I cannot determine the institution because the retrieved evidence does not resolve all criteria.",
+                "summary": "Criteria remain unresolved.",
+                "confidence": 0.65,
+                "unresolved_issues": ["The available evidence is incomplete."],
+                "evidence_summary": ["No evidence retrieved so far resolves all criteria."],
+                "source_artifact_ids": [],
+            },
+            {
+                "artifact_id": "blocked_2",
+                "agent_id": "agent_2",
+                "answer": "The answer cannot be determined from the currently retrieved evidence.",
+                "summary": "Still missing required support.",
+                "confidence": 0.6,
+                "unresolved_issues": ["Required criteria remain open."],
+                "evidence_summary": ["The current evidence is insufficient to satisfy all criteria."],
+                "source_artifact_ids": [],
+            },
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["source"], "llm_judge_non_direct_fallback")
+        self.assertNotEqual(vote["answer"], "Lingnan University")
+        self.assertIn(vote["selected_artifact_id"], {"blocked_1", "blocked_2"})
 
     def test_deterministic_vote_prefers_evidence_backed_direct_answer(self) -> None:
         engine = LangGraphMASEngine(_JudgeLLM(text="unused"))

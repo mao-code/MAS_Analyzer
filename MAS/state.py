@@ -64,6 +64,9 @@ class WorkflowState(TypedDict, total=False):
     final_reason: str
     vote_tally: dict[str, int]
     final_vote_source: str
+    selected_artifact_id: str
+    selected_agent_id: str
+    selected_source_artifact_ids: list[str]
     termination_decision: TerminationDecision
     descriptor_summary: dict[str, Any]
 
