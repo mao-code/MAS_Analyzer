@@ -67,6 +67,9 @@ SHARED_STATE_FIELDS = [
     "artifacts",
     "termination_decision",
     "vote_tally",
+    "selected_artifact_id",
+    "selected_agent_id",
+    "selected_source_artifact_ids",
     "descriptor_records",
 ]
 
@@ -316,6 +319,9 @@ class LangGraphMASEngine:
             "final_reason": "",
             "vote_tally": {},
             "final_vote_source": "",
+            "selected_artifact_id": "",
+            "selected_agent_id": "",
+            "selected_source_artifact_ids": [],
             "termination_decision": {},
             "descriptor_summary": {},
             "domain_personas": domain_personas,
@@ -356,6 +362,9 @@ class LangGraphMASEngine:
             "agent_outputs": latest_outputs,
             "vote_tally": dict(end_state.get("vote_tally", {})),
             "final_vote_source": str(end_state.get("final_vote_source", "")),
+            "selected_artifact_id": str(end_state.get("selected_artifact_id", "")),
+            "selected_agent_id": str(end_state.get("selected_agent_id", "")),
+            "selected_source_artifact_ids": list(end_state.get("selected_source_artifact_ids", [])),
             "phase_history": list(end_state.get("phase_history", [])),
             "relay_messages": messages,
             "message_views": list(end_state.get("message_views", [])),
@@ -1314,7 +1323,10 @@ class LangGraphMASEngine:
             "phase": "voter",
             "vote_tally": dict(vote_result["tally"]),
             "final_vote_source": str(vote_result["source"]),
-            "final_answer": str(vote_result["answer"] or self._fallback_answer_from_artifacts(artifacts)),
+            "final_answer": self._safe_vote_answer_or_fallback(state, artifacts, vote_result),
+            "selected_artifact_id": str(vote_result.get("selected_artifact_id", "")),
+            "selected_agent_id": str(vote_result.get("selected_agent_id", "")),
+            "selected_source_artifact_ids": list(vote_result.get("selected_source_artifact_ids", [])),
             "final_reason": final_reason,
             "phase_history": [self._phase_history_entry(state, "voter")],
             "trace_payloads": [
@@ -1333,6 +1345,8 @@ class LangGraphMASEngine:
                         "vote_source": str(vote_result["source"]),
                         "vote_outcome_reason": self._vote_outcome_reason(vote_result),
                         "vote_explanation": str(vote_result["explanation"]),
+                        "selected_artifact_id": str(vote_result.get("selected_artifact_id", "")),
+                        "selected_agent_id": str(vote_result.get("selected_agent_id", "")),
                     },
                     token_in=int(vote_result["token_in"]),
                     token_out=int(vote_result["token_out"]),
@@ -1477,7 +1491,10 @@ class LangGraphMASEngine:
             "phase": "judge",
             "vote_tally": dict(vote_result["tally"]),
             "final_vote_source": str(vote_result["source"]),
-            "final_answer": str(vote_result["answer"] or self._fallback_answer_from_artifacts(artifacts)),
+            "final_answer": self._safe_vote_answer_or_fallback(state, artifacts, vote_result),
+            "selected_artifact_id": str(vote_result.get("selected_artifact_id", "")),
+            "selected_agent_id": str(vote_result.get("selected_agent_id", "")),
+            "selected_source_artifact_ids": list(vote_result.get("selected_source_artifact_ids", [])),
             "final_reason": str(state.get("final_reason") or f"{state['topology']}:judge_vote"),
             "phase_history": [self._phase_history_entry(state, "judge")],
             "trace_payloads": [
@@ -1494,6 +1511,8 @@ class LangGraphMASEngine:
                         "vote_mode": str(vote_result["mode"]),
                         "vote_source": str(vote_result["source"]),
                         "vote_explanation": str(vote_result["explanation"]),
+                        "selected_artifact_id": str(vote_result.get("selected_artifact_id", "")),
+                        "selected_agent_id": str(vote_result.get("selected_agent_id", "")),
                     },
                     token_in=int(vote_result["token_in"]),
                     token_out=int(vote_result["token_out"]),
@@ -1661,7 +1680,10 @@ class LangGraphMASEngine:
             "phase": "final_judge",
             "vote_tally": dict(vote_result["tally"]),
             "final_vote_source": str(vote_result["source"]),
-            "final_answer": str(vote_result["answer"] or self._fallback_answer_from_artifacts(artifacts)),
+            "final_answer": self._safe_vote_answer_or_fallback(state, artifacts, vote_result),
+            "selected_artifact_id": str(vote_result.get("selected_artifact_id", "")),
+            "selected_agent_id": str(vote_result.get("selected_agent_id", "")),
+            "selected_source_artifact_ids": list(vote_result.get("selected_source_artifact_ids", [])),
             "final_reason": str(state.get("final_reason") or f"{state['topology']}:judge_vote"),
             "phase_history": [self._phase_history_entry(state, "final_judge")],
             "trace_payloads": [
@@ -1678,6 +1700,8 @@ class LangGraphMASEngine:
                         "vote_mode": str(vote_result["mode"]),
                         "vote_source": str(vote_result["source"]),
                         "vote_explanation": str(vote_result["explanation"]),
+                        "selected_artifact_id": str(vote_result.get("selected_artifact_id", "")),
+                        "selected_agent_id": str(vote_result.get("selected_agent_id", "")),
                     },
                     token_in=int(vote_result["token_in"]),
                     token_out=int(vote_result["token_out"]),
@@ -2866,9 +2890,6 @@ class LangGraphMASEngine:
         artifacts: list[ArtifactRecord],
     ) -> dict[str, Any]:
         mode = str(state.get("final_vote_mode", "llm_judge") or "llm_judge")
-        deterministic_result = self._deterministic_vote_result(artifacts, mode=mode)
-        if mode != "llm_judge":
-            return deterministic_result
 
         candidates: list[dict[str, Any]] = []
         for index, artifact in enumerate(artifacts):
@@ -2876,7 +2897,54 @@ class LangGraphMASEngine:
             if candidate is not None:
                 candidates.append(candidate)
 
+        candidate_by_index = {int(item["index"]): item for item in candidates}
+        admissible_direct_indices = {
+            index
+            for index, candidate in candidate_by_index.items()
+            if self._candidate_is_admissible_final_winner(state, candidate)[0]
+        }
+        deterministic_result = self._deterministic_vote_result(
+            artifacts,
+            mode=mode,
+            allowed_indices=admissible_direct_indices,
+        )
+        singleton_groups = [[index] for index in sorted(candidate_by_index)]
+
+        if mode != "llm_judge":
+            if deterministic_result.get("answer"):
+                return deterministic_result
+            fallback_result = self._non_direct_majority_vote_result(
+                state=state,
+                artifacts=artifacts,
+                candidate_by_index=candidate_by_index,
+                groups=singleton_groups,
+                mode=mode,
+            )
+            if fallback_result is not None:
+                return {
+                    **fallback_result,
+                    "source": "deterministic_non_direct_fallback",
+                }
+            return deterministic_result
+
         if len(candidates) <= 1:
+            if deterministic_result.get("answer"):
+                return {
+                    **deterministic_result,
+                    "source": "deterministic_singleton",
+                }
+            fallback_result = self._non_direct_majority_vote_result(
+                state=state,
+                artifacts=artifacts,
+                candidate_by_index=candidate_by_index,
+                groups=singleton_groups,
+                mode=mode,
+            )
+            if fallback_result is not None:
+                return {
+                    **fallback_result,
+                    "source": "deterministic_singleton_non_direct",
+                }
             return {
                 **deterministic_result,
                 "source": "deterministic_singleton",
@@ -2901,17 +2969,47 @@ class LangGraphMASEngine:
         )
         latency_ms = max((time.perf_counter() - t0) * 1000.0, 1.0)
         if bool(llm.mock_used):
+            fallback_result = deterministic_result
+            if not fallback_result.get("answer"):
+                non_direct_result = self._non_direct_majority_vote_result(
+                    state=state,
+                    artifacts=artifacts,
+                    candidate_by_index=candidate_by_index,
+                    groups=singleton_groups,
+                    mode=mode,
+                )
+                if non_direct_result is not None:
+                    fallback_result = non_direct_result
             return {
-                **deterministic_result,
-                "source": "deterministic_fallback_mock",
+                **fallback_result,
+                "source": (
+                    "deterministic_non_direct_fallback_mock"
+                    if fallback_result is not deterministic_result
+                    else "deterministic_fallback_mock"
+                ),
                 "explanation": "Final vote judge fell back to deterministic voting because the LLM client ran in mock mode.",
             }
 
         parsed = self._parse_final_vote_judgment(str(llm.text or ""))
         if parsed is None:
+            fallback_result = deterministic_result
+            if not fallback_result.get("answer"):
+                non_direct_result = self._non_direct_majority_vote_result(
+                    state=state,
+                    artifacts=artifacts,
+                    candidate_by_index=candidate_by_index,
+                    groups=singleton_groups,
+                    mode=mode,
+                )
+                if non_direct_result is not None:
+                    fallback_result = non_direct_result
             return {
-                **deterministic_result,
-                "source": "deterministic_fallback_parse_error",
+                **fallback_result,
+                "source": (
+                    "deterministic_non_direct_fallback_parse_error"
+                    if fallback_result is not deterministic_result
+                    else "deterministic_fallback_parse_error"
+                ),
                 "explanation": "Final vote judge returned invalid JSON; deterministic voting was used instead.",
                 "token_in": int(llm.token_in),
                 "token_out": int(llm.token_out),
@@ -2919,13 +3017,9 @@ class LangGraphMASEngine:
                 "latency_ms": latency_ms,
             }
 
-        candidate_by_index = {int(item["index"]): item for item in candidates}
         valid_indices = set(candidate_by_index)
         invalid_indices = {index for index in parsed["invalid_indices"] if index in valid_indices}
         remaining_valid = valid_indices - invalid_indices
-        direct_indices = {
-            index for index, item in candidate_by_index.items() if item.get("answer_mode") == "direct"
-        }
 
         groups: list[list[int]] = []
         seen: set[int] = set()
@@ -2955,32 +3049,85 @@ class LangGraphMASEngine:
             winner_group = max(groups, key=lambda group: (len(group), -self._group_mean_confidence(artifacts, group)))
             winner_index = self._best_artifact_index(artifacts, winner_group)
 
-        if (
-            winner_index is not None
-            and direct_indices
-            and candidate_by_index.get(winner_index, {}).get("answer_mode") != "direct"
-        ):
-            direct_groups = [group for group in groups if any(index in direct_indices for index in group)]
-            if direct_groups:
-                winner_group = max(
-                    direct_groups,
-                    key=lambda group: (
-                        len([index for index in group if index in direct_indices]),
-                        self._group_mean_confidence(artifacts, group),
-                    ),
-                )
-                winner_index = self._best_artifact_index(
-                    artifacts,
-                    [index for index in winner_group if index in direct_indices],
-                )
-            else:
+        admissible_direct_indices = {
+            index
+            for index in remaining_valid
+            if self._candidate_is_admissible_final_winner(state, candidate_by_index[index])[0]
+        }
+
+        winner_reason = ""
+        if winner_index is not None:
+            winner_ok, winner_reason = self._candidate_is_admissible_final_winner(
+                state,
+                candidate_by_index[winner_index],
+            )
+            if not winner_ok:
                 winner_index = None
 
         if winner_index is None:
+            if admissible_direct_indices:
+                admissible_result = self._deterministic_vote_result(
+                    artifacts,
+                    mode=mode,
+                    allowed_indices=admissible_direct_indices,
+                )
+                fallback_reason = (
+                    "Final vote judge selected an inadmissible winner; "
+                    "deterministic voting over admissible direct answers was used instead."
+                    if winner_reason
+                    else "Final vote judge did not identify a usable winner; deterministic voting was used instead."
+                )
+                explanation = self._merge_vote_explanations(
+                    str(parsed.get("explanation", "")),
+                    winner_reason or fallback_reason,
+                )
+                return {
+                    **admissible_result,
+                    "source": (
+                        "deterministic_fallback_inadmissible_winner"
+                        if winner_reason
+                        else "deterministic_fallback_no_winner"
+                    ),
+                    "explanation": explanation,
+                    "token_in": int(llm.token_in),
+                    "token_out": int(llm.token_out),
+                    "cost_usd": float(llm.cost_usd),
+                    "latency_ms": latency_ms,
+                }
+
+            fallback_result = self._non_direct_majority_vote_result(
+                state=state,
+                artifacts=artifacts,
+                candidate_by_index=candidate_by_index,
+                groups=groups,
+                mode=mode,
+            )
+            if fallback_result is not None:
+                explanation = self._merge_vote_explanations(
+                    str(parsed.get("explanation", "")),
+                    winner_reason or "No admissible direct answer remained after control checks.",
+                )
+                return {
+                    **fallback_result,
+                    "source": "llm_judge_non_direct_fallback",
+                    "explanation": explanation,
+                    "token_in": int(llm.token_in),
+                    "token_out": int(llm.token_out),
+                    "cost_usd": float(llm.cost_usd),
+                    "latency_ms": latency_ms,
+                }
+
             return {
                 **deterministic_result,
-                "source": "deterministic_fallback_no_winner",
-                "explanation": "Final vote judge did not identify a usable winner; deterministic voting was used instead.",
+                "source": (
+                    "deterministic_fallback_inadmissible_winner"
+                    if winner_reason
+                    else "deterministic_fallback_no_winner"
+                ),
+                "explanation": self._merge_vote_explanations(
+                    str(parsed.get("explanation", "")),
+                    winner_reason or "Final vote judge did not identify a usable winner.",
+                ),
                 "token_in": int(llm.token_in),
                 "token_out": int(llm.token_out),
                 "cost_usd": float(llm.cost_usd),
@@ -2998,11 +3145,13 @@ class LangGraphMASEngine:
             tally[signature] = len(group)
 
         return {
-            "mode": mode,
-            "source": "llm_judge",
-            "answer": self._artifact_display_answer(artifacts[winner_index], max_chars=6000),
-            "tally": tally,
-            "explanation": str(parsed.get("explanation", "")),
+            **self._vote_result_for_artifact(
+                artifacts[winner_index],
+                mode=mode,
+                source="llm_judge",
+                tally=tally,
+                explanation=str(parsed.get("explanation", "")),
+            ),
             "token_in": int(llm.token_in),
             "token_out": int(llm.token_out),
             "cost_usd": float(llm.cost_usd),
@@ -3038,6 +3187,285 @@ class LangGraphMASEngine:
             return 0.0
         return sum(scores) / len(scores)
 
+    @staticmethod
+    def _merge_vote_explanations(primary: str, secondary: str) -> str:
+        primary = str(primary or "").strip()
+        secondary = str(secondary or "").strip()
+        if primary and secondary:
+            return f"{primary} {secondary}"
+        return primary or secondary
+
+    def _build_control_task_context(self, state: WorkflowState) -> dict[str, Any]:
+        task_prompt = state.get("task_prompt", "")
+        if isinstance(task_prompt, list):
+            normalized = self._normalize_prompt_messages(task_prompt)
+            system_constraints: list[str] = []
+            latest_user = ""
+            latest_non_system = ""
+            for item in normalized:
+                role = str(item.get("role", "user")).strip().lower()
+                content = self._trim_text(str(item.get("content", "")), max_chars=1200)
+                if not content:
+                    continue
+                if role == "system":
+                    system_constraints.append(content)
+                    continue
+                latest_non_system = content
+                if role == "user":
+                    latest_user = content
+            return {
+                "current_task": latest_user or latest_non_system,
+                "system_constraints": system_constraints[:3],
+            }
+        return {
+            "current_task": self._trim_text(str(task_prompt), max_chars=2000),
+            "system_constraints": [],
+        }
+
+    @staticmethod
+    def _benchmark_guidance_lines(benchmark_name: str, *, audience: str) -> list[str]:
+        benchmark = str(benchmark_name or "")
+        lines: list[str] = []
+        if benchmark == "plancraft":
+            lines.extend(
+                [
+                    "The answer must be the next benchmark action in the adapter grammar.",
+                    "Valid action forms include move, craft, smelt, and impossible.",
+                    "Treat smelt as a valid benchmark action when the prompt supports it.",
+                    "Do not require furnace or fuel inventory unless the task prompt explicitly says so.",
+                ]
+            )
+        if benchmark in {"browsecomp", "finance_agent"}:
+            if audience == "agent":
+                lines.extend(
+                    [
+                        "A concrete answer is not sufficient unless the available evidence covers the required criteria.",
+                        "If important criteria remain unresolved, say so explicitly instead of overstating certainty.",
+                    ]
+                )
+            else:
+                lines.extend(
+                    [
+                        "A concrete answer is not automatically valid when its own unresolved issues or evidence leave required criteria open.",
+                        "Partial synthesis with open unresolved criteria is not a fully supported final answer.",
+                    ]
+                )
+        return lines
+
+    def _serialize_termination_decision_context(self, state: WorkflowState) -> dict[str, Any] | None:
+        decision = state.get("termination_decision", {})
+        if not isinstance(decision, dict) or not decision:
+            return None
+        return {
+            "stage_name": str(decision.get("stage_name", "")),
+            "reason": str(decision.get("reason", "")),
+            "reason_detail": str(decision.get("reason_detail", "")),
+            "consensus_ratio": float(decision.get("consensus_ratio", 0.0) or 0.0),
+            "consensus_count": int(decision.get("consensus_count", 0) or 0),
+            "consensus_valid_count": int(decision.get("consensus_valid_count", 0) or 0),
+            "consensus_is_substantive": decision.get("consensus_is_substantive"),
+            "progress_status": str(decision.get("progress_status", "")),
+            "expected_improvement": str(decision.get("expected_improvement", "")),
+            "progress_explanation": self._trim_text(
+                str(decision.get("progress_explanation", "")),
+                max_chars=500,
+            ),
+        }
+
+    @staticmethod
+    def _candidate_support_text(candidate: dict[str, Any]) -> str:
+        parts: list[str] = [
+            str(candidate.get("summary", "")),
+            str(candidate.get("previous_summary", "")),
+            str(candidate.get("previous_answer", "")),
+        ]
+        for key in ("evidence_summary", "unresolved_issues"):
+            values = candidate.get(key, [])
+            if isinstance(values, list):
+                parts.extend(str(item) for item in values)
+        return " ".join(part for part in parts if str(part).strip()).strip()
+
+    @staticmethod
+    def _text_indicates_open_issue(text: Any) -> bool:
+        lowered = re.sub(r"\s+", " ", str(text or "")).strip().lower()
+        if not lowered:
+            return False
+        blockers = (
+            "no evidence",
+            "insufficient evidence",
+            "not enough evidence",
+            "need more information",
+            "need additional information",
+            "needs more information",
+            "further research",
+            "cannot confirm",
+            "cannot verify",
+            "could not verify",
+            "couldn't verify",
+            "not verified",
+            "unverified",
+            "unknown",
+            "unclear",
+            "unresolved",
+            "missing",
+            "not found",
+            "criteria remain",
+            "criteria remain open",
+            "criterion remains open",
+            "criteria are open",
+            "remain unverified",
+        )
+        return any(snippet in lowered for snippet in blockers)
+
+    def _candidate_has_blocking_issues(self, candidate: dict[str, Any]) -> bool:
+        unresolved_issues = candidate.get("unresolved_issues", [])
+        if not isinstance(unresolved_issues, list):
+            return False
+        return any(self._text_indicates_open_issue(item) for item in unresolved_issues)
+
+    def _candidate_has_weak_evidence(self, state: WorkflowState, candidate: dict[str, Any]) -> bool:
+        evidence_summary = candidate.get("evidence_summary", [])
+        positive_evidence = int(candidate.get("evidence_count", 0) or 0)
+        if isinstance(evidence_summary, list) and evidence_summary:
+            if positive_evidence <= 0 and any(
+                not self._evidence_entry_is_positive(item) for item in evidence_summary
+            ):
+                return True
+        support_text = self._candidate_support_text(candidate).lower()
+        if any(
+            snippet in support_text
+            for snippet in (
+                "no evidence",
+                "insufficient evidence",
+                "not retrieved",
+                "not gathered",
+                "unknown",
+            )
+        ):
+            return True
+        benchmark_name = str(state.get("benchmark_name", "") or "")
+        return benchmark_name in {"browsecomp", "finance_agent"} and positive_evidence <= 0
+
+    def _candidate_violates_benchmark_semantics(
+        self,
+        state: WorkflowState,
+        candidate: dict[str, Any],
+    ) -> bool:
+        benchmark_name = str(state.get("benchmark_name", "") or "")
+        answer = str(candidate.get("answer", "")).strip().lower()
+        support_text = self._candidate_support_text(candidate).lower()
+        if benchmark_name == "plancraft":
+            if answer and not re.match(r"^(move|craft|smelt|impossible)\b", answer):
+                return True
+            if answer.startswith("impossible") and any(
+                snippet in support_text for snippet in ("furnace", "fuel", "coal", "charcoal")
+            ):
+                return True
+        return False
+
+    def _candidate_is_admissible_final_winner(
+        self,
+        state: WorkflowState,
+        candidate: dict[str, Any],
+    ) -> tuple[bool, str]:
+        if str(candidate.get("answer_mode", "")) != "direct":
+            return False, "The selected candidate is not a direct final answer."
+        if self._candidate_has_blocking_issues(candidate):
+            return False, "The selected candidate still reports unresolved blocking issues."
+        if self._candidate_has_weak_evidence(state, candidate):
+            return False, "The selected candidate does not have adequate supporting evidence."
+        if self._candidate_violates_benchmark_semantics(state, candidate):
+            return False, "The selected candidate violates benchmark-visible action semantics."
+        return True, ""
+
+    def _vote_result_for_artifact(
+        self,
+        artifact: ArtifactRecord,
+        *,
+        mode: str,
+        source: str,
+        tally: dict[str, int] | None = None,
+        explanation: str = "",
+        winner_signature: str = "",
+    ) -> dict[str, Any]:
+        return {
+            "mode": mode,
+            "source": source,
+            "answer": self._artifact_display_answer(artifact, max_chars=6000),
+            "tally": dict(tally or {}),
+            "explanation": explanation,
+            "token_in": 0,
+            "token_out": 0,
+            "cost_usd": 0.0,
+            "latency_ms": 1.0,
+            "winner_signature": winner_signature,
+            "selected_artifact_id": str(artifact.get("artifact_id", "")),
+            "selected_agent_id": str(artifact.get("agent_id", "")),
+            "selected_source_artifact_ids": list(artifact.get("source_artifact_ids", [])),
+        }
+
+    def _non_direct_majority_vote_result(
+        self,
+        *,
+        state: WorkflowState,
+        artifacts: list[ArtifactRecord],
+        candidate_by_index: dict[int, dict[str, Any]],
+        groups: list[list[int]],
+        mode: str,
+    ) -> dict[str, Any] | None:
+        if not groups:
+            return None
+        termination_decision = state.get("termination_decision", {})
+        preferred_groups = groups
+        if (
+            isinstance(termination_decision, dict)
+            and termination_decision.get("consensus_is_substantive") is False
+        ):
+            non_direct_groups = [
+                group
+                for group in groups
+                if any(
+                    str(candidate_by_index.get(index, {}).get("answer_mode", "")) != "direct"
+                    for index in group
+                )
+            ]
+            if non_direct_groups:
+                preferred_groups = non_direct_groups
+
+        winner_group = max(
+            preferred_groups,
+            key=lambda group: (
+                len(group),
+                sum(
+                    1
+                    for index in group
+                    if str(candidate_by_index.get(index, {}).get("answer_mode", "")) != "direct"
+                ),
+                self._group_mean_confidence(artifacts, group),
+            ),
+        )
+        winner_index = self._best_artifact_index(artifacts, winner_group)
+        if winner_index is None:
+            return None
+
+        tally: dict[str, int] = {}
+        for group in groups:
+            representative_index = self._best_artifact_index(artifacts, group)
+            if representative_index is None:
+                continue
+            signature = answer_signature(str(artifacts[representative_index].get("answer", "")))
+            if not signature:
+                signature = f"group_{representative_index}"
+            tally[signature] = len(group)
+
+        return self._vote_result_for_artifact(
+            artifacts[winner_index],
+            mode=mode,
+            source="llm_judge_non_direct_fallback",
+            tally=tally,
+            explanation="",
+        )
+
     def _build_final_vote_prompt(
         self,
         *,
@@ -3045,9 +3473,13 @@ class LangGraphMASEngine:
         stage_name: str,
         candidates: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
+        benchmark_name = str(state.get("benchmark_name", "") or "")
         payload = {
-            "task_prompt": self._trim_text(str(state.get("task_prompt", "")), max_chars=2000),
+            "benchmark_name": benchmark_name,
+            "task_context": self._build_control_task_context(state),
+            "benchmark_guidance": self._benchmark_guidance_lines(benchmark_name, audience="control"),
             "stage_name": stage_name,
+            "termination_decision": self._serialize_termination_decision_context(state),
             "answers": candidates,
         }
         return [
@@ -3057,10 +3489,12 @@ class LangGraphMASEngine:
                     "You are the final judge for a multi-agent workflow. "
                     "Group materially equivalent answers together, mark unusable answers invalid, "
                     "and choose the single best answer index for the task. "
-                    "Each candidate includes answer_mode, evidence_summary, evidence_count, used_tools, and confidence. "
-                    "Direct answers are preferable to blocked, planning, or no-evidence status messages. "
-                    "If any direct-answer candidate exists, mark blocked or planning candidates invalid unless they also contain a concrete final answer. "
-                    "Prefer the most correct direct answer; use evidence quality and cross-agent support as secondary signals when quality is otherwise comparable. "
+                    "Each candidate includes answer_mode, unresolved_issues, evidence_summary, evidence_count, used_tools, and confidence. "
+                    "A direct answer is not automatically valid. Mark candidates invalid when their own unresolved issues, weak evidence, "
+                    "or benchmark-visible semantics make them unreliable. "
+                    "A singleton concrete answer must not win solely because it is the only concrete answer. "
+                    "Use termination_decision as additional controller context when it is provided, especially when the controller already judged the majority cluster non-substantive. "
+                    "Do not invent constraints that do not appear in task_context or benchmark_guidance. "
                     "Return strict JSON only with this schema: "
                     '{"groups":[[0,2],[1]],"winner_index":0,"invalid_indices":[3],"explanation":"short reason"}. '
                     "The winner_index must refer to one valid answer."
@@ -3082,8 +3516,11 @@ class LangGraphMASEngine:
         current_candidates: list[dict[str, Any]],
         consensus_candidates: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
+        benchmark_name = str(state.get("benchmark_name", "") or "")
         payload = {
-            "task_prompt": self._trim_text(str(state.get("task_prompt", "")), max_chars=2000),
+            "benchmark_name": benchmark_name,
+            "task_context": self._build_control_task_context(state),
+            "benchmark_guidance": self._benchmark_guidance_lines(benchmark_name, audience="control"),
             "stage_name": stage_name,
             "round_index": round_index,
             "discussion_index": discussion_index,
@@ -3098,11 +3535,12 @@ class LangGraphMASEngine:
                     "Use consensus_answers to decide whether multiple answers express the same final answer for task-solving purposes. "
                     "Group answers together only when they are materially equivalent in final claim, decision, or action. "
                     "Ignore wording and formatting differences. "
-                    "Each candidate includes answer_mode, evidence_summary, evidence_count, used_tools, and confidence. "
+                    "Each candidate includes answer_mode, unresolved_issues, evidence_summary, evidence_count, used_tools, and confidence. "
                     "Blocked-status, planning-only, and 'no evidence' outputs are not substantive answers. "
                     "Also assess whether the largest group's shared answer is a substantive task solution "
                     "(a concrete claim, decision, or result) rather than merely planning, acknowledging ignorance, "
                     "or restating the task without answering it. "
+                    "Do not invent constraints that do not appear in task_context or benchmark_guidance. "
                     "Use candidate_artifacts, including any previous_answer fields, to judge progress. "
                     "Set should_stop_for_no_progress to true only when another round is unlikely to materially improve correctness; "
                     "do not use it merely because wording is similar. "
@@ -3543,6 +3981,11 @@ class LangGraphMASEngine:
                         "On retrieval tasks, the first useful move is usually a tool call followed by an evidence-backed answer."
                     )
 
+        benchmark_guidance = self._benchmark_guidance_lines(benchmark_name, audience="agent")
+        if benchmark_guidance:
+            system_lines.append("Benchmark guidance:")
+            system_lines.extend(f"- {line}" for line in benchmark_guidance)
+
         system_message = {
             "role": "system",
             "content": "\n".join(system_lines),
@@ -3667,6 +4110,31 @@ class LangGraphMASEngine:
                 self._artifacts_for_nodes(state, node_names={"representative_merge"}, latest_only=True)
             )
         return self._fallback_answer_from_artifacts(artifacts)
+
+    def _safe_vote_answer_or_fallback(
+        self,
+        state: WorkflowState,
+        artifacts: list[ArtifactRecord],
+        vote_result: dict[str, Any],
+    ) -> str:
+        answer = str(vote_result.get("answer", "") or "").strip()
+        if answer:
+            return answer
+
+        safe_artifacts: list[ArtifactRecord] = []
+        for index, artifact in enumerate(artifacts):
+            candidate = self._serialize_judge_candidate(artifact, index=index)
+            if candidate is None:
+                continue
+            if str(candidate.get("answer_mode", "")) != "direct":
+                safe_artifacts.append(artifact)
+                continue
+            if self._candidate_is_admissible_final_winner(state, candidate)[0]:
+                safe_artifacts.append(artifact)
+
+        if safe_artifacts:
+            return self._fallback_answer_from_artifacts(safe_artifacts)
+        return UNSUPPORTED_FINAL_ANSWER
 
     def _fallback_answer_from_artifacts(self, artifacts: list[ArtifactRecord]) -> str:
         deterministic = self._deterministic_vote_result(artifacts, mode="deterministic")
@@ -3850,6 +4318,9 @@ class LangGraphMASEngine:
         evidence_summary = artifact.get("evidence_summary", [])
         if not isinstance(evidence_summary, list):
             evidence_summary = []
+        unresolved_issues = artifact.get("unresolved_issues", [])
+        if not isinstance(unresolved_issues, list):
+            unresolved_issues = []
 
         return {
             "index": index,
@@ -3861,6 +4332,9 @@ class LangGraphMASEngine:
             "summary": self._trim_text(str(artifact.get("summary", "")), max_chars=400),
             "confidence": float(artifact.get("confidence", 0.5)),
             "evidence_summary": [self._trim_text(str(item), max_chars=220) for item in evidence_summary[:4]],
+            "unresolved_issues": [
+                self._trim_text(str(item), max_chars=220) for item in unresolved_issues[:4]
+            ],
             "evidence_count": self._artifact_evidence_count(artifact),
             "used_tools": self._artifact_used_tools(artifact),
             "tool_call_count": len(artifact.get("tool_records", []) or []),
@@ -3877,16 +4351,22 @@ class LangGraphMASEngine:
         artifacts: list[ArtifactRecord],
         *,
         mode: str,
+        allowed_indices: set[int] | None = None,
     ) -> dict[str, Any]:
-        direct_artifacts = [
-            artifact for artifact in artifacts if self._artifact_answer_mode(artifact) == "direct"
-        ]
-        groups: dict[str, list[ArtifactRecord]] = {}
-        for artifact in direct_artifacts:
+        direct_artifacts: list[tuple[int, ArtifactRecord]] = []
+        for index, artifact in enumerate(artifacts):
+            if allowed_indices is not None and index not in allowed_indices:
+                continue
+            if self._artifact_answer_mode(artifact) != "direct":
+                continue
+            direct_artifacts.append((index, artifact))
+
+        groups: dict[str, list[tuple[int, ArtifactRecord]]] = {}
+        for index, artifact in direct_artifacts:
             signature = answer_signature(str(artifact.get("answer", "")))
             if not signature:
                 continue
-            groups.setdefault(signature, []).append(artifact)
+            groups.setdefault(signature, []).append((index, artifact))
 
         if not groups:
             return {
@@ -3899,35 +4379,34 @@ class LangGraphMASEngine:
                 "token_out": 0,
                 "cost_usd": 0.0,
                 "latency_ms": 1.0,
+                "selected_artifact_id": "",
+                "selected_agent_id": "",
+                "selected_source_artifact_ids": [],
             }
 
         ranked = sorted(
             groups.items(),
             key=lambda item: (
                 -len(item[1]),
-                -sum(self._artifact_evidence_count(artifact) for artifact in item[1]),
-                -sum(1 for artifact in item[1] if self._artifact_used_tools(artifact)),
+                -sum(self._artifact_evidence_count(artifact) for _, artifact in item[1]),
+                -sum(1 for _, artifact in item[1] if self._artifact_used_tools(artifact)),
                 -(
-                    sum(float(artifact.get("confidence", 0.5)) for artifact in item[1])
+                    sum(float(artifact.get("confidence", 0.5)) for _, artifact in item[1])
                     / len(item[1])
                 ),
                 item[0],
             ),
         )
         winner_signature, winner_group = ranked[0]
-        best_artifact = sorted(winner_group, key=self._artifact_rank_key)[0]
-        return {
-            "mode": mode,
-            "source": "deterministic",
-            "answer": self._artifact_display_answer(best_artifact, max_chars=6000),
-            "tally": {signature: len(items) for signature, items in groups.items()},
-            "explanation": "",
-            "token_in": 0,
-            "token_out": 0,
-            "cost_usd": 0.0,
-            "latency_ms": 1.0,
-            "winner_signature": winner_signature,
-        }
+        best_artifact = sorted((artifact for _, artifact in winner_group), key=self._artifact_rank_key)[0]
+        return self._vote_result_for_artifact(
+            best_artifact,
+            mode=mode,
+            source="deterministic",
+            tally={signature: len(items) for signature, items in groups.items()},
+            explanation="",
+            winner_signature=winner_signature,
+        )
 
     def _best_recent_nonempty_artifact_text(self, artifacts: list[ArtifactRecord]) -> str:
         ranked: list[tuple[int, int, int, float, str]] = []

@@ -35,6 +35,17 @@ class ArtifactRecord(TypedDict, total=False):
     llm: dict[str, Any]
 
 
+def _iter_artifact_ids(value: Any) -> list[str]:
+    raw_values = value if isinstance(value, list) else [value]
+    artifact_ids: list[str] = []
+    for raw in raw_values:
+        for part in str(raw or "").split(","):
+            cleaned = part.strip()
+            if cleaned:
+                artifact_ids.append(cleaned)
+    return artifact_ids
+
+
 class RelayPacket(TypedDict, total=False):
     """Bounded structured communication payload passed between agents."""
 
@@ -195,6 +206,60 @@ def answer_signature(text: str) -> str:
     if not normalized:
         return ""
     return normalized
+
+
+def artifacts_by_id(artifacts: list[ArtifactRecord]) -> dict[str, ArtifactRecord]:
+    """Index artifact records by artifact_id."""
+
+    indexed: dict[str, ArtifactRecord] = {}
+    for artifact in artifacts:
+        artifact_id = str(artifact.get("artifact_id", "")).strip()
+        if artifact_id:
+            indexed[artifact_id] = artifact
+    return indexed
+
+
+def collect_artifact_lineage(
+    artifacts: list[ArtifactRecord],
+    selected_artifact_id: str | list[str] | None,
+) -> list[ArtifactRecord]:
+    """Return the selected artifact lineage in dependency order."""
+
+    indexed = artifacts_by_id(artifacts)
+    ordered: list[ArtifactRecord] = []
+    seen: set[str] = set()
+
+    def visit(artifact_id: str) -> None:
+        if not artifact_id or artifact_id in seen:
+            return
+        seen.add(artifact_id)
+        artifact = indexed.get(artifact_id)
+        if artifact is None:
+            return
+        for source_id in _iter_artifact_ids(artifact.get("source_artifact_ids", [])):
+            visit(source_id)
+        ordered.append(artifact)
+
+    for artifact_id in _iter_artifact_ids(selected_artifact_id):
+        visit(artifact_id)
+    return ordered
+
+
+def collect_lineage_tool_records(
+    artifacts: list[ArtifactRecord],
+    selected_artifact_id: str | list[str] | None,
+) -> list[dict[str, Any]]:
+    """Collect tool records from the selected artifact lineage only."""
+
+    collected: list[dict[str, Any]] = []
+    for artifact in collect_artifact_lineage(artifacts, selected_artifact_id):
+        records = artifact.get("tool_records", [])
+        if not isinstance(records, list):
+            continue
+        for record in records:
+            if isinstance(record, dict):
+                collected.append(dict(record))
+    return collected
 
 
 def compute_consensus(artifacts: list[ArtifactRecord]) -> dict[str, Any]:

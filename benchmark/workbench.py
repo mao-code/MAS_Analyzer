@@ -13,17 +13,23 @@ from __future__ import annotations
 
 import ast
 import csv
+import logging
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from loguru import logger
+
+try:
+    from loguru import logger
+except Exception:  # pragma: no cover - optional dependency fallback
+    logger = logging.getLogger(__name__)
 
 from answer_utils import has_substantive_answer
 from benchmark.base import BenchmarkEvaluation, BenchmarkTask
 from MAS import MASRunner, MASRunResult
+from MAS.artifacts import collect_lineage_tool_records
 
 RAW_BASE_URL = "https://raw.githubusercontent.com/olly-styles/WorkBench/main/"
 HARDCODED_CURRENT_TIME = pd.to_datetime("2023-11-30T00:00:00")
@@ -1050,7 +1056,10 @@ class WorkBenchBenchmark:
             max_tool_iterations=self.max_tool_iterations,
             benchmark_name="workbench",
         )
-        function_calls = self._extract_function_calls(result.trace_events)
+        function_calls = self._extract_selected_function_calls(
+            dict(result.run_metadata),
+            result.trace_events,
+        )
         return MASRunResult(
             final_answer=result.final_answer,
             trace_events=result.trace_events,
@@ -1077,6 +1086,35 @@ class WorkBenchBenchmark:
                 arguments = {}
             calls.append(_format_function_call(tool_name, arguments))
         return calls
+
+    @classmethod
+    def _extract_function_calls_from_tool_records(cls, tool_records: list[Any]) -> list[str]:
+        calls: list[str] = []
+        for record in tool_records:
+            if not isinstance(record, dict):
+                continue
+            tool_name = str(record.get("tool_name", "")).strip()
+            if not tool_name or tool_name == "inter_agent_send":
+                continue
+            arguments = record.get("arguments")
+            if not isinstance(arguments, dict):
+                arguments = {}
+            calls.append(_format_function_call(tool_name, arguments))
+        return calls
+
+    @classmethod
+    def _extract_selected_function_calls(
+        cls,
+        run_metadata: dict[str, Any],
+        trace_events: list[Any],
+    ) -> list[str]:
+        artifact_records = run_metadata.get("artifact_records", [])
+        selected_artifact_id = run_metadata.get("selected_artifact_id")
+        if isinstance(artifact_records, list) and selected_artifact_id:
+            lineage_tool_records = collect_lineage_tool_records(artifact_records, selected_artifact_id)
+            if lineage_tool_records:
+                return cls._extract_function_calls_from_tool_records(lineage_tool_records)
+        return cls._extract_function_calls(trace_events)
 
     def _execute_actions_and_reset_state(
         self, actions: list[str]
