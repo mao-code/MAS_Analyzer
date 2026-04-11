@@ -2,6 +2,7 @@ import json
 import tempfile
 import textwrap
 import unittest
+import csv
 from pathlib import Path
 from unittest.mock import patch
 
@@ -142,6 +143,15 @@ class TestMainHierarchicalOutput(unittest.TestCase):
             self.assertTrue((system_dir / "experiment_settings.json").exists())
             self.assertTrue((system_dir / "summary.json").exists())
             self.assertTrue((system_dir / "summary.csv").exists())
+            with (system_dir / "summary.csv").open("r", encoding="utf-8", newline="") as handle:
+                reader = csv.DictReader(handle)
+                row = next(reader)
+            self.assertIn("success_rate", row)
+            self.assertIn("pass_at_1", row)
+            self.assertIn("stability", row)
+            self.assertIn("tokens_total", row)
+            self.assertIn("cost_per_success", row)
+            self.assertIn("tokens_cv", row)
 
             self.assertTrue((task_dir / "task.json").exists())
             self.assertTrue((task_dir / "run_0.answer.txt").exists())

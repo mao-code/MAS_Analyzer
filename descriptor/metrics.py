@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -31,6 +32,7 @@ DIAGNOSTIC_METRICS = (
 )
 RELIABILITY_METRICS = ("R1_success_var", "R2_latency_var", "R3_tokens_var")
 PROCESS_METRICS = ("P1_steps_total", "P2_backtrack_rate", "P3_loop_score", "P4_verification_density")
+PASS_AT_K_VALUES = (1, 3, 5, 8)
 
 
 @dataclass(frozen=True)
@@ -194,10 +196,39 @@ def _nanvar(values: Sequence[float]) -> float:
     return float(np.nanvar(arr))
 
 
+def _pass_at_k(*, sample_count: int, success_count: int, k: int) -> float:
+    if sample_count < k:
+        return float("nan")
+    if success_count <= 0:
+        return 0.0
+    if k > sample_count - success_count:
+        return 1.0
+    return float(
+        1.0
+        - (math.comb(sample_count - success_count, k) / math.comb(sample_count, k))
+    )
+
+
+def _stability_from_success_var(success_var: float, *, sample_count: int) -> float:
+    if sample_count < 2 or math.isnan(success_var):
+        return float("nan")
+    return float(np.clip(1.0 - (success_var / 0.25), 0.0, 1.0))
+
+
+def _tokens_cv(tokens: np.ndarray) -> float:
+    if len(tokens) < 2:
+        return float("nan")
+    mean_tokens = float(np.mean(tokens))
+    if mean_tokens <= 0 or math.isnan(mean_tokens):
+        return float("nan")
+    return float(np.std(tokens) / mean_tokens)
+
+
 def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any]:
     if not run_metrics:
         raise ValueError("At least one run metric entry is required")
 
+    run_count = len(run_metrics)
     successes = np.array([1.0 if rm["success"] else 0.0 for rm in run_metrics])
     completions = np.array([1.0 if rm["completion"] else 0.0 for rm in run_metrics])
 
@@ -222,12 +253,18 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
 
     total_tool_calls = tool_calls.sum()
     total_tool_fails = tool_fails.sum()
+    success_rate = float(successes.mean())
+    success_var = _nanvar(successes.tolist())
+    tokens_mean = float(tokens.mean())
+    tokens_var = _nanvar(tokens.tolist())
+    avg_score = float(np.mean([float(rm.get("score", 0.0)) for rm in run_metrics]))
+    success_count = int(successes.sum())
 
     metrics: dict[str, Any] = {
-        "Q1_success_rate": float(successes.mean()),
+        "Q1_success_rate": success_rate,
         "Q2_completion_rate": float(completions.mean()),
         "C1_latency_p95": float(np.percentile(latencies, 95)),
-        "C2_tokens_total": float(tokens.mean()),
+        "C2_tokens_total": tokens_mean,
         "C3_cost_total": float(costs.mean()),
         "C4_tool_calls_total": float(tool_calls.mean()),
         "D1_tool_error_rate": float(total_tool_fails / total_tool_calls)
@@ -237,14 +274,34 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
         "D2_agent_to_agent_communication_count": float(communication_counts_agent.mean()),
         "D2_system_mediated_communication_count": float(communication_counts_system.mean()),
         "D3_handoff_count": float(handoff_counts.mean()),
-        "R1_success_var": _nanvar(successes.tolist()),
+        "R1_success_var": success_var,
         "R2_latency_var": _nanvar(latencies.tolist()),
-        "R3_tokens_var": _nanvar(tokens.tolist()),
+        "R3_tokens_var": tokens_var,
         "P1_steps_total": float(steps.mean()),
         "P2_backtrack_rate": float(backtrack.mean()),
         "P3_loop_score": float(loop_scores.mean()),
         "P4_verification_density": float(verify_density.mean()),
+        "success_rate": success_rate,
+        "stability": _stability_from_success_var(success_var, sample_count=run_count),
+        "eval_avg_score": avg_score,
+        "tokens_total": tokens_mean,
+        "cost_per_success": float(tokens_mean / success_rate)
+        if success_rate > 0.0
+        else float("nan"),
+        "tokens_cv": _tokens_cv(tokens),
+        "tool_calls_total": float(tool_calls.mean()),
+        "tool_error_rate": float(total_tool_fails / total_tool_calls)
+        if total_tool_calls
+        else 0.0,
+        "communication_count": float(communication_counts.mean()),
+        "handoff_count": float(handoff_counts.mean()),
     }
+    for k in PASS_AT_K_VALUES:
+        metrics[f"pass_at_{k}"] = _pass_at_k(
+            sample_count=run_count,
+            success_count=success_count,
+            k=k,
+        )
 
     # Aggregate stage metrics if present
     stage_keys = [key for key in run_metrics[0].keys() if key.startswith("stage_")]

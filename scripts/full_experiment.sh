@@ -5,12 +5,14 @@ set -euo pipefail
 # Examples:
 #   TASK_LIMIT=2 RUNS_PER_TASK=1 bash scripts/full_experiment.sh
 #   BENCHMARKS=workbench,scicode SKIP_SETUP=1 bash scripts/full_experiment.sh
+#   bash scripts/full_experiment.sh --benchmark workbench --benchmark scicode
+#   RUNS_PER_TASK=8 bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 
 TASK_LIMIT="${TASK_LIMIT:-3}"
-RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
-BENCHMARKS="${BENCHMARKS:-browsecomp,workbench}"
+RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
+BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench}"
 RETRY_FAILURES="${RETRY_FAILURES:-1}"
 MAX_PARALLEL="${MAX_PARALLEL:-4}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
@@ -84,6 +86,50 @@ FULLY_LINKED_DEBATE_ARGS="${FULLY_LINKED_DEBATE_ARGS:-}"
 GROUP_CHAT_DEBATE_ARGS="${GROUP_CHAT_DEBATE_ARGS:-}"
 
 args=()
+cli_has_benchmark_selection=0
+
+for arg in "$@"; do
+  case "${arg}" in
+    --benchmark|--benchmark=*|--benchmarks|--benchmarks=*|--list-benchmarks)
+      cli_has_benchmark_selection=1
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: bash scripts/full_experiment.sh [wrapper options passed through to scripts/full_experiment.py]
+
+Defaults:
+  - Runs all discovered benchmark configs when BENCHMARKS is unset and no benchmark CLI flags are passed.
+  - Uses TASK_LIMIT, RUNS_PER_TASK, BENCHMARKS, and the other environment variables below as wrapper defaults.
+
+Useful examples:
+  bash scripts/full_experiment.sh --list-benchmarks
+  bash scripts/full_experiment.sh --benchmark workbench --benchmark scicode
+  bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
+  BENCHMARKS=workbench,scicode bash scripts/full_experiment.sh
+  RUNS_PER_TASK=8 bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
+
+Environment variable defaults:
+  TASK_LIMIT
+  RUNS_PER_TASK
+  BENCHMARKS
+  RETRY_FAILURES
+  MAX_PARALLEL
+  EXPERIMENT_ID
+  OUTPUT_ROOT
+  CONFIG_DIR
+  SKIP_SETUP
+  SETUP_ONLY
+  FINAL_VOTE_MODE
+  DISABLE_DYNAMIC_ROLES
+
+Notes:
+  - CLI benchmark flags override BENCHMARKS.
+  - For Python-level help, run: python scripts/full_experiment.py --help
+EOF
+      exit 0
+      ;;
+  esac
+done
 
 if [[ -n "${TASK_LIMIT}" ]]; then
   args+=(--task-limit "${TASK_LIMIT}")
@@ -91,7 +137,7 @@ fi
 if [[ -n "${RUNS_PER_TASK}" ]]; then
   args+=(--runs-per-task "${RUNS_PER_TASK}")
 fi
-if [[ -n "${BENCHMARKS}" ]]; then
+if [[ -n "${BENCHMARKS}" && "${cli_has_benchmark_selection}" != "1" ]]; then
   args+=(--benchmarks "${BENCHMARKS}")
 fi
 if [[ -n "${RETRY_FAILURES}" ]]; then

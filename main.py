@@ -149,7 +149,11 @@ def _write_summary_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            writer.writerow(row)
+            sanitized_row = {
+                key: ("" if isinstance(value, float) and math.isnan(value) else value)
+                for key, value in row.items()
+            }
+            writer.writerow(sanitized_row)
 
 
 def _default_system_label(config: Any) -> str:

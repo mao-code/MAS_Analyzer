@@ -1,3 +1,4 @@
+import math
 import json
 import tempfile
 import textwrap
@@ -103,6 +104,21 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
 
             analysis = json.loads((task_dir / "analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(analysis["descriptor"]["C4_tool_calls_total"], 0.0)
+            self.assertEqual(
+                analysis["descriptor"]["success_rate"],
+                analysis["evaluation"]["success_rate"],
+            )
+            self.assertEqual(
+                analysis["descriptor"]["eval_avg_score"],
+                analysis["evaluation"]["avg_score"],
+            )
+            self.assertEqual(
+                analysis["descriptor"]["pass_at_1"],
+                analysis["descriptor"]["success_rate"],
+            )
+            self.assertTrue(math.isnan(analysis["descriptor"]["pass_at_3"]))
+            self.assertTrue(math.isnan(analysis["descriptor"]["stability"]))
+            self.assertTrue(math.isnan(analysis["descriptor"]["tokens_cv"]))
 
             eval_payload = json.loads((task_dir / "run_0.eval.json").read_text(encoding="utf-8"))
             run_metadata = eval_payload["details"]["run_metadata"]

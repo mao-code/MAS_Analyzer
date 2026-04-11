@@ -85,6 +85,7 @@ class BatchOptions:
     skip_setup: bool
     setup_only: bool
     no_dynamic_roles: bool
+    list_benchmarks: bool
 
 
 @dataclass(frozen=True)
@@ -160,6 +161,17 @@ def python_executable_for_venv(venv_dir: Path) -> Path:
     return venv_dir / "bin" / "python"
 
 
+def _dedupe_keep_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
+
+
 def parse_batch_args(argv: list[str]) -> BatchOptions:
     parser = argparse.ArgumentParser(
         description="Bootstrap benchmark environments and run LangGraph batch experiments.",
@@ -180,6 +192,17 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         "--benchmarks",
         default="",
         help="Comma-separated benchmark subset. Defaults to every config in config/benchmarks.",
+    )
+    parser.add_argument(
+        "--benchmark",
+        action="append",
+        default=[],
+        help="Select one benchmark. Repeat to include multiple benchmarks.",
+    )
+    parser.add_argument(
+        "--list-benchmarks",
+        action="store_true",
+        help="List discovered benchmark configs and exit.",
     )
     parser.add_argument("--task-limit", type=int, default=None)
     parser.add_argument("--runs-per-task", type=int, default=None)
@@ -213,6 +236,8 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
     args = parser.parse_args(argv)
 
     selected = [item.strip() for item in args.benchmarks.split(",") if item.strip()]
+    selected.extend(item.strip() for item in args.benchmark if item.strip())
+    selected = _dedupe_keep_order(selected)
     return BatchOptions(
         experiment_id=str(args.experiment_id),
         output_root=Path(args.output_root).expanduser().resolve(),
@@ -226,6 +251,7 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         skip_setup=bool(args.skip_setup),
         setup_only=bool(args.setup_only),
         no_dynamic_roles=bool(args.no_dynamic_roles),
+        list_benchmarks=bool(args.list_benchmarks),
     )
 
 
@@ -239,6 +265,10 @@ def load_benchmark_configs(config_dir: Path) -> dict[str, Path]:
     if not configs:
         raise FileNotFoundError(f"No benchmark configs found under {config_dir}")
     return configs
+
+
+def list_available_benchmarks(config_dir: Path) -> list[str]:
+    return sorted(load_benchmark_configs(config_dir))
 
 
 def load_toml(path: Path) -> dict[str, Any]:
@@ -257,6 +287,40 @@ def select_benchmarks(options: BatchOptions) -> dict[str, Path]:
             raise ValueError(f"Unknown benchmark '{benchmark}'. Available: {available}")
         selected[benchmark] = configs[benchmark]
     return selected
+
+
+def print_available_benchmarks(config_dir: Path) -> int:
+    for benchmark in list_available_benchmarks(config_dir):
+        print(benchmark)
+    return 0
+
+
+def configured_runs_per_task(config_path: Path, override: int | None) -> int:
+    if override is not None:
+        return max(int(override), 0)
+    config = load_toml(config_path)
+    experiment_cfg = dict(config.get("experiment", {}))
+    return max(int(experiment_cfg.get("runs_per_task", 1)), 0)
+
+
+def warn_non_estimable_metrics(
+    selected_configs: dict[str, Path],
+    *,
+    runs_per_task_override: int | None,
+) -> None:
+    for benchmark_name, config_path in selected_configs.items():
+        runs_per_task = configured_runs_per_task(config_path, runs_per_task_override)
+        unavailable: list[str] = []
+        if runs_per_task < 2:
+            unavailable.extend(["stability", "tokens_cv"])
+        for k in (1, 3, 5, 8):
+            if runs_per_task < k:
+                unavailable.append(f"pass_at_{k}")
+        if unavailable:
+            info(
+                f"WARNING benchmark={benchmark_name} runs_per_task={runs_per_task} "
+                f"non_estimable_metrics={','.join(unavailable)}"
+            )
 
 
 def service_pid_path(state_dir: Path, name: str) -> Path:
@@ -772,6 +836,11 @@ def batch_run(options: BatchOptions) -> int:
         try:
             info(f"Experiment root: {experiment_root}")
             info(f"Started at: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}")
+            info(f"Benchmarks: {', '.join(selected_configs)}")
+            warn_non_estimable_metrics(
+                selected_configs,
+                runs_per_task_override=options.runs_per_task,
+            )
 
             if not options.skip_setup:
                 for benchmark_name, config_path in selected_configs.items():
@@ -996,6 +1065,8 @@ def main(argv: list[str] | None = None) -> int:
     if legacy_exit is not None:
         return legacy_exit
     options = parse_batch_args(args)
+    if options.list_benchmarks:
+        return print_available_benchmarks(options.config_dir)
     return batch_run(options)
 
 

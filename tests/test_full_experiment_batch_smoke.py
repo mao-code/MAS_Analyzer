@@ -79,6 +79,7 @@ class TestFullExperimentBatchSmoke(unittest.TestCase):
                 skip_setup=True,
                 setup_only=False,
                 no_dynamic_roles=False,
+                list_benchmarks=False,
             )
 
             with patch.object(batch_module, "SYSTEMS", [("sas", "sas", 1, 1, 1, 0)]):

@@ -18,7 +18,7 @@ Each task is executed one or more times under a fixed system configuration. For 
 - run-level trace metrics
 - a task-level descriptor aggregated over repeated runs
 
-The descriptor follows the paper’s `Q / C / D / R / P` split:
+The descriptor follows the paper’s `Q / C / D / R / P` split while also exposing paper-facing aliases used directly in the draft:
 
 - `Q`: outcome quality
 - `C`: direct execution cost
@@ -138,6 +138,26 @@ These `D*` metrics are logged as coordination diagnostics. They are not part of 
 - `P3_loop_score = mean_r(loop_score_r)`
 - `P4_verification_density = mean_r(verification_density_r)`
 
+### Paper-facing task metrics
+
+The task descriptor also writes paper-facing fields directly so downstream scripts do not need to reconstruct them:
+
+- `success_rate = Q1_success_rate`
+- `pass_at_1`, `pass_at_3`, `pass_at_5`, `pass_at_8` using the paper’s pass@k estimator over repeated runs
+- `stability = clip(1 - R1_success_var / 0.25, 0, 1)` when `N >= 2`, otherwise blank
+- `eval_avg_score = mean_r(score_r)`
+- `tokens_total = C2_tokens_total`
+- `cost_per_success = tokens_total / success_rate` when `success_rate > 0`, otherwise blank
+- `tokens_cv = std_r(tokens_total_r) / mean_r(tokens_total_r)` when `N >= 2` and mean tokens are positive, otherwise blank
+- `tool_calls_total = C4_tool_calls_total`
+- diagnostic aliases: `tool_error_rate`, `communication_count`, `handoff_count`
+
+Interpretation notes:
+
+- `stability` and `tokens_cv` require repeated runs and are blank for single-run tasks
+- `pass_at_k` is blank when fewer than `k` repeated runs are available
+- `cost_per_success` is blank when the system never succeeds on that task
+
 ### What appears in `summary.csv`
 
 Per task and system, `summary.csv` includes:
@@ -145,7 +165,8 @@ Per task and system, `summary.csv` includes:
 - `eval_avg_score`: benchmark-native mean score across runs
 - `eval_success_rate`: benchmark-native mean boolean success across runs
 - `eval_completion_rate`: runtime completion rate across runs
-- descriptor fields such as `Q1_success_rate`, `C2_tokens_total`, `D2_communication_count`, `P3_loop_score`, etc.
+- paper-facing descriptor fields such as `success_rate`, `pass_at_3`, `stability`, `tokens_total`, `cost_per_success`, `tokens_cv`
+- compatibility fields such as `Q1_success_rate`, `C2_tokens_total`, `D2_communication_count`, `P3_loop_score`, etc.
 
 By design:
 
@@ -445,9 +466,18 @@ Useful environment variables:
 
 - `TASK_LIMIT`
 - `RUNS_PER_TASK`
-- `BENCHMARKS`
+- `BENCHMARKS` (optional; when unset the wrapper runs all discovered benchmark configs)
 - `EXPERIMENT_ID`
 - `OUTPUT_ROOT`
+
+Useful CLI patterns:
+
+```bash
+bash scripts/full_experiment.sh --list-benchmarks
+bash scripts/full_experiment.sh --benchmark workbench --benchmark scicode
+bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
+RUNS_PER_TASK=8 bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
+```
 
 Hierarchical outputs are written under:
 

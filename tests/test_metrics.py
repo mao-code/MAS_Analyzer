@@ -1,3 +1,4 @@
+import math
 import unittest
 from types import SimpleNamespace
 
@@ -102,6 +103,17 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(task_metrics["D3_handoff_count"], 3.0)
         self.assertEqual(task_metrics["P1_steps_total"], 12.0)
         self.assertAlmostEqual(task_metrics["P4_verification_density"], 1.0 / 12.0, places=6)
+        self.assertEqual(task_metrics["success_rate"], 1.0)
+        self.assertEqual(task_metrics["pass_at_1"], 1.0)
+        self.assertTrue(math.isnan(task_metrics["pass_at_3"]))
+        self.assertTrue(math.isnan(task_metrics["stability"]))
+        self.assertEqual(task_metrics["tokens_total"], run_metrics["tokens_total"])
+        self.assertFalse(math.isnan(task_metrics["cost_per_success"]))
+        self.assertTrue(math.isnan(task_metrics["tokens_cv"]))
+        self.assertEqual(task_metrics["tool_calls_total"], 3.0)
+        self.assertEqual(task_metrics["tool_error_rate"], 1.0 / 3.0)
+        self.assertEqual(task_metrics["communication_count"], 3.0)
+        self.assertEqual(task_metrics["handoff_count"], 3.0)
 
     def test_benchmark_evaluation_overrides_trace_success(self) -> None:
         events = [
@@ -121,6 +133,99 @@ class TestMetrics(unittest.TestCase):
         self.assertTrue(run_metrics["completion"])
         self.assertEqual(run_metrics["success_source"], "benchmark_evaluation")
         self.assertEqual(run_metrics["completion_source"], "final_answer")
+
+    def test_paper_aligned_task_metrics(self) -> None:
+        run_metrics = [
+            {
+                "success": True,
+                "completion": True,
+                "latency_total": 10.0,
+                "tokens_total": 10.0,
+                "cost_total": 0.0,
+                "tool_calls_total": 1.0,
+                "tool_fail_total": 0.0,
+                "steps_total": 4.0,
+                "backtrack_rate": 0.0,
+                "loop_score": 0.0,
+                "verification_density": 0.25,
+                "communication_count": 1.0,
+                "communication_count_agent_to_agent": 1.0,
+                "communication_count_system_mediated": 0.0,
+                "handoff_count": 1.0,
+                "score": 1.0,
+            },
+            {
+                "success": True,
+                "completion": True,
+                "latency_total": 12.0,
+                "tokens_total": 20.0,
+                "cost_total": 0.0,
+                "tool_calls_total": 2.0,
+                "tool_fail_total": 0.0,
+                "steps_total": 5.0,
+                "backtrack_rate": 0.0,
+                "loop_score": 0.0,
+                "verification_density": 0.2,
+                "communication_count": 2.0,
+                "communication_count_agent_to_agent": 2.0,
+                "communication_count_system_mediated": 0.0,
+                "handoff_count": 2.0,
+                "score": 0.5,
+            },
+            {
+                "success": False,
+                "completion": True,
+                "latency_total": 14.0,
+                "tokens_total": 10.0,
+                "cost_total": 0.0,
+                "tool_calls_total": 1.0,
+                "tool_fail_total": 1.0,
+                "steps_total": 6.0,
+                "backtrack_rate": 0.0,
+                "loop_score": 0.1,
+                "verification_density": 0.1,
+                "communication_count": 1.0,
+                "communication_count_agent_to_agent": 1.0,
+                "communication_count_system_mediated": 0.0,
+                "handoff_count": 1.0,
+                "score": 0.0,
+            },
+            {
+                "success": False,
+                "completion": True,
+                "latency_total": 16.0,
+                "tokens_total": 20.0,
+                "cost_total": 0.0,
+                "tool_calls_total": 2.0,
+                "tool_fail_total": 0.0,
+                "steps_total": 7.0,
+                "backtrack_rate": 0.0,
+                "loop_score": 0.2,
+                "verification_density": 0.0,
+                "communication_count": 2.0,
+                "communication_count_agent_to_agent": 1.0,
+                "communication_count_system_mediated": 1.0,
+                "handoff_count": 3.0,
+                "score": 0.0,
+            },
+        ]
+
+        task_metrics = compute_task_metrics(run_metrics)
+
+        self.assertEqual(task_metrics["success_rate"], 0.5)
+        self.assertEqual(task_metrics["pass_at_1"], 0.5)
+        self.assertEqual(task_metrics["pass_at_3"], 1.0)
+        self.assertTrue(math.isnan(task_metrics["pass_at_5"]))
+        self.assertTrue(math.isnan(task_metrics["pass_at_8"]))
+        self.assertEqual(task_metrics["stability"], 0.0)
+        self.assertAlmostEqual(task_metrics["eval_avg_score"], 0.375, places=6)
+        self.assertEqual(task_metrics["tokens_total"], 15.0)
+        self.assertEqual(task_metrics["cost_per_success"], 30.0)
+        self.assertAlmostEqual(task_metrics["tokens_cv"], 1.0 / 3.0, places=6)
+        self.assertEqual(task_metrics["tool_calls_total"], 1.5)
+        self.assertAlmostEqual(task_metrics["tool_error_rate"], 1.0 / 6.0, places=6)
+        self.assertEqual(task_metrics["communication_count"], 1.5)
+        self.assertEqual(task_metrics["handoff_count"], 1.75)
 
 
 if __name__ == "__main__":

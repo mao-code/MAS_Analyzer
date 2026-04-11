@@ -14,6 +14,20 @@ from .pareto import ideal_point_distance, pareto_frontier
 from .scaling import robust_scale
 
 DEFAULT_DESCRIPTOR_COLUMNS = [
+    "success_rate",
+    "pass_at_1",
+    "pass_at_3",
+    "pass_at_5",
+    "pass_at_8",
+    "stability",
+    "eval_avg_score",
+    "tokens_total",
+    "cost_per_success",
+    "tokens_cv",
+    "tool_calls_total",
+    "tool_error_rate",
+    "communication_count",
+    "handoff_count",
     "Q1_success_rate",
     "Q2_completion_rate",
     "C1_latency_p95",
@@ -36,10 +50,19 @@ DEFAULT_DESCRIPTOR_COLUMNS = [
 
 DEFAULT_OBJECTIVES = {
     "eval_avg_score": "max",
-    "Q1_success_rate": "max",
-    "C2_tokens_total": "min",
+    "success_rate": "max",
+    "tokens_total": "min",
     "C1_latency_p95": "min",
     "P3_loop_score": "min",
+}
+
+OBJECTIVE_ALIASES = {
+    "success_rate": ("Q1_success_rate",),
+    "tokens_total": ("C2_tokens_total",),
+    "tool_calls_total": ("C4_tool_calls_total",),
+    "tool_error_rate": ("D1_tool_error_rate",),
+    "communication_count": ("D2_communication_count",),
+    "handoff_count": ("D3_handoff_count",),
 }
 
 
@@ -140,6 +163,29 @@ def aggregate_topology_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
     return agg
 
 
+def resolve_objectives(
+    topology_df: pd.DataFrame,
+    objectives: dict[str, str],
+) -> dict[str, str]:
+    resolved: dict[str, str] = {}
+    missing: list[str] = []
+    for column, direction in objectives.items():
+        if column in topology_df.columns:
+            resolved[column] = direction
+            continue
+        alias = next(
+            (candidate for candidate in OBJECTIVE_ALIASES.get(column, ()) if candidate in topology_df.columns),
+            None,
+        )
+        if alias is not None:
+            resolved[alias] = direction
+            continue
+        missing.append(column)
+    if missing:
+        raise ValueError(f"Objective columns missing from topology metrics: {missing}")
+    return resolved
+
+
 def analyze_topology_experiment(
     experiment_root: str | Path,
     *,
@@ -190,10 +236,7 @@ def analyze_topology_experiment(
         topology_df["distance_l2_to_sas"] = np.nan
         topology_df["distance_mahalanobis_to_sas"] = np.nan
 
-    objectives = objectives or dict(DEFAULT_OBJECTIVES)
-    missing_objectives = [key for key in objectives if key not in topology_df.columns]
-    if missing_objectives:
-        raise ValueError(f"Objective columns missing from topology metrics: {missing_objectives}")
+    objectives = resolve_objectives(topology_df, objectives or dict(DEFAULT_OBJECTIVES))
 
     pareto_mask = pareto_frontier(topology_df, objectives, return_mask=True)
     topology_df["pareto_frontier"] = pareto_mask
@@ -264,7 +307,11 @@ def analyze_topology_experiment(
         out_dir=out_dir,
         topology_df=topology_df,
         pca_df=pca_df,
-        objective_x="C2_tokens_total" if "C2_tokens_total" in topology_df.columns else None,
+        objective_x=(
+            "tokens_total"
+            if "tokens_total" in topology_df.columns
+            else ("C2_tokens_total" if "C2_tokens_total" in topology_df.columns else None)
+        ),
         objective_y="eval_avg_score" if "eval_avg_score" in topology_df.columns else None,
     )
 
