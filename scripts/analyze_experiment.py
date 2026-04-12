@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+project_root = Path(__file__).resolve().parents[1]
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from analysis.econ_eval.regime_classification import classify_regime
 
 
 PASS_AT_K_COLUMNS = ("pass_at_1", "pass_at_3", "pass_at_5", "pass_at_8")
@@ -36,6 +43,121 @@ def _save_fig(fig: plt.Figure, path: Path) -> str:
     fig.savefig(path, dpi=180)
     plt.close(fig)
     return str(path.resolve())
+
+
+def _row_mean(frame: pd.DataFrame, columns: list[str]) -> pd.Series:
+    available = [column for column in columns if column in frame.columns]
+    if not available:
+        return pd.Series(np.nan, index=frame.index)
+    values = frame[available].apply(pd.to_numeric, errors="coerce")
+    return values.mean(axis=1, skipna=True)
+
+
+def _minmax_per_benchmark(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    out = frame.copy()
+    for benchmark, index in out.groupby("benchmark").groups.items():
+        benchmark_frame = out.loc[index]
+        for column in columns:
+            if column not in benchmark_frame.columns:
+                continue
+            values = pd.to_numeric(benchmark_frame[column], errors="coerce")
+            min_v = values.min(skipna=True)
+            max_v = values.max(skipna=True)
+            norm_col = f"{column}__norm_run"
+            if pd.isna(min_v) or pd.isna(max_v):
+                out.loc[index, norm_col] = np.nan
+            elif max_v - min_v <= 1e-12:
+                out.loc[index, norm_col] = 0.0
+            else:
+                out.loc[index, norm_col] = (values - min_v) / (max_v - min_v)
+    return out
+
+
+def _prepare_run_level_frame(run_df: pd.DataFrame) -> pd.DataFrame:
+    frame = run_df.copy()
+    frame["quality_proxy"] = _row_mean(frame, ["success", "completion", "score"]).clip(0.0, 1.0)
+    frame = _minmax_per_benchmark(
+        frame,
+        ["tokens_total", "tool_calls_total", "communication_count", "handoff_count"],
+    )
+    cost_norm_cols = [
+        "tokens_total__norm_run",
+        "tool_calls_total__norm_run",
+        "communication_count__norm_run",
+        "handoff_count__norm_run",
+    ]
+    frame["cost_proxy"] = frame[cost_norm_cols].mean(axis=1, skipna=True).clip(0.0, 1.0)
+    frame["utility_proxy"] = frame["quality_proxy"] - frame["cost_proxy"]
+    frame["score_effective"] = pd.to_numeric(frame.get("score"), errors="coerce")
+    frame["score_effective"] = frame["score_effective"].fillna(pd.to_numeric(frame.get("success"), errors="coerce"))
+    return frame
+
+
+def _load_run_rows(experiment_root: Path) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for benchmark_dir in sorted(path for path in experiment_root.iterdir() if path.is_dir()):
+        benchmark = benchmark_dir.name
+        for system_dir in sorted(path for path in benchmark_dir.iterdir() if path.is_dir()):
+            system_label = system_dir.name
+            for task_dir in sorted(path for path in system_dir.iterdir() if path.is_dir()):
+                task_id = task_dir.name
+                for trace_path in sorted(task_dir.glob("run_*.trace_metrics.json")):
+                    with trace_path.open("r", encoding="utf-8") as handle:
+                        payload = json.load(handle)
+                    metrics = payload.get("metrics", {})
+                    runtime = payload.get("runtime", {})
+                    run_index = payload.get("run_index", runtime.get("run_index"))
+                    topology = runtime.get("topology", system_label)
+                    system_type = "SAS" if str(topology).lower() == "sas" else "MAS"
+                    tool_calls_total = float(metrics.get("tool_calls_total", 0.0) or 0.0)
+                    tool_error_count = float(metrics.get("tool_fail_total", 0.0) or 0.0)
+                    rows.append(
+                        {
+                            "benchmark": benchmark,
+                            "system_label": system_label,
+                            "topology": topology,
+                            "system_type": system_type,
+                            "task_id": task_id,
+                            "run_index": int(run_index) if run_index is not None else None,
+                            "success": metrics.get("success"),
+                            "completion": metrics.get("completion"),
+                            "score": metrics.get("score"),
+                            "tokens_total": metrics.get("tokens_total"),
+                            "tool_calls_total": tool_calls_total,
+                            "communication_count": metrics.get("communication_count"),
+                            "communication_count_agent_to_agent": metrics.get(
+                                "communication_count_agent_to_agent"
+                            ),
+                            "communication_count_system_mediated": metrics.get(
+                                "communication_count_system_mediated"
+                            ),
+                            "handoff_count": metrics.get("handoff_count"),
+                            "tool_error_count": tool_error_count,
+                            "tool_error_rate": (
+                                tool_error_count / tool_calls_total if tool_calls_total > 0 else 0.0
+                            ),
+                        }
+                    )
+    if not rows:
+        raise ValueError(f"No run-level trace_metrics.json files found under {experiment_root}")
+    frame = pd.DataFrame(rows)
+    for column in [
+        "success",
+        "completion",
+        "score",
+        "tokens_total",
+        "tool_calls_total",
+        "communication_count",
+        "communication_count_agent_to_agent",
+        "communication_count_system_mediated",
+        "handoff_count",
+        "tool_error_count",
+        "tool_error_rate",
+        "run_index",
+    ]:
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame
 
 
 def _ordered_systems(
@@ -346,8 +468,222 @@ def _save_pass_at_k_chart(frame: pd.DataFrame, *, benchmark: str, out_dir: Path)
     ax.legend()
     fig.tight_layout()
 
-    path = out_dir / f"{_sanitize_filename(benchmark)}_pass_at_k.png"
+    path = out_dir / f"{_sanitize_filename(benchmark)}_pass_at_k_average.png"
     return _save_fig(fig, path)
+
+
+def _save_run_utility_comparison(
+    frame: pd.DataFrame,
+    *,
+    benchmark: str,
+    out_dir: Path,
+) -> str | None:
+    subset = _prepare_run_level_frame(frame[frame["benchmark"] == benchmark].copy())
+    if subset.empty or subset["utility_proxy"].isna().all():
+        return None
+
+    systems = _ordered_systems(
+        subset,
+        success_col="quality_proxy",
+        stability_col="quality_proxy",
+        tokens_col="tokens_total",
+    )
+    subset["system_label"] = pd.Categorical(
+        subset["system_label"], categories=systems, ordered=True
+    )
+    subset = subset.sort_values("system_label")
+    rng = np.random.default_rng(7)
+
+    fig, ax = plt.subplots(figsize=(max(9, len(systems) * 1.1), 5))
+    for idx, system_label in enumerate(systems):
+        system_rows = subset[subset["system_label"] == system_label]
+        if system_rows.empty:
+            continue
+        x = np.full(len(system_rows), idx, dtype=float) + rng.normal(0.0, 0.04, size=len(system_rows))
+        ax.scatter(
+            x,
+            system_rows["utility_proxy"],
+            alpha=0.55,
+            s=26,
+            color=_color_for_system(system_label),
+            label=system_label,
+            edgecolors="none",
+        )
+    ax.axhline(0.0, color="#666666", linewidth=1.0, linestyle="--")
+    ax.set_xticks(range(len(systems)))
+    ax.set_xticklabels(systems, rotation=25)
+    ax.set_ylabel("Run-level utility proxy (quality_proxy - cost_proxy)")
+    ax.set_title(f"{benchmark}: run-level utility comparison")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend(fontsize=8, ncol=2)
+    return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_utility_sas_vs_mas_indivudal.png")
+
+
+def _save_run_success_vs_tokens_frontier(
+    frame: pd.DataFrame,
+    *,
+    benchmark: str,
+    out_dir: Path,
+) -> str | None:
+    subset = frame[frame["benchmark"] == benchmark].copy()
+    subset["score_effective"] = pd.to_numeric(subset["score"], errors="coerce")
+    subset["score_effective"] = subset["score_effective"].fillna(
+        pd.to_numeric(subset["success"], errors="coerce")
+    )
+    subset = subset.dropna(subset=["tokens_total", "score_effective"])
+    if subset.empty:
+        return None
+
+    fig, ax = plt.subplots(figsize=(8.2, 6))
+    for system_label, group in subset.groupby("system_label"):
+        ax.scatter(
+            group["tokens_total"],
+            group["score_effective"],
+            alpha=0.45,
+            s=24,
+            color=_color_for_system(system_label),
+            label=system_label,
+        )
+    ax.set_title(f"{benchmark}: run-level success/score vs tokens")
+    ax.set_xlabel("tokens_total")
+    ax.set_ylabel("success / score")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+    return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_success_vs_tokens_frontier_indivudal.png")
+
+
+def _save_run_gain_cost_plane(
+    frame: pd.DataFrame,
+    *,
+    benchmark: str,
+    out_dir: Path,
+) -> str | None:
+    subset = _prepare_run_level_frame(frame[frame["benchmark"] == benchmark].copy())
+    sas = subset[subset["system_type"] == "SAS"][
+        ["task_id", "run_index", "quality_proxy", "cost_proxy"]
+    ].rename(
+        columns={
+            "quality_proxy": "sas_quality_proxy",
+            "cost_proxy": "sas_cost_proxy",
+        }
+    )
+    mas = subset[subset["system_type"] == "MAS"].copy()
+    merged = mas.merge(sas, on=["task_id", "run_index"], how="left")
+    merged = merged.dropna(subset=["sas_quality_proxy", "sas_cost_proxy"])
+    if merged.empty:
+        return None
+    merged["G"] = merged["quality_proxy"] - merged["sas_quality_proxy"]
+    merged["K"] = merged["cost_proxy"] - merged["sas_cost_proxy"]
+    merged["collaboration_regime"] = merged.apply(
+        lambda row: classify_regime(float(row["G"]), float(row["K"])),
+        axis=1,
+    )
+
+    fig, ax = plt.subplots(figsize=(7.2, 6))
+    for system_label, group in merged.groupby("system_label"):
+        ax.scatter(
+            group["G"],
+            group["K"],
+            alpha=0.45,
+            s=26,
+            color=_color_for_system(system_label),
+            label=system_label,
+        )
+    lim = float(max(np.nanmax(np.abs(merged["G"])), np.nanmax(np.abs(merged["K"])), 1e-6))
+    ax.plot([-lim, lim], [-lim, lim], "k--", linewidth=1.2, label="G = K")
+    ax.axhline(0.0, color="#777777", linewidth=0.8)
+    ax.axvline(0.0, color="#777777", linewidth=0.8)
+    ax.set_xlim(-lim * 1.05, lim * 1.05)
+    ax.set_ylim(-lim * 1.05, lim * 1.05)
+    ax.set_xlabel("Run-level collaboration gain G")
+    ax.set_ylabel("Run-level coordination cost K")
+    ax.set_title(f"{benchmark}: run-level gain-cost plane")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+    return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_gain_cost_plane_indivudal.png")
+
+
+def _save_run_quality_cost_pareto(
+    frame: pd.DataFrame,
+    *,
+    benchmark: str,
+    out_dir: Path,
+) -> str | None:
+    subset = _prepare_run_level_frame(frame[frame["benchmark"] == benchmark].copy())
+    if subset.empty:
+        return None
+    fig, ax = plt.subplots(figsize=(7.2, 6))
+    for system_label, group in subset.groupby("system_label"):
+        ax.scatter(
+            group["cost_proxy"],
+            group["quality_proxy"],
+            alpha=0.45,
+            s=26,
+            color=_color_for_system(system_label),
+            label=system_label,
+        )
+    ax.set_xlabel("Run-level cost proxy C")
+    ax.set_ylabel("Run-level quality proxy Q")
+    ax.set_title(f"{benchmark}: run-level quality-cost Pareto view")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+    return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_quality_cost_pareto_indivudal.png")
+
+
+def _mahalanobis_distance_matrix(matrix: np.ndarray, target: np.ndarray) -> np.ndarray:
+    if matrix.shape[0] <= 1:
+        return np.zeros(matrix.shape[0], dtype=float)
+    cov = np.cov(matrix, rowvar=False)
+    if np.ndim(cov) == 0:
+        cov = np.array([[float(cov)]], dtype=float)
+    cov_inv = np.linalg.pinv(cov)
+    diff = matrix - target
+    return np.sqrt(np.einsum("ij,jk,ik->i", diff, cov_inv, diff))
+
+
+def _save_run_mahalanobis_diagnostics(
+    frame: pd.DataFrame,
+    *,
+    benchmark: str,
+    out_dir: Path,
+) -> str | None:
+    subset = frame[frame["benchmark"] == benchmark].copy()
+    quality_cols = ["success", "completion", "score"]
+    cost_cols = ["tokens_total", "tool_calls_total", "communication_count", "handoff_count"]
+    q_matrix = subset[quality_cols].apply(pd.to_numeric, errors="coerce")
+    c_matrix = subset[cost_cols].apply(pd.to_numeric, errors="coerce")
+    if q_matrix.dropna(how="all").empty or c_matrix.dropna(how="all").empty:
+        return None
+    q_matrix = q_matrix.fillna(q_matrix.mean(numeric_only=True)).fillna(0.0)
+    c_matrix = c_matrix.fillna(c_matrix.mean(numeric_only=True)).fillna(0.0)
+
+    q_arr = q_matrix.to_numpy(dtype=float)
+    c_arr = c_matrix.to_numpy(dtype=float)
+    q_ideal = np.ones(q_arr.shape[1], dtype=float)
+    c_ideal = np.min(c_arr, axis=0)
+    q_dist = _mahalanobis_distance_matrix(q_arr, q_ideal)
+    c_dist = _mahalanobis_distance_matrix(c_arr, c_ideal)
+
+    plot_frame = subset[["system_label"]].copy()
+    plot_frame["q_dist"] = q_dist
+    plot_frame["c_dist"] = c_dist
+
+    fig, ax = plt.subplots(figsize=(7.2, 6))
+    for system_label, group in plot_frame.groupby("system_label"):
+        ax.scatter(
+            group["c_dist"],
+            group["q_dist"],
+            alpha=0.45,
+            s=26,
+            color=_color_for_system(system_label),
+            label=system_label,
+        )
+    ax.set_xlabel("Mahalanobis distance to cost ideal")
+    ax.set_ylabel("Mahalanobis distance to quality ideal")
+    ax.set_title(f"{benchmark}: run-level Mahalanobis diagnostics")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+    return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_mahalanobis_distance_diagnostics_indivudal.png")
 
 
 def _save_success_vs_tokens_frontier(
@@ -414,7 +750,7 @@ def _save_success_vs_tokens_frontier(
     ax.grid(alpha=0.3)
     fig.tight_layout()
 
-    path = out_dir / f"{_sanitize_filename(benchmark)}_success_vs_tokens_frontier.png"
+    path = out_dir / f"{_sanitize_filename(benchmark)}_success_vs_tokens_frontier_average.png"
     return _save_fig(fig, path)
 
 
@@ -486,7 +822,7 @@ def _save_vs_sas_delta_heatmap(
     colorbar.set_label("delta vs SAS")
     fig.tight_layout()
 
-    path = out_dir / f"{_sanitize_filename(benchmark)}_vs_sas_delta_heatmap.png"
+    path = out_dir / f"{_sanitize_filename(benchmark)}_vs_sas_delta_heatmap_average.png"
     return _save_fig(fig, path)
 
 
@@ -538,7 +874,7 @@ def _save_cost_predictability_chart(
     fig.suptitle(f"{benchmark}: Cost Predictability")
     fig.tight_layout()
 
-    path = out_dir / f"{_sanitize_filename(benchmark)}_cost_predictability.png"
+    path = out_dir / f"{_sanitize_filename(benchmark)}_cost_predictability_average.png"
     return _save_fig(fig, path)
 
 
@@ -610,7 +946,7 @@ def _save_coordination_breakdown_chart(
     fig.suptitle(f"{benchmark}: Coordination Diagnostics")
     fig.tight_layout()
 
-    path = out_dir / f"{_sanitize_filename(benchmark)}_coordination_breakdown.png"
+    path = out_dir / f"{_sanitize_filename(benchmark)}_coordination_breakdown_average.png"
     return _save_fig(fig, path)
 
 
@@ -721,6 +1057,7 @@ def write_report(
 
 def analyze_experiment(experiment_root: Path, output_dir: Path) -> dict[str, Any]:
     task_df = load_task_rows(experiment_root)
+    run_df = _load_run_rows(experiment_root)
     system_df = aggregate_system_metrics(task_df)
     vs_sas_task_df = compute_vs_sas(task_df)
     vs_sas_system_df = aggregate_vs_sas(vs_sas_task_df)
@@ -740,29 +1077,57 @@ def analyze_experiment(experiment_root: Path, output_dir: Path) -> dict[str, Any
     plots: dict[str, list[str]] = {}
     for benchmark in sorted(task_df["benchmark"].unique()):
         benchmark_system_df = system_df[system_df["benchmark"] == benchmark].copy()
+        benchmark_run_df = run_df[run_df["benchmark"] == benchmark].copy()
         benchmark_root = output_dir / benchmark
+        avg_rq1 = benchmark_root / "RQ1" / "average"
+        ind_rq1 = benchmark_root / "RQ1" / "indivudal"
+        avg_rq2 = benchmark_root / "RQ2" / "average"
+        ind_rq2 = benchmark_root / "RQ2" / "indivudal"
+        avg_theory = benchmark_root / "THEORY" / "average"
+        ind_theory = benchmark_root / "THEORY" / "indivudal"
         benchmark_plot_paths: list[str] = []
         for plot_path in [
-            _save_pass_at_k_chart(benchmark_system_df, benchmark=benchmark, out_dir=benchmark_root / "THEORY"),
+            _save_pass_at_k_chart(benchmark_system_df, benchmark=benchmark, out_dir=avg_theory),
+            _save_run_utility_comparison(benchmark_run_df, benchmark=benchmark, out_dir=ind_rq1),
             _save_success_vs_tokens_frontier(
                 benchmark_system_df,
                 benchmark=benchmark,
-                out_dir=benchmark_root / "RQ1",
+                out_dir=avg_rq1,
+            ),
+            _save_run_success_vs_tokens_frontier(
+                benchmark_run_df,
+                benchmark=benchmark,
+                out_dir=ind_rq1,
             ),
             _save_vs_sas_delta_heatmap(
                 vs_sas_system_df,
                 benchmark=benchmark,
-                out_dir=benchmark_root / "RQ1",
+                out_dir=avg_rq1,
+            ),
+            _save_run_gain_cost_plane(
+                benchmark_run_df,
+                benchmark=benchmark,
+                out_dir=ind_rq2,
             ),
             _save_cost_predictability_chart(
                 benchmark_system_df,
                 benchmark=benchmark,
-                out_dir=benchmark_root / "THEORY",
+                out_dir=avg_theory,
+            ),
+            _save_run_quality_cost_pareto(
+                benchmark_run_df,
+                benchmark=benchmark,
+                out_dir=ind_theory,
+            ),
+            _save_run_mahalanobis_diagnostics(
+                benchmark_run_df,
+                benchmark=benchmark,
+                out_dir=ind_theory,
             ),
             _save_coordination_breakdown_chart(
                 benchmark_system_df,
                 benchmark=benchmark,
-                out_dir=benchmark_root / "RQ2",
+                out_dir=avg_rq2,
             ),
         ]:
             if plot_path:
