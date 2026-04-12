@@ -37,7 +37,7 @@ def main() -> int:
     parser.add_argument(
         "--output-base",
         default=None,
-        help="Base folder for outputs. Defaults to <experiment-root>/analysis",
+        help="Base folder for outputs. Defaults to <experiment-root>/Plot",
     )
     parser.add_argument(
         "--primary-method",
@@ -57,7 +57,7 @@ def main() -> int:
     output_base = (
         Path(args.output_base).expanduser().resolve()
         if args.output_base
-        else (experiment_root / "analysis").resolve()
+        else (experiment_root / "Plot").resolve()
     )
     output_base.mkdir(parents=True, exist_ok=True)
 
@@ -74,7 +74,7 @@ def main() -> int:
     outputs: dict[str, str] = {}
 
     # 1) One combined run over all datasets with data.
-    all_out = output_base / "econ_eval_all"
+    all_out = output_base / "all"
     run_economic_pipeline(
         experiment_root=experiment_root,
         output_dir=all_out,
@@ -85,7 +85,7 @@ def main() -> int:
 
     # 2) Per-dataset outputs (plots/tables for each benchmark).
     for benchmark in benchmarks:
-        out_dir = output_base / f"econ_eval_{benchmark}"
+        out_dir = output_base / benchmark
         run_economic_pipeline(
             experiment_root=experiment_root,
             output_dir=out_dir,

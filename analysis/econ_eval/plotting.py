@@ -22,6 +22,23 @@ def _suffix(name: str) -> str:
     return f"_{name}" if name else ""
 
 
+def _annotate_points(ax: plt.Axes, frame: pd.DataFrame, *, x_col: str, y_col: str, label_col: str) -> None:
+    for _, row in frame.iterrows():
+        x = row.get(x_col)
+        y = row.get(y_col)
+        label = row.get(label_col)
+        if pd.isna(x) or pd.isna(y) or pd.isna(label):
+            continue
+        ax.annotate(
+            str(label),
+            (float(x), float(y)),
+            xytext=(4, 4),
+            textcoords="offset points",
+            fontsize=7,
+            alpha=0.85,
+        )
+
+
 def plot_utility_comparison(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix: str = "") -> str | None:
     if comp_df.empty:
         return None
@@ -37,6 +54,15 @@ def plot_utility_comparison(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix
     ax.set_xticklabels(labels, rotation=30, ha="right")
     ax.set_ylabel("Utility (U = Q - C)")
     ax.set_title("SAS vs MAS utility comparison")
+    ax.text(
+        0.01,
+        0.98,
+        "Each bar pair = one benchmark × system configuration",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=8,
+        alpha=0.8,
+    )
     ax.grid(axis="y", alpha=0.3)
     ax.legend()
     return _save(fig, out_dir / f"utility_sas_vs_mas{_suffix(file_suffix)}.png")
@@ -48,6 +74,13 @@ def plot_gain_cost_plane(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix: s
     fig, ax = plt.subplots(figsize=(7, 6))
     for benchmark, group in comp_df.groupby("benchmark"):
         ax.scatter(group["G"], group["K"], label=benchmark, s=80)
+        label_series = group["system_name"] if "system_name" in group.columns else group["benchmark"]
+        tmp = group.copy()
+        tmp["point_label"] = tmp.apply(
+            lambda row: f"{row['benchmark']}:{row['system_name']}" if "system_name" in tmp.columns else str(row["benchmark"]),
+            axis=1,
+        )
+        _annotate_points(ax, tmp, x_col="G", y_col="K", label_col="point_label")
     lim = float(max(np.nanmax(np.abs(comp_df["G"])), np.nanmax(np.abs(comp_df["K"])), 1e-6))
     ax.plot([-lim, lim], [-lim, lim], "k--", linewidth=1.2, label="G = K")
     ax.axhline(0.0, color="#777777", linewidth=0.8)
@@ -57,6 +90,15 @@ def plot_gain_cost_plane(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix: s
     ax.set_xlabel("Collaboration gain G")
     ax.set_ylabel("Coordination cost K")
     ax.set_title("Gain-cost scatter with decision boundary")
+    ax.text(
+        0.01,
+        0.98,
+        "Each dot = one benchmark × system configuration; diagonal = G = K",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=8,
+        alpha=0.8,
+    )
     ax.grid(alpha=0.3)
     ax.legend()
     return _save(fig, out_dir / f"gain_cost_plane{_suffix(file_suffix)}.png")
@@ -87,13 +129,14 @@ def plot_benchmark_grouped(summary_df: pd.DataFrame, out_dir: Path, *, file_suff
         pivot = subset.pivot_table(index="benchmark", columns="system_name", values="value", aggfunc="mean")
         pivot.plot(kind="bar", ax=ax)
         ax.set_title(metric)
+        ax.set_ylabel(metric)
         ax.tick_params(axis="x", rotation=30)
         ax.grid(axis="y", alpha=0.3)
         if i > 0 and ax.get_legend() is not None:
             ax.get_legend().remove()
     if len(axes) > 0 and axes[0].get_legend() is not None:
         axes[0].legend(fontsize=8)
-    fig.suptitle("Benchmark-grouped metrics")
+    fig.suptitle("Benchmark-grouped metrics (each bar = benchmark-average for one system)")
     return _save(fig, out_dir / f"benchmark_grouped_metrics{_suffix(file_suffix)}.png")
 
 
@@ -110,6 +153,15 @@ def plot_sensitivity(sensitivity_df: pd.DataFrame, out_dir: Path, *, file_suffix
         ax.plot(mean_rank.index.tolist(), mean_rank.values.tolist(), marker="o", label=system_name)
     ax.set_ylabel("Mean utility rank (lower is better)")
     ax.set_title("Sensitivity across aggregation methods")
+    ax.text(
+        0.01,
+        0.98,
+        "Each line = one system; rank is averaged over benchmarks",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=8,
+        alpha=0.8,
+    )
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8, ncol=2)
     return _save(fig, out_dir / f"sensitivity_ranking{_suffix(file_suffix)}.png")
@@ -121,9 +173,24 @@ def plot_pareto_frontier(summary_df: pd.DataFrame, out_dir: Path, *, file_suffix
     fig, ax = plt.subplots(figsize=(7, 6))
     for benchmark, group in summary_df.groupby("benchmark"):
         ax.scatter(group["C"], group["Q"], label=benchmark, s=70)
+        tmp = group.copy()
+        tmp["point_label"] = tmp.apply(
+            lambda row: f"{row['benchmark']}:{row['system_name']}" if "system_name" in tmp.columns else str(row["benchmark"]),
+            axis=1,
+        )
+        _annotate_points(ax, tmp, x_col="C", y_col="Q", label_col="point_label")
     ax.set_xlabel("Cost composite C (lower is better)")
     ax.set_ylabel("Quality composite Q (higher is better)")
     ax.set_title("Quality-cost Pareto view")
+    ax.text(
+        0.01,
+        0.98,
+        "Each dot = benchmark × system configuration; closer to top-left is better",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=8,
+        alpha=0.8,
+    )
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
     return _save(fig, out_dir / f"quality_cost_pareto{_suffix(file_suffix)}.png")
@@ -147,9 +214,24 @@ def plot_mahalanobis_diagnostics(summary_df: pd.DataFrame, out_dir: Path, *, fil
             s=70,
             label=benchmark,
         )
+        tmp = group.copy()
+        tmp["point_label"] = tmp.apply(
+            lambda row: f"{row['benchmark']}:{row['system_name']}" if "system_name" in tmp.columns else str(row["benchmark"]),
+            axis=1,
+        )
+        _annotate_points(ax, tmp, x_col="C_distance_to_ideal", y_col="Q_distance_to_ideal", label_col="point_label")
     ax.set_xlabel("Mahalanobis distance to cost ideal (lower better)")
     ax.set_ylabel("Mahalanobis distance to quality ideal (lower better)")
     ax.set_title("Mahalanobis ideal-point distance diagnostics")
+    ax.text(
+        0.01,
+        0.98,
+        "Each dot = benchmark × system configuration; smaller distances are better",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=8,
+        alpha=0.8,
+    )
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
     return _save(fig, out_dir / f"mahalanobis_distance_diagnostics{_suffix(file_suffix)}.png")

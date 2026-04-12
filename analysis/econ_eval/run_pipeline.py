@@ -34,6 +34,10 @@ class PipelineConfig:
     cps_fallback: str = "nan"
 
 
+def _plot_path(output_dir: Path, category: str, filename: str) -> Path:
+    return output_dir / category / filename
+
+
 def _to_float_01(value: Any) -> float:
     if isinstance(value, bool):
         return 1.0 if value else 0.0
@@ -268,11 +272,11 @@ def run_economic_pipeline(
     primary_comp.to_csv(comp_csv, index=False)
 
     plot_paths = [
-        plot_utility_comparison(primary_comp, output_dir),
-        plot_gain_cost_plane(primary_comp, output_dir),
-        plot_benchmark_grouped(primary_summary, output_dir),
-        plot_sensitivity(sensitivity_df, output_dir),
-        plot_pareto_frontier(primary_summary, output_dir),
+        plot_utility_comparison(primary_comp, output_dir / "RQ1"),
+        plot_gain_cost_plane(primary_comp, output_dir / "RQ2"),
+        plot_benchmark_grouped(primary_summary, output_dir / "RQ1"),
+        plot_sensitivity(sensitivity_df, output_dir / "THEORY"),
+        plot_pareto_frontier(primary_summary, output_dir / "THEORY"),
     ]
 
     # Method-specific plots to make aggregation effects explicit.
@@ -283,10 +287,10 @@ def run_economic_pipeline(
         ].copy()
         plot_paths.extend(
             [
-                plot_utility_comparison(method_comp, output_dir, file_suffix=method),
-                plot_gain_cost_plane(method_comp, output_dir, file_suffix=method),
-                plot_pareto_frontier(method_summary, output_dir, file_suffix=method),
-                plot_mahalanobis_diagnostics(method_summary, output_dir, file_suffix=method),
+                plot_utility_comparison(method_comp, output_dir / "RQ1", file_suffix=method),
+                plot_gain_cost_plane(method_comp, output_dir / "RQ2", file_suffix=method),
+                plot_pareto_frontier(method_summary, output_dir / "THEORY", file_suffix=method),
+                plot_mahalanobis_diagnostics(method_summary, output_dir / "THEORY", file_suffix=method),
             ]
         )
     plot_paths = [p for p in plot_paths if p]

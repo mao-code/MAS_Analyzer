@@ -27,6 +27,17 @@ def _sanitize_filename(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in value)
 
 
+def _plot_dir(output_dir: Path, benchmark: str, category: str) -> Path:
+    return output_dir / benchmark / category
+
+
+def _save_fig(fig: plt.Figure, path: Path) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return str(path.resolve())
+
+
 def _ordered_systems(
     frame: pd.DataFrame,
     *,
@@ -336,9 +347,7 @@ def _save_pass_at_k_chart(frame: pd.DataFrame, *, benchmark: str, out_dir: Path)
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_pass_at_k.png"
-    fig.savefig(path, dpi=180)
-    plt.close(fig)
-    return str(path.resolve())
+    return _save_fig(fig, path)
 
 
 def _save_success_vs_tokens_frontier(
@@ -406,9 +415,7 @@ def _save_success_vs_tokens_frontier(
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_success_vs_tokens_frontier.png"
-    fig.savefig(path, dpi=180)
-    plt.close(fig)
-    return str(path.resolve())
+    return _save_fig(fig, path)
 
 
 def _format_delta(value: float) -> str:
@@ -480,9 +487,7 @@ def _save_vs_sas_delta_heatmap(
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_vs_sas_delta_heatmap.png"
-    fig.savefig(path, dpi=180)
-    plt.close(fig)
-    return str(path.resolve())
+    return _save_fig(fig, path)
 
 
 def _save_cost_predictability_chart(
@@ -534,9 +539,7 @@ def _save_cost_predictability_chart(
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_cost_predictability.png"
-    fig.savefig(path, dpi=180)
-    plt.close(fig)
-    return str(path.resolve())
+    return _save_fig(fig, path)
 
 
 def _save_coordination_breakdown_chart(
@@ -608,9 +611,7 @@ def _save_coordination_breakdown_chart(
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_coordination_breakdown.png"
-    fig.savefig(path, dpi=180)
-    plt.close(fig)
-    return str(path.resolve())
+    return _save_fig(fig, path)
 
 
 def write_report(
@@ -739,28 +740,29 @@ def analyze_experiment(experiment_root: Path, output_dir: Path) -> dict[str, Any
     plots: dict[str, list[str]] = {}
     for benchmark in sorted(task_df["benchmark"].unique()):
         benchmark_system_df = system_df[system_df["benchmark"] == benchmark].copy()
+        benchmark_root = output_dir / benchmark
         benchmark_plot_paths: list[str] = []
         for plot_path in [
-            _save_pass_at_k_chart(benchmark_system_df, benchmark=benchmark, out_dir=output_dir),
+            _save_pass_at_k_chart(benchmark_system_df, benchmark=benchmark, out_dir=benchmark_root / "THEORY"),
             _save_success_vs_tokens_frontier(
                 benchmark_system_df,
                 benchmark=benchmark,
-                out_dir=output_dir,
+                out_dir=benchmark_root / "RQ1",
             ),
             _save_vs_sas_delta_heatmap(
                 vs_sas_system_df,
                 benchmark=benchmark,
-                out_dir=output_dir,
+                out_dir=benchmark_root / "RQ1",
             ),
             _save_cost_predictability_chart(
                 benchmark_system_df,
                 benchmark=benchmark,
-                out_dir=output_dir,
+                out_dir=benchmark_root / "THEORY",
             ),
             _save_coordination_breakdown_chart(
                 benchmark_system_df,
                 benchmark=benchmark,
-                out_dir=output_dir,
+                out_dir=benchmark_root / "RQ2",
             ),
         ]:
             if plot_path:
@@ -828,7 +830,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Output directory for analysis artifacts. Defaults to <experiment-root>/analysis",
+        help="Output directory for analysis artifacts. Defaults to <experiment-root>/Plot",
     )
     args = parser.parse_args()
 
@@ -836,7 +838,7 @@ def main() -> int:
     output_dir = (
         Path(args.output_dir).expanduser().resolve()
         if args.output_dir
-        else experiment_root / "analysis"
+        else experiment_root / "Plot"
     )
     analyze_experiment(experiment_root, output_dir)
     print(str(output_dir))
