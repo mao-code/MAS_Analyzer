@@ -20,6 +20,7 @@ from .artifacts import (
     RelayPacket,
     TerminationDecision,
     answer_signature,
+    artifacts_by_id,
     average_confidence,
     build_artifact,
     compute_consensus,
@@ -74,6 +75,18 @@ SHARED_STATE_FIELDS = [
 ]
 
 UNSUPPORTED_FINAL_ANSWER = "Unable to determine a supported final answer from the available agent outputs."
+CONTROL_PACKET_KINDS = frozenset(
+    {
+        "task_package",
+        "orchestrator_feedback",
+        "specialist_report",
+        "peer_summary",
+        "root_task_package",
+        "manager_task_package",
+        "child_report",
+        "manager_report",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -1829,8 +1842,32 @@ class LangGraphMASEngine:
         }
 
     def _finalize_node(self, state: WorkflowState) -> dict[str, Any]:
-        final_answer = str(state.get("final_answer") or self._resolve_final_answer(state))
+        final_answer = str(state.get("final_answer") or "").strip()
         final_reason = str(state.get("final_reason") or f"{state['topology']}:finalize")
+        final_vote_source = str(state.get("final_vote_source", "") or "")
+        selected_artifact_id = str(state.get("selected_artifact_id", "") or "")
+        selected_agent_id = str(state.get("selected_agent_id", "") or "")
+        selected_source_artifact_ids = list(state.get("selected_source_artifact_ids", []))
+
+        if not final_answer:
+            selection = self._finalize_selection_for_topology(state)
+            if selection is not None:
+                candidate_artifacts, vote_result = selection
+                final_answer = self._safe_vote_answer_or_fallback(state, candidate_artifacts, vote_result)
+                final_vote_source = str(
+                    final_vote_source or vote_result.get("source", "topology_finalize")
+                )
+                selected_artifact_id = str(
+                    selected_artifact_id or vote_result.get("selected_artifact_id", "")
+                )
+                selected_agent_id = str(selected_agent_id or vote_result.get("selected_agent_id", ""))
+                if not selected_source_artifact_ids:
+                    selected_source_artifact_ids = list(
+                        vote_result.get("selected_source_artifact_ids", [])
+                    )
+
+        if not final_answer:
+            final_answer = str(self._resolve_final_answer(state))
 
         descriptor_summary: dict[str, Any] = {}
         descriptor = state.get("descriptor")
@@ -1855,6 +1892,10 @@ class LangGraphMASEngine:
             "done": True,
             "final_answer": final_answer,
             "final_reason": final_reason,
+            "final_vote_source": final_vote_source,
+            "selected_artifact_id": selected_artifact_id,
+            "selected_agent_id": selected_agent_id,
+            "selected_source_artifact_ids": selected_source_artifact_ids,
             "descriptor_summary": descriptor_summary,
             "phase_history": [self._phase_history_entry(state, "finalize")],
             "trace_payloads": [
@@ -2432,11 +2473,13 @@ class LangGraphMASEngine:
 
         for spec in packet_specs:
             sender = str(spec.get("sender", "system") or "system")
+            kind = str(spec.get("kind", ""))
             recipients = sorted({item for item in spec.get("recipients", []) if item and item != sender})
             if not recipients:
                 continue
 
-            if sender in message_budget:
+            consumes_budget = kind not in CONTROL_PACKET_KINDS
+            if sender in message_budget and consumes_budget:
                 remaining = int(message_budget.get(sender, 0))
                 if remaining <= 0:
                     continue
@@ -2450,7 +2493,7 @@ class LangGraphMASEngine:
                 dispatch_id=dispatch_id,
                 sender=sender,
                 recipients=recipients,
-                kind=str(spec.get("kind", "")),
+                kind=kind,
                 phase=phase,
                 round=int(spec.get("round", state.get("round_index", 0))),
                 discussion_index=int(
@@ -4058,6 +4101,12 @@ class LangGraphMASEngine:
     def _resolve_final_answer(self, state: WorkflowState) -> str:
         artifacts = list(state.get("artifacts", []))
         topology = str(state.get("topology", ""))
+        selected_artifact_id = str(state.get("selected_artifact_id", "") or "").strip()
+
+        if selected_artifact_id:
+            selected_artifact = artifacts_by_id(artifacts).get(selected_artifact_id)
+            if selected_artifact is not None:
+                return self._artifact_display_answer(selected_artifact, max_chars=6000)
 
         if topology == TOPOLOGY_SAS:
             artifact = self._latest_substantive_artifact_for_nodes(state, node_names={"single_agent"})
@@ -4110,6 +4159,71 @@ class LangGraphMASEngine:
                 self._artifacts_for_nodes(state, node_names={"representative_merge"}, latest_only=True)
             )
         return self._fallback_answer_from_artifacts(artifacts)
+
+    def _finalize_selection_for_topology(
+        self,
+        state: WorkflowState,
+    ) -> tuple[list[ArtifactRecord], dict[str, Any]] | None:
+        topology = str(state.get("topology", ""))
+        round_index = int(state.get("round_index", 0))
+
+        if topology == TOPOLOGY_ORCHESTRATOR_NO_DISCUSSION:
+            preferred_nodes = {"orchestrator_merge"}
+            candidate_nodes = {"orchestrator_merge", "specialist_worker"}
+        elif topology == TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION:
+            preferred_nodes = {"orchestrator_merge"}
+            candidate_nodes = {
+                "orchestrator_merge",
+                "specialists_initial_round",
+                "specialists_revision_round",
+            }
+        elif topology == TOPOLOGY_ORCHESTRATOR_TREE:
+            preferred_nodes = {"root_reducer"}
+            candidate_nodes = {"root_reducer", "manager_reducers"}
+        else:
+            return None
+
+        candidates = self._artifacts_for_nodes(
+            state,
+            node_names=candidate_nodes,
+            round_index=round_index,
+            latest_only=True,
+        )
+        if not candidates:
+            return None
+
+        preferred_candidates = [
+            artifact
+            for artifact in candidates
+            if str(artifact.get("node_name", "")) in preferred_nodes
+            and self._artifact_display_answer(artifact)
+        ]
+        latest_candidate = max(candidates, key=self._artifact_sort_key)
+        latest_preferred = (
+            max(preferred_candidates, key=self._artifact_sort_key) if preferred_candidates else None
+        )
+        termination_decision = state.get("termination_decision", {})
+        consensus_non_substantive = (
+            isinstance(termination_decision, dict)
+            and termination_decision.get("consensus_is_substantive") is False
+        )
+
+        if (
+            latest_preferred is not None
+            and self._artifact_sort_key(latest_preferred) >= self._artifact_sort_key(latest_candidate)
+            and not consensus_non_substantive
+        ):
+            return candidates, self._vote_result_for_artifact(
+                latest_preferred,
+                mode=str(state.get("final_vote_mode", "llm_judge") or "llm_judge"),
+                source="topology_finalize_preferred_artifact",
+            )
+
+        return candidates, self._select_final_answer(
+            state=state,
+            stage_name="finalize",
+            artifacts=candidates,
+        )
 
     def _safe_vote_answer_or_fallback(
         self,
