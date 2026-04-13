@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib
+from matplotlib.ticker import MultipleLocator
+from matplotlib.lines import Line2D
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -416,6 +418,50 @@ def _color_for_system(system_label: str) -> str:
     return "#1f77b4" if system_label == "sas" else "#2ca02c"
 
 
+def _color_for_benchmark(benchmark: str) -> tuple[float, float, float, float]:
+    cmap = plt.cm.get_cmap("tab10")
+    idx = abs(hash(str(benchmark).lower())) % 10
+    return cmap(idx)
+
+
+def _marker_for_topology(name: str) -> str:
+    key = str(name).lower()
+    mapping = {
+        "sas": "X",
+        "orchestrator_with_discussion": "o",
+        "orchestrator_no_discussion": "s",
+        "orchestrator_tree_structure": "^",
+        "group_chat_debate": "D",
+        "fully_linked_debate": "P",
+        "only_voting": "v",
+    }
+    return mapping.get(key, "o")
+
+
+def _jitter(values: np.ndarray, scale: float, seed: int) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    return values + rng.normal(0.0, scale, size=len(values))
+
+
+def _legend_handles_for_topologies(topologies: list[str]) -> list[Line2D]:
+    handles: list[Line2D] = []
+    for topology in sorted(set(topologies)):
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker=_marker_for_topology(topology),
+                color="none",
+                markerfacecolor="#666666",
+                markeredgecolor="#222222",
+                markersize=7,
+                linestyle="None",
+                label=str(topology),
+            )
+        )
+    return handles
+
+
 def _save_pass_at_k_chart(frame: pd.DataFrame, *, benchmark: str, out_dir: Path) -> str | None:
     pass_columns = [
         (f"avg_{column}", int(column.rsplit("_", 1)[1]))
@@ -494,19 +540,21 @@ def _save_run_utility_comparison(
     subset = subset.sort_values("system_label")
     rng = np.random.default_rng(7)
 
-    fig, ax = plt.subplots(figsize=(max(9, len(systems) * 1.1), 5))
+    fig, ax = plt.subplots(figsize=(max(10, len(systems) * 1.2), 6))
+    benchmark_color = _color_for_benchmark(benchmark)
     for idx, system_label in enumerate(systems):
         system_rows = subset[subset["system_label"] == system_label]
         if system_rows.empty:
             continue
         x = np.full(len(system_rows), idx, dtype=float) + rng.normal(0.0, 0.04, size=len(system_rows))
+        y = _jitter(system_rows["utility_proxy"].to_numpy(dtype=float), 0.008, seed=13 + idx)
         ax.scatter(
             x,
-            system_rows["utility_proxy"],
-            alpha=0.55,
-            s=26,
-            color=_color_for_system(system_label),
-            label=system_label,
+            y,
+            alpha=0.45,
+            s=18,
+            color=benchmark_color,
+            marker=_marker_for_topology(system_label),
             edgecolors="none",
         )
     ax.axhline(0.0, color="#666666", linewidth=1.0, linestyle="--")
@@ -514,8 +562,28 @@ def _save_run_utility_comparison(
     ax.set_xticklabels(systems, rotation=25)
     ax.set_ylabel("Run-level utility proxy (quality_proxy - cost_proxy)")
     ax.set_title(f"{benchmark}: run-level utility comparison")
+    ax.yaxis.set_major_locator(MultipleLocator(0.05))
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(fontsize=8, ncol=2)
+    topo_legend = ax.legend(
+        handles=_legend_handles_for_topologies(systems),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    benchmark_handle = [
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=benchmark_color, markersize=7, label=benchmark)
+    ]
+    ax.legend(
+        handles=benchmark_handle,
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.62),
+    )
     return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_utility_sas_vs_mas_indivudal.png")
 
 
@@ -534,21 +602,45 @@ def _save_run_success_vs_tokens_frontier(
     if subset.empty:
         return None
 
-    fig, ax = plt.subplots(figsize=(8.2, 6))
-    for system_label, group in subset.groupby("system_label"):
+    fig, ax = plt.subplots(figsize=(9.2, 6.5))
+    benchmark_color = _color_for_benchmark(benchmark)
+    topologies: list[str] = []
+    for i, (system_label, group) in enumerate(subset.groupby("system_label")):
+        topologies.append(str(system_label))
+        y = _jitter(group["score_effective"].to_numpy(dtype=float), 0.008, seed=31 + i)
         ax.scatter(
             group["tokens_total"],
-            group["score_effective"],
-            alpha=0.45,
-            s=24,
-            color=_color_for_system(system_label),
-            label=system_label,
+            y,
+            alpha=0.4,
+            s=18,
+            color=benchmark_color,
+            marker=_marker_for_topology(system_label),
         )
     ax.set_title(f"{benchmark}: run-level success/score vs tokens")
     ax.set_xlabel("tokens_total")
     ax.set_ylabel("success / score")
+    ax.yaxis.set_major_locator(MultipleLocator(0.05))
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=8)
+    topo_legend = ax.legend(
+        handles=_legend_handles_for_topologies(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    benchmark_handle = [
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=benchmark_color, markersize=7, label=benchmark)
+    ]
+    ax.legend(
+        handles=benchmark_handle,
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.62),
+    )
     return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_success_vs_tokens_frontier_indivudal.png")
 
 
@@ -579,15 +671,19 @@ def _save_run_gain_cost_plane(
         axis=1,
     )
 
-    fig, ax = plt.subplots(figsize=(7.2, 6))
-    for system_label, group in merged.groupby("system_label"):
+    fig, ax = plt.subplots(figsize=(8.8, 6.5))
+    benchmark_color = _color_for_benchmark(benchmark)
+    topologies: list[str] = []
+    for i, (system_label, group) in enumerate(merged.groupby("system_label")):
+        topologies.append(str(system_label))
+        y = _jitter(group["K"].to_numpy(dtype=float), 0.006, seed=51 + i)
         ax.scatter(
             group["G"],
-            group["K"],
-            alpha=0.45,
-            s=26,
-            color=_color_for_system(system_label),
-            label=system_label,
+            y,
+            alpha=0.4,
+            s=18,
+            color=benchmark_color,
+            marker=_marker_for_topology(system_label),
         )
     lim = float(max(np.nanmax(np.abs(merged["G"])), np.nanmax(np.abs(merged["K"])), 1e-6))
     ax.plot([-lim, lim], [-lim, lim], "k--", linewidth=1.2, label="G = K")
@@ -599,7 +695,26 @@ def _save_run_gain_cost_plane(
     ax.set_ylabel("Run-level coordination cost K")
     ax.set_title(f"{benchmark}: run-level gain-cost plane")
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=8)
+    topo_legend = ax.legend(
+        handles=_legend_handles_for_topologies(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    benchmark_handle = [
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=benchmark_color, markersize=7, label=benchmark)
+    ]
+    ax.legend(
+        handles=benchmark_handle,
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.62),
+    )
     return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_gain_cost_plane_indivudal.png")
 
 
@@ -612,21 +727,45 @@ def _save_run_quality_cost_pareto(
     subset = _prepare_run_level_frame(frame[frame["benchmark"] == benchmark].copy())
     if subset.empty:
         return None
-    fig, ax = plt.subplots(figsize=(7.2, 6))
-    for system_label, group in subset.groupby("system_label"):
+    fig, ax = plt.subplots(figsize=(8.8, 6.5))
+    benchmark_color = _color_for_benchmark(benchmark)
+    topologies: list[str] = []
+    for i, (system_label, group) in enumerate(subset.groupby("system_label")):
+        topologies.append(str(system_label))
+        y = _jitter(group["quality_proxy"].to_numpy(dtype=float), 0.008, seed=71 + i)
         ax.scatter(
             group["cost_proxy"],
-            group["quality_proxy"],
-            alpha=0.45,
-            s=26,
-            color=_color_for_system(system_label),
-            label=system_label,
+            y,
+            alpha=0.4,
+            s=18,
+            color=benchmark_color,
+            marker=_marker_for_topology(system_label),
         )
     ax.set_xlabel("Run-level cost proxy C")
     ax.set_ylabel("Run-level quality proxy Q")
     ax.set_title(f"{benchmark}: run-level quality-cost Pareto view")
+    ax.yaxis.set_major_locator(MultipleLocator(0.05))
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=8)
+    topo_legend = ax.legend(
+        handles=_legend_handles_for_topologies(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    benchmark_handle = [
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=benchmark_color, markersize=7, label=benchmark)
+    ]
+    ax.legend(
+        handles=benchmark_handle,
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.62),
+    )
     return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_quality_cost_pareto_indivudal.png")
 
 
@@ -668,21 +807,44 @@ def _save_run_mahalanobis_diagnostics(
     plot_frame["q_dist"] = q_dist
     plot_frame["c_dist"] = c_dist
 
-    fig, ax = plt.subplots(figsize=(7.2, 6))
-    for system_label, group in plot_frame.groupby("system_label"):
+    fig, ax = plt.subplots(figsize=(8.8, 6.5))
+    benchmark_color = _color_for_benchmark(benchmark)
+    topologies: list[str] = []
+    for i, (system_label, group) in enumerate(plot_frame.groupby("system_label")):
+        topologies.append(str(system_label))
+        y = _jitter(group["q_dist"].to_numpy(dtype=float), 0.004, seed=91 + i)
         ax.scatter(
             group["c_dist"],
-            group["q_dist"],
-            alpha=0.45,
-            s=26,
-            color=_color_for_system(system_label),
-            label=system_label,
+            y,
+            alpha=0.4,
+            s=18,
+            color=benchmark_color,
+            marker=_marker_for_topology(system_label),
         )
     ax.set_xlabel("Mahalanobis distance to cost ideal")
     ax.set_ylabel("Mahalanobis distance to quality ideal")
     ax.set_title(f"{benchmark}: run-level Mahalanobis diagnostics")
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=8)
+    topo_legend = ax.legend(
+        handles=_legend_handles_for_topologies(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    benchmark_handle = [
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=benchmark_color, markersize=7, label=benchmark)
+    ]
+    ax.legend(
+        handles=benchmark_handle,
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.62),
+    )
     return _save_fig(fig, out_dir / f"{_sanitize_filename(benchmark)}_mahalanobis_distance_diagnostics_indivudal.png")
 
 
@@ -707,7 +869,7 @@ def _save_success_vs_tokens_frontier(
     )
     subset = subset.sort_values("system_label")
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(9.2, 6.5))
     stability_values = subset["avg_stability"].to_numpy(dtype=float)
     finite_stability = stability_values[np.isfinite(stability_values)]
     color_norm = None
@@ -717,25 +879,22 @@ def _save_success_vs_tokens_frontier(
     else:
         color_map = None
 
+    benchmark_color = _color_for_benchmark(benchmark)
+    topologies: list[str] = []
     for _, row in subset.iterrows():
         system_label = str(row["system_label"])
-        color = _color_for_system(system_label)
+        topologies.append(system_label)
+        color = benchmark_color
         if color_map is not None and not pd.isna(row["avg_stability"]):
             color = color_map(color_norm(float(row["avg_stability"])))
         ax.scatter(
             float(row["avg_tokens_total"]),
             float(row["avg_success_rate"]),
-            s=220 if system_label == "sas" else 120,
-            marker="*" if system_label == "sas" else "o",
+            s=120 if system_label == "sas" else 70,
+            marker=_marker_for_topology(system_label),
             color=color,
             edgecolors="#111111",
             linewidths=0.8,
-        )
-        ax.annotate(
-            system_label,
-            (float(row["avg_tokens_total"]), float(row["avg_success_rate"])),
-            xytext=(5, 5),
-            textcoords="offset points",
         )
 
     if color_map is not None and color_norm is not None:
@@ -747,7 +906,28 @@ def _save_success_vs_tokens_frontier(
     ax.set_xlabel("tokens_total")
     ax.set_ylabel("success_rate")
     ax.set_ylim(0.0, 1.05)
+    ax.yaxis.set_major_locator(MultipleLocator(0.05))
     ax.grid(alpha=0.3)
+    topo_legend = ax.legend(
+        handles=_legend_handles_for_topologies(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    benchmark_handle = [
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=benchmark_color, markersize=7, label=benchmark)
+    ]
+    ax.legend(
+        handles=benchmark_handle,
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.62),
+    )
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_success_vs_tokens_frontier_average.png"

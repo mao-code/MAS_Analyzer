@@ -8,6 +8,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 
 
 def _save(fig: plt.Figure, path: Path) -> str:
@@ -22,21 +23,57 @@ def _suffix(name: str) -> str:
     return f"_{name}" if name else ""
 
 
-def _annotate_points(ax: plt.Axes, frame: pd.DataFrame, *, x_col: str, y_col: str, label_col: str) -> None:
-    for _, row in frame.iterrows():
-        x = row.get(x_col)
-        y = row.get(y_col)
-        label = row.get(label_col)
-        if pd.isna(x) or pd.isna(y) or pd.isna(label):
-            continue
-        ax.annotate(
-            str(label),
-            (float(x), float(y)),
-            xytext=(4, 4),
-            textcoords="offset points",
-            fontsize=7,
-            alpha=0.85,
+def _marker_for_system(name: str) -> str:
+    key = str(name).lower()
+    mapping = {
+        "sas": "X",
+        "orchestrator_with_discussion": "o",
+        "orchestrator_no_discussion": "s",
+        "orchestrator_tree_structure": "^",
+        "group_chat_debate": "D",
+        "fully_linked_debate": "P",
+        "only_voting": "v",
+    }
+    return mapping.get(key, "o")
+
+
+def _benchmark_color_map(benchmarks: list[str]) -> dict[str, tuple[float, float, float, float]]:
+    cmap = plt.cm.get_cmap("tab10")
+    return {benchmark: cmap(i % 10) for i, benchmark in enumerate(sorted(benchmarks))}
+
+
+def _topology_handles(topologies: list[str]) -> list[Line2D]:
+    return [
+        Line2D(
+            [0],
+            [0],
+            marker=_marker_for_system(topology),
+            color="none",
+            markerfacecolor="#666666",
+            markeredgecolor="#222222",
+            markersize=7,
+            linestyle="None",
+            label=topology,
         )
+        for topology in sorted(set(topologies))
+    ]
+
+
+def _benchmark_handles(color_map: dict[str, tuple[float, float, float, float]]) -> list[Line2D]:
+    return [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="none",
+            markerfacecolor=color,
+            markeredgecolor="#222222",
+            markersize=7,
+            linestyle="None",
+            label=benchmark,
+        )
+        for benchmark, color in color_map.items()
+    ]
 
 
 def plot_utility_comparison(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix: str = "") -> str | None:
@@ -71,16 +108,21 @@ def plot_utility_comparison(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix
 def plot_gain_cost_plane(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix: str = "") -> str | None:
     if comp_df.empty:
         return None
-    fig, ax = plt.subplots(figsize=(7, 6))
+    fig, ax = plt.subplots(figsize=(9.2, 6.5))
+    color_map = _benchmark_color_map(comp_df["benchmark"].dropna().astype(str).unique().tolist())
+    topologies: list[str] = []
     for benchmark, group in comp_df.groupby("benchmark"):
-        ax.scatter(group["G"], group["K"], label=benchmark, s=80)
-        label_series = group["system_name"] if "system_name" in group.columns else group["benchmark"]
-        tmp = group.copy()
-        tmp["point_label"] = tmp.apply(
-            lambda row: f"{row['benchmark']}:{row['system_name']}" if "system_name" in tmp.columns else str(row["benchmark"]),
-            axis=1,
-        )
-        _annotate_points(ax, tmp, x_col="G", y_col="K", label_col="point_label")
+        for _, row in group.iterrows():
+            marker = _marker_for_system(row.get("system_name", ""))
+            topologies.append(str(row.get("system_name", "")))
+            ax.scatter(
+                float(row["G"]),
+                float(row["K"]),
+                s=65,
+                marker=marker,
+                alpha=0.85,
+                color=color_map.get(str(benchmark), "#1f77b4"),
+            )
     lim = float(max(np.nanmax(np.abs(comp_df["G"])), np.nanmax(np.abs(comp_df["K"])), 1e-6))
     ax.plot([-lim, lim], [-lim, lim], "k--", linewidth=1.2, label="G = K")
     ax.axhline(0.0, color="#777777", linewidth=0.8)
@@ -90,17 +132,24 @@ def plot_gain_cost_plane(comp_df: pd.DataFrame, out_dir: Path, *, file_suffix: s
     ax.set_xlabel("Collaboration gain G")
     ax.set_ylabel("Coordination cost K")
     ax.set_title("Gain-cost scatter with decision boundary")
-    ax.text(
-        0.01,
-        0.98,
-        "Each dot = one benchmark × system configuration; diagonal = G = K",
-        transform=ax.transAxes,
-        va="top",
-        fontsize=8,
-        alpha=0.8,
-    )
     ax.grid(alpha=0.3)
-    ax.legend()
+    topo_legend = ax.legend(
+        handles=_topology_handles(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    ax.legend(
+        handles=_benchmark_handles(color_map),
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.56),
+    )
     return _save(fig, out_dir / f"gain_cost_plane{_suffix(file_suffix)}.png")
 
 
@@ -170,29 +219,42 @@ def plot_sensitivity(sensitivity_df: pd.DataFrame, out_dir: Path, *, file_suffix
 def plot_pareto_frontier(summary_df: pd.DataFrame, out_dir: Path, *, file_suffix: str = "") -> str | None:
     if summary_df.empty:
         return None
-    fig, ax = plt.subplots(figsize=(7, 6))
+    fig, ax = plt.subplots(figsize=(9.2, 6.5))
+    color_map = _benchmark_color_map(summary_df["benchmark"].dropna().astype(str).unique().tolist())
+    topologies: list[str] = []
     for benchmark, group in summary_df.groupby("benchmark"):
-        ax.scatter(group["C"], group["Q"], label=benchmark, s=70)
-        tmp = group.copy()
-        tmp["point_label"] = tmp.apply(
-            lambda row: f"{row['benchmark']}:{row['system_name']}" if "system_name" in tmp.columns else str(row["benchmark"]),
-            axis=1,
-        )
-        _annotate_points(ax, tmp, x_col="C", y_col="Q", label_col="point_label")
+        for _, row in group.iterrows():
+            marker = _marker_for_system(row.get("system_name", ""))
+            topologies.append(str(row.get("system_name", "")))
+            ax.scatter(
+                float(row["C"]),
+                float(row["Q"]),
+                s=60,
+                marker=marker,
+                alpha=0.85,
+                color=color_map.get(str(benchmark), "#1f77b4"),
+            )
     ax.set_xlabel("Cost composite C (lower is better)")
     ax.set_ylabel("Quality composite Q (higher is better)")
     ax.set_title("Quality-cost Pareto view")
-    ax.text(
-        0.01,
-        0.98,
-        "Each dot = benchmark × system configuration; closer to top-left is better",
-        transform=ax.transAxes,
-        va="top",
-        fontsize=8,
-        alpha=0.8,
-    )
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=8)
+    topo_legend = ax.legend(
+        handles=_topology_handles(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    ax.legend(
+        handles=_benchmark_handles(color_map),
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.56),
+    )
     return _save(fig, out_dir / f"quality_cost_pareto{_suffix(file_suffix)}.png")
 
 
@@ -206,32 +268,40 @@ def plot_mahalanobis_diagnostics(summary_df: pd.DataFrame, out_dir: Path, *, fil
     if frame.empty:
         return None
 
-    fig, ax = plt.subplots(figsize=(7, 6))
+    fig, ax = plt.subplots(figsize=(9.2, 6.5))
+    color_map = _benchmark_color_map(frame["benchmark"].dropna().astype(str).unique().tolist())
+    topologies: list[str] = []
     for benchmark, group in frame.groupby("benchmark"):
-        ax.scatter(
-            group["C_distance_to_ideal"],
-            group["Q_distance_to_ideal"],
-            s=70,
-            label=benchmark,
-        )
-        tmp = group.copy()
-        tmp["point_label"] = tmp.apply(
-            lambda row: f"{row['benchmark']}:{row['system_name']}" if "system_name" in tmp.columns else str(row["benchmark"]),
-            axis=1,
-        )
-        _annotate_points(ax, tmp, x_col="C_distance_to_ideal", y_col="Q_distance_to_ideal", label_col="point_label")
+        for _, row in group.iterrows():
+            marker = _marker_for_system(row.get("system_name", ""))
+            topologies.append(str(row.get("system_name", "")))
+            ax.scatter(
+                float(row["C_distance_to_ideal"]),
+                float(row["Q_distance_to_ideal"]),
+                s=60,
+                marker=marker,
+                alpha=0.85,
+                color=color_map.get(str(benchmark), "#1f77b4"),
+            )
     ax.set_xlabel("Mahalanobis distance to cost ideal (lower better)")
     ax.set_ylabel("Mahalanobis distance to quality ideal (lower better)")
     ax.set_title("Mahalanobis ideal-point distance diagnostics")
-    ax.text(
-        0.01,
-        0.98,
-        "Each dot = benchmark × system configuration; smaller distances are better",
-        transform=ax.transAxes,
-        va="top",
-        fontsize=8,
-        alpha=0.8,
-    )
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=8)
+    topo_legend = ax.legend(
+        handles=_topology_handles(topologies),
+        title="Topology",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.add_artist(topo_legend)
+    ax.legend(
+        handles=_benchmark_handles(color_map),
+        title="Benchmark",
+        fontsize=8,
+        title_fontsize=9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.56),
+    )
     return _save(fig, out_dir / f"mahalanobis_distance_diagnostics{_suffix(file_suffix)}.png")
