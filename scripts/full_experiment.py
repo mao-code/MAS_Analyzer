@@ -82,6 +82,7 @@ class BatchOptions:
     retry_failures: int
     max_parallel: int
     final_vote_mode: str | None
+    benchmark_eval_judge_model: str | None
     skip_setup: bool
     setup_only: bool
     no_dynamic_roles: bool
@@ -224,6 +225,11 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         default=None,
         help="Override MAS final answer selection mode for every launched system.",
     )
+    parser.add_argument(
+        "--benchmark-eval-judge-model",
+        default=None,
+        help="Override benchmark-side evaluation judge_model for every launched run.",
+    )
     parser.add_argument("--skip-setup", action="store_true")
     parser.add_argument("--setup-only", action="store_true")
     parser.add_argument(
@@ -248,6 +254,11 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         retry_failures=max(int(args.retry_failures), 0),
         max_parallel=max(int(args.max_parallel), 1),
         final_vote_mode=args.final_vote_mode,
+        benchmark_eval_judge_model=(
+            str(args.benchmark_eval_judge_model)
+            if args.benchmark_eval_judge_model is not None
+            else None
+        ),
         skip_setup=bool(args.skip_setup),
         setup_only=bool(args.setup_only),
         no_dynamic_roles=bool(args.no_dynamic_roles),
@@ -909,6 +920,13 @@ def batch_run(options: BatchOptions) -> int:
                         cmd.extend(["--runs-per-task", str(options.runs_per_task)])
                     if options.final_vote_mode is not None:
                         cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
+                    if options.benchmark_eval_judge_model is not None:
+                        cmd.extend(
+                            [
+                                "--benchmark-eval-judge-model",
+                                str(options.benchmark_eval_judge_model),
+                            ]
+                        )
                     if options.no_dynamic_roles:
                         cmd.append("--no-dynamic-roles")
                     jobs.append(

@@ -241,6 +241,17 @@ def _apply_mas_overrides(config: Any, args: argparse.Namespace) -> None:
     config.validate()
 
 
+def _apply_benchmark_overrides(
+    benchmark_cfg: dict[str, Any],
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    cfg = dict(benchmark_cfg)
+    benchmark_eval_judge_model = getattr(args, "benchmark_eval_judge_model", None)
+    if benchmark_eval_judge_model is not None:
+        cfg["judge_model"] = str(benchmark_eval_judge_model)
+    return cfg
+
+
 def _redact_secrets(data: Any, *, parent_key: str = "") -> Any:
     secret_markers = ("api_key", "token", "secret", "password")
     key_lower = parent_key.lower()
@@ -1417,6 +1428,7 @@ def run_command(args: argparse.Namespace) -> int:
 
     benchmark_name = args.benchmark
     benchmark_cfg = _benchmark_section_config(config, benchmark_name)
+    benchmark_cfg = _apply_benchmark_overrides(benchmark_cfg, args)
     # 2) Instantiate the benchmark adapter and MAS runtime.
     benchmark = get_benchmark(benchmark_name, config=benchmark_cfg)
 
@@ -1839,6 +1851,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--default-model", default=None)
     run_parser.add_argument("--judge-model", default=None)
+    run_parser.add_argument(
+        "--benchmark-eval-judge-model",
+        default=None,
+        help="Override benchmark-side evaluation judge_model without changing the MAS internal judge model.",
+    )
     run_parser.add_argument("--peer-artifact-max-chars", type=int, default=None)
     run_parser.add_argument("--agents-per-level", default=None)
     run_parser.add_argument("--group-sizes", default=None)

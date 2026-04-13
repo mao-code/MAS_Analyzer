@@ -893,6 +893,17 @@ class StableToolBenchBenchmark:
             raise RuntimeError(
                 "stabletoolbench eval_mode (fac/llm_judge) requires judge_api_key, OPENAI_API_KEY, or OPENROUTER_API_KEY"
             )
+        if (
+            self.judge_api_base.rstrip("/") == "https://api.openai.com/v1"
+            and "/" in self.judge_model
+        ):
+            raise RuntimeError(
+                "StableToolBench judge_model looks like a provider-prefixed routing ID "
+                f"({self.judge_model!r}), but judge_api_base is the native OpenAI endpoint "
+                f"({self.judge_api_base!r}). Use a native OpenAI model ID like 'gpt-4.1-mini', "
+                "or set stabletoolbench.judge_api_base to your router endpoint (for example "
+                "'https://openrouter.ai/api/v1') with a matching API key."
+            )
 
         try:
             import openai  # type: ignore
