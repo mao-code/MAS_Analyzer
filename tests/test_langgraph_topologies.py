@@ -3,7 +3,7 @@ import unittest
 from dataclasses import dataclass
 from typing import Any
 
-from MAS import ExperimentSpec, LangGraphMASEngine, run_experiment
+from MAS import ExperimentSpec, LangGraphMASEngine, build_runtime_config, run_experiment
 from MAS.llm import LLMResult, OpenRouterLLMClient
 from MAS.relay import build_layout
 from answer_utils import extract_substantive_answer
@@ -187,6 +187,43 @@ class TestLangGraphTopologies(unittest.TestCase):
             senders = set(view.get("visible_senders", []))
             self.assertTrue(senders.issubset({"agent_0"}))
 
+    def test_orchestrator_with_discussion_revision_receives_peer_summaries_under_low_budget(self) -> None:
+        valid_json = (
+            '{"answer_artifact":"Paris","summary":"Paris","critique":"","revision_request":"",'
+            '"confidence":1.0,"unresolved_issues":[],"evidence_summary":["Document support."]}'
+        )
+        config = build_runtime_config(
+            topology="orchestrator_with_discussion",
+            agents=4,
+            rounds=2,
+            discussion_rounds=2,
+            communication_budget_per_agent=2,
+        )
+
+        result = run_experiment(
+            topology="orchestrator_with_discussion",
+            agents=4,
+            rounds=2,
+            discussion_rounds=2,
+            prompt="Which city is correct?",
+            seed=17,
+            config=config,
+            llm_client=_JudgeLLM(text=valid_json),
+        )
+
+        peer_summaries = [
+            message for message in result.run_metadata["relay_messages"] if message["kind"] == "peer_summary"
+        ]
+        self.assertEqual(len(peer_summaries), 3)
+
+        revision_views = [
+            view for view in result.run_metadata["message_views"] if view["phase"] == "specialists_revision_round"
+        ]
+        self.assertEqual(len(revision_views), 3)
+        for view in revision_views:
+            self.assertEqual(view["visible_count"], 1)
+            self.assertEqual(set(view.get("visible_senders", [])), {"agent_0"})
+
     def test_fully_linked_debate_broadcasts_to_all_peers(self) -> None:
         result = run_experiment(
             topology="fully_linked_debate",
@@ -243,6 +280,35 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertTrue(reducer_logs)
         self.assertTrue(all(str(log.get("agent_id", "")).strip() for log in reducer_logs))
         self.assertTrue(all(log.get("visible_messages") for log in reducer_logs))
+
+    def test_orchestrator_tree_control_packets_do_not_starve_child_visibility(self) -> None:
+        valid_json = (
+            '{"answer_artifact":"Paris","summary":"Paris","critique":"","revision_request":"",'
+            '"confidence":1.0,"unresolved_issues":[],"evidence_summary":["Document support."]}'
+        )
+        config = build_runtime_config(
+            topology="orchestrator_tree_structure",
+            agents=5,
+            rounds=1,
+            communication_budget_per_agent=1,
+        )
+
+        result = run_experiment(
+            topology="orchestrator_tree_structure",
+            agents=5,
+            rounds=1,
+            prompt="Which city is correct?",
+            seed=19,
+            config=config,
+            llm_client=_JudgeLLM(text=valid_json),
+        )
+
+        manager_views = [view for view in result.run_metadata["message_views"] if view["phase"] == "manager_nodes"]
+        worker_views = [view for view in result.run_metadata["message_views"] if view["phase"] == "worker_nodes"]
+        self.assertEqual(len(manager_views), 2)
+        self.assertEqual(len(worker_views), 2)
+        self.assertTrue(all(view["visible_count"] == 1 for view in manager_views))
+        self.assertTrue(all(view["visible_count"] == 1 for view in worker_views))
 
     def test_workflow_visual_graph_includes_control_flow_nodes(self) -> None:
         workflow, graph = LangGraphMASEngine.build_workflow_visual_graph(
@@ -796,6 +862,77 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(vote["source"], "llm_judge_non_direct_fallback")
         self.assertNotEqual(vote["answer"], "Lingnan University")
         self.assertIn(vote["selected_artifact_id"], {"blocked_1", "blocked_2"})
+
+    def test_orchestrator_finalize_replaces_stale_merge_with_supported_latest_artifact(self) -> None:
+        engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
+        state = {
+            "topology": "orchestrator_with_discussion",
+            "benchmark_name": "browsecomp",
+            "final_vote_mode": "deterministic",
+            "termination_decision": {
+                "consensus_is_substantive": False,
+                "progress_status": "stalled",
+                "expected_improvement": "low",
+            },
+            "llm_client": engine.llm_client,
+            "task_id": "769",
+            "run_index": 0,
+            "task_prompt": "Which institution matches all criteria?",
+            "round_index": 1,
+            "discussion_index": 1,
+            "dispatch_id": 4,
+            "phase": "descriptor_monitor",
+            "artifacts": [
+                {
+                    "artifact_id": "merge_old",
+                    "node_name": "orchestrator_merge",
+                    "agent_id": "agent_0",
+                    "round_index": 1,
+                    "discussion_index": 1,
+                    "dispatch_id": 1,
+                    "answer": "Queen Arwa University",
+                    "summary": "Queen Arwa University",
+                    "confidence": 0.95,
+                    "unresolved_issues": ["The 2022 criteria remain unverified."],
+                    "evidence_summary": ["Document 82002 confirms the graduation ceremony date."],
+                    "source_artifact_ids": [],
+                },
+                {
+                    "artifact_id": "blocked_1",
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_1",
+                    "round_index": 1,
+                    "discussion_index": 1,
+                    "dispatch_id": 4,
+                    "answer": "The institution cannot be determined from the currently retrieved evidence.",
+                    "summary": "Criteria remain unresolved.",
+                    "confidence": 0.7,
+                    "unresolved_issues": ["The available evidence is incomplete."],
+                    "evidence_summary": ["No evidence retrieved so far resolves all criteria."],
+                    "source_artifact_ids": [],
+                },
+                {
+                    "artifact_id": "blocked_2",
+                    "node_name": "specialists_revision_round",
+                    "agent_id": "agent_2",
+                    "round_index": 1,
+                    "discussion_index": 1,
+                    "dispatch_id": 4,
+                    "answer": "The answer cannot be determined from the currently retrieved evidence.",
+                    "summary": "Still missing required support.",
+                    "confidence": 0.65,
+                    "unresolved_issues": ["Required criteria remain open."],
+                    "evidence_summary": ["The current evidence is insufficient to satisfy all criteria."],
+                    "source_artifact_ids": [],
+                },
+            ],
+        }
+
+        result = engine._finalize_node(state)
+
+        self.assertNotEqual(result["final_answer"], "Queen Arwa University")
+        self.assertEqual(result["final_vote_source"], "deterministic_non_direct_fallback")
+        self.assertIn(result["selected_artifact_id"], {"blocked_1", "blocked_2"})
 
     def test_deterministic_vote_prefers_evidence_backed_direct_answer(self) -> None:
         engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
