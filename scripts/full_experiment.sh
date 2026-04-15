@@ -10,9 +10,10 @@ set -euo pipefail
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 
-TASK_LIMIT="${TASK_LIMIT:-3}"
-RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
-BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
+TASK_LIMIT="${TASK_LIMIT:-5}"
+RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
+# BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
+BENCHMARKS="${BENCHMARKS:-workbench,browsecomp,plancraft}"
 RETRY_FAILURES="${RETRY_FAILURES:-1}"
 MAX_PARALLEL="${MAX_PARALLEL:-4}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"

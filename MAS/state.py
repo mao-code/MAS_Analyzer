@@ -58,6 +58,7 @@ class WorkflowState(TypedDict, total=False):
 
     message_budget: dict[str, int]
     sent_counts: dict[str, int]
+    budget_sent_counts: dict[str, int]
     message_seq: int
 
     final_answer: str

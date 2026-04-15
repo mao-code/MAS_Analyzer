@@ -32,7 +32,7 @@ class TestCommunicationBudget(unittest.TestCase):
         task = BenchmarkTask(task_id="t1", prompt="Compute result for [123]", reference_answer="x")
         run = runner.run_task(task=task, run_index=0, seed=99)
 
-        by_agent = run.run_metadata["messages_sent_by_agent"]
+        by_agent = run.run_metadata["budget_messages_sent_by_agent"]
         self.assertTrue(by_agent)
         self.assertTrue(all(count <= 1 for count in by_agent.values()))
         self.assertLessEqual(run.run_metadata["turns_executed"], config.mas.max_turns)

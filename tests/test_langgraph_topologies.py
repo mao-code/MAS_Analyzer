@@ -125,6 +125,54 @@ class _RoleAwareLLM(OpenRouterLLMClient):
         )
 
 
+class _WorkbenchRoleAwareLLM(OpenRouterLLMClient):
+    def __init__(self) -> None:
+        pass
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        if agent_id == "role_assigner":
+            text = (
+                '{"agent_0":"Workflow Planner","agent_1":"CRM Data Analyst",'
+                '"agent_2":"Calendar Operations Specialist","agent_3":"Email and Communication Expert"}'
+            )
+        else:
+            prompt_text = json.dumps(prompt) if isinstance(prompt, list) else str(prompt)
+            if "Stage Role: planner" in prompt_text:
+                text = (
+                    '{"answer_artifact":{"plan":['
+                    '{"step":1,"tool":"company_directory.find_email_address","parameters":{"name":"Riley Brown"},"description":"Identify the owner contact."},'
+                    '{"step":2,"tool":"calendar.search_events","parameters":{"query":"Riley Brown","time_min":"2023-11-16 00:00:00"},"description":"Check recent meetings."},'
+                    '{"step":3,"tool":"calendar.create_event","parameters":{"event_name":"Update on Riley Brown"},"description":"Schedule the follow-up if conditions are met."}'
+                    ']},"summary":"Plan the work for specialists.","critique":"","revision_request":"","confidence":0.8,"unresolved_issues":[],"evidence_summary":["Need owner lookup and calendar verification."]}'
+                )
+            else:
+                text = (
+                    '{"answer_artifact":"Blocked until the assignee is verified.","summary":"Blocked until the assignee is verified.",'
+                    '"critique":"","revision_request":"","confidence":0.5,'
+                    '"unresolved_issues":["Need assignee"],"evidence_summary":["Owner information not yet verified."]}'
+                )
+        return LLMResult(
+            text=text,
+            token_in=11,
+            token_out=7,
+            cost_usd=0.0,
+            model="judge-model",
+            mock_used=False,
+            metadata={},
+        )
+
+
 class TestLangGraphTopologies(unittest.TestCase):
     def test_experiment_spec_normalized_preserves_role_assignment_fields(self) -> None:
         spec = ExperimentSpec(
@@ -223,6 +271,81 @@ class TestLangGraphTopologies(unittest.TestCase):
         for view in revision_views:
             self.assertEqual(view["visible_count"], 1)
             self.assertEqual(set(view.get("visible_senders", [])), {"agent_0"})
+
+    def test_orchestrator_message_counts_match_emitted_packets(self) -> None:
+        engine = LangGraphMASEngine(_WorkbenchRoleAwareLLM())
+        task = _Task(
+            task_id="workbench_role_task",
+            prompt=[
+                {"role": "system", "content": "Use workplace tools to complete the task."},
+                {"role": "user", "content": "Book the follow-up meeting with the assigned owner."},
+            ],
+            metadata={},
+        )
+
+        result = engine.run(
+            task=task,
+            run_index=0,
+            seed=5,
+            spec=ExperimentSpec(
+                topology="orchestrator_with_discussion",
+                num_agents=4,
+                rounds=1,
+                discussion_rounds=1,
+                benchmark_name="workbench",
+                enable_dynamic_roles=True,
+            ),
+            agent_types=["general"],
+            tools=[],
+            max_tool_iterations=1,
+        )
+
+        relay_messages = result.run_metadata["relay_messages"]
+        self.assertEqual(result.run_metadata["messages_sent_total"], len(relay_messages))
+        self.assertEqual(
+            sum(result.run_metadata["messages_sent_by_agent"].values()),
+            len(relay_messages),
+        )
+
+    def test_orchestrator_task_packages_are_specialist_specific(self) -> None:
+        engine = LangGraphMASEngine(_WorkbenchRoleAwareLLM())
+        task = _Task(
+            task_id="workbench_specialist_task",
+            prompt=[
+                {"role": "system", "content": "Use workplace tools to complete the task."},
+                {"role": "user", "content": "Book the follow-up meeting with the assigned owner."},
+            ],
+            metadata={},
+        )
+
+        result = engine.run(
+            task=task,
+            run_index=0,
+            seed=6,
+            spec=ExperimentSpec(
+                topology="orchestrator_with_discussion",
+                num_agents=4,
+                rounds=1,
+                discussion_rounds=1,
+                benchmark_name="workbench",
+                enable_dynamic_roles=True,
+            ),
+            agent_types=["general"],
+            tools=[],
+            max_tool_iterations=1,
+        )
+
+        task_packages = [
+            message for message in result.run_metadata["relay_messages"] if message["kind"] == "task_package"
+        ]
+        self.assertEqual(len(task_packages), 3)
+        summaries = {message["payload"]["summary"] for message in task_packages}
+        self.assertEqual(len(summaries), 3)
+        for message in task_packages:
+            packet = message["payload"]["task_package"]
+            self.assertEqual(packet["recipient"], message["recipients"][0])
+            self.assertTrue(packet["recipient_domain_role"])
+            self.assertTrue(packet["suggested_steps"])
 
     def test_fully_linked_debate_broadcasts_to_all_peers(self) -> None:
         result = run_experiment(

@@ -372,26 +372,96 @@ def _save_success_vs_tokens_frontier(
     else:
         color_map = None
 
+    def _bbox_overlap_area(bbox_a: Any, bbox_b: Any) -> float:
+        x0 = max(bbox_a.x0, bbox_b.x0)
+        y0 = max(bbox_a.y0, bbox_b.y0)
+        x1 = min(bbox_a.x1, bbox_b.x1)
+        y1 = min(bbox_a.y1, bbox_b.y1)
+        if x1 <= x0 or y1 <= y0:
+            return 0.0
+        return float((x1 - x0) * (y1 - y0))
+
+    mas_labels: list[tuple[float, float, str]] = []
+
     for _, row in subset.iterrows():
         system_label = str(row["system_label"])
+        x = float(row["avg_tokens_total"])
+        y = float(row["avg_success_rate"])
         color = _color_for_system(system_label)
         if color_map is not None and not pd.isna(row["avg_stability"]):
             color = color_map(color_norm(float(row["avg_stability"])))
         ax.scatter(
-            float(row["avg_tokens_total"]),
-            float(row["avg_success_rate"]),
+            x,
+            y,
             s=220 if system_label == "sas" else 120,
             marker="*" if system_label == "sas" else "o",
             color=color,
             edgecolors="#111111",
             linewidths=0.8,
         )
-        ax.annotate(
-            system_label,
-            (float(row["avg_tokens_total"]), float(row["avg_success_rate"])),
-            xytext=(5, 5),
-            textcoords="offset points",
-        )
+        if system_label != "sas":
+            mas_labels.append((x, y, system_label))
+
+    if mas_labels:
+        candidate_offsets = [
+            (8, 8),
+            (8, -8),
+            (-8, 8),
+            (-8, -8),
+            (12, 0),
+            (-12, 0),
+            (0, 12),
+            (0, -12),
+            (16, 10),
+            (16, -10),
+            (-16, 10),
+            (-16, -10),
+            (22, 0),
+            (-22, 0),
+        ]
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        axes_bbox = ax.get_window_extent(renderer=renderer)
+        occupied_bboxes = []
+        for x, y, system_label in mas_labels:
+            anchor_px = ax.transData.transform((x, y))
+            best_offset = candidate_offsets[0]
+            best_bbox = None
+            best_score = math.inf
+            annotation = ax.annotate(
+                system_label,
+                (x, y),
+                xytext=best_offset,
+                textcoords="offset points",
+                fontsize=9,
+                ha="left",
+                va="bottom",
+                arrowprops={"arrowstyle": "-", "lw": 0.5, "color": "#666666", "alpha": 0.6},
+            )
+            for dx, dy in candidate_offsets:
+                annotation.set_position((dx, dy))
+                annotation.set_ha("left" if dx >= 0 else "right")
+                annotation.set_va("bottom" if dy >= 0 else "top")
+                fig.canvas.draw()
+                bbox = annotation.get_window_extent(renderer=fig.canvas.get_renderer()).expanded(1.05, 1.15)
+                overlap_penalty = sum(_bbox_overlap_area(bbox, other) for other in occupied_bboxes)
+                out_of_bounds = (
+                    max(0.0, axes_bbox.x0 - bbox.x0)
+                    + max(0.0, bbox.x1 - axes_bbox.x1)
+                    + max(0.0, axes_bbox.y0 - bbox.y0)
+                    + max(0.0, bbox.y1 - axes_bbox.y1)
+                )
+                label_center = np.array([(bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0])
+                distance_penalty = float(np.linalg.norm(label_center - anchor_px))
+                score = overlap_penalty * 1000.0 + out_of_bounds * 100.0 + distance_penalty
+                if score < best_score:
+                    best_score = score
+                    best_offset = (dx, dy)
+                    best_bbox = bbox
+            annotation.set_position(best_offset)
+            annotation.set_ha("left" if best_offset[0] >= 0 else "right")
+            annotation.set_va("bottom" if best_offset[1] >= 0 else "top")
+            occupied_bboxes.append(best_bbox)
 
     if color_map is not None and color_norm is not None:
         mappable = plt.cm.ScalarMappable(norm=color_norm, cmap=color_map)

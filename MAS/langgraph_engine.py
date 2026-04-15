@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import math
 import re
@@ -72,6 +73,9 @@ SHARED_STATE_FIELDS = [
     "selected_agent_id",
     "selected_source_artifact_ids",
     "descriptor_records",
+    "message_budget",
+    "sent_counts",
+    "budget_sent_counts",
 ]
 
 UNSUPPORTED_FINAL_ANSWER = "Unable to determine a supported final answer from the available agent outputs."
@@ -327,6 +331,7 @@ class LangGraphMASEngine:
                 agent_id: int(spec.communication_budget_per_agent) for agent_id in layout.agent_ids
             },
             "sent_counts": {agent_id: 0 for agent_id in layout.agent_ids},
+            "budget_sent_counts": {agent_id: 0 for agent_id in layout.agent_ids},
             "message_seq": 0,
             "final_answer": "",
             "final_reason": "",
@@ -367,6 +372,8 @@ class LangGraphMASEngine:
             "turns_executed": max(1, int(end_state.get("round_index", 0)) + 1),
             "messages_sent_total": sum(end_state.get("sent_counts", {}).values()),
             "messages_sent_by_agent": dict(end_state.get("sent_counts", {})),
+            "budget_messages_sent_total": sum(end_state.get("budget_sent_counts", {}).values()),
+            "budget_messages_sent_by_agent": dict(end_state.get("budget_sent_counts", {})),
             "tool_call_counts": tool_call_counts,
             "tool_calls_total": int(sum(tool_call_counts.values())),
             "remaining_message_budget": dict(end_state.get("message_budget", {})),
@@ -2221,20 +2228,151 @@ class LangGraphMASEngine:
         if artifact is None:
             return []
         kind = "task_package" if int(state.get("round_index", 0)) == 0 else "orchestrator_feedback"
+        packets: list[dict[str, Any]] = []
+        for recipient in recipients:
+            payload = self._build_specialist_task_payload(
+                state,
+                artifact=artifact,
+                recipient=recipient,
+                recipients=recipients,
+            )
+            packets.append(
+                {
+                    "sender": state["layout"].orchestrator_id,
+                    "recipients": [recipient],
+                    "kind": kind,
+                    "round": int(state.get("round_index", 0)),
+                    "discussion_index": 0,
+                    "artifact_id": artifact.get("artifact_id"),
+                    "payload": payload,
+                    "content": self._packet_content(state, payload),
+                }
+            )
+        return packets
+
+    @staticmethod
+    def _parse_structured_packet_source(value: Any) -> dict[str, Any] | None:
+        if isinstance(value, dict):
+            return value
+        raw = str(value or "").strip()
+        if not raw or raw[0] != "{" or raw[-1] != "}":
+            return None
+        for parser in (json.loads, ast.literal_eval):
+            try:
+                parsed = parser(raw)
+            except Exception:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return None
+
+    @staticmethod
+    def _recipient_focus(role_name: str) -> tuple[str, tuple[str, ...]]:
+        lowered = role_name.lower().strip()
+        if "crm" in lowered or "customer relationship" in lowered:
+            return (
+                "Focus on CRM and directory evidence needed to identify the assigned owner.",
+                ("customer_relationship_manager", "company_directory", "crm"),
+            )
+        if "calendar" in lowered:
+            return (
+                "Focus on time constraints, availability, and scheduling actions.",
+                ("calendar",),
+            )
+        if "email" in lowered or "communication" in lowered:
+            return (
+                "Focus on contact identity, outreach implications, and communication-side ambiguities.",
+                ("email", "company_directory"),
+            )
+        if "project" in lowered:
+            return (
+                "Focus on project-management ownership and task linkage evidence.",
+                ("project_management",),
+            )
+        if "analytics" in lowered:
+            return (
+                "Focus on analytics evidence and quantitative validation.",
+                ("analytics",),
+            )
+        if "verifier" in lowered or "verify" in lowered:
+            return (
+                "Focus on validating whether the gathered evidence is sufficient to complete the task.",
+                tuple(),
+            )
+        if "integrator" in lowered or "planner" in lowered:
+            return (
+                "Focus on cross-system dependencies and missing links between tool outputs.",
+                tuple(),
+            )
+        return ("Focus on the most relevant unresolved subproblem for your specialist role.", tuple())
+
+    def _select_task_package_steps(
+        self,
+        *,
+        steps: list[dict[str, Any]],
+        role_name: str,
+        recipient: str,
+        recipients: list[str],
+    ) -> list[dict[str, Any]]:
+        if not steps:
+            return []
+        _, tool_prefixes = self._recipient_focus(role_name)
+        selected: list[dict[str, Any]] = []
+        for step in steps:
+            tool_name = str(step.get("tool", "")).lower()
+            if tool_prefixes and any(
+                tool_name.startswith(f"{prefix}.") or prefix in tool_name for prefix in tool_prefixes
+            ):
+                selected.append(step)
+        if selected:
+            return selected
+        if not recipients:
+            return steps[:]
+        try:
+            recipient_index = recipients.index(recipient)
+        except ValueError:
+            recipient_index = 0
+        partitioned = [step for idx, step in enumerate(steps) if idx % len(recipients) == recipient_index]
+        return partitioned or steps[:1]
+
+    def _build_specialist_task_payload(
+        self,
+        state: WorkflowState,
+        *,
+        artifact: ArtifactRecord,
+        recipient: str,
+        recipients: list[str],
+    ) -> dict[str, Any]:
         payload = self._packet_payload_from_artifact(state, artifact)
-        return [
-            {
-                "sender": state["layout"].orchestrator_id,
-                "recipients": [recipient],
-                "kind": kind,
-                "round": int(state.get("round_index", 0)),
-                "discussion_index": 0,
-                "artifact_id": artifact.get("artifact_id"),
-                "payload": payload,
-                "content": self._packet_content(state, payload),
-            }
-            for recipient in recipients
-        ]
+        persona_info = dict(state.get("domain_personas", {}).get(recipient, {}))
+        role_name = str(persona_info.get("role_name", "")).strip()
+        focus_text, _ = self._recipient_focus(role_name)
+        structured_answer = self._parse_structured_packet_source(artifact.get("answer"))
+        raw_steps = structured_answer.get("plan", []) if isinstance(structured_answer, dict) else []
+        steps = [step for step in raw_steps if isinstance(step, dict)]
+        selected_steps = self._select_task_package_steps(
+            steps=steps,
+            role_name=role_name,
+            recipient=recipient,
+            recipients=recipients,
+        )
+        objective = str(payload.get("summary", "")).strip()
+        if not objective:
+            objective = "Review the orchestrator plan and execute your assigned subtask."
+        if role_name:
+            payload["summary"] = (
+                f"{objective} Specialist focus for {recipient} ({role_name}): {focus_text}"
+            )
+            payload["domain_role"] = role_name
+        payload["task_package"] = {
+            "recipient": recipient,
+            "recipient_domain_role": role_name,
+            "objective": objective,
+            "focus": focus_text,
+            "suggested_steps": selected_steps[:4],
+            "total_plan_steps": len(steps),
+        }
+        return payload
 
     def _build_root_task_packets(
         self,
@@ -2468,6 +2606,7 @@ class LangGraphMASEngine:
         message_seq = int(state.get("message_seq", 0))
         message_budget = dict(state.get("message_budget", {}))
         sent_counts = dict(state.get("sent_counts", {}))
+        budget_sent_counts = dict(state.get("budget_sent_counts", {}))
         messages: list[RelayPacket] = []
         trace_payloads: list[dict[str, Any]] = []
 
@@ -2479,12 +2618,15 @@ class LangGraphMASEngine:
                 continue
 
             consumes_budget = kind not in CONTROL_PACKET_KINDS
+            if sender in sent_counts:
+                sent_counts[sender] = int(sent_counts.get(sender, 0)) + 1
             if sender in message_budget and consumes_budget:
                 remaining = int(message_budget.get(sender, 0))
                 if remaining <= 0:
+                    sent_counts[sender] = int(sent_counts.get(sender, 0)) - 1
                     continue
                 message_budget[sender] = remaining - 1
-                sent_counts[sender] = int(sent_counts.get(sender, 0)) + 1
+                budget_sent_counts[sender] = int(budget_sent_counts.get(sender, 0)) + 1
 
             message_seq += 1
             payload = self._serialize_for_json(spec.get("payload", {}))
@@ -2553,6 +2695,7 @@ class LangGraphMASEngine:
             "messages": messages,
             "message_budget": message_budget,
             "sent_counts": sent_counts,
+            "budget_sent_counts": budget_sent_counts,
             "message_seq": message_seq,
             "trace_payloads": trace_payloads,
         }

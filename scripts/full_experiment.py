@@ -355,7 +355,7 @@ def read_pid(pid_path: Path) -> int | None:
         return None
 
 
-def stop_stale_process(pid_path: Path) -> None:
+def stop_process_group(pid_path: Path, *, timeout_s: float = 10.0) -> None:
     pid = read_pid(pid_path)
     if pid is None:
         return
@@ -364,7 +364,19 @@ def stop_stale_process(pid_path: Path) -> None:
         return
     with contextlib.suppress(OSError):
         os.killpg(pid, signal.SIGTERM)
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if not process_is_running(pid):
+            pid_path.unlink(missing_ok=True)
+            return
+        time.sleep(0.2)
+    with contextlib.suppress(OSError):
+        os.killpg(pid, signal.SIGKILL)
     pid_path.unlink(missing_ok=True)
+
+
+def stop_stale_process(pid_path: Path) -> None:
+    stop_process_group(pid_path)
 
 
 def spawn_background_process(
@@ -392,6 +404,36 @@ def spawn_background_process(
     pid_path.write_text(str(process.pid), encoding="utf-8")
     log_handle.close()
     info(f"Started {name} with pid={process.pid}")
+
+
+@contextlib.contextmanager
+def managed_background_services() -> Any:
+    spawned_pid_paths: list[Path] = []
+    previous_handlers: dict[int, Any] = {}
+
+    def cleanup() -> None:
+        for pid_path in reversed(spawned_pid_paths):
+            stop_process_group(pid_path)
+
+    def register(pid_path: Path) -> None:
+        if pid_path not in spawned_pid_paths:
+            spawned_pid_paths.append(pid_path)
+
+    def handle_signal(signum: int, _frame: Any) -> None:
+        info(f"Received signal {signum}; stopping background services.")
+        cleanup()
+        raise SystemExit(128 + signum)
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, handle_signal)
+
+    try:
+        yield register
+    finally:
+        for signum, previous in previous_handlers.items():
+            signal.signal(signum, previous)
+        cleanup()
 
 
 def wait_for_http(
@@ -519,7 +561,11 @@ def verify_local_stabletoolbench_server(
         info(f"StableToolBench self-check returned a cache miss: {error}")
 
 
-def prepare_stabletoolbench(config: dict[str, Any]) -> None:
+def prepare_stabletoolbench(
+    config: dict[str, Any],
+    *,
+    register_background_service: callable | None = None,
+) -> None:
     from benchmark.stabletoolbench import StableToolBenchBenchmark
 
     cfg = dict(config)
@@ -565,6 +611,8 @@ def prepare_stabletoolbench(config: dict[str, Any]) -> None:
             log_path=STABLETOOLBENCH_STATE / "server.log",
             pid_path=service_pid_path(STABLETOOLBENCH_STATE, "server"),
         )
+        if register_background_service is not None:
+            register_background_service(service_pid_path(STABLETOOLBENCH_STATE, "server"))
         wait_for_http(
             health_url,
             timeout_s=60,
@@ -726,7 +774,11 @@ def controller_health_check(controller_address: str, task_name: str) -> Any:
     return response.json()
 
 
-def prepare_agentbench(config: dict[str, Any]) -> None:
+def prepare_agentbench(
+    config: dict[str, Any],
+    *,
+    register_background_service: callable | None = None,
+) -> None:
     from benchmark.agentbench import AgentBenchBenchmark
 
     cfg = dict(config)
@@ -779,6 +831,8 @@ def prepare_agentbench(config: dict[str, Any]) -> None:
             pid_path=controller_pid,
             env=agentbench_env,
         )
+        if register_background_service is not None:
+            register_background_service(controller_pid)
         spawn_background_process(
             name="agentbench-worker",
             cmd=[
@@ -796,6 +850,8 @@ def prepare_agentbench(config: dict[str, Any]) -> None:
             pid_path=worker_pid,
             env=agentbench_env,
         )
+        if register_background_service is not None:
+            register_background_service(worker_pid)
 
     wait_for_command_success(
         timeout_s=300,
@@ -807,7 +863,12 @@ def prepare_agentbench(config: dict[str, Any]) -> None:
     info(f"Prepared benchmark=agentbench sample_tasks={len(tasks)}")
 
 
-def prepare_benchmark_environment(config_path: Path, *, benchmark_name: str) -> None:
+def prepare_benchmark_environment(
+    config_path: Path,
+    *,
+    benchmark_name: str,
+    register_background_service: callable | None = None,
+) -> None:
     config = load_toml(config_path)
     benchmark_cfg = dict(config.get(benchmark_name, {}))
 
@@ -815,10 +876,16 @@ def prepare_benchmark_environment(config_path: Path, *, benchmark_name: str) -> 
         prepare_browsecomp(benchmark_cfg)
         return
     if benchmark_name == "stabletoolbench":
-        prepare_stabletoolbench(benchmark_cfg)
+        prepare_stabletoolbench(
+            benchmark_cfg,
+            register_background_service=register_background_service,
+        )
         return
     if benchmark_name == "agentbench":
-        prepare_agentbench(benchmark_cfg)
+        prepare_agentbench(
+            benchmark_cfg,
+            register_background_service=register_background_service,
+        )
         return
 
     warmup_benchmark(benchmark_name, benchmark_cfg)
@@ -845,209 +912,217 @@ def batch_run(options: BatchOptions) -> int:
         sys.stdout = Tee(stdout_original, log_handle)
         sys.stderr = Tee(stderr_original, log_handle)
         try:
-            info(f"Experiment root: {experiment_root}")
-            info(f"Started at: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}")
-            info(f"Benchmarks: {', '.join(selected_configs)}")
-            warn_non_estimable_metrics(
-                selected_configs,
-                runs_per_task_override=options.runs_per_task,
-            )
-
-            if not options.skip_setup:
-                for benchmark_name, config_path in selected_configs.items():
-                    info("")
-                    info(f"=== Preparing benchmark={benchmark_name} ===")
-                    prepare_benchmark_environment(config_path, benchmark_name=benchmark_name)
-
-            if options.setup_only:
-                info("")
-                info("Setup completed. Batch execution was skipped because --setup-only was set.")
-                return 0
-
-            skipped_jobs = 0
-            for benchmark_name, config_path in selected_configs.items():
-                for (
-                    system_label,
-                    topology,
-                    agents,
-                    rounds,
-                    discussion_rounds,
-                    communication_budget,
-                ) in SYSTEMS:
-                    system_root = experiment_root / benchmark_name / system_label
-                    summary_json = system_root / "summary.json"
-                    summary_csv = system_root / "summary.csv"
-                    if summary_json.exists() and summary_csv.exists():
-                        skipped_jobs += 1
-                        info("")
-                        info(
-                            f"SKIP benchmark={benchmark_name} system={system_label} "
-                            f"(existing summary found)"
-                        )
-                        continue
-
-                    cmd = [
-                        sys.executable,
-                        "main.py",
-                        "run",
-                        "--config",
-                        str(config_path),
-                        "--benchmark",
-                        benchmark_name,
-                        "--output-dir",
-                        str(options.output_root),
-                        "--output-layout",
-                        "hierarchical",
-                        "--experiment-id",
-                        options.experiment_id,
-                        "--system-label",
-                        system_label,
-                        "--topology",
-                        topology,
-                        "--agents",
-                        str(agents),
-                        "--mas-rounds",
-                        str(rounds),
-                        "--discussion-rounds",
-                        str(discussion_rounds),
-                        "--communication-budget",
-                        str(communication_budget),
-                    ]
-                    cmd.extend(system_extra_args(system_label))
-                    if options.task_limit is not None:
-                        cmd.extend(["--task-limit", str(options.task_limit)])
-                    if options.runs_per_task is not None:
-                        cmd.extend(["--runs-per-task", str(options.runs_per_task)])
-                    if options.final_vote_mode is not None:
-                        cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
-                    if options.benchmark_eval_judge_model is not None:
-                        cmd.extend(
-                            [
-                                "--benchmark-eval-judge-model",
-                                str(options.benchmark_eval_judge_model),
-                            ]
-                        )
-                    if options.no_dynamic_roles:
-                        cmd.append("--no-dynamic-roles")
-                    jobs.append(
-                        RunJob(
-                            benchmark_name=benchmark_name,
-                            config_path=config_path,
-                            system_label=system_label,
-                            topology=topology,
-                            agents=agents,
-                            rounds=rounds,
-                            discussion_rounds=discussion_rounds,
-                            communication_budget=communication_budget,
-                            cmd=cmd,
-                            log_path=logs_root / benchmark_name / f"{system_label}.log",
-                        )
-                    )
-
-            info("")
-            info(
-                "=== Running batch "
-                f"(jobs={len(jobs)}, skipped={skipped_jobs}, "
-                f"max_parallel={options.max_parallel}, retries={options.retry_failures}) ==="
-            )
-
-            def run_job(job: RunJob) -> RunJobResult:
-                ensure_parent(job.log_path)
-                started = time.perf_counter()
-                attempt_count = 0
-                returncode = 1
-                with job.log_path.open("a", encoding="utf-8") as cell_log:
-                    for attempt in range(options.retry_failures + 1):
-                        attempt_count = attempt + 1
-                        cell_log.write(
-                            f"\n=== attempt {attempt_count}/{options.retry_failures + 1} "
-                            f"benchmark={job.benchmark_name} system={job.system_label} ===\n"
-                        )
-                        cell_log.write(f"$ {shlex.join(job.cmd)}\n")
-                        cell_log.flush()
-                        result = subprocess.run(
-                            job.cmd,
-                            cwd=ROOT,
-                            env=live_env,
-                            text=True,
-                            stdout=cell_log,
-                            stderr=subprocess.STDOUT,
-                            check=False,
-                        )
-                        returncode = result.returncode
-                        if returncode == 0:
-                            break
-                        cell_log.write(
-                            f"--- attempt {attempt_count} failed with code {returncode} ---\n"
-                        )
-                        cell_log.flush()
-                return RunJobResult(
-                    job=job,
-                    returncode=returncode,
-                    attempt_count=attempt_count,
-                    elapsed_s=max(time.perf_counter() - started, 0.0),
+            with managed_background_services() as register_background_service:
+                info(f"Experiment root: {experiment_root}")
+                info(f"Started at: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}")
+                info(f"Benchmarks: {', '.join(selected_configs)}")
+                warn_non_estimable_metrics(
+                    selected_configs,
+                    runs_per_task_override=options.runs_per_task,
                 )
 
-            failures: list[str] = []
-            completed = 0
-            total = len(jobs)
-            active: dict[Future[RunJobResult], RunJob] = {}
-            pending_jobs = list(jobs)
-
-            with ThreadPoolExecutor(max_workers=options.max_parallel) as executor:
-                while pending_jobs or active:
-                    while pending_jobs and len(active) < options.max_parallel:
-                        job = pending_jobs.pop(0)
+                if not options.skip_setup:
+                    for benchmark_name, config_path in selected_configs.items():
                         info("")
-                        info(
-                            f"[{completed + len(active) + 1}/{total}] "
-                            f"START benchmark={job.benchmark_name} system={job.system_label} "
-                            f"log={job.log_path}"
+                        info(f"=== Preparing benchmark={benchmark_name} ===")
+                        prepare_benchmark_environment(
+                            config_path,
+                            benchmark_name=benchmark_name,
+                            register_background_service=register_background_service,
                         )
-                        future = executor.submit(run_job, job)
-                        active[future] = job
 
-                    done, _ = wait(active.keys(), return_when=FIRST_COMPLETED)
-                    for future in done:
-                        job = active.pop(future)
-                        result = future.result()
-                        completed += 1
-                        if result.returncode != 0:
-                            failures.append(f"{job.benchmark_name}::{job.system_label}")
+                if options.setup_only:
+                    info("")
+                    info(
+                        "Setup completed. Batch execution was skipped because --setup-only was set."
+                    )
+                    return 0
+
+                skipped_jobs = 0
+                for benchmark_name, config_path in selected_configs.items():
+                    for (
+                        system_label,
+                        topology,
+                        agents,
+                        rounds,
+                        discussion_rounds,
+                        communication_budget,
+                    ) in SYSTEMS:
+                        system_root = experiment_root / benchmark_name / system_label
+                        summary_json = system_root / "summary.json"
+                        summary_csv = system_root / "summary.csv"
+                        if summary_json.exists() and summary_csv.exists():
+                            skipped_jobs += 1
+                            info("")
                             info(
-                                f"[{completed}/{total}] FAIL benchmark={job.benchmark_name} "
-                                f"system={job.system_label} attempts={result.attempt_count} "
-                                f"elapsed_s={result.elapsed_s:.1f} log={job.log_path}"
+                                f"SKIP benchmark={benchmark_name} system={system_label} "
+                                f"(existing summary found)"
                             )
-                        else:
-                            info(
-                                f"[{completed}/{total}] OK benchmark={job.benchmark_name} "
-                                f"system={job.system_label} attempts={result.attempt_count} "
-                                f"elapsed_s={result.elapsed_s:.1f}"
+                            continue
+
+                        cmd = [
+                            sys.executable,
+                            "main.py",
+                            "run",
+                            "--config",
+                            str(config_path),
+                            "--benchmark",
+                            benchmark_name,
+                            "--output-dir",
+                            str(options.output_root),
+                            "--output-layout",
+                            "hierarchical",
+                            "--experiment-id",
+                            options.experiment_id,
+                            "--system-label",
+                            system_label,
+                            "--topology",
+                            topology,
+                            "--agents",
+                            str(agents),
+                            "--mas-rounds",
+                            str(rounds),
+                            "--discussion-rounds",
+                            str(discussion_rounds),
+                            "--communication-budget",
+                            str(communication_budget),
+                        ]
+                        cmd.extend(system_extra_args(system_label))
+                        if options.task_limit is not None:
+                            cmd.extend(["--task-limit", str(options.task_limit)])
+                        if options.runs_per_task is not None:
+                            cmd.extend(["--runs-per-task", str(options.runs_per_task)])
+                        if options.final_vote_mode is not None:
+                            cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
+                        if options.benchmark_eval_judge_model is not None:
+                            cmd.extend(
+                                [
+                                    "--benchmark-eval-judge-model",
+                                    str(options.benchmark_eval_judge_model),
+                                ]
                             )
+                        if options.no_dynamic_roles:
+                            cmd.append("--no-dynamic-roles")
+                        jobs.append(
+                            RunJob(
+                                benchmark_name=benchmark_name,
+                                config_path=config_path,
+                                system_label=system_label,
+                                topology=topology,
+                                agents=agents,
+                                rounds=rounds,
+                                discussion_rounds=discussion_rounds,
+                                communication_budget=communication_budget,
+                                cmd=cmd,
+                                log_path=logs_root / benchmark_name / f"{system_label}.log",
+                            )
+                        )
 
-            info("")
-            info("=== Aggregating experiment summary ===")
-            run_command(
-                [
-                    sys.executable,
-                    "main.py",
-                    "summarize-experiment",
-                    "--experiment-root",
-                    str(experiment_root),
-                ]
-            )
-
-            if failures:
                 info("")
-                info("Completed with failures:")
-                for failure in failures:
-                    info(f"  - {failure}")
-                return 1
+                info(
+                    "=== Running batch "
+                    f"(jobs={len(jobs)}, skipped={skipped_jobs}, "
+                    f"max_parallel={options.max_parallel}, retries={options.retry_failures}) ==="
+                )
 
-            info("")
-            info(f"Completed successfully: {experiment_root}")
-            return 0
+                def run_job(job: RunJob) -> RunJobResult:
+                    ensure_parent(job.log_path)
+                    started = time.perf_counter()
+                    attempt_count = 0
+                    returncode = 1
+                    with job.log_path.open("a", encoding="utf-8") as cell_log:
+                        for attempt in range(options.retry_failures + 1):
+                            attempt_count = attempt + 1
+                            cell_log.write(
+                                f"\n=== attempt {attempt_count}/{options.retry_failures + 1} "
+                                f"benchmark={job.benchmark_name} system={job.system_label} ===\n"
+                            )
+                            cell_log.write(f"$ {shlex.join(job.cmd)}\n")
+                            cell_log.flush()
+                            result = subprocess.run(
+                                job.cmd,
+                                cwd=ROOT,
+                                env=live_env,
+                                text=True,
+                                stdout=cell_log,
+                                stderr=subprocess.STDOUT,
+                                check=False,
+                            )
+                            returncode = result.returncode
+                            if returncode == 0:
+                                break
+                            cell_log.write(
+                                f"--- attempt {attempt_count} failed with code {returncode} ---\n"
+                            )
+                            cell_log.flush()
+                    return RunJobResult(
+                        job=job,
+                        returncode=returncode,
+                        attempt_count=attempt_count,
+                        elapsed_s=max(time.perf_counter() - started, 0.0),
+                    )
+
+                failures: list[str] = []
+                completed = 0
+                total = len(jobs)
+                active: dict[Future[RunJobResult], RunJob] = {}
+                pending_jobs = list(jobs)
+
+                with ThreadPoolExecutor(max_workers=options.max_parallel) as executor:
+                    while pending_jobs or active:
+                        while pending_jobs and len(active) < options.max_parallel:
+                            job = pending_jobs.pop(0)
+                            info(
+                                ""
+                            )
+                            info(
+                                f"[{completed + len(active) + 1}/{total}] "
+                                f"START benchmark={job.benchmark_name} system={job.system_label} "
+                                f"log={job.log_path}"
+                            )
+                            future = executor.submit(run_job, job)
+                            active[future] = job
+
+                        done, _ = wait(active.keys(), return_when=FIRST_COMPLETED)
+                        for future in done:
+                            job = active.pop(future)
+                            result = future.result()
+                            completed += 1
+                            if result.returncode != 0:
+                                failures.append(f"{job.benchmark_name}::{job.system_label}")
+                                info(
+                                    f"[{completed}/{total}] FAIL benchmark={job.benchmark_name} "
+                                    f"system={job.system_label} attempts={result.attempt_count} "
+                                    f"elapsed_s={result.elapsed_s:.1f} log={job.log_path}"
+                                )
+                            else:
+                                info(
+                                    f"[{completed}/{total}] OK benchmark={job.benchmark_name} "
+                                    f"system={job.system_label} attempts={result.attempt_count} "
+                                    f"elapsed_s={result.elapsed_s:.1f}"
+                                )
+
+                info("")
+                info("=== Aggregating experiment summary ===")
+                run_command(
+                    [
+                        sys.executable,
+                        "main.py",
+                        "summarize-experiment",
+                        "--experiment-root",
+                        str(experiment_root),
+                    ]
+                )
+
+                info("")
+                if failures:
+                    info("Completed with failures:")
+                    for failure in failures:
+                        info(f"  - {failure}")
+                    return 1
+
+                info(f"Completed successfully: {experiment_root}")
+                return 0
         finally:
             sys.stdout = stdout_original
             sys.stderr = stderr_original

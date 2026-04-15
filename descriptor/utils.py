@@ -9,6 +9,18 @@ from .schema import TraceEvent
 SUCCESS_STATUSES = {"success", "ok", "pass", "passed"}
 COMPLETION_STATUSES = SUCCESS_STATUSES | {"complete", "completed", "done", "finalized"}
 FAIL_STATUSES = {"fail", "failed", "error", "timeout", "cancelled", "canceled"}
+SYSTEM_MEDIATED_PACKET_KINDS = frozenset(
+    {
+        "task_package",
+        "orchestrator_feedback",
+        "specialist_report",
+        "peer_summary",
+        "root_task_package",
+        "manager_task_package",
+        "child_report",
+        "manager_report",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -213,10 +225,11 @@ def compute_communication_counts(events: Iterable[TraceEvent]) -> CommunicationC
         edge_count = len(recipients)
         if edge_count == 0:
             continue
-        if sender and sender != "system":
-            agent_to_agent += edge_count
-        else:
+        packet_kind = str(payload.get("kind", "")).strip().lower()
+        if packet_kind in SYSTEM_MEDIATED_PACKET_KINDS or sender == "system":
             system_mediated += edge_count
+        elif sender:
+            agent_to_agent += edge_count
     return CommunicationCounts(
         total=agent_to_agent + system_mediated,
         agent_to_agent=agent_to_agent,

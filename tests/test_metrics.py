@@ -134,6 +134,34 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(run_metrics["success_source"], "benchmark_evaluation")
         self.assertEqual(run_metrics["completion_source"], "final_answer")
 
+    def test_orchestrator_packets_count_as_system_mediated(self) -> None:
+        events = [
+            self._make_event(
+                "tool_call",
+                0,
+                0,
+                1.0,
+                0.0,
+                {"tool_name": "inter_agent_send", "to": ["agent_1"], "kind": "task_package"},
+                actor="agent_0",
+            ),
+            self._make_event(
+                "tool_call",
+                0,
+                0,
+                1.0,
+                0.0,
+                {"tool_name": "inter_agent_send", "to": ["agent_0"], "kind": "specialist_report"},
+                actor="agent_1",
+            ),
+        ]
+
+        run_metrics = compute_run_metrics(events)
+
+        self.assertEqual(run_metrics["communication_count"], 2.0)
+        self.assertEqual(run_metrics["communication_count_agent_to_agent"], 0.0)
+        self.assertEqual(run_metrics["communication_count_system_mediated"], 2.0)
+
     def test_paper_aligned_task_metrics(self) -> None:
         run_metrics = [
             {

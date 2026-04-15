@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -405,13 +406,100 @@ def _write_visualizations(
         paths["plot_note"] = f"matplotlib unavailable: {exc}"
         return paths
 
+    def _bbox_overlap_area(bbox_a, bbox_b) -> float:
+        x0 = max(bbox_a.x0, bbox_b.x0)
+        y0 = max(bbox_a.y0, bbox_b.y0)
+        x1 = min(bbox_a.x1, bbox_b.x1)
+        y1 = min(bbox_a.y1, bbox_b.y1)
+        if x1 <= x0 or y1 <= y0:
+            return 0.0
+        return float((x1 - x0) * (y1 - y0))
+
+    def _arrange_point_labels(ax, fig, labels: list[tuple[float, float, str]]) -> None:
+        if not labels:
+            return
+
+        candidate_offsets = [
+            (8, 8),
+            (8, -8),
+            (-8, 8),
+            (-8, -8),
+            (12, 0),
+            (-12, 0),
+            (0, 12),
+            (0, -12),
+            (14, 10),
+            (14, -10),
+            (-14, 10),
+            (-14, -10),
+            (18, 0),
+            (-18, 0),
+            (0, 18),
+            (0, -18),
+        ]
+
+        annotations = []
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        axes_bbox = ax.get_window_extent(renderer=renderer)
+        occupied_bboxes = []
+
+        for x, y, label in labels:
+            anchor_px = ax.transData.transform((x, y))
+            best_score = math.inf
+            best_offset = candidate_offsets[0]
+            best_bbox = None
+            ann = ax.annotate(
+                label,
+                xy=(x, y),
+                xytext=best_offset,
+                textcoords="offset points",
+                fontsize=8,
+                ha="left" if best_offset[0] >= 0 else "right",
+                va="bottom" if best_offset[1] >= 0 else "top",
+                arrowprops={"arrowstyle": "-", "lw": 0.5, "color": "#666666", "alpha": 0.6},
+            )
+
+            for dx, dy in candidate_offsets:
+                ann.set_position((dx, dy))
+                ann.set_ha("left" if dx >= 0 else "right")
+                ann.set_va("bottom" if dy >= 0 else "top")
+                fig.canvas.draw()
+                bbox = ann.get_window_extent(renderer=fig.canvas.get_renderer()).expanded(1.05, 1.15)
+                overlap_penalty = sum(_bbox_overlap_area(bbox, other) for other in occupied_bboxes)
+                out_of_bounds = (
+                    max(0.0, axes_bbox.x0 - bbox.x0)
+                    + max(0.0, bbox.x1 - axes_bbox.x1)
+                    + max(0.0, axes_bbox.y0 - bbox.y0)
+                    + max(0.0, bbox.y1 - axes_bbox.y1)
+                )
+                label_center = np.array([(bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0])
+                distance_penalty = float(np.linalg.norm(label_center - anchor_px))
+                score = overlap_penalty * 1000.0 + out_of_bounds * 100.0 + distance_penalty
+                if score < best_score:
+                    best_score = score
+                    best_offset = (dx, dy)
+                    best_bbox = bbox
+
+            ann.set_position(best_offset)
+            ann.set_ha("left" if best_offset[0] >= 0 else "right")
+            ann.set_va("bottom" if best_offset[1] >= 0 else "top")
+            occupied_bboxes.append(best_bbox)
+            annotations.append(ann)
+
+        fig.canvas.draw()
+
     pca_plot = out_dir / "pca_frontier.png"
     fig, ax = plt.subplots(figsize=(8, 6))
+    pca_labels: list[tuple[float, float, str]] = []
     for _, row in pca_df.iterrows():
         color = "#d62728" if bool(row["pareto_frontier"]) else "#1f77b4"
         marker = "D" if bool(row["pareto_frontier"]) else "o"
-        ax.scatter(float(row["pca_1"]), float(row["pca_2"]), color=color, marker=marker, s=80)
-        ax.text(float(row["pca_1"]) + 0.02, float(row["pca_2"]) + 0.02, str(row["topology"]), fontsize=8)
+        x = float(row["pca_1"])
+        y = float(row["pca_2"])
+        ax.scatter(x, y, color=color, marker=marker, s=80)
+        pca_labels.append((x, y, str(row["topology"])))
+    _arrange_point_labels(ax, fig, pca_labels)
     ax.set_title("Topology Embedding (PCA) with Pareto Frontier")
     ax.set_xlabel("PCA 1")
     ax.set_ylabel("PCA 2")
@@ -424,16 +512,15 @@ def _write_visualizations(
     if objective_x and objective_y and objective_x in topology_df.columns and objective_y in topology_df.columns:
         frontier_plot = out_dir / "pareto_tradeoff.png"
         fig, ax = plt.subplots(figsize=(8, 6))
+        tradeoff_labels: list[tuple[float, float, str]] = []
         for topology, row in topology_df.iterrows():
             color = "#d62728" if bool(row["pareto_frontier"]) else "#1f77b4"
             marker = "D" if bool(row["pareto_frontier"]) else "o"
-            ax.scatter(float(row[objective_x]), float(row[objective_y]), color=color, marker=marker, s=80)
-            ax.text(
-                float(row[objective_x]) * 1.01,
-                float(row[objective_y]) + 0.01,
-                str(topology),
-                fontsize=8,
-            )
+            x = float(row[objective_x])
+            y = float(row[objective_y])
+            ax.scatter(x, y, color=color, marker=marker, s=80)
+            tradeoff_labels.append((x, y, str(topology)))
+        _arrange_point_labels(ax, fig, tradeoff_labels)
         ax.set_title(f"Trade-off: {objective_y} vs {objective_x}")
         ax.set_xlabel(objective_x)
         ax.set_ylabel(objective_y)
