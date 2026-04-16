@@ -15,16 +15,194 @@ import pandas as pd
 
 
 PASS_AT_K_COLUMNS = ("pass_at_1", "pass_at_3", "pass_at_5", "pass_at_8")
-DELTA_HEATMAP_COLUMNS = (
-    ("mean_success_rate_delta_vs_sas", "success_rate"),
-    ("mean_stability_delta_vs_sas", "stability"),
-    ("mean_tokens_total_delta_vs_sas", "tokens_total"),
-    ("mean_cost_per_success_delta_vs_sas", "cost_per_success"),
+GENERATED_PLOT_SUFFIXES = (
+    "_system_scorecard.png",
+    "_success_vs_tokens_frontier.png",
+    "_vs_sas_tradeoff.png",
+    "_pass_at_k.png",
+    "_coordination_breakdown.png",
+    "_vs_sas_delta_heatmap.png",
+    "_cost_predictability.png",
 )
+SYSTEM_PLOT_STYLES: dict[str, dict[str, str]] = {
+    "sas": {
+        "short": "SAS",
+        "axis": "SAS",
+        "color": "#1f77b4",
+    },
+    "only_voting": {
+        "short": "Only Vote",
+        "axis": "Only\nVoting",
+        "color": "#ff7f0e",
+    },
+    "fully_linked_debate": {
+        "short": "Linked Debate",
+        "axis": "Linked\nDebate",
+        "color": "#2ca02c",
+    },
+    "group_chat_debate": {
+        "short": "Group Chat",
+        "axis": "Group\nChat",
+        "color": "#d62728",
+    },
+    "orchestrator_tree_structure": {
+        "short": "Orch Tree",
+        "axis": "Orch.\nTree",
+        "color": "#9467bd",
+    },
+    "orchestrator_no_discussion": {
+        "short": "Orch No Disc",
+        "axis": "Orch.\nNo Disc.",
+        "color": "#8c564b",
+    },
+    "orchestrator_with_discussion": {
+        "short": "Orch + Disc",
+        "axis": "Orch.\n+ Disc.",
+        "color": "#e377c2",
+    },
+}
 
 
 def _sanitize_filename(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in value)
+
+
+def _style_for_system(system_label: str) -> dict[str, str]:
+    return SYSTEM_PLOT_STYLES.get(
+        system_label,
+        {
+            "short": system_label.replace("_", " "),
+            "axis": system_label.replace("_", "\n"),
+            "color": "#7f7f7f",
+        },
+    )
+
+
+def _short_system_label(system_label: str) -> str:
+    return _style_for_system(system_label)["short"]
+
+
+def _axis_system_label(system_label: str) -> str:
+    return _style_for_system(system_label)["axis"]
+
+
+def _format_compact_number(value: float, _: float | None = None) -> str:
+    if not math.isfinite(value):
+        return "NaN"
+    abs_value = abs(value)
+    if abs_value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if abs_value >= 10_000:
+        return f"{value / 1_000:.0f}k"
+    if abs_value >= 1_000:
+        return f"{value / 1_000:.1f}k"
+    return f"{value:.0f}"
+
+
+def _annotation_offsets() -> list[tuple[int, int]]:
+    return [
+        (8, 8),
+        (8, -8),
+        (-8, 8),
+        (-8, -8),
+        (14, 0),
+        (-14, 0),
+        (0, 14),
+        (0, -14),
+        (18, 10),
+        (18, -10),
+        (-18, 10),
+        (-18, -10),
+        (24, 0),
+        (-24, 0),
+        (30, 12),
+        (30, -12),
+        (-30, 12),
+        (-30, -12),
+        (36, 0),
+        (-36, 0),
+    ]
+
+
+def _bbox_overlap_area(bbox_a: Any, bbox_b: Any) -> float:
+    x0 = max(bbox_a.x0, bbox_b.x0)
+    y0 = max(bbox_a.y0, bbox_b.y0)
+    x1 = min(bbox_a.x1, bbox_b.x1)
+    y1 = min(bbox_a.y1, bbox_b.y1)
+    if x1 <= x0 or y1 <= y0:
+        return 0.0
+    return float((x1 - x0) * (y1 - y0))
+
+
+def _annotate_scatter_labels(
+    ax: Any,
+    fig: Any,
+    points: list[tuple[float, float, str]],
+) -> None:
+    if not points:
+        return
+
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    display_points = [
+        (*point, ax.transData.transform((point[0], point[1])))
+        for point in points
+    ]
+    display_points.sort(
+        key=lambda item: sum(
+            1.0 / max(np.linalg.norm(item[3] - other[3]), 1.0)
+            for other in display_points
+            if other is not item
+        ),
+        reverse=True,
+    )
+
+    occupied_bboxes = []
+    for x, y, label, anchor_px in display_points:
+        best_offset = _annotation_offsets()[0]
+        best_bbox = None
+        best_score = math.inf
+        annotation = ax.annotate(
+            label,
+            (x, y),
+            xytext=best_offset,
+            textcoords="offset points",
+            fontsize=8.5,
+            ha="left",
+            va="bottom",
+            bbox={
+                "boxstyle": "round,pad=0.18",
+                "fc": "white",
+                "ec": "none",
+                "alpha": 0.82,
+            },
+            arrowprops={"arrowstyle": "-", "lw": 0.55, "color": "#666666", "alpha": 0.65},
+        )
+        for dx, dy in _annotation_offsets():
+            annotation.set_position((dx, dy))
+            annotation.set_ha("left" if dx >= 0 else "right")
+            annotation.set_va("bottom" if dy >= 0 else "top")
+            fig.canvas.draw()
+            bbox = annotation.get_window_extent(renderer=fig.canvas.get_renderer()).expanded(1.03, 1.10)
+            overlap_penalty = sum(_bbox_overlap_area(bbox, other) for other in occupied_bboxes)
+            out_of_bounds = (
+                max(0.0, axes_bbox.x0 - bbox.x0)
+                + max(0.0, bbox.x1 - axes_bbox.x1)
+                + max(0.0, axes_bbox.y0 - bbox.y0)
+                + max(0.0, bbox.y1 - axes_bbox.y1)
+            )
+            label_center = np.array([(bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0])
+            distance_penalty = float(np.linalg.norm(label_center - anchor_px))
+            score = overlap_penalty * 1500.0 + out_of_bounds * 180.0 + distance_penalty
+            if score < best_score:
+                best_score = score
+                best_offset = (dx, dy)
+                best_bbox = bbox
+        annotation.set_position(best_offset)
+        annotation.set_ha("left" if best_offset[0] >= 0 else "right")
+        annotation.set_va("bottom" if best_offset[1] >= 0 else "top")
+        occupied_bboxes.append(best_bbox)
 
 
 def _ordered_systems(
@@ -280,7 +458,7 @@ def aggregate_vs_sas(vs_sas_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _color_for_system(system_label: str) -> str:
-    return "#1f77b4" if system_label == "sas" else "#2ca02c"
+    return _style_for_system(system_label)["color"]
 
 
 def _save_pass_at_k_chart(frame: pd.DataFrame, *, benchmark: str, out_dir: Path) -> str | None:
@@ -289,7 +467,7 @@ def _save_pass_at_k_chart(frame: pd.DataFrame, *, benchmark: str, out_dir: Path)
         for column in PASS_AT_K_COLUMNS
         if f"avg_{column}" in frame.columns and not frame[f"avg_{column}"].dropna().empty
     ]
-    if not pass_columns:
+    if len(pass_columns) < 2:
         return None
 
     systems = _ordered_systems(
@@ -298,7 +476,7 @@ def _save_pass_at_k_chart(frame: pd.DataFrame, *, benchmark: str, out_dir: Path)
         stability_col="avg_stability",
         tokens_col="avg_tokens_total",
     )
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(9, 5.2))
     for system_label in systems:
         system_rows = frame[frame["system_label"] == system_label]
         if system_rows.empty:
@@ -320,19 +498,19 @@ def _save_pass_at_k_chart(frame: pd.DataFrame, *, benchmark: str, out_dir: Path)
             marker="o",
             linewidth=2,
             color=_color_for_system(system_label),
-            label=system_label,
+            label=_short_system_label(system_label),
         )
     if not ax.lines:
         plt.close(fig)
         return None
 
-    ax.set_title(f"{benchmark}: pass@k Reliability")
+    ax.set_title(f"{benchmark}: pass@k reliability")
     ax.set_xlabel("k")
     ax.set_ylabel("pass@k")
     ax.set_ylim(0.0, 1.05)
     ax.set_xticks([k for _, k in pass_columns])
     ax.grid(alpha=0.3)
-    ax.legend()
+    ax.legend(loc="lower right", ncol=2, fontsize=8.5, frameon=False)
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_pass_at_k.png"
@@ -362,7 +540,7 @@ def _save_success_vs_tokens_frontier(
     )
     subset = subset.sort_values("system_label")
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(10, 6.5))
     stability_values = subset["avg_stability"].to_numpy(dtype=float)
     finite_stability = stability_values[np.isfinite(stability_values)]
     color_norm = None
@@ -371,15 +549,6 @@ def _save_success_vs_tokens_frontier(
         color_map = plt.cm.viridis
     else:
         color_map = None
-
-    def _bbox_overlap_area(bbox_a: Any, bbox_b: Any) -> float:
-        x0 = max(bbox_a.x0, bbox_b.x0)
-        y0 = max(bbox_a.y0, bbox_b.y0)
-        x1 = min(bbox_a.x1, bbox_b.x1)
-        y1 = min(bbox_a.y1, bbox_b.y1)
-        if x1 <= x0 or y1 <= y0:
-            return 0.0
-        return float((x1 - x0) * (y1 - y0))
 
     mas_labels: list[tuple[float, float, str]] = []
 
@@ -400,68 +569,10 @@ def _save_success_vs_tokens_frontier(
             linewidths=0.8,
         )
         if system_label != "sas":
-            mas_labels.append((x, y, system_label))
+            mas_labels.append((x, y, _short_system_label(system_label)))
 
-    if mas_labels:
-        candidate_offsets = [
-            (8, 8),
-            (8, -8),
-            (-8, 8),
-            (-8, -8),
-            (12, 0),
-            (-12, 0),
-            (0, 12),
-            (0, -12),
-            (16, 10),
-            (16, -10),
-            (-16, 10),
-            (-16, -10),
-            (22, 0),
-            (-22, 0),
-        ]
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
-        axes_bbox = ax.get_window_extent(renderer=renderer)
-        occupied_bboxes = []
-        for x, y, system_label in mas_labels:
-            anchor_px = ax.transData.transform((x, y))
-            best_offset = candidate_offsets[0]
-            best_bbox = None
-            best_score = math.inf
-            annotation = ax.annotate(
-                system_label,
-                (x, y),
-                xytext=best_offset,
-                textcoords="offset points",
-                fontsize=9,
-                ha="left",
-                va="bottom",
-                arrowprops={"arrowstyle": "-", "lw": 0.5, "color": "#666666", "alpha": 0.6},
-            )
-            for dx, dy in candidate_offsets:
-                annotation.set_position((dx, dy))
-                annotation.set_ha("left" if dx >= 0 else "right")
-                annotation.set_va("bottom" if dy >= 0 else "top")
-                fig.canvas.draw()
-                bbox = annotation.get_window_extent(renderer=fig.canvas.get_renderer()).expanded(1.05, 1.15)
-                overlap_penalty = sum(_bbox_overlap_area(bbox, other) for other in occupied_bboxes)
-                out_of_bounds = (
-                    max(0.0, axes_bbox.x0 - bbox.x0)
-                    + max(0.0, bbox.x1 - axes_bbox.x1)
-                    + max(0.0, axes_bbox.y0 - bbox.y0)
-                    + max(0.0, bbox.y1 - axes_bbox.y1)
-                )
-                label_center = np.array([(bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0])
-                distance_penalty = float(np.linalg.norm(label_center - anchor_px))
-                score = overlap_penalty * 1000.0 + out_of_bounds * 100.0 + distance_penalty
-                if score < best_score:
-                    best_score = score
-                    best_offset = (dx, dy)
-                    best_bbox = bbox
-            annotation.set_position(best_offset)
-            annotation.set_ha("left" if best_offset[0] >= 0 else "right")
-            annotation.set_va("bottom" if best_offset[1] >= 0 else "top")
-            occupied_bboxes.append(best_bbox)
+    ax.margins(x=0.16, y=0.12)
+    _annotate_scatter_labels(ax, fig, mas_labels)
 
     if color_map is not None and color_norm is not None:
         mappable = plt.cm.ScalarMappable(norm=color_norm, cmap=color_map)
@@ -472,6 +583,7 @@ def _save_success_vs_tokens_frontier(
     ax.set_xlabel("tokens_total")
     ax.set_ylabel("success_rate")
     ax.set_ylim(0.0, 1.05)
+    ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(_format_compact_number))
     ax.grid(alpha=0.3)
     fig.tight_layout()
 
@@ -481,88 +593,18 @@ def _save_success_vs_tokens_frontier(
     return str(path.resolve())
 
 
-def _format_delta(value: float) -> str:
-    if math.isnan(value):
-        return "NaN"
-    if abs(value) >= 100:
-        return f"{value:+.0f}"
-    if abs(value) >= 10:
-        return f"{value:+.1f}"
-    return f"{value:+.2f}"
-
-
-def _save_vs_sas_delta_heatmap(
-    frame: pd.DataFrame,
-    *,
-    benchmark: str,
-    out_dir: Path,
-) -> str | None:
-    subset = frame[frame["benchmark"] == benchmark].copy()
-    if subset.empty:
-        return None
-
-    metric_pairs = [
-        (column, label)
-        for column, label in DELTA_HEATMAP_COLUMNS
-        if column in subset.columns and not subset[column].dropna().empty
-    ]
-    if not metric_pairs:
-        return None
-
-    systems = subset["system_label"].tolist()
-    matrix = np.array(
-        [
-            [
-                float(subset.loc[subset["system_label"] == system_label, column].iloc[0])
-                for column, _ in metric_pairs
-            ]
-            for system_label in systems
-        ],
-        dtype=float,
-    )
-    finite = matrix[np.isfinite(matrix)]
-    if finite.size == 0:
-        return None
-    vmax = float(np.nanmax(np.abs(finite)))
-    vmax = max(vmax, 1e-9)
-
-    fig, ax = plt.subplots(figsize=(max(7, len(metric_pairs) * 2.0), max(4, len(systems) * 0.7)))
-    image = ax.imshow(matrix, aspect="auto", cmap="coolwarm", vmin=-vmax, vmax=vmax)
-    ax.set_title(f"{benchmark}: MAS vs SAS deltas")
-    ax.set_xticks(np.arange(len(metric_pairs)))
-    ax.set_xticklabels([label for _, label in metric_pairs], rotation=20, ha="right")
-    ax.set_yticks(np.arange(len(systems)))
-    ax.set_yticklabels(systems)
-    for row_idx, system_label in enumerate(systems):
-        for col_idx, _ in enumerate(metric_pairs):
-            value = matrix[row_idx, col_idx]
-            ax.text(
-                col_idx,
-                row_idx,
-                _format_delta(value),
-                ha="center",
-                va="center",
-                fontsize=8,
-                color="#111111",
-            )
-    colorbar = fig.colorbar(image, ax=ax)
-    colorbar.set_label("delta vs SAS")
-    fig.tight_layout()
-
-    path = out_dir / f"{_sanitize_filename(benchmark)}_vs_sas_delta_heatmap.png"
-    fig.savefig(path, dpi=180)
-    plt.close(fig)
-    return str(path.resolve())
-
-
-def _save_cost_predictability_chart(
+def _save_system_scorecard(
     frame: pd.DataFrame,
     *,
     benchmark: str,
     out_dir: Path,
 ) -> str | None:
     subset = frame.copy()
-    if subset[["avg_cost_per_success", "avg_tokens_cv"]].isna().all().all():
+    if subset.empty:
+        return None
+
+    subset = subset.dropna(subset=["avg_success_rate", "avg_tokens_total"], how="all")
+    if subset.empty:
         return None
 
     systems = _ordered_systems(
@@ -575,35 +617,188 @@ def _save_cost_predictability_chart(
         subset["system_label"], categories=systems, ordered=True
     )
     subset = subset.sort_values("system_label")
-    colors = [_color_for_system(system_label) for system_label in subset["system_label"]]
 
-    fig, axes = plt.subplots(1, 2, figsize=(max(10, len(systems) * 1.5), 5))
-    panels = [
-        ("avg_cost_per_success", "cost_per_success"),
-        ("avg_tokens_cv", "tokens_cv"),
-    ]
-    drawn = False
-    for ax, (column, label) in zip(axes, panels, strict=True):
-        values = subset[column].to_numpy(dtype=float)
-        finite_mask = np.isfinite(values)
-        if not finite_mask.any():
-            ax.axis("off")
-            ax.text(0.5, 0.5, f"{label} unavailable", ha="center", va="center")
-            continue
-        drawn = True
-        ax.bar(subset["system_label"].astype(str), values, color=colors)
-        ax.set_title(label)
-        ax.tick_params(axis="x", rotation=25)
-        ax.grid(axis="y", alpha=0.3)
+    labels = [_short_system_label(system_label) for system_label in subset["system_label"].astype(str)]
+    colors = [_color_for_system(system_label) for system_label in subset["system_label"].astype(str)]
+    success_values = subset["avg_success_rate"].fillna(0.0).to_numpy(dtype=float)
+    stability_values = subset.get("avg_stability", pd.Series(np.nan, index=subset.index)).to_numpy(dtype=float)
+    token_values = subset["avg_tokens_total"].fillna(0.0).to_numpy(dtype=float)
+    y_values = np.arange(len(subset))
 
-    if not drawn:
-        plt.close(fig)
-        return None
+    retry_column = None
+    retry_label = None
+    for column in reversed(PASS_AT_K_COLUMNS):
+        avg_column = f"avg_{column}"
+        if avg_column in subset.columns and not subset[avg_column].dropna().empty:
+            k = int(column.rsplit("_", 1)[1])
+            if k > 1:
+                retry_column = avg_column
+                retry_label = f"pass@{k}"
+                break
 
-    fig.suptitle(f"{benchmark}: Cost Predictability")
+    fig_height = max(4.8, len(subset) * 0.68)
+    fig, axes = plt.subplots(
+        1,
+        2,
+        figsize=(12, fig_height),
+        sharey=True,
+        gridspec_kw={"width_ratios": [1.2, 1.0]},
+    )
+    quality_ax, cost_ax = axes
+
+    quality_ax.barh(y_values, success_values, color=colors, alpha=0.88)
+    quality_ax.set_title("quality")
+    quality_ax.set_xlabel("rate")
+    quality_ax.set_xlim(0.0, 1.05)
+    quality_ax.set_yticks(y_values)
+    quality_ax.set_yticklabels(labels)
+    quality_ax.invert_yaxis()
+    quality_ax.grid(axis="x", alpha=0.3)
+
+    legend_handles = []
+    if np.isfinite(stability_values).any():
+        legend_handles.append(
+            quality_ax.scatter(
+                stability_values,
+                y_values,
+                s=40,
+                marker="o",
+                facecolors="white",
+                edgecolors="#222222",
+                linewidths=1.0,
+                label="stability",
+                zorder=3,
+            )
+        )
+    if retry_column is not None and retry_label is not None:
+        retry_values = subset[retry_column].to_numpy(dtype=float)
+        legend_handles.append(
+            quality_ax.scatter(
+                retry_values,
+                y_values,
+                s=42,
+                marker="D",
+                color="#111111",
+                label=retry_label,
+                zorder=3,
+            )
+        )
+    for y, value in zip(y_values, success_values, strict=True):
+        quality_ax.text(min(value + 0.02, 1.03), y, f"{value:.2f}", va="center", fontsize=8.5)
+    if legend_handles:
+        quality_ax.legend(handles=legend_handles, loc="lower right", frameon=False, fontsize=8.5)
+
+    cost_ax.barh(y_values, token_values, color=colors, alpha=0.72)
+    cost_ax.set_title("cost")
+    cost_ax.set_xlabel("avg tokens_total")
+    cost_ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(_format_compact_number))
+    cost_ax.grid(axis="x", alpha=0.3)
+    cost_ax.tick_params(axis="y", left=False, labelleft=False)
+    token_padding = max(float(np.nanmax(token_values)) * 0.02, 1.0) if token_values.size else 1.0
+    for y, value in zip(y_values, token_values, strict=True):
+        cost_ax.text(value + token_padding, y, _format_compact_number(value), va="center", fontsize=8.5)
+
+    fig.suptitle(f"{benchmark}: system scorecard")
     fig.tight_layout()
 
-    path = out_dir / f"{_sanitize_filename(benchmark)}_cost_predictability.png"
+    path = out_dir / f"{_sanitize_filename(benchmark)}_system_scorecard.png"
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return str(path.resolve())
+
+
+def _save_vs_sas_tradeoff_chart(
+    frame: pd.DataFrame,
+    *,
+    benchmark: str,
+    out_dir: Path,
+) -> str | None:
+    subset = frame[frame["benchmark"] == benchmark].copy()
+    if subset.empty:
+        return None
+    required_columns = [
+        "mean_success_rate_delta_vs_sas",
+        "mean_tokens_total_delta_vs_sas",
+    ]
+    if any(column not in subset.columns for column in required_columns):
+        return None
+    subset = subset.dropna(subset=required_columns)
+    if subset.empty:
+        return None
+    subset = subset.sort_values(
+        by=[
+            "mean_success_rate_delta_vs_sas",
+            "mean_stability_delta_vs_sas",
+            "mean_tokens_total_delta_vs_sas",
+            "system_label",
+        ],
+        ascending=[False, False, True, True],
+    )
+
+    fig, ax = plt.subplots(figsize=(9.5, 6.0))
+    ax.axhline(0.0, color="#666666", linewidth=0.9, alpha=0.7)
+    ax.axvline(0.0, color="#666666", linewidth=0.9, alpha=0.7)
+    ax.scatter(
+        [0.0],
+        [0.0],
+        s=180,
+        marker="*",
+        color=_color_for_system("sas"),
+        edgecolors="#111111",
+        linewidths=0.8,
+        zorder=3,
+    )
+    baseline_label = ax.annotate(
+        "SAS",
+        (0.0, 0.0),
+        xytext=(10, 8),
+        textcoords="offset points",
+        fontsize=8.5,
+        bbox={
+            "boxstyle": "round,pad=0.18",
+            "fc": "white",
+            "ec": "none",
+            "alpha": 0.82,
+        },
+    )
+
+    points: list[tuple[float, float, str]] = []
+    for _, row in subset.iterrows():
+        system_label = str(row["system_label"])
+        x = float(row["mean_tokens_total_delta_vs_sas"])
+        y = float(row["mean_success_rate_delta_vs_sas"])
+        ax.scatter(
+            x,
+            y,
+            s=110,
+            color=_color_for_system(system_label),
+            edgecolors="#111111",
+            linewidths=0.8,
+            zorder=3,
+        )
+        points.append((x, y, _short_system_label(system_label)))
+
+    ax.margins(x=0.18, y=0.18)
+    _annotate_scatter_labels(ax, fig, points)
+    baseline_label.set_zorder(4)
+    ax.text(
+        0.02,
+        0.98,
+        "Upper-left is better: more success with fewer tokens than SAS.",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=8.5,
+        color="#444444",
+    )
+    ax.set_title(f"{benchmark}: lift vs extra cost against SAS")
+    ax.set_xlabel("mean tokens_total delta vs SAS")
+    ax.set_ylabel("mean success_rate delta vs SAS")
+    ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(_format_compact_number))
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+
+    path = out_dir / f"{_sanitize_filename(benchmark)}_vs_sas_tradeoff.png"
     fig.savefig(path, dpi=180)
     plt.close(fig)
     return str(path.resolve())
@@ -639,6 +834,7 @@ def _save_coordination_breakdown_chart(
     subset = subset.sort_values("system_label")
 
     labels = subset["system_label"].astype(str).tolist()
+    axis_labels = [_axis_system_label(label) for label in labels]
     agent_comm = subset.get(
         "avg_agent_to_agent_communication_count",
         pd.Series(0.0, index=subset.index),
@@ -654,27 +850,32 @@ def _save_coordination_breakdown_chart(
     colors = [_color_for_system(system_label) for system_label in labels]
     x_values = np.arange(len(labels))
 
-    fig, axes = plt.subplots(1, 2, figsize=(max(10, len(labels) * 1.5), 5))
-    axes[0].bar(labels, agent_comm, label="agent_to_agent", color="#66c2a5")
+    fig, axes = plt.subplots(1, 2, figsize=(max(10.5, len(labels) * 1.7), 5.4))
+    axes[0].bar(axis_labels, agent_comm, label="agent_to_agent", color="#66c2a5")
     axes[0].bar(
-        labels,
+        axis_labels,
         system_comm,
         bottom=agent_comm,
         label="system_mediated",
         color="#fc8d62",
     )
-    axes[0].set_title("communication breakdown")
-    axes[0].tick_params(axis="x", rotation=25)
+    total_comm = agent_comm + system_comm
+    for idx, total in enumerate(total_comm):
+        axes[0].text(idx, total + max(total_comm.max() * 0.02, 0.2), f"{total:.1f}", ha="center", va="bottom", fontsize=8)
+    axes[0].set_title("communication count")
+    axes[0].tick_params(axis="x", rotation=0)
     axes[0].grid(axis="y", alpha=0.3)
     axes[0].legend()
 
     axes[1].bar(x_values, handoffs, color=colors)
     axes[1].set_xticks(x_values)
-    axes[1].set_xticklabels(labels, rotation=25)
-    axes[1].set_title("handoff_count")
+    axes[1].set_xticklabels(axis_labels, rotation=0)
+    for idx, value in enumerate(handoffs):
+        axes[1].text(idx, value + max(handoffs.max() * 0.02, 0.2), f"{value:.1f}", ha="center", va="bottom", fontsize=8)
+    axes[1].set_title("handoff count")
     axes[1].grid(axis="y", alpha=0.3)
 
-    fig.suptitle(f"{benchmark}: Coordination Diagnostics")
+    fig.suptitle(f"{benchmark}: coordination overhead")
     fig.tight_layout()
 
     path = out_dir / f"{_sanitize_filename(benchmark)}_coordination_breakdown.png"
@@ -763,6 +964,19 @@ def write_report(
     )
     lines.append("")
 
+    lines.extend(
+        [
+            "## Plot Guide",
+            "",
+            "- `system_scorecard`: ranks each topology on success and token cost in one view; markers show stability and best available pass@k retry lift when present.",
+            "- `success_vs_tokens_frontier`: absolute quality vs cost tradeoff; point color encodes stability.",
+            "- `vs_sas_tradeoff`: how much success each MAS gains relative to SAS and how many extra tokens it costs.",
+            "- `coordination_breakdown`: communication and handoff overhead for each topology.",
+            "- `pass_at_k`: optional retry curve, only emitted when multiple pass@k values are available.",
+            "",
+        ]
+    )
+
     if not vs_sas_df.empty:
         lines.extend(["## Delta vs SAS", ""])
         lines.append(render_table(vs_sas_df.round(3)))
@@ -805,24 +1019,31 @@ def analyze_experiment(experiment_root: Path, output_dir: Path) -> dict[str, Any
         vs_sas_task_df.to_csv(vs_sas_task_csv, index=False)
     if not vs_sas_system_df.empty:
         vs_sas_system_df.to_csv(vs_sas_system_csv, index=False)
+    for suffix in GENERATED_PLOT_SUFFIXES:
+        for stale_plot in output_dir.glob(f"*{suffix}"):
+            stale_plot.unlink()
 
     plots: dict[str, list[str]] = {}
     for benchmark in sorted(task_df["benchmark"].unique()):
         benchmark_system_df = system_df[system_df["benchmark"] == benchmark].copy()
         benchmark_plot_paths: list[str] = []
         for plot_path in [
-            _save_pass_at_k_chart(benchmark_system_df, benchmark=benchmark, out_dir=output_dir),
+            _save_system_scorecard(
+                benchmark_system_df,
+                benchmark=benchmark,
+                out_dir=output_dir,
+            ),
             _save_success_vs_tokens_frontier(
                 benchmark_system_df,
                 benchmark=benchmark,
                 out_dir=output_dir,
             ),
-            _save_vs_sas_delta_heatmap(
+            _save_vs_sas_tradeoff_chart(
                 vs_sas_system_df,
                 benchmark=benchmark,
                 out_dir=output_dir,
             ),
-            _save_cost_predictability_chart(
+            _save_pass_at_k_chart(
                 benchmark_system_df,
                 benchmark=benchmark,
                 out_dir=output_dir,

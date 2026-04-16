@@ -130,20 +130,20 @@ class TestAnalyzeExperiment(unittest.TestCase):
             self.assertTrue((output_dir / "analysis.json").exists())
 
             plot_paths = analysis["artifacts"]["plots"]["browsecomp"]
+            self.assertTrue(any(path.endswith("browsecomp_system_scorecard.png") for path in plot_paths))
             self.assertTrue(any(path.endswith("browsecomp_pass_at_k.png") for path in plot_paths))
             self.assertTrue(
                 any(path.endswith("browsecomp_success_vs_tokens_frontier.png") for path in plot_paths)
             )
             self.assertTrue(
-                any(path.endswith("browsecomp_vs_sas_delta_heatmap.png") for path in plot_paths)
-            )
-            self.assertTrue(
-                any(path.endswith("browsecomp_cost_predictability.png") for path in plot_paths)
+                any(path.endswith("browsecomp_vs_sas_tradeoff.png") for path in plot_paths)
             )
             self.assertTrue(
                 any(path.endswith("browsecomp_coordination_breakdown.png") for path in plot_paths)
             )
             self.assertFalse(any("task_score_heatmap" in path for path in plot_paths))
+            self.assertFalse(any("vs_sas_delta_heatmap" in path for path in plot_paths))
+            self.assertFalse(any("cost_predictability" in path for path in plot_paths))
 
 
 if __name__ == "__main__":
