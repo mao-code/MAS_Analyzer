@@ -10,17 +10,19 @@ set -euo pipefail
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 
-TASK_LIMIT="${TASK_LIMIT:-3}"
+TASK_LIMIT="${TASK_LIMIT:-10}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
-BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench}"
+# BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
+BENCHMARKS="${BENCHMARKS:-workbench,browsecomp,plancraft}"
 RETRY_FAILURES="${RETRY_FAILURES:-1}"
-MAX_PARALLEL="${MAX_PARALLEL:-4}" # A "job" here is one (benchmark, system) pair, not one individual task.
+MAX_PARALLEL="${MAX_PARALLEL:-5}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"
 SKIP_SETUP="${SKIP_SETUP:-0}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
 FINAL_VOTE_MODE="${FINAL_VOTE_MODE:-}"
+BENCHMARK_EVAL_JUDGE_MODEL="${BENCHMARK_EVAL_JUDGE_MODEL:-}"
 # Set DISABLE_DYNAMIC_ROLES=1 to skip LLM-based role assignment (uses structural roles only).
 DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
 
@@ -30,7 +32,7 @@ DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
 # `scripts/full_experiment.py`.
 #
 # Example:
-# MAS_GLOBAL_ARGS="--default-model google/gemini-3-flash-preview --judge-model google/gemini-3-flash-preview --peer-artifact-max-chars 240"
+# MAS_GLOBAL_ARGS="--default-model google/gemini-3-flash-preview --judge-model google/gemini-3-flash-preview:nitro --peer-artifact-max-chars 240"
 # ============================================================================
 # google/gemini-3.1-flash-lite-preview:nitro
 # google/gemini-3-flash-preview
@@ -48,21 +50,21 @@ SAS_ARGS="${SAS_ARGS:-}"
 # Example:
 # ORCHESTRATOR_TREE_STRUCTURE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 240"
 # ============================================================================
-ORCHESTRATOR_TREE_STRUCTURE_ARGS="${ORCHESTRATOR_TREE_STRUCTURE_ARGS:-}"
+ORCHESTRATOR_TREE_STRUCTURE_ARGS="${ORCHESTRATOR_TREE_STRUCTURE_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Orchestrator No Discussion
 # Example:
 # ORCHESTRATOR_NO_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 240"
 # ============================================================================
-ORCHESTRATOR_NO_DISCUSSION_ARGS="${ORCHESTRATOR_NO_DISCUSSION_ARGS:-}"
+ORCHESTRATOR_NO_DISCUSSION_ARGS="${ORCHESTRATOR_NO_DISCUSSION_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Orchestrator With Discussion
 # Example:
 # ORCHESTRATOR_WITH_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 220"
 # ============================================================================
-ORCHESTRATOR_WITH_DISCUSSION_ARGS="${ORCHESTRATOR_WITH_DISCUSSION_ARGS:-}"
+ORCHESTRATOR_WITH_DISCUSSION_ARGS="${ORCHESTRATOR_WITH_DISCUSSION_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Only Voting
@@ -76,14 +78,14 @@ ONLY_VOTING_ARGS="${ONLY_VOTING_ARGS:-}"
 # Example:
 # FULLY_LINKED_DEBATE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1 --peer-artifact-max-chars 220"
 # ============================================================================
-FULLY_LINKED_DEBATE_ARGS="${FULLY_LINKED_DEBATE_ARGS:-}"
+FULLY_LINKED_DEBATE_ARGS="${FULLY_LINKED_DEBATE_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Group Chat Debate
 # Example:
 # GROUP_CHAT_DEBATE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1 --peer-artifact-max-chars 220"
 # ============================================================================
-GROUP_CHAT_DEBATE_ARGS="${GROUP_CHAT_DEBATE_ARGS:-}"
+GROUP_CHAT_DEBATE_ARGS="${GROUP_CHAT_DEBATE_ARGS:---communication-budget 50}"
 
 args=()
 cli_has_benchmark_selection=0
@@ -120,10 +122,12 @@ Environment variable defaults:
   SKIP_SETUP
   SETUP_ONLY
   FINAL_VOTE_MODE
+  BENCHMARK_EVAL_JUDGE_MODEL
   DISABLE_DYNAMIC_ROLES
 
 Notes:
   - CLI benchmark flags override BENCHMARKS.
+  - BENCHMARK_EVAL_JUDGE_MODEL overrides benchmark-side evaluation judge_model, not the MAS internal judge model.
   - For Python-level help, run: python scripts/full_experiment.py --help
 EOF
       exit 0
@@ -163,6 +167,9 @@ if [[ "${SETUP_ONLY}" == "1" ]]; then
 fi
 if [[ -n "${FINAL_VOTE_MODE}" ]]; then
   args+=(--final-vote-mode "${FINAL_VOTE_MODE}")
+fi
+if [[ -n "${BENCHMARK_EVAL_JUDGE_MODEL}" ]]; then
+  args+=(--benchmark-eval-judge-model "${BENCHMARK_EVAL_JUDGE_MODEL}")
 fi
 if [[ "${DISABLE_DYNAMIC_ROLES}" == "1" ]]; then
   args+=(--no-dynamic-roles)

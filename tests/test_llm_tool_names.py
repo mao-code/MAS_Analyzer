@@ -30,12 +30,18 @@ class TestLLMToolNames(unittest.TestCase):
             tool_names,
             ["calendar_delete_event", "customer_relationship_manager_update_customer"],
         )
-        self.assertEqual(set(handlers.keys()), set(tool_names))
+        self.assertTrue(set(tool_names).issubset(set(handlers.keys())))
+        self.assertIn("calendar.delete_event", handlers)
+        self.assertIn("customer_relationship_manager.update_customer", handlers)
         self.assertEqual(
             original_names,
             {
                 "calendar_delete_event": "calendar.delete_event",
+                "calendar.delete_event": "calendar.delete_event",
                 "customer_relationship_manager_update_customer": (
+                    "customer_relationship_manager.update_customer"
+                ),
+                "customer_relationship_manager.update_customer": (
                     "customer_relationship_manager.update_customer"
                 ),
             },

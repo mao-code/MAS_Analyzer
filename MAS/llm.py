@@ -548,7 +548,12 @@ class OpenRouterLLMClient:
                 }
             )
             handlers[api_name] = handler
+            # Some models still emit the original dotted tool name after seeing it in
+            # the prompt context, even when the API-exposed function name is sanitized.
+            # Resolve both forms to the same callable so tool execution remains stable.
+            handlers[original_name] = handler
             original_names[api_name] = original_name
+            original_names[original_name] = original_name
         return defs, handlers, original_names
 
     def _force_final_response(

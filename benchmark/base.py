@@ -83,6 +83,9 @@ def init_run_metadata_aggregate() -> dict[str, Any]:
         "termination_history": [],
         "agent_outputs": {},
         "vote_tally": {},
+        "selected_artifact_id": "",
+        "selected_agent_id": "",
+        "selected_source_artifact_ids": [],
         "descriptor_summary": {},
         "topology_layout": {},
         "workflow_definition": {},
@@ -170,6 +173,14 @@ def merge_step_run_metadata(
         aggregate["agent_outputs"] = dict(step_metadata.get("agent_outputs", {}))
     if step_metadata.get("vote_tally"):
         aggregate["vote_tally"] = dict(step_metadata.get("vote_tally", {}))
+    if step_metadata.get("selected_artifact_id"):
+        aggregate["selected_artifact_id"] = str(step_metadata.get("selected_artifact_id", ""))
+    if step_metadata.get("selected_agent_id"):
+        aggregate["selected_agent_id"] = str(step_metadata.get("selected_agent_id", ""))
+    if step_metadata.get("selected_source_artifact_ids"):
+        aggregate["selected_source_artifact_ids"] = list(
+            step_metadata.get("selected_source_artifact_ids", [])
+        )
     if step_metadata.get("descriptor_summary"):
         aggregate["descriptor_summary"] = dict(step_metadata.get("descriptor_summary", {}))
     if step_metadata.get("topology_layout"):
