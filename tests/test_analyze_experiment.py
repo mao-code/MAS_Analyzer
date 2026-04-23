@@ -1,4 +1,5 @@
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,48 @@ class TestAnalyzeExperiment(unittest.TestCase):
             writer.writeheader()
             for row in rows:
                 writer.writerow(row)
+
+    def _write_trace_metrics(
+        self,
+        system_dir: Path,
+        *,
+        task_id: str,
+        run_index: int,
+        success: float,
+        accuracy: float,
+        latency_e2e: float,
+        token_total: float,
+        communication_count: float,
+        handoff_count: float,
+        tool_calls_total: float,
+        tool_error_count: float,
+    ) -> None:
+        task_dir = system_dir / task_id
+        task_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "task_id": task_id,
+            "run_index": run_index,
+            "evaluation": {"score": accuracy, "success": bool(success), "details": {}},
+            "metrics": {
+                "success": bool(success),
+                "completion": True,
+                "accuracy": accuracy,
+                "score": accuracy,
+                "latency_total": latency_e2e,
+                "latency_e2e": latency_e2e,
+                "tokens_total": token_total,
+                "token_total": token_total,
+                "tool_calls_total": tool_calls_total,
+                "tool_fail_total": tool_error_count,
+                "communication_count": communication_count,
+                "handoff_count": handoff_count,
+            },
+            "runtime": {"topology": system_dir.name, "run_index": run_index},
+        }
+        (task_dir / f"run_{run_index}.trace_metrics.json").write_text(
+            json.dumps(payload),
+            encoding="utf-8",
+        )
 
     def test_generates_paper_aligned_plots(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -75,6 +118,27 @@ class TestAnalyzeExperiment(unittest.TestCase):
                     },
                 ],
             )
+            for run_index, (task_id, success, accuracy, latency_e2e, token_total) in enumerate(
+                [
+                    ("q1", 1.0, 0.25, 10.0, 100.0),
+                    ("q1", 0.0, 0.25, 12.0, 110.0),
+                    ("q2", 1.0, 0.50, 14.0, 120.0),
+                    ("q2", 0.0, 0.50, 16.0, 130.0),
+                ]
+            ):
+                self._write_trace_metrics(
+                    sas_dir,
+                    task_id=task_id,
+                    run_index=run_index,
+                    success=success,
+                    accuracy=accuracy,
+                    latency_e2e=latency_e2e,
+                    token_total=token_total,
+                    communication_count=0.0,
+                    handoff_count=1.0,
+                    tool_calls_total=4.0,
+                    tool_error_count=0.0,
+                )
             self._write_summary_csv(
                 mas_dir,
                 [
@@ -120,6 +184,27 @@ class TestAnalyzeExperiment(unittest.TestCase):
                     },
                 ],
             )
+            for run_index, (task_id, success, accuracy, latency_e2e, token_total) in enumerate(
+                [
+                    ("q1", 1.0, 0.75, 20.0, 180.0),
+                    ("q1", 1.0, 0.75, 22.0, 190.0),
+                    ("q2", 1.0, 0.75, 24.0, 160.0),
+                    ("q2", 0.0, 0.75, 26.0, 170.0),
+                ]
+            ):
+                self._write_trace_metrics(
+                    mas_dir,
+                    task_id=task_id,
+                    run_index=run_index,
+                    success=success,
+                    accuracy=accuracy,
+                    latency_e2e=latency_e2e,
+                    token_total=token_total,
+                    communication_count=5.5,
+                    handoff_count=3.5,
+                    tool_calls_total=4.0,
+                    tool_error_count=0.0,
+                )
 
             output_dir = experiment_root / "analysis"
             analysis = analyze_experiment(experiment_root, output_dir)
@@ -128,19 +213,14 @@ class TestAnalyzeExperiment(unittest.TestCase):
             self.assertTrue((output_dir / "system_level_metrics.csv").exists())
             self.assertTrue((output_dir / "report.md").exists())
             self.assertTrue((output_dir / "analysis.json").exists())
+            self.assertIn("headline", analysis)
 
             plot_paths = analysis["artifacts"]["plots"]["browsecomp"]
             self.assertTrue(any(path.endswith("browsecomp_system_scorecard.png") for path in plot_paths))
-            self.assertTrue(any(path.endswith("browsecomp_pass_at_k.png") for path in plot_paths))
-            self.assertTrue(
-                any(path.endswith("browsecomp_success_vs_tokens_frontier.png") for path in plot_paths)
-            )
-            self.assertTrue(
-                any(path.endswith("browsecomp_vs_sas_tradeoff.png") for path in plot_paths)
-            )
-            self.assertTrue(
-                any(path.endswith("browsecomp_coordination_breakdown.png") for path in plot_paths)
-            )
+            self.assertTrue(any("browsecomp_pass_at_k" in path for path in plot_paths))
+            self.assertTrue(any("success_vs_tokens_frontier" in path for path in plot_paths))
+            self.assertTrue(any("vs_sas_tradeoff" in path for path in plot_paths))
+            self.assertTrue(any("coordination_breakdown" in path for path in plot_paths))
             self.assertFalse(any("task_score_heatmap" in path for path in plot_paths))
             self.assertFalse(any("vs_sas_delta_heatmap" in path for path in plot_paths))
             self.assertFalse(any("cost_predictability" in path for path in plot_paths))

@@ -163,7 +163,10 @@ def _load_run_rows(experiment_root: Path) -> pd.DataFrame:
                             "run_index": int(run_index) if run_index is not None else None,
                             "success": metrics.get("success"),
                             "completion": metrics.get("completion"),
+                            "accuracy": metrics.get("accuracy", payload.get("evaluation", {}).get("score")),
                             "score": metrics.get("score"),
+                            "latency_e2e": metrics.get("latency_e2e", metrics.get("latency_total")),
+                            "token_total": metrics.get("token_total", metrics.get("tokens_total")),
                             "tokens_total": metrics.get("tokens_total"),
                             "tool_calls_total": tool_calls_total,
                             "communication_count": metrics.get("communication_count"),
@@ -383,7 +386,10 @@ def normalize_task_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
 
     alias_map = {
         "eval_avg_score": ["eval_avg_score"],
+        "accuracy": ["accuracy", "eval_avg_score"],
         "success_rate": ["success_rate", "Q1_success_rate", "eval_success_rate"],
+        "latency_e2e": ["latency_e2e"],
+        "token_total": ["token_total", "tokens_total", "C2_tokens_total"],
         "tokens_total": ["tokens_total", "C2_tokens_total"],
         "tool_calls_total": ["tool_calls_total", "C4_tool_calls_total"],
         "tool_error_rate": ["tool_error_rate", "D1_tool_error_rate"],
@@ -453,7 +459,10 @@ def normalize_task_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
 
     for column in [
         "eval_avg_score",
+        "accuracy",
         "success_rate",
+        "latency_e2e",
+        "token_total",
         "tokens_total",
         "tool_calls_total",
         "tool_error_rate",
@@ -493,10 +502,12 @@ def load_task_rows(experiment_root: Path) -> pd.DataFrame:
 def aggregate_system_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
     agg_spec: dict[str, tuple[str, str]] = {
         "task_count": ("task_id", "nunique"),
+        "avg_accuracy": ("accuracy", "mean"),
         "avg_eval_score": ("eval_avg_score", "mean"),
         "median_eval_score": ("eval_avg_score", "median"),
         "avg_success_rate": ("success_rate", "mean"),
         "avg_stability": ("stability", "mean"),
+        "avg_token_total": ("token_total", "mean"),
         "avg_tokens_total": ("tokens_total", "mean"),
         "median_tokens_total": ("tokens_total", "median"),
         "avg_cost_per_success": ("cost_per_success", "mean"),
@@ -506,6 +517,8 @@ def aggregate_system_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
         "avg_communication_count": ("communication_count", "mean"),
         "avg_handoff_count": ("handoff_count", "mean"),
     }
+    if "latency_e2e" in task_df.columns:
+        agg_spec["avg_latency_e2e"] = ("latency_e2e", "mean")
     if "agent_to_agent_communication_count" in task_df.columns:
         agg_spec["avg_agent_to_agent_communication_count"] = (
             "agent_to_agent_communication_count",
@@ -1466,6 +1479,7 @@ def write_report(
         "benchmark",
         "system_label",
         "task_count",
+        "avg_accuracy",
         "avg_eval_score",
         "avg_success_rate",
         "avg_stability",
@@ -1473,6 +1487,8 @@ def write_report(
         "avg_pass_at_3",
         "avg_pass_at_5",
         "avg_pass_at_8",
+        "avg_latency_e2e",
+        "avg_token_total",
         "avg_tokens_total",
         "avg_cost_per_success",
         "avg_tokens_cv",

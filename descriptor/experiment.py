@@ -91,6 +91,7 @@ def _summarize_runs(
         items.append(
             {
                 "task_id": task_id,
+                "accuracy": score,
                 "score": score,
                 "success": success,
                 "completion": bool(outcome.completion),
@@ -103,6 +104,7 @@ def _summarize_runs(
     if not scores:
         return {
             "count": 0,
+            "accuracy": 0.0,
             "avg_score": 0.0,
             "success_rate": 0.0,
             "completion_rate": 0.0,
@@ -111,6 +113,7 @@ def _summarize_runs(
 
     return {
         "count": len(scores),
+        "accuracy": float(sum(scores) / len(scores)),
         "avg_score": float(sum(scores) / len(scores)),
         "success_rate": float(sum(successes) / len(successes)),
         "completion_rate": float(sum(completions) / len(completions)),

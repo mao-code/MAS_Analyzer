@@ -9,16 +9,35 @@ set -euo pipefail
 #   RUNS_PER_TASK=8 bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
+#   MODELS="google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b" bash scripts/full_experiment.sh
 
 TASK_LIMIT="${TASK_LIMIT:-10}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
 # BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
-BENCHMARKS="${BENCHMARKS:-workbench,browsecomp,plancraft}"
+BENCHMARKS="${BENCHMARKS:-workbench,browsecomp,plancraft,stabletoolbench}"
 RETRY_FAILURES="${RETRY_FAILURES:-1}"
-MAX_PARALLEL="${MAX_PARALLEL:-5}" # A "job" here is one (benchmark, system) pair, not one individual task.
+MAX_PARALLEL="${MAX_PARALLEL:-4}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"
+
+# ============================================================================
+# Models to run
+# This is the main batch-level model selector for MAS.
+# Set a comma-separated list to run a full experiment once per model.
+# Each selected model overrides both MAS --default-model and --judge-model.
+# Leave empty to use the benchmark/config-defined MAS model routing.
+#
+# Current OpenRouter model IDs:
+#   google/gemma-4-31b-it
+#   qwen/qwen3.5-flash-02-23
+#   openai/gpt-oss-120b
+#
+# Example:
+# MODELS="google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b"
+# ============================================================================
+MODELS="${MODELS:-google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b}"
+
 SKIP_SETUP="${SKIP_SETUP:-0}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
 FINAL_VOTE_MODE="${FINAL_VOTE_MODE:-}"
@@ -30,60 +49,60 @@ DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
 # Global MAS override args
 # These are appended to every `main.py run ...` command launched by
 # `scripts/full_experiment.py`.
+# Use this for shared non-model MAS flags.
+# Do not use this for --default-model / --judge-model; use MODELS instead.
 #
 # Example:
-# MAS_GLOBAL_ARGS="--default-model google/gemini-3-flash-preview --judge-model google/gemini-3-flash-preview:nitro --peer-artifact-max-chars 240"
+# MAS_GLOBAL_ARGS="--peer-artifact-max-chars 240"
 # ============================================================================
-# google/gemini-3.1-flash-lite-preview:nitro
-# google/gemini-3-flash-preview
-MAS_GLOBAL_ARGS="${MAS_GLOBAL_ARGS:---default-model google/gemini-3.1-flash-lite-preview:nitro --judge-model google/gemini-3.1-flash-lite-preview:nitro}"
+MAS_GLOBAL_ARGS="${MAS_GLOBAL_ARGS:-}"
 
 # ============================================================================
 # SAS
 # Example:
-# SAS_ARGS="--judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 200"
+# SAS_ARGS="--peer-artifact-max-chars 200"
 # ============================================================================
 SAS_ARGS="${SAS_ARGS:-}"
 
 # ============================================================================
 # Orchestrator Tree Structure
 # Example:
-# ORCHESTRATOR_TREE_STRUCTURE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 240"
+# ORCHESTRATOR_TREE_STRUCTURE_ARGS="--termination-consensus-mode llm_judge --peer-artifact-max-chars 240"
 # ============================================================================
 ORCHESTRATOR_TREE_STRUCTURE_ARGS="${ORCHESTRATOR_TREE_STRUCTURE_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Orchestrator No Discussion
 # Example:
-# ORCHESTRATOR_NO_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 240"
+# ORCHESTRATOR_NO_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --peer-artifact-max-chars 240"
 # ============================================================================
 ORCHESTRATOR_NO_DISCUSSION_ARGS="${ORCHESTRATOR_NO_DISCUSSION_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Orchestrator With Discussion
 # Example:
-# ORCHESTRATOR_WITH_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 220"
+# ORCHESTRATOR_WITH_DISCUSSION_ARGS="--termination-consensus-mode llm_judge --peer-artifact-max-chars 220"
 # ============================================================================
 ORCHESTRATOR_WITH_DISCUSSION_ARGS="${ORCHESTRATOR_WITH_DISCUSSION_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Only Voting
 # Example:
-# ONLY_VOTING_ARGS="--judge-model openai/gpt-4.1-mini --peer-artifact-max-chars 200"
+# ONLY_VOTING_ARGS="--peer-artifact-max-chars 200"
 # ============================================================================
 ONLY_VOTING_ARGS="${ONLY_VOTING_ARGS:-}"
 
 # ============================================================================
 # Fully Linked Debate
 # Example:
-# FULLY_LINKED_DEBATE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1 --peer-artifact-max-chars 220"
+# FULLY_LINKED_DEBATE_ARGS="--termination-consensus-mode llm_judge --peer-artifact-max-chars 220"
 # ============================================================================
 FULLY_LINKED_DEBATE_ARGS="${FULLY_LINKED_DEBATE_ARGS:---communication-budget 50}"
 
 # ============================================================================
 # Group Chat Debate
 # Example:
-# GROUP_CHAT_DEBATE_ARGS="--termination-consensus-mode llm_judge --judge-model openai/gpt-4.1 --peer-artifact-max-chars 220"
+# GROUP_CHAT_DEBATE_ARGS="--termination-consensus-mode llm_judge --peer-artifact-max-chars 220"
 # ============================================================================
 GROUP_CHAT_DEBATE_ARGS="${GROUP_CHAT_DEBATE_ARGS:---communication-budget 50}"
 
@@ -109,6 +128,7 @@ Useful examples:
   bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
   BENCHMARKS=workbench,scicode bash scripts/full_experiment.sh
   RUNS_PER_TASK=8 bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
+  MODELS="google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b" bash scripts/full_experiment.sh
 
 Environment variable defaults:
   TASK_LIMIT
@@ -119,6 +139,7 @@ Environment variable defaults:
   EXPERIMENT_ID
   OUTPUT_ROOT
   CONFIG_DIR
+  MODELS
   SKIP_SETUP
   SETUP_ONLY
   FINAL_VOTE_MODE
@@ -127,6 +148,8 @@ Environment variable defaults:
 
 Notes:
   - CLI benchmark flags override BENCHMARKS.
+  - MODELS is the main batch-level selector for MAS internal models.
+  - MAS_GLOBAL_ARGS is for shared non-model MAS CLI args.
   - BENCHMARK_EVAL_JUDGE_MODEL overrides benchmark-side evaluation judge_model, not the MAS internal judge model.
   - For Python-level help, run: python scripts/full_experiment.py --help
 EOF
@@ -158,6 +181,9 @@ if [[ -n "${OUTPUT_ROOT}" ]]; then
 fi
 if [[ -n "${CONFIG_DIR}" ]]; then
   args+=(--config-dir "${CONFIG_DIR}")
+fi
+if [[ -n "${MODELS}" ]]; then
+  args+=(--models "${MODELS}")
 fi
 if [[ "${SKIP_SETUP}" == "1" ]]; then
   args+=(--skip-setup)

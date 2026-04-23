@@ -120,6 +120,19 @@ def compute_run_metrics(
     steps_total = len(events)
     token_total = sum(event.token_in + event.token_out for event in events)
     latency_total = sum(event.latency_ms for event in events)
+    if events:
+        latency_span_ms = max(
+            (max(event.timestamp_end for event in events) - min(event.timestamp_start for event in events))
+            * 1000.0,
+            0.0,
+        )
+        latency_e2e = (
+            float(latency_total)
+            if latency_total > 0.0 and latency_span_ms > (latency_total * 1.1)
+            else float(latency_span_ms)
+        )
+    else:
+        latency_e2e = 0.0
     cost_total = sum(event.cost_usd for event in events)
 
     tool_calls_total = sum(1 for event in events if event.event_type == "tool_call")
@@ -143,7 +156,9 @@ def compute_run_metrics(
         "success_source": outcome.success_source,
         "completion_source": outcome.completion_source,
         "latency_total": float(latency_total),
+        "latency_e2e": float(latency_e2e),
         "tokens_total": float(token_total),
+        "token_total": float(token_total),
         "cost_total": float(cost_total),
         "tool_calls_total": float(tool_calls_total),
         "tool_fail_total": float(tool_fail_total),
@@ -158,6 +173,7 @@ def compute_run_metrics(
     }
     if outcome.score is not None:
         run_metrics["score"] = float(outcome.score)
+        run_metrics["accuracy"] = float(outcome.score)
 
     if extensions.include_stage_metrics:
         run_metrics.update(compute_stage_metrics(events))
@@ -233,6 +249,9 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
     completions = np.array([1.0 if rm["completion"] else 0.0 for rm in run_metrics])
 
     latencies = np.array([float(rm["latency_total"]) for rm in run_metrics])
+    latency_e2e_values = np.array(
+        [float(rm.get("latency_e2e", rm["latency_total"])) for rm in run_metrics]
+    )
     tokens = np.array([float(rm["tokens_total"]) for rm in run_metrics])
     costs = np.array([float(rm["cost_total"]) for rm in run_metrics])
     tool_calls = np.array([float(rm["tool_calls_total"]) for rm in run_metrics])
@@ -283,8 +302,11 @@ def compute_task_metrics(run_metrics: Sequence[dict[str, Any]]) -> dict[str, Any
         "P4_verification_density": float(verify_density.mean()),
         "success_rate": success_rate,
         "stability": _stability_from_success_var(success_var, sample_count=run_count),
+        "accuracy": avg_score,
         "eval_avg_score": avg_score,
+        "latency_e2e": float(latency_e2e_values.mean()),
         "tokens_total": tokens_mean,
+        "token_total": tokens_mean,
         "cost_per_success": float(tokens_mean / success_rate)
         if success_rate > 0.0
         else float("nan"),

@@ -1687,11 +1687,16 @@ def run_command(args: argparse.Namespace) -> int:
             "system_label": output_paths.system_label,
             "topology": config.mas.resolved_topology(),
             "agents": config.mas.total_agents,
+            "default_model": str(config.models.get("default", "")),
+            "judge_model": str(config.models.get("judge", config.models.get("default", ""))),
             "task_id": task.task_id,
             "runs": analysis["evaluation"].get("count", 0),
+            "accuracy": analysis["descriptor"].get("accuracy", analysis["evaluation"].get("accuracy", 0.0)),
             "eval_avg_score": analysis["evaluation"].get("avg_score", 0.0),
             "eval_success_rate": analysis["evaluation"].get("success_rate", 0.0),
             "eval_completion_rate": analysis["evaluation"].get("completion_rate", 0.0),
+            "latency_e2e": analysis["descriptor"].get("latency_e2e"),
+            "token_total": analysis["descriptor"].get("token_total"),
             "task_dir": str(task_dir.resolve()),
         }
         row.update(analysis["descriptor"])
@@ -1783,6 +1788,11 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
                 "system_label": system_dir.name,
                 "topology": settings.get("system", {}).get("mas", {}).get("resolved_topology", ""),
                 "agents": settings.get("system", {}).get("mas", {}).get("number_of_agents", 0),
+                "default_model": settings.get("models", {}).get("default", ""),
+                "judge_model": settings.get("models", {}).get(
+                    "judge",
+                    settings.get("models", {}).get("default", ""),
+                ),
                 "task_count": int(summary.get("task_count", 0)),
                 "runs_per_task": int(summary.get("runs_per_task", 0)),
                 "avg_task_score": _mean(scores),

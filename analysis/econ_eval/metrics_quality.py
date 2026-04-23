@@ -64,6 +64,7 @@ def compute_quality_metrics(
     eval_avg_score = float(scores.mean()) if not scores.dropna().empty else math.nan
 
     metrics: dict[str, float] = {
+        "accuracy": eval_avg_score,
         "success_rate": success_rate,
         "stability": stability,
         "eval_avg_score": eval_avg_score,

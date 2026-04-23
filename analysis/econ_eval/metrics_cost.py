@@ -41,6 +41,7 @@ def compute_cost_metrics(
         run_df.get("communication_count_system_mediated"), errors="coerce"
     )
     handoffs = pd.to_numeric(run_df.get("handoff_count"), errors="coerce")
+    latencies_e2e = pd.to_numeric(run_df.get("latency_e2e"), errors="coerce")
 
     tokens_total = float(tokens.mean()) if not tokens.dropna().empty else math.nan
 
@@ -64,6 +65,8 @@ def compute_cost_metrics(
 
     return {
         "tokens_total": tokens_total,
+        "token_total": tokens_total,
+        "latency_e2e": float(latencies_e2e.mean()) if not latencies_e2e.dropna().empty else math.nan,
         "cost_per_success": float(cost_per_success),
         "tokens_cv": tokens_cv,
         "tool_calls_total": tool_calls_total,

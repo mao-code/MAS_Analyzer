@@ -113,18 +113,37 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
                 analysis["evaluation"]["avg_score"],
             )
             self.assertEqual(
+                analysis["descriptor"]["accuracy"],
+                analysis["evaluation"]["accuracy"],
+            )
+            self.assertEqual(
                 analysis["descriptor"]["pass_at_1"],
                 analysis["descriptor"]["success_rate"],
             )
             self.assertTrue(math.isnan(analysis["descriptor"]["pass_at_3"]))
             self.assertTrue(math.isnan(analysis["descriptor"]["stability"]))
             self.assertTrue(math.isnan(analysis["descriptor"]["tokens_cv"]))
+            self.assertIn("latency_e2e", analysis["descriptor"])
+            self.assertEqual(
+                analysis["descriptor"]["token_total"],
+                analysis["descriptor"]["tokens_total"],
+            )
 
             eval_payload = json.loads((task_dir / "run_0.eval.json").read_text(encoding="utf-8"))
             run_metadata = eval_payload["details"]["run_metadata"]
             self.assertNotIn("search", run_metadata.get("tool_call_counts", {}))
             answer_text = (task_dir / "run_0.answer.txt").read_text(encoding="utf-8").strip()
             self.assertTrue(answer_text)
+
+            trace_metrics = json.loads(
+                (task_dir / "run_0.trace_metrics.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("accuracy", trace_metrics["metrics"])
+            self.assertIn("latency_e2e", trace_metrics["metrics"])
+            self.assertEqual(
+                trace_metrics["metrics"]["token_total"],
+                trace_metrics["metrics"]["tokens_total"],
+            )
 
             settings_path = root / "experiment_settings.json"
             self.assertTrue(settings_path.exists())
