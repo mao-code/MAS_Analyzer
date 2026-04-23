@@ -22,7 +22,7 @@ Analyzer.
 
 The adapter exposes the four official FinanceAgent-style tools:
 
-- `google_web_search`
+- `web_search`
 - `edgar_search`
 - `parse_html_page`
 - `retrieve_information`
@@ -54,7 +54,7 @@ web_search_top_n = 10
 
 Optional tool credentials can come from config or environment variables:
 
-- `SERPAPI_API_KEY`
+- `TAVILY_API_KEY`
 - `SEC_EDGAR_API_KEY`
 
 ## Data Sync

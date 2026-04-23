@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
@@ -85,6 +86,7 @@ class BatchOptions:
     skip_setup: bool
     setup_only: bool
     no_dynamic_roles: bool
+    resume_skip_existing: bool
     list_benchmarks: bool
 
 
@@ -227,6 +229,14 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
     parser.add_argument("--skip-setup", action="store_true")
     parser.add_argument("--setup-only", action="store_true")
     parser.add_argument(
+        "--resume-skip-existing",
+        action="store_true",
+        help=(
+            "Resume mode: pass --resume-skip-existing to main.py so completed run_i "
+            "artifacts are reused instead of rerun."
+        ),
+    )
+    parser.add_argument(
         "--no-dynamic-roles",
         dest="no_dynamic_roles",
         action="store_true",
@@ -251,6 +261,7 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         skip_setup=bool(args.skip_setup),
         setup_only=bool(args.setup_only),
         no_dynamic_roles=bool(args.no_dynamic_roles),
+        resume_skip_existing=bool(args.resume_skip_existing),
         list_benchmarks=bool(args.list_benchmarks),
     )
 
@@ -435,7 +446,7 @@ def warmup_benchmark(name: str, config: dict[str, Any], *, task_limit: int = 1) 
 
     benchmark = get_benchmark(name, config)
     tasks = benchmark.load_tasks(task_limit=task_limit)
-    info(f"Prepared benchmark={name} sample_tasks={len(tasks)}")
+    info(f"Prepared benchmark={name} health_check_tasks={len(tasks)}")
 
 
 def prepare_browsecomp(config: dict[str, Any]) -> None:
@@ -455,7 +466,7 @@ def prepare_browsecomp(config: dict[str, Any]) -> None:
     if decrypted_path_value and (ROOT / decrypted_path_value).resolve().exists():
         benchmark = BrowseCompBenchmark(cfg)
         tasks = benchmark.load_tasks(task_limit=1)
-        info(f"Prepared benchmark=browsecomp sample_tasks={len(tasks)}")
+        info(f"Prepared benchmark=browsecomp health_check_tasks={len(tasks)}")
         return
 
     bootstrap_cfg = dict(cfg)
@@ -465,7 +476,7 @@ def prepare_browsecomp(config: dict[str, Any]) -> None:
     bootstrap_cfg["auto_download"] = True
     benchmark = BrowseCompBenchmark(bootstrap_cfg)
     tasks = benchmark.load_tasks(task_limit=1)
-    info(f"Prepared benchmark=browsecomp sample_tasks={len(tasks)}")
+    info(f"Prepared benchmark=browsecomp health_check_tasks={len(tasks)}")
 
 
 def stabletoolbench_health_url(virtual_server_url: str) -> str:
@@ -793,7 +804,7 @@ def prepare_agentbench(config: dict[str, Any]) -> None:
 
     benchmark = AgentBenchBenchmark(cfg)
     tasks = benchmark.load_tasks(task_limit=1)
-    info(f"Prepared benchmark=agentbench sample_tasks={len(tasks)}")
+    info(f"Prepared benchmark=agentbench health_check_tasks={len(tasks)}")
 
 
 def prepare_benchmark_environment(config_path: Path, *, benchmark_name: str) -> None:
@@ -842,27 +853,19 @@ def batch_run(options: BatchOptions) -> int:
                 runs_per_task_override=options.runs_per_task,
             )
 
-            if not options.skip_setup:
-                for benchmark_name, config_path in selected_configs.items():
-                    info("")
-                    info(f"=== Preparing benchmark={benchmark_name} ===")
-                    prepare_benchmark_environment(config_path, benchmark_name=benchmark_name)
-
-            if options.setup_only:
-                info("")
-                info("Setup completed. Batch execution was skipped because --setup-only was set.")
-                return 0
-
             skipped_jobs = 0
-            for benchmark_name, config_path in selected_configs.items():
-                for (
-                    system_label,
-                    topology,
-                    agents,
-                    rounds,
-                    discussion_rounds,
-                    communication_budget,
-                ) in SYSTEMS:
+            pending_systems_by_benchmark: dict[str, list[tuple[str, str, int, int, int, int]]] = {}
+            for benchmark_name, _ in selected_configs.items():
+                pending_systems: list[tuple[str, str, int, int, int, int]] = []
+                for system in SYSTEMS:
+                    (
+                        system_label,
+                        topology,
+                        agents,
+                        rounds,
+                        discussion_rounds,
+                        communication_budget,
+                    ) = system
                     system_root = experiment_root / benchmark_name / system_label
                     summary_json = system_root / "summary.json"
                     summary_csv = system_root / "summary.csv"
@@ -874,7 +877,45 @@ def batch_run(options: BatchOptions) -> int:
                             f"(existing summary found)"
                         )
                         continue
+                    pending_systems.append(
+                        (
+                            system_label,
+                            topology,
+                            agents,
+                            rounds,
+                            discussion_rounds,
+                            communication_budget,
+                        )
+                    )
+                pending_systems_by_benchmark[benchmark_name] = pending_systems
 
+            if not options.skip_setup:
+                for benchmark_name, config_path in selected_configs.items():
+                    if not pending_systems_by_benchmark.get(benchmark_name):
+                        info("")
+                        info(
+                            f"=== Skip prepare benchmark={benchmark_name} "
+                            "(all systems already completed) ==="
+                        )
+                        continue
+                    info("")
+                    info(f"=== Preparing benchmark={benchmark_name} ===")
+                    prepare_benchmark_environment(config_path, benchmark_name=benchmark_name)
+
+            if options.setup_only:
+                info("")
+                info("Setup completed. Batch execution was skipped because --setup-only was set.")
+                return 0
+
+            for benchmark_name, config_path in selected_configs.items():
+                for (
+                    system_label,
+                    topology,
+                    agents,
+                    rounds,
+                    discussion_rounds,
+                    communication_budget,
+                ) in pending_systems_by_benchmark.get(benchmark_name, []):
                     cmd = [
                         sys.executable,
                         "main.py",
@@ -911,6 +952,8 @@ def batch_run(options: BatchOptions) -> int:
                         cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
                     if options.no_dynamic_roles:
                         cmd.append("--no-dynamic-roles")
+                    if options.resume_skip_existing:
+                        cmd.append("--resume-skip-existing")
                     jobs.append(
                         RunJob(
                             benchmark_name=benchmark_name,

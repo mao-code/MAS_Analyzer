@@ -14,15 +14,14 @@ from typing import Any
 from benchmark import BenchmarkEvaluation, get_benchmark, list_benchmarks
 from descriptor.experiment import analyze_task_runs, write_run_trace
 from descriptor.metrics import RunOutcome, compute_run_metrics, resolve_run_outcome
+from descriptor.schema import TraceEvent
 from MAS import MASRunner, OpenRouterLLMClient, load_experiment_config
 from MAS.langgraph_engine import ExperimentSpec, LangGraphMASEngine
 
 try:
     from datetime import UTC
 except ImportError:  # pragma: no cover - Python < 3.11 fallback
-    from datetime import timezone
-
-    UTC = timezone.utc
+    UTC = UTC
 
 
 def _now_stamp() -> str:
@@ -154,6 +153,56 @@ def _write_summary_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
                 for key, value in row.items()
             }
             writer.writerow(sanitized_row)
+
+
+def _read_trace_jsonl(path: Path) -> list[TraceEvent]:
+    events: list[TraceEvent] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        payload = json.loads(line)
+        if not isinstance(payload, dict):
+            continue
+        events.append(TraceEvent.from_dict(payload, strict=False))
+    return events
+
+
+def _load_existing_run_for_resume(
+    *,
+    task_dir: Path,
+    task_id: str,
+    run_index: int,
+) -> tuple[list[TraceEvent], BenchmarkEvaluation, RunOutcome] | None:
+    trace_path = task_dir / f"run_{run_index}.trace.jsonl"
+    eval_path = task_dir / f"run_{run_index}.eval.json"
+    if not trace_path.exists() or not eval_path.exists():
+        return None
+
+    try:
+        trace_events = _read_trace_jsonl(trace_path)
+        eval_payload = json.loads(eval_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    evaluation = BenchmarkEvaluation(
+        task_id=str(eval_payload.get("task_id", task_id)),
+        score=float(eval_payload.get("score", 0.0)),
+        success=bool(eval_payload.get("success", False)),
+        details=dict(eval_payload.get("details", {}) or {}),
+    )
+
+    outcome_payload = eval_payload.get("outcome", {}) or {}
+    run_outcome = RunOutcome(
+        success=bool(outcome_payload.get("success", evaluation.success)),
+        completion=bool(outcome_payload.get("completion", True)),
+        score=float(outcome_payload["score"])
+        if outcome_payload.get("score") is not None
+        else float(evaluation.score),
+        success_source=str(outcome_payload.get("success_source", "benchmark_evaluation")),
+        completion_source=str(outcome_payload.get("completion_source", "resume_file")),
+    )
+    return trace_events, evaluation, run_outcome
 
 
 def _default_system_label(config: Any) -> str:
@@ -1507,9 +1556,7 @@ def run_command(args: argparse.Namespace) -> int:
         summary_json["graph"] = graph_payload
 
     for task_idx, task in enumerate(tasks):
-        _log_progress(
-            f"TASK_START index={task_idx + 1}/{len(tasks)} task_id={task.task_id}"
-        )
+        _log_progress(f"TASK_START index={task_idx + 1}/{len(tasks)} task_id={task.task_id}")
         task_dir = (
             output_paths.run_root / task.task_id
             if output_paths.output_layout == "hierarchical"
@@ -1525,9 +1572,35 @@ def run_command(args: argparse.Namespace) -> int:
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
             run_started = datetime.now(UTC)
-            _log_progress(
-                f"RUN_START task_id={task.task_id} run_index={run_index} seed={run_seed}"
-            )
+            if getattr(args, "resume_skip_existing", False):
+                existing = _load_existing_run_for_resume(
+                    task_dir=task_dir,
+                    task_id=str(task.task_id),
+                    run_index=run_index,
+                )
+                if existing is not None:
+                    trace_events, evaluation, run_outcome = existing
+                    run_traces.append(trace_events)
+                    evaluations.append(evaluation)
+                    run_outcomes.append(run_outcome)
+                    run_artifacts.append(
+                        {
+                            "trace_path": str(
+                                (task_dir / f"run_{run_index}.trace.jsonl").resolve()
+                            ),
+                            "eval_path": str((task_dir / f"run_{run_index}.eval.json").resolve()),
+                            "score": float(evaluation.score),
+                            "success": bool(evaluation.success),
+                            "completion": bool(run_outcome.completion),
+                            "resumed_from_existing": True,
+                        }
+                    )
+                    _log_progress(
+                        f"RUN_SKIP_EXISTING task_id={task.task_id} run_index={run_index} "
+                        f"path={task_dir / f'run_{run_index}.eval.json'}"
+                    )
+                    continue
+            _log_progress(f"RUN_START task_id={task.task_id} run_index={run_index} seed={run_seed}")
             try:
                 run = benchmark.run(
                     task=task,
@@ -1812,6 +1885,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--task-limit", type=int, default=None)
     run_parser.add_argument("--runs-per-task", type=int, default=None)
+    run_parser.add_argument(
+        "--resume-skip-existing",
+        action="store_true",
+        default=False,
+        help="Resume mode: skip run_i when run_i.trace.jsonl and run_i.eval.json already exist.",
+    )
     run_parser.add_argument("--seed", type=int, default=None)
     run_parser.add_argument("--output-dir", default=None)
     run_parser.add_argument(

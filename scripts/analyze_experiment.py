@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 
 PASS_AT_K_COLUMNS = ("pass_at_1", "pass_at_3", "pass_at_5", "pass_at_8")
 DELTA_HEATMAP_COLUMNS = (
@@ -156,6 +156,46 @@ def normalize_task_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _mean_scicode_subproblem_rate(task_dir_value: Any) -> float:
+    if not isinstance(task_dir_value, str) or not task_dir_value.strip():
+        return float("nan")
+    task_dir = Path(task_dir_value).expanduser()
+    if not task_dir.exists():
+        return float("nan")
+
+    eval_paths = sorted(task_dir.glob("run_*.eval.json"))
+    if not eval_paths:
+        return float("nan")
+
+    values: list[float] = []
+    for eval_path in eval_paths:
+        match = re.search(r"run_(\d+)\.eval\.json$", eval_path.name)
+        if not match:
+            continue
+        run_idx = match.group(1)
+        trace_path = task_dir / f"run_{run_idx}.trace.jsonl"
+        if not trace_path.exists():
+            # Skip resume-placeholder runs where eval exists but trace does not.
+            continue
+        try:
+            payload = json.loads(eval_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        details = payload.get("details")
+        if not isinstance(details, dict):
+            continue
+        value = details.get("Subproblem Resolve Rate")
+        if value is None:
+            continue
+        try:
+            values.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    if not values:
+        return float("nan")
+    return float(sum(values) / len(values))
+
+
 def load_task_rows(experiment_root: Path) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
     for benchmark_dir in sorted(path for path in experiment_root.iterdir() if path.is_dir()):
@@ -171,6 +211,10 @@ def load_task_rows(experiment_root: Path) -> pd.DataFrame:
             frame["system_label"] = frame.get("system_label", system_dir.name)
             frame["topology"] = frame.get("topology", system_dir.name)
             frame["system_root"] = str(system_dir.resolve())
+            if benchmark_dir.name == "scicode" and "task_dir" in frame.columns:
+                frame["scicode_subproblem_resolve_rate"] = frame["task_dir"].map(
+                    _mean_scicode_subproblem_rate
+                )
             frames.append(frame)
 
     if not frames:
@@ -204,6 +248,11 @@ def aggregate_system_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
             "system_mediated_communication_count",
             "mean",
         )
+    if "scicode_subproblem_resolve_rate" in task_df.columns:
+        agg_spec["avg_scicode_subproblem_resolve_rate"] = (
+            "scicode_subproblem_resolve_rate",
+            "mean",
+        )
     for column in PASS_AT_K_COLUMNS:
         if column in task_df.columns:
             agg_spec[f"avg_{column}"] = (column, "mean")
@@ -212,7 +261,13 @@ def aggregate_system_metrics(task_df: pd.DataFrame) -> pd.DataFrame:
         task_df.groupby(["benchmark", "system_label", "topology"], as_index=False)
         .agg(**agg_spec)
         .sort_values(
-            by=["benchmark", "avg_success_rate", "avg_stability", "avg_tokens_total", "system_label"],
+            by=[
+                "benchmark",
+                "avg_success_rate",
+                "avg_stability",
+                "avg_tokens_total",
+                "system_label",
+            ],
             ascending=[True, False, False, True, True],
         )
     )
@@ -411,6 +466,77 @@ def _save_success_vs_tokens_frontier(
     return str(path.resolve())
 
 
+def _save_scicode_substep_chart(
+    frame: pd.DataFrame,
+    *,
+    benchmark: str,
+    out_dir: Path,
+) -> str | None:
+    if benchmark != "scicode":
+        return None
+
+    required = ["avg_success_rate", "avg_scicode_subproblem_resolve_rate"]
+    if not all(column in frame.columns for column in required):
+        return None
+
+    subset = frame.dropna(subset=["avg_success_rate"]).copy()
+    if subset.empty:
+        return None
+
+    substep_subset = subset.dropna(subset=["avg_scicode_subproblem_resolve_rate"]).copy()
+    if substep_subset.empty:
+        return None
+
+    systems = _ordered_systems(
+        substep_subset,
+        success_col="avg_scicode_subproblem_resolve_rate",
+        stability_col="avg_success_rate",
+        tokens_col="avg_tokens_total",
+    )
+    subset["system_label"] = pd.Categorical(
+        subset["system_label"], categories=systems, ordered=True
+    )
+    subset = subset.sort_values("system_label")
+
+    labels = subset["system_label"].astype(str).tolist()
+    success_values = subset["avg_success_rate"].to_numpy(dtype=float)
+    substep_values = subset["avg_scicode_subproblem_resolve_rate"].to_numpy(dtype=float)
+    colors = [_color_for_system(system_label) for system_label in labels]
+    x_values = np.arange(len(labels))
+    width = 0.38
+
+    fig, ax = plt.subplots(figsize=(max(10, len(labels) * 1.5), 5))
+    ax.bar(
+        x_values - width / 2,
+        success_values,
+        width=width,
+        label="success_rate",
+        color="#4c78a8",
+    )
+    ax.bar(
+        x_values + width / 2,
+        substep_values,
+        width=width,
+        label="subproblem_resolve_rate",
+        color=colors,
+        edgecolor="#111111",
+        linewidth=0.6,
+    )
+    ax.set_xticks(x_values)
+    ax.set_xticklabels(labels, rotation=25)
+    ax.set_ylim(0.0, 1.05)
+    ax.set_title("scicode: success_rate vs substep resolve rate")
+    ax.set_ylabel("rate")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+
+    path = out_dir / f"{_sanitize_filename(benchmark)}_substep_comparison.png"
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return str(path.resolve())
+
+
 def _format_delta(value: float) -> str:
     if math.isnan(value):
         return "NaN"
@@ -463,7 +589,7 @@ def _save_vs_sas_delta_heatmap(
     ax.set_xticklabels([label for _, label in metric_pairs], rotation=20, ha="right")
     ax.set_yticks(np.arange(len(systems)))
     ax.set_yticklabels(systems)
-    for row_idx, system_label in enumerate(systems):
+    for row_idx, _system_label in enumerate(systems):
         for col_idx, _ in enumerate(metric_pairs):
             value = matrix[row_idx, col_idx]
             ax.text(
@@ -569,18 +695,30 @@ def _save_coordination_breakdown_chart(
     subset = subset.sort_values("system_label")
 
     labels = subset["system_label"].astype(str).tolist()
-    agent_comm = subset.get(
-        "avg_agent_to_agent_communication_count",
-        pd.Series(0.0, index=subset.index),
-    ).fillna(0.0).to_numpy(dtype=float)
-    system_comm = subset.get(
-        "avg_system_mediated_communication_count",
-        pd.Series(0.0, index=subset.index),
-    ).fillna(0.0).to_numpy(dtype=float)
-    handoffs = subset.get(
-        "avg_handoff_count",
-        pd.Series(0.0, index=subset.index),
-    ).fillna(0.0).to_numpy(dtype=float)
+    agent_comm = (
+        subset.get(
+            "avg_agent_to_agent_communication_count",
+            pd.Series(0.0, index=subset.index),
+        )
+        .fillna(0.0)
+        .to_numpy(dtype=float)
+    )
+    system_comm = (
+        subset.get(
+            "avg_system_mediated_communication_count",
+            pd.Series(0.0, index=subset.index),
+        )
+        .fillna(0.0)
+        .to_numpy(dtype=float)
+    )
+    handoffs = (
+        subset.get(
+            "avg_handoff_count",
+            pd.Series(0.0, index=subset.index),
+        )
+        .fillna(0.0)
+        .to_numpy(dtype=float)
+    )
     colors = [_color_for_system(system_label) for system_label in labels]
     x_values = np.arange(len(labels))
 
@@ -660,7 +798,11 @@ def write_report(
         benchmark_vs_sas = vs_sas_df[vs_sas_df["benchmark"] == benchmark]
         if not benchmark_vs_sas.empty:
             leader = benchmark_vs_sas.sort_values(
-                by=["mean_success_rate_delta_vs_sas", "mean_stability_delta_vs_sas", "system_label"],
+                by=[
+                    "mean_success_rate_delta_vs_sas",
+                    "mean_stability_delta_vs_sas",
+                    "system_label",
+                ],
                 ascending=[False, False, True],
             ).iloc[0]
             lines.append(
@@ -674,6 +816,7 @@ def write_report(
         "system_label",
         "task_count",
         "avg_eval_score",
+        "avg_scicode_subproblem_resolve_rate",
         "avg_success_rate",
         "avg_stability",
         "avg_pass_at_1",
@@ -689,7 +832,11 @@ def write_report(
     ]
     lines.extend(["## System Table", ""])
     lines.append(
-        render_table(system_df[[column for column in display_columns if column in system_df.columns]].round(3))
+        render_table(
+            system_df[[column for column in display_columns if column in system_df.columns]].round(
+                3
+            )
+        )
     )
     lines.append("")
 
@@ -707,6 +854,8 @@ def write_report(
         [
             "## Notes",
             "",
+            "- For SciCode, `avg_scicode_subproblem_resolve_rate` is aggregated from each run's `Subproblem Resolve Rate` in `run_i.eval.json`.",
+            "- The SciCode substep comparison chart shows `success_rate` next to `avg_scicode_subproblem_resolve_rate` so you can see whether failures happen at the final task level or earlier substeps.",
             "- `stability` and `tokens_cv` are left blank when a task has fewer than two runs.",
             "- `pass_at_k` is left blank when the task has fewer than `k` repeated runs.",
             "- `cost_per_success` is left blank when `success_rate = 0`.",
@@ -743,6 +892,11 @@ def analyze_experiment(experiment_root: Path, output_dir: Path) -> dict[str, Any
         for plot_path in [
             _save_pass_at_k_chart(benchmark_system_df, benchmark=benchmark, out_dir=output_dir),
             _save_success_vs_tokens_frontier(
+                benchmark_system_df,
+                benchmark=benchmark,
+                out_dir=output_dir,
+            ),
+            _save_scicode_substep_chart(
                 benchmark_system_df,
                 benchmark=benchmark,
                 out_dir=output_dir,
@@ -816,7 +970,9 @@ def analyze_experiment(experiment_root: Path, output_dir: Path) -> dict[str, Any
         analysis_payload["artifacts"]["system_level_vs_sas_csv"] = str(vs_sas_system_csv.resolve())
 
     analysis_json = output_dir / "analysis.json"
-    analysis_json.write_text(json.dumps(analysis_payload, indent=2, sort_keys=True), encoding="utf-8")
+    analysis_json.write_text(
+        json.dumps(analysis_payload, indent=2, sort_keys=True), encoding="utf-8"
+    )
     return analysis_payload
 
 
@@ -824,7 +980,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Analyze a hierarchical experiment root and generate paper-aligned comparison plots."
     )
-    parser.add_argument("--experiment-root", required=True, help="Path to artifacts/full_experiment/<experiment-id>")
+    parser.add_argument(
+        "--experiment-root", required=True, help="Path to artifacts/full_experiment/<experiment-id>"
+    )
     parser.add_argument(
         "--output-dir",
         default=None,

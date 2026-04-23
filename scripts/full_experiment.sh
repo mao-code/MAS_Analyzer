@@ -20,6 +20,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-}"
 CONFIG_DIR="${CONFIG_DIR:-}"
 SKIP_SETUP="${SKIP_SETUP:-0}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
+RESUME_SKIP_EXISTING="${RESUME_SKIP_EXISTING:-0}"
 FINAL_VOTE_MODE="${FINAL_VOTE_MODE:-}"
 # Set DISABLE_DYNAMIC_ROLES=1 to skip LLM-based role assignment (uses structural roles only).
 DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
@@ -161,6 +162,9 @@ fi
 if [[ "${SETUP_ONLY}" == "1" ]]; then
   args+=(--setup-only)
 fi
+if [[ "${RESUME_SKIP_EXISTING}" == "1" ]]; then
+  args+=(--resume-skip-existing)
+fi
 if [[ -n "${FINAL_VOTE_MODE}" ]]; then
   args+=(--final-vote-mode "${FINAL_VOTE_MODE}")
 fi
@@ -181,6 +185,10 @@ python_is_compatible() {
   local python_cmd="${1}"
   "${python_cmd}" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1
 }
+
+if command -v uv >/dev/null 2>&1; then
+  exec uv run python scripts/full_experiment.py "${args[@]}" "$@"
+fi
 
 if command -v conda >/dev/null 2>&1; then
   if conda run -n agents python -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then

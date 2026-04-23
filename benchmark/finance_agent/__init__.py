@@ -84,9 +84,22 @@ CRITERION ({operator}):
 {criteria}
 """
 
-_OFFICIAL_INSTRUCTIONS_PROMPT = """You are a financial agent. Today is April 07, 2025. You are given a question and you need to answer it using the tools provided.
-You may not interract with the user.
-When you have the answer, you should respond with 'FINAL ANSWER:' followed by your answer.
+_OFFICIAL_INSTRUCTIONS_PROMPT = """
+You are a financial agent. You are given a question and you need to answer it using the tools provided.
+You will not be able to interact with the user or ask clarifications, you must answer the question only based on the information provided.
+
+You should answer all questions as if the current date is April 07, 2025.
+
+You will have access to a data storage system. You can use this system to store parsed contents of HTML pages retrieved from the web.
+You can then use the retrieve_information tool to apply answer questions or gather information from the stored documents using LLM-based prompts.
+This data storage system is designed to help you avoid context window issues.
+
+When you have the final answer, output it directly in your final response.
+
+You should include any necessary step-by-step reasoning, justification, calculations, or explanation in your answer. You will be evaluated both on the accuracy of the final answer, and the correctness of the supporting logic.
+
+When possible, please provide any calculated answers to at least two decimal places (e.g. 18.78% rather than 19%). Please do not round intermediate steps in any calculations - you should only round your final answer.
+
 At the end of your answer, you should provide your sources in a dictionary with the following format:
 {{
     "sources": [
@@ -138,8 +151,8 @@ class FinanceAgentBenchmark:
         self._llm_config: dict[str, Any] = dict(cfg.get("openrouter", {}))
 
         # Tool API keys — fall back to env vars (mirrors official repo)
-        self.serpapi_key: str = str(
-            cfg.get("serpapi_api_key") or os.environ.get("SERPAPI_API_KEY", "")
+        self.tavily_api_key: str = str(
+            cfg.get("tavily_api_key") or os.environ.get("TAVILY_API_KEY", "")
         )
         self.sec_api_key: str = str(
             cfg.get("sec_api_key") or os.environ.get("SEC_EDGAR_API_KEY", "")
@@ -272,27 +285,53 @@ class FinanceAgentBenchmark:
         """Return MAS-compatible tool dicts for the four official tools."""
         tools: list[dict[str, Any]] = []
 
-        # 1. google_web_search
-        serpapi_key = self.serpapi_key
+        # 1. web_search (Tavily)
+        tavily_api_key = self.tavily_api_key
         top_n = self.web_search_top_n
 
-        async def google_web_search(args: dict[str, Any]) -> Any:
+        async def web_search(args: dict[str, Any]) -> Any:
             query = str(args.get("search_query", "")).strip()
+            start_date = str(args.get("start_date", "")).strip()
+            end_date = self._clamp_end_date(str(args.get("end_date", "")).strip())
+            if not end_date:
+                end_date = MAX_END_DATE
+            number_of_results = int(args.get("number_of_results", top_n))
             if not query:
                 return {"success": False, "result": "search_query is required"}
-            if not serpapi_key:
+            if start_date and not re.match(r"^\d{4}-\d{2}-\d{2}$", start_date):
                 return {
                     "success": False,
-                    "result": "SERPAPI_API_KEY not configured. Set serpapi_api_key in config or SERPAPI_API_KEY env var.",
+                    "result": f"Invalid start_date format: '{start_date}'. Expected YYYY-MM-DD.",
+                }
+            if end_date and not re.match(r"^\d{4}-\d{2}-\d{2}$", end_date):
+                return {
+                    "success": False,
+                    "result": f"Invalid end_date format: '{end_date}'. Expected YYYY-MM-DD.",
+                }
+            if start_date and start_date > end_date:
+                return {
+                    "success": False,
+                    "result": (
+                        f"Parameter start_date '{start_date}' was set to a date that is later than "
+                        f"end_date '{end_date}'"
+                    ),
+                }
+            if not tavily_api_key:
+                return {
+                    "success": False,
+                    "result": "TAVILY_API_KEY not configured. Set tavily_api_key in config or TAVILY_API_KEY env var.",
                 }
             try:
-                params = {
-                    "api_key": serpapi_key,
-                    "engine": "google",
-                    "q": query,
-                    "num": top_n,
-                    "tbs": f"cdr:1,cd_max:{self._google_max_date()}",
+                payload: dict[str, Any] = {
+                    "api_key": tavily_api_key,
+                    "query": query,
+                    "search_depth": "fast",
+                    "max_results": max(1, min(20, number_of_results)),
+                    "chunks_per_source": 1,
+                    "end_date": end_date,
                 }
+                if start_date:
+                    payload["start_date"] = start_date
 
                 import aiohttp
 
@@ -300,9 +339,9 @@ class FinanceAgentBenchmark:
                     try:
                         async with (
                             aiohttp.ClientSession() as session,
-                            session.get(
-                                "https://serpapi.com/search.json",
-                                params=params,
+                            session.post(
+                                "https://api.tavily.com/search",
+                                json=payload,
                                 timeout=20,
                             ) as response,
                         ):
@@ -316,29 +355,44 @@ class FinanceAgentBenchmark:
                                 )
                             response.raise_for_status()
                             data = await response.json()
-                            results = data.get("organic_results", [])[:top_n]
+                            results = data.get("results", [])
                             return {"success": True, "result": json.dumps(results)}
                     except aiohttp.ClientResponseError as exc:
                         if exc.status == 429 and attempt < 7:
                             time.sleep(min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0)))
                             continue
                         raise
-                return {"success": False, "result": "Max retries reached for SerpAPI"}
+                return {"success": False, "result": "Max retries reached for Tavily API"}
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 
         tools.append(
             {
-                "name": "google_web_search",
+                "name": "web_search",
                 "description": "Search the web for information",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "search_query": {"type": "string", "description": "The query to search for"}
+                        "search_query": {
+                            "type": "string",
+                            "description": "The query to search for",
+                        },
+                        "start_date": {
+                            "type": "string",
+                            "description": "(optional) The start date for the search range in the format YYYY-MM-DD",
+                        },
+                        "end_date": {
+                            "type": "string",
+                            "description": f"(optional) The end date for the search range in the format YYYY-MM-DD. If later than {MAX_END_DATE}, it will be clamped.",
+                        },
+                        "number_of_results": {
+                            "type": "integer",
+                            "description": "(optional) Number of results to return (1-20).",
+                        },
                     },
                     "required": ["search_query"],
                 },
-                "handler": google_web_search,
+                "handler": web_search,
             }
         )
 
@@ -352,15 +406,56 @@ class FinanceAgentBenchmark:
                     "result": "SEC_EDGAR_API_KEY not configured. Set sec_api_key in config or SEC_EDGAR_API_KEY env var.",
                 }
             try:
+                search_query = str(args.get("search_query", "")).strip()
+                if not search_query:
+                    return {"success": False, "result": "search_query is required"}
+                form_types = args.get("form_types")
+                if form_types is not None and not isinstance(form_types, list):
+                    return {
+                        "success": False,
+                        "result": f"The parameter form_types must be a list if provided. Was of type {type(form_types)}",
+                    }
+                ciks = args.get("ciks")
+                if ciks is not None and not isinstance(ciks, list):
+                    return {
+                        "success": False,
+                        "result": f"The parameter ciks must be a list if provided. Was of type {type(ciks)}",
+                    }
+                start_date = str(args.get("start_date", "1900-01-01")).strip() or "1900-01-01"
+                end_date = str(args.get("end_date", MAX_END_DATE)).strip() or MAX_END_DATE
+                if not re.match(r"^\d{4}-\d{2}-\d{2}$", start_date):
+                    return {
+                        "success": False,
+                        "result": f"start_date '{start_date}' is not in yyyy-mm-dd format",
+                    }
+                if not re.match(r"^\d{4}-\d{2}-\d{2}$", end_date):
+                    return {
+                        "success": False,
+                        "result": f"end_date '{end_date}' is not in yyyy-mm-dd format",
+                    }
+                if start_date > MAX_END_DATE:
+                    start_date = MAX_END_DATE
+                if end_date > MAX_END_DATE:
+                    end_date = MAX_END_DATE
+                if start_date > end_date:
+                    return {
+                        "success": False,
+                        "result": (
+                            f"Parameter start_date '{start_date}' was set to a date that is later than "
+                            f"end_date '{end_date}'"
+                        ),
+                    }
                 payload = {
-                    "query": str(args.get("query", "")),
-                    "formTypes": self._parse_list_arg(args.get("form_types")),
-                    "ciks": self._parse_list_arg(args.get("ciks")),
-                    "startDate": str(args.get("start_date", "")),
-                    "endDate": self._clamp_end_date(str(args.get("end_date", ""))),
-                    "page": str(args.get("page", "1")),
+                    "query": search_query,
+                    "startDate": start_date,
+                    "endDate": end_date,
+                    "page": int(args.get("page", 1) or 1),
                 }
-                top_n_results = int(args.get("top_n_results", 5))
+                if form_types:
+                    payload["formTypes"] = form_types
+                if ciks:
+                    payload["ciks"] = ciks
+                top_n_results = int(args.get("top_n_results", 100))
 
                 import aiohttp
 
@@ -386,12 +481,20 @@ class FinanceAgentBenchmark:
                                     message="429",
                                     headers=response.headers,
                                 )
+                            if response.status == 503:
+                                raise aiohttp.ClientResponseError(
+                                    request_info=response.request_info,
+                                    history=response.history,
+                                    status=503,
+                                    message="503",
+                                    headers=response.headers,
+                                )
                             response.raise_for_status()
                             result = await response.json()
                             filings = result.get("filings", [])[:top_n_results]
                             return {"success": True, "result": json.dumps(filings)}
                     except aiohttp.ClientResponseError as exc:
-                        if exc.status == 429 and attempt < 7:
+                        if exc.status in {429, 503} and attempt < 7:
                             time.sleep(min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0)))
                             continue
                         raise
@@ -404,13 +507,13 @@ class FinanceAgentBenchmark:
                 "name": "edgar_search",
                 "description": (
                     "Search the EDGAR Database through the SEC API. "
-                    "You should provide a query, a list of form types, a list of CIKs, a start date, an end date, a page number, and a top N results. "
+                    "You should provide a search_query. You can optionally provide form_types, ciks, start_date, end_date, page, and top_n_results. "
                     "The results are returned as a list of dictionaries, each containing the metadata for a filing. It does not contain the full text of the filing."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {
+                        "search_query": {
                             "type": "string",
                             "description": "The keyword or phrase to search, such as 'substantial doubt' OR 'material weakness'",
                         },
@@ -441,15 +544,7 @@ class FinanceAgentBenchmark:
                             "description": "The top N results to return after the query. Useful if you are not sure the result you are loooking for is ranked first after your query.",
                         },
                     },
-                    "required": [
-                        "query",
-                        "form_types",
-                        "ciks",
-                        "start_date",
-                        "end_date",
-                        "page",
-                        "top_n_results",
-                    ],
+                    "required": ["search_query"],
                 },
                 "handler": edgar_search,
             }
@@ -541,8 +636,46 @@ class FinanceAgentBenchmark:
                         "in the format {{key_name}}. Please try again with the correct format."
                     ),
                 }
-            input_character_ranges = args.get("input_character_ranges", {}) or {}
+            input_character_ranges = args.get("input_character_ranges", []) or []
+            if not isinstance(input_character_ranges, list):
+                return {
+                    "success": False,
+                    "result": (
+                        "ERROR: input_character_ranges must be a list of objects with key/start/end."
+                    ),
+                }
+            ranges_dict: dict[str, tuple[int, int]] = {}
+            for range_spec in input_character_ranges:
+                if not isinstance(range_spec, dict):
+                    return {
+                        "success": False,
+                        "result": (
+                            "ERROR: Each item in input_character_ranges must be an object with "
+                            "'key', 'start', and 'end' fields."
+                        ),
+                    }
+                if not {"key", "start", "end"} <= set(range_spec.keys()):
+                    return {
+                        "success": False,
+                        "result": (
+                            "ERROR: Each range specification must have 'key', 'start', and 'end' fields."
+                        ),
+                    }
+                ranges_dict[str(range_spec["key"])] = (
+                    int(range_spec["start"]),
+                    int(range_spec["end"]),
+                )
             keys = re.findall(r"{{([^{}]+)}}", prompt)
+            keys_set = set(keys)
+            for range_key in ranges_dict:
+                if range_key not in keys_set:
+                    return {
+                        "success": False,
+                        "result": (
+                            f"ERROR: The key '{range_key}' is specified in input_character_ranges but is not referenced in the prompt. "
+                            f"Keys in prompt: {', '.join(keys_set) if keys_set else '(none)'}"
+                        ),
+                    }
 
             formatted_data: dict[str, str] = {}
             for key in keys:
@@ -555,30 +688,9 @@ class FinanceAgentBenchmark:
                         ),
                     }
                 doc_content = html_store[key]
-                if key in input_character_ranges:
-                    char_range = input_character_ranges[key]
-                    if not isinstance(char_range, list):
-                        return {
-                            "success": False,
-                            "result": (
-                                f"ERROR: The character range for key '{key}' must be an list "
-                                "with two elements or an empty list. Please try again with the correct format."
-                            ),
-                        }
-                    if len(char_range) == 0:
-                        formatted_data[key] = doc_content
-                    elif len(char_range) == 2:
-                        start_idx = int(char_range[0])
-                        end_idx = int(char_range[1])
-                        formatted_data[key] = doc_content[start_idx:end_idx]
-                    else:
-                        return {
-                            "success": False,
-                            "result": (
-                                f"ERROR: The character range for key '{key}' must be an list "
-                                "with two elements or an empty list. Please try again with the correct format."
-                            ),
-                        }
+                if key in ranges_dict:
+                    start_idx, end_idx = ranges_dict[key]
+                    formatted_data[key] = doc_content[start_idx:end_idx]
                 else:
                     formatted_data[key] = doc_content
 
@@ -949,11 +1061,6 @@ The output is the result from the LLM that receives the prompt with the inserted
             data = response.read()
         cached.write_bytes(data)
         return cached
-
-    @staticmethod
-    def _google_max_date() -> str:
-        parts = MAX_END_DATE.split("-")
-        return f"{parts[1]}/{parts[2]}/{parts[0]}"
 
     @staticmethod
     def _clamp_end_date(end_date: str) -> str:
