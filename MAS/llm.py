@@ -93,6 +93,46 @@ class OpenRouterLLMClient:
     def _env_flag(name: str) -> bool:
         return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
+    @staticmethod
+    def _env_float(name: str) -> float | None:
+        raw = os.getenv(name, "").strip()
+        if not raw:
+            return None
+        return float(raw)
+
+    @staticmethod
+    def _env_int(name: str) -> int | None:
+        raw = os.getenv(name, "").strip()
+        if not raw:
+            return None
+        return int(raw)
+
+    def _apply_openrouter_sampling_overrides(
+        self,
+        kwargs: dict[str, Any],
+        *,
+        temperature: float | None = None,
+    ) -> dict[str, Any]:
+        request_kwargs = dict(kwargs)
+
+        temperature_override = self._env_float("OPENROUTER_TEMPERATURE")
+        top_p_override = self._env_float("OPENROUTER_TOP_P")
+        top_k_override = self._env_int("OPENROUTER_TOP_K")
+
+        effective_temperature = (
+            temperature_override if temperature_override is not None else temperature
+        )
+        if effective_temperature is not None:
+            request_kwargs["temperature"] = effective_temperature
+        if top_p_override is not None:
+            request_kwargs["top_p"] = top_p_override
+        if top_k_override is not None:
+            extra_body = dict(request_kwargs.get("extra_body") or {})
+            extra_body["top_k"] = top_k_override
+            request_kwargs["extra_body"] = extra_body
+
+        return request_kwargs
+
     def generate(
         self,
         *,
@@ -590,6 +630,10 @@ class OpenRouterLLMClient:
     def _create_chat_completion(self, **kwargs: Any) -> Any:
         if self.client is None:
             raise RuntimeError("OpenRouter client unavailable")
+        kwargs = self._apply_openrouter_sampling_overrides(
+            kwargs,
+            temperature=kwargs.get("temperature"),
+        )
         kwargs.setdefault("timeout", self.config.timeout_s)
         timeout_value = float(self.config.timeout_s or 0.0)
         # On the main thread we can use SIGALRM for a true wall-clock deadline.

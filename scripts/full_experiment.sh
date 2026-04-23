@@ -11,7 +11,7 @@ set -euo pipefail
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 #   MODELS="google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b" bash scripts/full_experiment.sh
 
-TASK_LIMIT="${TASK_LIMIT:-10}"
+TASK_LIMIT="${TASK_LIMIT:-30}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
 # BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
 BENCHMARKS="${BENCHMARKS:-workbench,browsecomp,plancraft,stabletoolbench}"
@@ -44,6 +44,15 @@ FINAL_VOTE_MODE="${FINAL_VOTE_MODE:-}"
 BENCHMARK_EVAL_JUDGE_MODEL="${BENCHMARK_EVAL_JUDGE_MODEL:-}"
 # Set DISABLE_DYNAMIC_ROLES=1 to skip LLM-based role assignment (uses structural roles only).
 DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
+
+# ============================================================================
+# OpenRouter sampling overrides
+# These are exported so MAS OpenRouter calls can apply consistent sampling
+# during full experiment runs.
+# ============================================================================
+OPENROUTER_TEMPERATURE="${OPENROUTER_TEMPERATURE:-1.0}"
+OPENROUTER_TOP_P="${OPENROUTER_TOP_P:-1.0}"
+OPENROUTER_TOP_K="${OPENROUTER_TOP_K:-0}"
 
 # ============================================================================
 # Global MAS override args
@@ -209,6 +218,9 @@ export ORCHESTRATOR_WITH_DISCUSSION_ARGS
 export ONLY_VOTING_ARGS
 export FULLY_LINKED_DEBATE_ARGS
 export GROUP_CHAT_DEBATE_ARGS
+export OPENROUTER_TEMPERATURE
+export OPENROUTER_TOP_P
+export OPENROUTER_TOP_K
 
 python_is_compatible() {
   local python_cmd="${1}"
