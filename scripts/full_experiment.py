@@ -410,9 +410,21 @@ def service_pid_path(state_dir: Path, name: str) -> Path:
 
 
 def process_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+        return str(pid) in str(result.stdout or "")
     try:
         os.kill(pid, 0)
-    except OSError:
+    except Exception:  # noqa: BLE001
         return False
     return True
 
@@ -433,16 +445,34 @@ def stop_process_group(pid_path: Path, *, timeout_s: float = 10.0) -> None:
     if not process_is_running(pid):
         pid_path.unlink(missing_ok=True)
         return
-    with contextlib.suppress(OSError):
-        os.killpg(pid, signal.SIGTERM)
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        with contextlib.suppress(OSError):
+            os.killpg(pid, signal.SIGTERM)
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         if not process_is_running(pid):
             pid_path.unlink(missing_ok=True)
             return
         time.sleep(0.2)
-    with contextlib.suppress(OSError):
-        os.killpg(pid, signal.SIGKILL)
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        with contextlib.suppress(OSError):
+            os.killpg(pid, signal.SIGKILL)
     pid_path.unlink(missing_ok=True)
 
 

@@ -138,8 +138,9 @@ class FinanceAgentBenchmark:
         self._llm_config: dict[str, Any] = dict(cfg.get("openrouter", {}))
 
         # Tool API keys — fall back to env vars (mirrors official repo)
-        self.serpapi_key: str = str(
-            cfg.get("serpapi_api_key") or os.environ.get("SERPAPI_API_KEY", "")
+        self.tavily_api_key: str = str(
+            cfg.get("tavily_api_key")
+            or os.environ.get("TAVILY_API_KEY", "")
         )
         self.sec_api_key: str = str(
             cfg.get("sec_api_key") or os.environ.get("SEC_EDGAR_API_KEY", "")
@@ -273,25 +274,30 @@ class FinanceAgentBenchmark:
         tools: list[dict[str, Any]] = []
 
         # 1. google_web_search
-        serpapi_key = self.serpapi_key
+        tavily_api_key = self.tavily_api_key
         top_n = self.web_search_top_n
 
         async def google_web_search(args: dict[str, Any]) -> Any:
             query = str(args.get("search_query", "")).strip()
             if not query:
                 return {"success": False, "result": "search_query is required"}
-            if not serpapi_key:
+            if not tavily_api_key:
                 return {
                     "success": False,
-                    "result": "SERPAPI_API_KEY not configured. Set serpapi_api_key in config or SERPAPI_API_KEY env var.",
+                    "result": (
+                        "TAVILY_API_KEY not configured. Set tavily_api_key in config or "
+                        "TAVILY_API_KEY env var."
+                    ),
                 }
             try:
-                params = {
-                    "api_key": serpapi_key,
-                    "engine": "google",
-                    "q": query,
-                    "num": top_n,
-                    "tbs": f"cdr:1,cd_max:{self._google_max_date()}",
+                payload = {
+                    "api_key": tavily_api_key,
+                    "query": query,
+                    "max_results": top_n,
+                    "topic": "general",
+                    "search_depth": "advanced",
+                    "include_answer": False,
+                    "include_raw_content": False,
                 }
 
                 import aiohttp
@@ -300,9 +306,9 @@ class FinanceAgentBenchmark:
                     try:
                         async with (
                             aiohttp.ClientSession() as session,
-                            session.get(
-                                "https://serpapi.com/search.json",
-                                params=params,
+                            session.post(
+                                "https://api.tavily.com/search",
+                                json=payload,
                                 timeout=20,
                             ) as response,
                         ):
@@ -316,21 +322,21 @@ class FinanceAgentBenchmark:
                                 )
                             response.raise_for_status()
                             data = await response.json()
-                            results = data.get("organic_results", [])[:top_n]
+                            results = data.get("results", [])[:top_n]
                             return {"success": True, "result": json.dumps(results)}
                     except aiohttp.ClientResponseError as exc:
                         if exc.status == 429 and attempt < 7:
                             time.sleep(min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0)))
                             continue
                         raise
-                return {"success": False, "result": "Max retries reached for SerpAPI"}
+                return {"success": False, "result": "Max retries reached for Tavily"}
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 
         tools.append(
             {
                 "name": "google_web_search",
-                "description": "Search the web for information",
+                "description": "Search the web for information via Tavily",
                 "parameters": {
                     "type": "object",
                     "properties": {
