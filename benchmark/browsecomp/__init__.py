@@ -705,9 +705,15 @@ class BrowseCompBenchmark:
     def _ensure_decrypted_dataset(self) -> Path:
         if self.decrypted_path:
             path = Path(str(self.decrypted_path)).expanduser().resolve()
-            if not path.exists():
+            if path.exists():
+                return path
+            if not self.auto_download:
                 raise FileNotFoundError(f"BrowseComp decrypted path not found: {path}")
-            return path
+            logger.info(
+                "BrowseComp decrypted path %s not found; falling back to auto download.",
+                path,
+            )
+            self.decrypted_output_path = path
 
         if self.decrypted_output_path.exists():
             return self.decrypted_output_path

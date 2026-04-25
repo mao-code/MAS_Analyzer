@@ -107,6 +107,11 @@ class OpenRouterLLMClient:
             return None
         return int(raw)
 
+    @staticmethod
+    def _env_str(name: str) -> str | None:
+        raw = os.getenv(name, "").strip()
+        return raw or None
+
     def _apply_openrouter_sampling_overrides(
         self,
         kwargs: dict[str, Any],
@@ -118,6 +123,7 @@ class OpenRouterLLMClient:
         temperature_override = self._env_float("OPENROUTER_TEMPERATURE")
         top_p_override = self._env_float("OPENROUTER_TOP_P")
         top_k_override = self._env_int("OPENROUTER_TOP_K")
+        reasoning_effort_override = self._env_str("OPENROUTER_REASONING_EFFORT")
 
         effective_temperature = (
             temperature_override if temperature_override is not None else temperature
@@ -129,6 +135,12 @@ class OpenRouterLLMClient:
         if top_k_override is not None:
             extra_body = dict(request_kwargs.get("extra_body") or {})
             extra_body["top_k"] = top_k_override
+            request_kwargs["extra_body"] = extra_body
+        if reasoning_effort_override is not None:
+            extra_body = dict(request_kwargs.get("extra_body") or {})
+            extra_body["reasoning"] = {
+                "effort": reasoning_effort_override,
+            }
             request_kwargs["extra_body"] = extra_body
 
         return request_kwargs

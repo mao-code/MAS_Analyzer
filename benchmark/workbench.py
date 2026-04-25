@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import csv
 import logging
+import re
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
@@ -182,6 +183,7 @@ class WorkBenchSandbox:
         if not duration:
             return "Event duration not provided."
         participant_email = str(participant_email).lower()
+        duration = _normalize_duration_value(duration)
         event_id = str(int(self.calendar_events["event_id"].max()) + 1).zfill(8)
         new_event = pd.DataFrame(
             {
@@ -213,6 +215,8 @@ class WorkBenchSandbox:
         if event_id in self.calendar_events["event_id"].values:
             if field == "participant_email":
                 new_value = str(new_value).lower()
+            elif field == "duration":
+                new_value = _normalize_duration_value(new_value)
             self.calendar_events.loc[self.calendar_events["event_id"] == event_id, field] = (
                 new_value
             )
@@ -692,7 +696,10 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "event_name": {"type": "string"},
             "participant_email": {"type": "string"},
             "event_start": {"type": "string"},
-            "duration": {"type": "string"},
+            "duration": {
+                "type": "string",
+                "description": 'Duration in whole minutes as a numeric string, e.g. "30", "60", or "120".',
+            },
         },
     },
     {
@@ -708,7 +715,10 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "properties": {
             "event_id": {"type": "string"},
             "field": {"type": "string"},
-            "new_value": {"type": "string"},
+            "new_value": {
+                "type": "string",
+                "description": 'New field value. If updating duration, use whole minutes as a numeric string such as "30", "60", or "120".',
+            },
         },
     },
     {
@@ -945,6 +955,31 @@ def _normalize_state(df: pd.DataFrame) -> pd.DataFrame:
         else:
             out[col] = out[col].astype(str).str.lower()
     return out.reset_index(drop=True)
+
+
+def _normalize_duration_value(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return str(value)
+
+    if re.fullmatch(r"\d+", text):
+        return text
+
+    clock_match = re.fullmatch(r"(\d+):(\d{1,2})", text)
+    if clock_match:
+        hours = int(clock_match.group(1))
+        minutes = int(clock_match.group(2))
+        return str(hours * 60 + minutes)
+
+    minute_match = re.fullmatch(r"(\d+)\s*(minute|minutes|min|mins)", text)
+    if minute_match:
+        return str(int(minute_match.group(1)))
+
+    hour_match = re.fullmatch(r"(\d+)\s*(hour|hours|hr|hrs)", text)
+    if hour_match:
+        return str(int(hour_match.group(1)) * 60)
+
+    return str(value)
 
 
 class WorkBenchBenchmark:
