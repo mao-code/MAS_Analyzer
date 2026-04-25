@@ -9,13 +9,13 @@ set -euo pipefail
 #   RUNS_PER_TASK=8 bash scripts/full_experiment.sh --benchmarks browsecomp,workbench
 #   FINAL_VOTE_MODE=deterministic bash scripts/full_experiment.sh
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
-#   MODELS="google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b" bash scripts/full_experiment.sh
+#   MODELS="qwen/qwen3-32b" bash scripts/full_experiment.sh
 
 TASK_LIMIT="${TASK_LIMIT:-30}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
 # BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
-BENCHMARKS="${BENCHMARKS:-workbench,browsecomp,plancraft,stabletoolbench}"
-RETRY_FAILURES="${RETRY_FAILURES:-1}"
+BENCHMARKS="${BENCHMARKS:-browsecomp,plancraft,stabletoolbench,workbench,finance_agent}"
+RETRY_FAILURES="${RETRY_FAILURES:-3}"
 MAX_PARALLEL="${MAX_PARALLEL:-4}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
@@ -29,14 +29,12 @@ CONFIG_DIR="${CONFIG_DIR:-}"
 # Leave empty to use the benchmark/config-defined MAS model routing.
 #
 # Current OpenRouter model IDs:
-#   google/gemma-4-31b-it
-#   qwen/qwen3.5-flash-02-23
-#   openai/gpt-oss-120b
+#   qwen/qwen3-32b
 #
 # Example:
-# MODELS="google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b"
+# MODELS="qwen/qwen3-32b"
 # ============================================================================
-MODELS="${MODELS:-google/gemma-4-31b-it,qwen/qwen3.5-flash-02-23,openai/gpt-oss-120b}"
+MODELS="${MODELS:-google/gemma-4-31b-it,openai/gpt-oss-120b}"
 
 SKIP_SETUP="${SKIP_SETUP:-0}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
@@ -50,6 +48,7 @@ DISABLE_DYNAMIC_ROLES="${DISABLE_DYNAMIC_ROLES:-0}"
 # These are exported so MAS OpenRouter calls can apply consistent sampling
 # during full experiment runs.
 # ============================================================================
+OPENROUTER_REASONING_EFFORT="${OPENROUTER_REASONING_EFFORT:-medium}"
 OPENROUTER_TEMPERATURE="${OPENROUTER_TEMPERATURE:-1.0}"
 OPENROUTER_TOP_P="${OPENROUTER_TOP_P:-1.0}"
 OPENROUTER_TOP_K="${OPENROUTER_TOP_K:-0}"
@@ -218,6 +217,7 @@ export ORCHESTRATOR_WITH_DISCUSSION_ARGS
 export ONLY_VOTING_ARGS
 export FULLY_LINKED_DEBATE_ARGS
 export GROUP_CHAT_DEBATE_ARGS
+export OPENROUTER_REASONING_EFFORT
 export OPENROUTER_TEMPERATURE
 export OPENROUTER_TOP_P
 export OPENROUTER_TOP_K
