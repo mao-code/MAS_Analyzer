@@ -316,11 +316,13 @@ class OpenRouterLLMClient:
         tool_turns: list[_ToolLoopTurn] = []
         consecutive_stagnant_search_iterations = 0
         previous_search_fingerprint: frozenset[str] | None = None
+        prompt_preview_chars = max(80, self._env_int("MAS_TOOL_CONTEXT_PREVIEW_CHARS") or 160)
         latest_context_stats = {
             "raw_turns": 0,
             "summarized_turns": 0,
             "summary_chars": 0,
         }
+        recovered_force_final_timeout = False
 
         for iteration_index in range(max(1, int(max_tool_iterations))):
             working_messages, latest_context_stats = self._build_tool_loop_messages(
@@ -495,9 +497,14 @@ class OpenRouterLLMClient:
                     break
 
                 if isinstance(output, str):
-                    output_payload = output
+                    output_payload = self._preview_text(output, limit=prompt_preview_chars)
                 else:
-                    output_payload = self._safe_json_dumps(output)
+                    output_payload = self._safe_json_dumps(
+                        self._compact_tool_output_for_prompt(
+                            output,
+                            preview_chars=prompt_preview_chars,
+                        )
+                    )
                 current_turn.tool_messages.append(
                     {
                         "role": "tool",
@@ -577,15 +584,32 @@ class OpenRouterLLMClient:
                 f"request_id={request_id} task_id={task_id} run_index={run_index} "
                 f"agent_id={agent_id}"
             )
-            final_text, extra_in, extra_out = self._force_final_response(
-                model=model,
-                messages=final_messages,
-                temperature=temperature,
-                max_tool_iterations=max_tool_iterations,
-                stop_reason=stop_reason,
-            )
-            total_token_in += extra_in
-            total_token_out += extra_out
+            try:
+                final_text, extra_in, extra_out = self._force_final_response(
+                    model=model,
+                    messages=final_messages,
+                    temperature=temperature,
+                    max_tool_iterations=max_tool_iterations,
+                    stop_reason=stop_reason,
+                )
+                total_token_in += extra_in
+                total_token_out += extra_out
+            except _HardTimeoutExpired:
+                if any(turn.tool_records for turn in tool_turns):
+                    final_text = self._best_effort_tool_timeout_answer(
+                        tool_turns=tool_turns,
+                        stop_reason=stop_reason,
+                        preview_chars=prompt_preview_chars,
+                    )
+                    recovered_force_final_timeout = True
+                    self._log(
+                        "RECOVERED "
+                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                        f"agent_id={agent_id} mode=force_final_timeout "
+                        "recovery=best_effort_evidence_fallback"
+                    )
+                else:
+                    raise
 
         if not total_token_out:
             total_token_out = self._estimate_tokens(final_text)
@@ -598,6 +622,10 @@ class OpenRouterLLMClient:
         }
         if latest_context_stats["summarized_turns"] > 0:
             metadata["tool_context_compacted"] = True
+        if recovered_force_final_timeout:
+            metadata["tool_loop_timeout_recovered"] = True
+            metadata["tool_loop_timeout_stage"] = "force_final"
+            metadata["tool_loop_recovery_mode"] = "best_effort_evidence_fallback"
         if stopped_early:
             if stop_reason and stop_reason.startswith("duplicate_tool_call:"):
                 repeated_sig = stop_reason.split(":", 1)[1]
@@ -721,10 +749,10 @@ class OpenRouterLLMClient:
         tool_turns: list[_ToolLoopTurn],
     ) -> tuple[list[dict[str, Any]], dict[str, int]]:
         raw_turn_window = max(1, self._env_int("MAS_TOOL_CONTEXT_RAW_TURNS") or 1)
-        preview_chars = max(80, self._env_int("MAS_TOOL_CONTEXT_PREVIEW_CHARS") or 320)
+        preview_chars = max(80, self._env_int("MAS_TOOL_CONTEXT_PREVIEW_CHARS") or 160)
         summary_max_chars = max(
-            1024,
-            self._env_int("MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS") or 6000,
+            160,
+            self._env_int("MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS") or 1800,
         )
         summarized_turns = max(0, len(tool_turns) - raw_turn_window)
         older_turns = tool_turns[:summarized_turns]
@@ -788,7 +816,8 @@ class OpenRouterLLMClient:
                         f"Iteration {turn.iteration} tool {record['tool_name']} "
                         f"args={self._truncate_for_log(record.get('arguments'), limit=preview_chars)} "
                         f"status={record.get('status', 'completed')} "
-                        f"output={self._truncate_for_log(record.get('output'), limit=preview_chars)}"
+                        "output="
+                        f"{self._truncate_for_log(self._compact_tool_output_for_prompt(record.get('output'), preview_chars=preview_chars), limit=preview_chars)}"
                     )
                 )
 
@@ -802,15 +831,143 @@ class OpenRouterLLMClient:
                 continue
 
             remaining = max_chars - used - (1 if clipped else 0)
-            if remaining > 32:
-                clipped.append(line[: remaining - 20].rstrip() + "... [truncated]")
+            marker = "... [truncated]"
+            if remaining >= len(marker):
+                prefix = line[: max(0, remaining - len(marker))].rstrip()
+                clipped.append((prefix + marker) if prefix else marker[:remaining])
             elif not clipped:
                 clipped.append("Tool-memory summary truncated.")
             else:
-                clipped.append("... [truncated]")
+                clipped.append(marker[: max(0, remaining)])
             break
 
         return "\n".join(clipped)
+
+    def _compact_tool_output_for_prompt(
+        self,
+        output: Any,
+        *,
+        preview_chars: int,
+        max_list_items: int = 2,
+    ) -> Any:
+        if isinstance(output, list):
+            compact_items = [
+                self._compact_tool_output_for_prompt(
+                    item,
+                    preview_chars=preview_chars,
+                    max_list_items=max_list_items,
+                )
+                for item in output[:max_list_items]
+            ]
+            if len(output) > max_list_items:
+                compact_items.append({"omitted_items": len(output) - max_list_items})
+            return compact_items
+
+        if isinstance(output, dict):
+            compact: dict[str, Any] = {}
+            if output.get("docid") is not None:
+                compact["docid"] = str(output.get("docid"))
+
+            if output.get("score") is not None:
+                try:
+                    compact["score"] = round(float(output.get("score")), 3)
+                except (TypeError, ValueError):
+                    compact["score"] = self._preview_text(output.get("score"), limit=preview_chars)
+
+            for key in ("title", "name", "query"):
+                value = output.get(key)
+                if value:
+                    compact[key] = self._preview_text(value, limit=preview_chars)
+
+            for key in ("snippet", "text", "content", "payload"):
+                value = output.get(key)
+                if value:
+                    compact[f"{key}_preview"] = self._preview_text(value, limit=preview_chars)
+                    break
+
+            if output.get("url"):
+                compact["url"] = self._preview_text(output.get("url"), limit=min(120, preview_chars))
+            if output.get("error"):
+                compact["error"] = self._preview_text(output.get("error"), limit=preview_chars)
+
+            extra_fields = 0
+            special_keys = {
+                "docid",
+                "score",
+                "title",
+                "name",
+                "query",
+                "snippet",
+                "text",
+                "content",
+                "payload",
+                "url",
+                "error",
+            }
+            for key, value in output.items():
+                if key in special_keys or extra_fields >= 2:
+                    continue
+                if isinstance(value, str):
+                    compact[str(key)] = self._preview_text(value, limit=preview_chars)
+                    extra_fields += 1
+                elif isinstance(value, (int, float, bool)) or value is None:
+                    compact[str(key)] = value
+                    extra_fields += 1
+
+            if compact:
+                return compact
+            return {"preview": self._truncate_for_log(output, limit=preview_chars)}
+
+        if isinstance(output, str):
+            return self._preview_text(output, limit=preview_chars)
+
+        return self._to_jsonable(output)
+
+    def _best_effort_tool_timeout_answer(
+        self,
+        *,
+        tool_turns: list[_ToolLoopTurn],
+        stop_reason: str | None,
+        preview_chars: int,
+    ) -> str:
+        latest_assistant = ""
+        for turn in reversed(tool_turns):
+            if turn.assistant_text.strip():
+                latest_assistant = self._preview_text(turn.assistant_text, limit=360)
+                break
+
+        evidence_lines: list[str] = []
+        seen_lines: set[str] = set()
+        for turn in reversed(tool_turns):
+            for record in turn.tool_records:
+                compact_output = self._compact_tool_output_for_prompt(
+                    record.get("output"),
+                    preview_chars=preview_chars,
+                )
+                compact_text = self._truncate_for_log(compact_output, limit=preview_chars)
+                if not compact_text or compact_text in seen_lines:
+                    continue
+                evidence_line = f"{record['tool_name']}: {compact_text}"
+                evidence_lines.append(evidence_line)
+                seen_lines.add(compact_text)
+                if len(evidence_lines) >= 4:
+                    break
+            if len(evidence_lines) >= 4:
+                break
+
+        lines = [
+            "The tool-assisted run timed out before final synthesis.",
+        ]
+        if latest_assistant:
+            lines.append(f"Latest reasoning: {latest_assistant}")
+        if evidence_lines:
+            lines.append("Evidence snapshot:")
+            lines.extend(f"- {line}" for line in evidence_lines)
+        if stop_reason and stop_reason.startswith("search_results_stagnated:"):
+            lines.append("Best-effort conclusion: insufficient evidence from the gathered search results.")
+        else:
+            lines.append("Best-effort conclusion: insufficient evidence to provide a reliable final answer.")
+        return "\n".join(lines)
 
     @staticmethod
     def _insert_context_message(

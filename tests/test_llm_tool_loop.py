@@ -112,6 +112,39 @@ class _StagnatingClient:
         self.chat = SimpleNamespace(completions=_StagnatingCompletions())
 
 
+class _ForceFinalTimeoutCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if "tools" not in kwargs:
+            time.sleep(0.2)
+            return _make_completion(content="late answer", prompt_tokens=5, completion_tokens=4)
+        tool_call = SimpleNamespace(
+            id="call_timeout",
+            type="function",
+            function=SimpleNamespace(name="search_tool", arguments='{"query":"q1"}'),
+        )
+        return _make_completion(tool_calls=[tool_call], prompt_tokens=12, completion_tokens=2)
+
+
+class _ForceFinalTimeoutClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_ForceFinalTimeoutCompletions())
+
+
+class _InitialToolTimeoutCompletions:
+    def create(self, **kwargs):
+        time.sleep(0.2)
+        return _make_completion(content="late tool answer", prompt_tokens=3, completion_tokens=2)
+
+
+class _InitialToolTimeoutClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_InitialToolTimeoutCompletions())
+
+
 class TestLLMToolLoop(unittest.TestCase):
     def test_disable_live_override_forces_mock_even_with_api_key(self) -> None:
         with patch.dict("os.environ", {"MAS_DISABLE_LIVE_LLM": "1"}, clear=False):
@@ -176,7 +209,7 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertTrue(result.mock_used)
         self.assertIn("timeout", str(result.metadata.get("fallback_reason", "")).lower())
 
-    def test_compacts_older_tool_turns_but_keeps_latest_raw_tool_output(self) -> None:
+    def test_compacts_prompt_facing_tool_output_and_summarizes_older_turns(self) -> None:
         client = OpenRouterLLMClient(
             OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
         )
@@ -187,6 +220,104 @@ class TestLLMToolLoop(unittest.TestCase):
             "q2": "SECOND_FULL_PAYLOAD::" + ("B" * 1200) + "::END2",
             "q3": "THIRD_FULL_PAYLOAD::" + ("C" * 1200) + "::END3",
         }
+
+        with patch.dict(
+            "os.environ",
+            {
+                "MAS_TOOL_CONTEXT_RAW_TURNS": "1",
+                "MAS_TOOL_CONTEXT_PREVIEW_CHARS": "160",
+                "MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS": "1800",
+            },
+            clear=False,
+        ):
+            result = client.generate(
+                prompt=[{"role": "user", "content": "solve this"}],
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+                tools=[
+                    {
+                        "name": "search.tool",
+                        "description": "Search tool",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                        "handler": lambda args: [
+                            {
+                                "docid": f"doc-{args['query']}",
+                                "score": 42.123456,
+                                "snippet": raw_outputs[args["query"]],
+                            }
+                        ],
+                    }
+                ],
+                max_tool_iterations=3,
+            )
+
+        completions = client.client.chat.completions
+        third_tool_call_messages = completions.calls[2]["messages"]
+        joined_content = "\n".join(str(message.get("content", "")) for message in third_tool_call_messages)
+
+        self.assertEqual(result.text, "FINAL ANSWER: compacted")
+        self.assertTrue(result.metadata.get("tool_context_compacted"))
+        self.assertEqual(result.metadata.get("tool_context_summarized_turns"), 2)
+        self.assertIn("Tool-memory summary from earlier tool iterations.", joined_content)
+        self.assertIn('"docid": "doc-q2"', joined_content)
+        self.assertIn('"snippet_preview"', joined_content)
+        self.assertNotIn(raw_outputs["q1"], joined_content)
+        self.assertNotIn(raw_outputs["q2"], joined_content)
+        self.assertEqual(len(result.tool_calls), 3)
+
+    def test_bounds_older_tool_turn_summary_size(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _CompactingClient()
+
+        with patch.dict(
+            "os.environ",
+            {
+                "MAS_TOOL_CONTEXT_RAW_TURNS": "1",
+                "MAS_TOOL_CONTEXT_PREVIEW_CHARS": "120",
+                "MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS": "220",
+            },
+            clear=False,
+        ):
+            client.generate(
+                prompt=[{"role": "user", "content": "solve this"}],
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+                tools=[
+                    {
+                        "name": "search.tool",
+                        "description": "Search tool",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                        "handler": lambda args: {
+                            "query": args["query"],
+                            "payload": "PAYLOAD::" + ("X" * 800),
+                        },
+                    }
+                ],
+                max_tool_iterations=3,
+            )
+
+        force_final_messages = client.client.chat.completions.calls[3]["messages"]
+        summary_messages = [
+            str(message.get("content", ""))
+            for message in force_final_messages
+            if message.get("role") == "system"
+            and "Tool-memory summary from earlier tool iterations." in str(message.get("content", ""))
+        ]
+
+        self.assertTrue(summary_messages)
+        self.assertLessEqual(len(summary_messages[0]), 220)
+
+    def test_recovers_when_force_final_times_out_after_tool_evidence(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test", timeout_s=0.05), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _ForceFinalTimeoutClient()
 
         result = client.generate(
             prompt=[{"role": "user", "content": "solve this"}],
@@ -199,23 +330,54 @@ class TestLLMToolLoop(unittest.TestCase):
                     "name": "search.tool",
                     "description": "Search tool",
                     "parameters": {"type": "object", "properties": {}, "required": []},
-                    "handler": lambda args: {"query": args["query"], "payload": raw_outputs[args["query"]]},
+                    "handler": lambda args: [
+                        {
+                            "docid": "59188",
+                            "score": 50.0,
+                            "snippet": f"evidence-for-{args['query']}",
+                        }
+                    ],
                 }
             ],
-            max_tool_iterations=3,
+            max_tool_iterations=1,
         )
 
-        completions = client.client.chat.completions
-        third_tool_call_messages = completions.calls[2]["messages"]
-        joined_content = "\n".join(str(message.get("content", "")) for message in third_tool_call_messages)
+        self.assertFalse(result.mock_used)
+        self.assertTrue(result.metadata.get("tool_loop_timeout_recovered"))
+        self.assertEqual(result.metadata.get("tool_loop_timeout_stage"), "force_final")
+        self.assertEqual(
+            result.metadata.get("tool_loop_recovery_mode"),
+            "best_effort_evidence_fallback",
+        )
+        self.assertTrue(result.metadata.get("tool_loop_forced_final_answer"))
+        self.assertIn("Best-effort conclusion", result.text)
+        self.assertIn("Evidence snapshot:", result.text)
 
-        self.assertEqual(result.text, "FINAL ANSWER: compacted")
-        self.assertTrue(result.metadata.get("tool_context_compacted"))
-        self.assertEqual(result.metadata.get("tool_context_summarized_turns"), 2)
-        self.assertIn("Tool-memory summary from earlier tool iterations.", joined_content)
-        self.assertIn(raw_outputs["q2"], joined_content)
-        self.assertNotIn(raw_outputs["q1"], joined_content)
-        self.assertEqual(len(result.tool_calls), 3)
+    def test_tool_timeout_without_evidence_still_falls_back_to_mock(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test", timeout_s=0.05), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _InitialToolTimeoutClient()
+
+        result = client.generate(
+            prompt=[{"role": "user", "content": "solve this"}],
+            agent_type="general",
+            task_id="t1",
+            run_index=0,
+            agent_id="agent_0",
+            tools=[
+                {
+                    "name": "search.tool",
+                    "description": "Search tool",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                    "handler": lambda args: {"ok": True},
+                }
+            ],
+            max_tool_iterations=1,
+        )
+
+        self.assertTrue(result.mock_used)
+        self.assertIn("timeout", str(result.metadata.get("fallback_reason", "")).lower())
 
     def test_stops_early_when_search_results_stagnate(self) -> None:
         client = OpenRouterLLMClient(
