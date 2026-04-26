@@ -311,8 +311,11 @@ class OpenRouterLLMClient:
         tool_call_records: list[dict[str, Any]] = []
         final_text = ""
         stopped_early = False
+        stop_reason: str | None = None
         duplicate_call_counts: dict[str, int] = {}
         tool_turns: list[_ToolLoopTurn] = []
+        consecutive_stagnant_search_iterations = 0
+        previous_search_fingerprint: frozenset[str] | None = None
         latest_context_stats = {
             "raw_turns": 0,
             "summarized_turns": 0,
@@ -475,6 +478,7 @@ class OpenRouterLLMClient:
                         f"request_id={request_id} task_id={task_id} run_index={run_index} "
                         f"agent_id={agent_id} reason=duplicate_tool_call signature={sig}"
                     )
+                    stop_reason = f"duplicate_tool_call:{sig}"
                     current_turn.tool_messages.append(
                         {
                             "role": "tool",
@@ -503,11 +507,65 @@ class OpenRouterLLMClient:
                     }
                 )
 
+            if not stopped_early:
+                search_fingerprint = self._search_iteration_fingerprint(current_turn.tool_records)
+                stagnation_threshold = max(
+                    1,
+                    self._env_int("MAS_SEARCH_STAGNATION_CONSECUTIVE") or 2,
+                )
+                if search_fingerprint:
+                    if (
+                        previous_search_fingerprint is not None
+                        and self._search_results_stagnated(
+                            previous_search_fingerprint,
+                            search_fingerprint,
+                        )
+                    ):
+                        consecutive_stagnant_search_iterations += 1
+                    else:
+                        consecutive_stagnant_search_iterations = 0
+                    previous_search_fingerprint = search_fingerprint
+                else:
+                    consecutive_stagnant_search_iterations = 0
+                    previous_search_fingerprint = None
+
+                if (
+                    search_fingerprint
+                    and consecutive_stagnant_search_iterations >= stagnation_threshold
+                ):
+                    self._log(
+                        "TOOL_LOOP_STOP "
+                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                        f"agent_id={agent_id} reason=search_results_stagnated "
+                        f"consecutive={consecutive_stagnant_search_iterations} "
+                        f"fingerprint_size={len(search_fingerprint)}"
+                    )
+                    stop_reason = (
+                        "search_results_stagnated:"
+                        f"consecutive={consecutive_stagnant_search_iterations}"
+                    )
+                    current_turn.tool_messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Recent search iterations are stagnating: consecutive search calls are "
+                                "returning substantially overlapping documents without meaningful new evidence. "
+                                "Stop searching now. Based only on the evidence already gathered, provide "
+                                "your best final answer. If the evidence is insufficient, explicitly return "
+                                "a concise insufficient-evidence or blocked-status answer instead of making "
+                                "more paraphrase searches."
+                            ),
+                        }
+                    )
+                    final_text = ""
+                    stopped_early = True
+
             tool_turns.append(current_turn)
             if stopped_early:
                 break
         else:
             stopped_early = True
+            stop_reason = "max_tool_iterations"
 
         if stopped_early and not final_text:
             final_messages, latest_context_stats = self._build_tool_loop_messages(
@@ -524,6 +582,7 @@ class OpenRouterLLMClient:
                 messages=final_messages,
                 temperature=temperature,
                 max_tool_iterations=max_tool_iterations,
+                stop_reason=stop_reason,
             )
             total_token_in += extra_in
             total_token_out += extra_out
@@ -540,10 +599,15 @@ class OpenRouterLLMClient:
         if latest_context_stats["summarized_turns"] > 0:
             metadata["tool_context_compacted"] = True
         if stopped_early:
-            repeated = [sig for sig, cnt in duplicate_call_counts.items() if cnt >= 3]
-            if repeated:
+            if stop_reason and stop_reason.startswith("duplicate_tool_call:"):
+                repeated_sig = stop_reason.split(":", 1)[1]
                 metadata["tool_loop_stopped_reason"] = (
-                    f"Duplicate tool call detected (repeated >=3 times): {repeated[0]}"
+                    f"Duplicate tool call detected (repeated >=3 times): {repeated_sig}"
+                )
+            elif stop_reason and stop_reason.startswith("search_results_stagnated:"):
+                metadata["tool_loop_stopped_reason"] = (
+                    "Search results stagnated across consecutive iterations; "
+                    f"{stop_reason.split(':', 1)[1]}"
                 )
             else:
                 metadata["tool_loop_stopped_reason"] = (
@@ -762,6 +826,60 @@ class OpenRouterLLMClient:
             *[dict(item) for item in base_messages[insert_at:]],
         ]
 
+    def _search_iteration_fingerprint(
+        self,
+        tool_records: list[dict[str, Any]],
+    ) -> frozenset[str]:
+        fingerprints: list[str] = []
+        for record in tool_records:
+            tool_name = str(record.get("tool_name", "") or "").lower()
+            arguments = record.get("arguments")
+            if "search" not in tool_name:
+                continue
+            if not isinstance(arguments, dict) or "query" not in arguments:
+                continue
+            output = record.get("output")
+            docids = self._search_result_docids(output)
+            if docids:
+                fingerprints.extend(docids[:3])
+                continue
+            output_text = self._truncate_for_log(output, limit=160)
+            if output_text:
+                fingerprints.append(
+                    f"text:{hashlib.sha256(output_text.encode('utf-8')).hexdigest()[:16]}"
+                )
+            else:
+                fingerprints.append("empty")
+        return frozenset(fingerprints)
+
+    @staticmethod
+    def _search_result_docids(output: Any) -> list[str]:
+        if not isinstance(output, list):
+            return []
+        docids: list[str] = []
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            docid = item.get("docid")
+            if docid is None:
+                continue
+            docids.append(str(docid))
+        return docids
+
+    @staticmethod
+    def _search_results_stagnated(
+        previous_fingerprint: frozenset[str],
+        current_fingerprint: frozenset[str],
+    ) -> bool:
+        if not previous_fingerprint or not current_fingerprint:
+            return False
+        intersection = previous_fingerprint & current_fingerprint
+        union = previous_fingerprint | current_fingerprint
+        if not union:
+            return False
+        overlap_ratio = len(intersection) / len(union)
+        return overlap_ratio >= 0.8 and current_fingerprint.issubset(previous_fingerprint)
+
     def _force_final_response(
         self,
         *,
@@ -769,8 +887,20 @@ class OpenRouterLLMClient:
         messages: list[dict[str, Any]],
         temperature: float,
         max_tool_iterations: int,
+        stop_reason: str | None = None,
     ) -> tuple[str, int, int]:
         follow_up_messages = [dict(item) for item in messages]
+        if stop_reason and stop_reason.startswith("search_results_stagnated:"):
+            follow_up_messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "The search results have stagnated and further search is unlikely to help. "
+                        "Do not call more tools. If the currently gathered evidence is insufficient, "
+                        "say so explicitly and return a concise insufficient-evidence or blocked-status answer."
+                    ),
+                }
+            )
         follow_up_messages.append(
             {
                 "role": "user",

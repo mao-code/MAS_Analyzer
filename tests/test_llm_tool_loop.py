@@ -82,6 +82,36 @@ class _CompactingClient:
         self.chat = SimpleNamespace(completions=_CompactingCompletions())
 
 
+class _StagnatingCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.tool_call_count = 0
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if "tools" not in kwargs:
+            return _make_completion(
+                content="FINAL ANSWER: insufficient evidence",
+                prompt_tokens=7,
+                completion_tokens=5,
+            )
+        self.tool_call_count += 1
+        tool_call = SimpleNamespace(
+            id=f"call_{self.tool_call_count}",
+            type="function",
+            function=SimpleNamespace(
+                name="search_tool",
+                arguments=json.dumps({"query": f"q{self.tool_call_count}"}),
+            ),
+        )
+        return _make_completion(tool_calls=[tool_call], prompt_tokens=18, completion_tokens=2)
+
+
+class _StagnatingClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_StagnatingCompletions())
+
+
 class TestLLMToolLoop(unittest.TestCase):
     def test_disable_live_override_forces_mock_even_with_api_key(self) -> None:
         with patch.dict("os.environ", {"MAS_DISABLE_LIVE_LLM": "1"}, clear=False):
@@ -186,6 +216,47 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertIn(raw_outputs["q2"], joined_content)
         self.assertNotIn(raw_outputs["q1"], joined_content)
         self.assertEqual(len(result.tool_calls), 3)
+
+    def test_stops_early_when_search_results_stagnate(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _StagnatingClient()
+
+        with patch.dict("os.environ", {"MAS_SEARCH_STAGNATION_CONSECUTIVE": "1"}, clear=False):
+            result = client.generate(
+                prompt=[{"role": "user", "content": "solve this"}],
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+                tools=[
+                    {
+                        "name": "search.tool",
+                        "description": "Search tool",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                        "handler": lambda args: [
+                            {
+                                "docid": "59188",
+                                "score": 50.0,
+                                "snippet": f"same-doc-for-{args['query']}",
+                            }
+                        ],
+                    }
+                ],
+                max_tool_iterations=8,
+            )
+
+        completions = client.client.chat.completions
+        force_final_messages = completions.calls[2]["messages"]
+        joined_content = "\n".join(str(message.get("content", "")) for message in force_final_messages)
+
+        self.assertEqual(result.text, "FINAL ANSWER: insufficient evidence")
+        self.assertEqual(len(result.tool_calls), 2)
+        self.assertIn("Search results stagnated", result.metadata.get("tool_loop_stopped_reason", ""))
+        self.assertTrue(result.metadata.get("tool_loop_forced_final_answer"))
+        self.assertIn("search results have stagnated", joined_content.lower())
+        self.assertIn("insufficient-evidence", joined_content.lower())
 
 
 if __name__ == "__main__":
