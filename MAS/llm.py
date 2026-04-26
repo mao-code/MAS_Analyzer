@@ -30,6 +30,15 @@ class LLMResult:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
+@dataclass
+class _ToolLoopTurn:
+    iteration: int
+    assistant_msg: dict[str, Any]
+    assistant_text: str
+    tool_messages: list[dict[str, Any]] = field(default_factory=list)
+    tool_records: list[dict[str, Any]] = field(default_factory=list)
+
+
 class _HardTimeoutExpired(RuntimeError):
     """Raised when an LLM request exceeds the configured wall-clock timeout."""
 
@@ -296,15 +305,33 @@ class OpenRouterLLMClient:
         run_index: int,
         agent_id: str,
     ) -> LLMResult:
-        working_messages = [dict(item) for item in messages]
+        base_messages = [dict(item) for item in messages]
         total_token_in = 0
         total_token_out = 0
         tool_call_records: list[dict[str, Any]] = []
         final_text = ""
         stopped_early = False
         duplicate_call_counts: dict[str, int] = {}
+        tool_turns: list[_ToolLoopTurn] = []
+        latest_context_stats = {
+            "raw_turns": 0,
+            "summarized_turns": 0,
+            "summary_chars": 0,
+        }
 
         for iteration_index in range(max(1, int(max_tool_iterations))):
+            working_messages, latest_context_stats = self._build_tool_loop_messages(
+                base_messages=base_messages,
+                tool_turns=tool_turns,
+            )
+            if latest_context_stats["summarized_turns"] > 0:
+                self._log(
+                    "TOOL_CONTEXT "
+                    f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                    f"agent_id={agent_id} raw_turns={latest_context_stats['raw_turns']} "
+                    f"summarized_turns={latest_context_stats['summarized_turns']} "
+                    f"summary_chars={latest_context_stats['summary_chars']}"
+                )
             self._log(
                 "TOOL_LOOP "
                 f"request_id={request_id} task_id={task_id} run_index={run_index} "
@@ -369,7 +396,11 @@ class OpenRouterLLMClient:
             }
             if serialized_tool_calls:
                 assistant_msg["tool_calls"] = serialized_tool_calls
-            working_messages.append(assistant_msg)
+            current_turn = _ToolLoopTurn(
+                iteration=iteration_index + 1,
+                assistant_msg=dict(assistant_msg),
+                assistant_text=assistant_text,
+            )
             self._log(
                 "TOOL_LOOP_RESULT "
                 f"request_id={request_id} task_id={task_id} run_index={run_index} "
@@ -378,6 +409,7 @@ class OpenRouterLLMClient:
             )
 
             if not serialized_tool_calls:
+                tool_turns.append(current_turn)
                 break
 
             for tool_call in serialized_tool_calls:
@@ -433,6 +465,7 @@ class OpenRouterLLMClient:
                         "output": output,
                     }
                 )
+                current_turn.tool_records.append(tool_call_records[-1])
 
                 sig = f"{api_tool_name}:{args_text}"
                 duplicate_call_counts[sig] = duplicate_call_counts.get(sig, 0) + 1
@@ -442,7 +475,7 @@ class OpenRouterLLMClient:
                         f"request_id={request_id} task_id={task_id} run_index={run_index} "
                         f"agent_id={agent_id} reason=duplicate_tool_call signature={sig}"
                     )
-                    working_messages.append(
+                    current_turn.tool_messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": tool_id,
@@ -461,7 +494,7 @@ class OpenRouterLLMClient:
                     output_payload = output
                 else:
                     output_payload = self._safe_json_dumps(output)
-                working_messages.append(
+                current_turn.tool_messages.append(
                     {
                         "role": "tool",
                         "tool_call_id": tool_id,
@@ -470,12 +503,17 @@ class OpenRouterLLMClient:
                     }
                 )
 
+            tool_turns.append(current_turn)
             if stopped_early:
                 break
         else:
             stopped_early = True
 
         if stopped_early and not final_text:
+            final_messages, latest_context_stats = self._build_tool_loop_messages(
+                base_messages=base_messages,
+                tool_turns=tool_turns,
+            )
             self._log(
                 "FORCE_FINAL "
                 f"request_id={request_id} task_id={task_id} run_index={run_index} "
@@ -483,7 +521,7 @@ class OpenRouterLLMClient:
             )
             final_text, extra_in, extra_out = self._force_final_response(
                 model=model,
-                messages=working_messages,
+                messages=final_messages,
                 temperature=temperature,
                 max_tool_iterations=max_tool_iterations,
             )
@@ -496,7 +534,11 @@ class OpenRouterLLMClient:
         metadata = {
             "provider": "openrouter",
             "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+            "tool_context_raw_turns": latest_context_stats["raw_turns"],
+            "tool_context_summarized_turns": latest_context_stats["summarized_turns"],
         }
+        if latest_context_stats["summarized_turns"] > 0:
+            metadata["tool_context_compacted"] = True
         if stopped_early:
             repeated = [sig for sig, cnt in duplicate_call_counts.items() if cnt >= 3]
             if repeated:
@@ -607,6 +649,118 @@ class OpenRouterLLMClient:
             original_names[api_name] = original_name
             original_names[original_name] = original_name
         return defs, handlers, original_names
+
+    def _build_tool_loop_messages(
+        self,
+        *,
+        base_messages: list[dict[str, Any]],
+        tool_turns: list[_ToolLoopTurn],
+    ) -> tuple[list[dict[str, Any]], dict[str, int]]:
+        raw_turn_window = max(1, self._env_int("MAS_TOOL_CONTEXT_RAW_TURNS") or 1)
+        preview_chars = max(80, self._env_int("MAS_TOOL_CONTEXT_PREVIEW_CHARS") or 320)
+        summary_max_chars = max(
+            1024,
+            self._env_int("MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS") or 6000,
+        )
+        summarized_turns = max(0, len(tool_turns) - raw_turn_window)
+        older_turns = tool_turns[:summarized_turns]
+        recent_turns = tool_turns[summarized_turns:]
+        messages = [dict(item) for item in base_messages]
+        summary_chars = 0
+
+        if older_turns:
+            summary = self._summarize_tool_turns(
+                older_turns,
+                preview_chars=preview_chars,
+                max_chars=summary_max_chars,
+            )
+            summary_chars = len(summary)
+            messages = self._insert_context_message(
+                messages,
+                {
+                    "role": "system",
+                    "content": summary,
+                },
+            )
+
+        for turn in recent_turns:
+            messages.append(dict(turn.assistant_msg))
+            for tool_message in turn.tool_messages:
+                messages.append(dict(tool_message))
+
+        return messages, {
+            "raw_turns": len(recent_turns),
+            "summarized_turns": len(older_turns),
+            "summary_chars": summary_chars,
+        }
+
+    def _summarize_tool_turns(
+        self,
+        tool_turns: list[_ToolLoopTurn],
+        *,
+        preview_chars: int,
+        max_chars: int,
+    ) -> str:
+        tool_call_count = sum(len(turn.tool_records) for turn in tool_turns)
+        lines = [
+            "Tool-memory summary from earlier tool iterations.",
+            (
+                "This is a compressed summary of older tool-use. "
+                "Prefer the latest raw tool messages later in the conversation if there is any conflict."
+            ),
+            f"Earlier iterations summarized: {len(tool_turns)}",
+            f"Earlier tool calls summarized: {tool_call_count}",
+        ]
+
+        for turn in tool_turns:
+            assistant_preview = self._preview_text(turn.assistant_text, limit=preview_chars)
+            if assistant_preview:
+                lines.append(f"Iteration {turn.iteration} assistant: {assistant_preview}")
+            else:
+                lines.append(f"Iteration {turn.iteration} assistant: [no direct answer text]")
+            for record in turn.tool_records:
+                lines.append(
+                    (
+                        f"Iteration {turn.iteration} tool {record['tool_name']} "
+                        f"args={self._truncate_for_log(record.get('arguments'), limit=preview_chars)} "
+                        f"status={record.get('status', 'completed')} "
+                        f"output={self._truncate_for_log(record.get('output'), limit=preview_chars)}"
+                    )
+                )
+
+        clipped: list[str] = []
+        used = 0
+        for line in lines:
+            addition = ("\n" if clipped else "") + line
+            if used + len(addition) <= max_chars:
+                clipped.append(line)
+                used += len(addition)
+                continue
+
+            remaining = max_chars - used - (1 if clipped else 0)
+            if remaining > 32:
+                clipped.append(line[: remaining - 20].rstrip() + "... [truncated]")
+            elif not clipped:
+                clipped.append("Tool-memory summary truncated.")
+            else:
+                clipped.append("... [truncated]")
+            break
+
+        return "\n".join(clipped)
+
+    @staticmethod
+    def _insert_context_message(
+        base_messages: list[dict[str, Any]],
+        context_message: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        insert_at = 0
+        while insert_at < len(base_messages) and base_messages[insert_at].get("role") == "system":
+            insert_at += 1
+        return [
+            *[dict(item) for item in base_messages[:insert_at]],
+            dict(context_message),
+            *[dict(item) for item in base_messages[insert_at:]],
+        ]
 
     def _force_final_response(
         self,
@@ -824,6 +978,15 @@ class OpenRouterLLMClient:
         if len(text) <= limit:
             return text
         return text[: limit - 3] + "..."
+
+    @staticmethod
+    def _preview_text(text: Any, *, limit: int = 320) -> str:
+        if not text:
+            return ""
+        cleaned = re.sub(r"\s+", " ", str(text)).strip()
+        if len(cleaned) <= limit:
+            return cleaned
+        return cleaned[: limit - 3] + "..."
 
     @staticmethod
     def _log(message: str) -> None:

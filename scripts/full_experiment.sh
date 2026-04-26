@@ -11,11 +11,11 @@ set -euo pipefail
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 #   MODELS="qwen/qwen3-32b" bash scripts/full_experiment.sh
 
-TASK_LIMIT="${TASK_LIMIT:-30}"
+TASK_LIMIT="${TASK_LIMIT:-10}"
 RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
 # BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
 BENCHMARKS="${BENCHMARKS:-browsecomp,plancraft,stabletoolbench,workbench,finance_agent}"
-RETRY_FAILURES="${RETRY_FAILURES:-3}"
+RETRY_FAILURES="${RETRY_FAILURES:-1}"
 MAX_PARALLEL="${MAX_PARALLEL:-4}" # A "job" here is one (benchmark, system) pair, not one individual task.
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-}"
@@ -52,6 +52,7 @@ OPENROUTER_REASONING_EFFORT="${OPENROUTER_REASONING_EFFORT:-medium}"
 OPENROUTER_TEMPERATURE="${OPENROUTER_TEMPERATURE:-1.0}"
 OPENROUTER_TOP_P="${OPENROUTER_TOP_P:-1.0}"
 OPENROUTER_TOP_K="${OPENROUTER_TOP_K:-0}"
+MAS_TOOL_CONTEXT_RAW_TURNS="${MAS_TOOL_CONTEXT_RAW_TURNS:-3}"
 
 # ============================================================================
 # Global MAS override args
@@ -221,6 +222,7 @@ export OPENROUTER_REASONING_EFFORT
 export OPENROUTER_TEMPERATURE
 export OPENROUTER_TOP_P
 export OPENROUTER_TOP_K
+export MAS_TOOL_CONTEXT_RAW_TURNS
 
 python_is_compatible() {
   local python_cmd="${1}"
