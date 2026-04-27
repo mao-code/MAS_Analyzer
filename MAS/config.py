@@ -23,7 +23,7 @@ class OpenRouterConfig:
     base_url: str = "https://openrouter.ai/api/v1"
     http_referer: str | None = None
     x_title: str | None = None
-    timeout_s: float = 60.0
+    timeout_s: float = 600.0
 
     def validate(self) -> None:
         if not self.base_url:
@@ -225,7 +225,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         base_url=_opt_str(openrouter_raw.get("base_url")) or "https://openrouter.ai/api/v1",
         http_referer=_opt_str(openrouter_raw.get("http_referer")),
         x_title=_opt_str(openrouter_raw.get("x_title")),
-        timeout_s=float(openrouter_raw.get("timeout_s", 300.0)),
+        timeout_s=float(openrouter_raw.get("timeout_s", 600.0)),
     )
 
     agents_per_level = mas_raw.get("agents_per_level")

@@ -145,6 +145,32 @@ class _InitialToolTimeoutClient:
         self.chat = SimpleNamespace(completions=_InitialToolTimeoutCompletions())
 
 
+class _MidToolTimeoutCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.tool_call_count = 0
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if "tools" not in kwargs:
+            return _make_completion(content="FINAL ANSWER: should not be used", prompt_tokens=5, completion_tokens=4)
+        self.tool_call_count += 1
+        if self.tool_call_count == 1:
+            tool_call = SimpleNamespace(
+                id="call_1",
+                type="function",
+                function=SimpleNamespace(name="search_tool", arguments='{"query":"q1"}'),
+            )
+            return _make_completion(tool_calls=[tool_call], prompt_tokens=12, completion_tokens=2)
+        time.sleep(0.2)
+        return _make_completion(content="late tool answer", prompt_tokens=3, completion_tokens=2)
+
+
+class _MidToolTimeoutClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_MidToolTimeoutCompletions())
+
+
 class TestLLMToolLoop(unittest.TestCase):
     def test_disable_live_override_forces_mock_even_with_api_key(self) -> None:
         with patch.dict("os.environ", {"MAS_DISABLE_LIVE_LLM": "1"}, clear=False):
@@ -378,6 +404,48 @@ class TestLLMToolLoop(unittest.TestCase):
 
         self.assertTrue(result.mock_used)
         self.assertIn("timeout", str(result.metadata.get("fallback_reason", "")).lower())
+
+    def test_recovers_when_tool_iteration_times_out_after_evidence(self) -> None:
+        with patch.dict("os.environ", {"MAS_REQUIRE_LIVE_LLM": "1"}, clear=False):
+            client = OpenRouterLLMClient(
+                OpenRouterConfig(api_key="test", timeout_s=0.05), {"default": "openai/gpt-4o-mini"}
+            )
+        client.client = _MidToolTimeoutClient()
+
+        result = client.generate(
+            prompt=[{"role": "user", "content": "solve this"}],
+            agent_type="general",
+            task_id="t1",
+            run_index=0,
+            agent_id="agent_0",
+            tools=[
+                {
+                    "name": "search.tool",
+                    "description": "Search tool",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                    "handler": lambda args: [
+                        {
+                            "docid": "59188",
+                            "score": 50.0,
+                            "snippet": f"evidence-for-{args['query']}",
+                        }
+                    ],
+                }
+            ],
+            max_tool_iterations=3,
+        )
+
+        self.assertFalse(result.mock_used)
+        self.assertTrue(result.metadata.get("tool_loop_timeout_recovered"))
+        self.assertEqual(result.metadata.get("tool_loop_timeout_stage"), "tool_iteration")
+        self.assertEqual(result.metadata.get("tool_loop_timeout_iteration"), 2)
+        self.assertEqual(
+            result.metadata.get("tool_loop_recovery_mode"),
+            "best_effort_evidence_fallback",
+        )
+        self.assertIn("tool-loop iteration timed out", result.metadata.get("tool_loop_stopped_reason", "").lower())
+        self.assertIn("Evidence snapshot:", result.text)
+        self.assertIn("Best-effort conclusion", result.text)
 
     def test_stops_early_when_search_results_stagnate(self) -> None:
         client = OpenRouterLLMClient(

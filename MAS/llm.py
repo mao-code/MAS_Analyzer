@@ -322,7 +322,8 @@ class OpenRouterLLMClient:
             "summarized_turns": 0,
             "summary_chars": 0,
         }
-        recovered_force_final_timeout = False
+        timeout_recovery_stage: str | None = None
+        timeout_recovery_iteration: int | None = None
 
         for iteration_index in range(max(1, int(max_tool_iterations))):
             working_messages, latest_context_stats = self._build_tool_loop_messages(
@@ -343,13 +344,40 @@ class OpenRouterLLMClient:
                 f"agent_id={agent_id} iteration={iteration_index + 1}/"
                 f"{max(1, int(max_tool_iterations))} messages={len(working_messages)}"
             )
-            completion = self._create_chat_completion(
-                model=model,
-                messages=working_messages,
-                temperature=temperature,
-                tools=tool_defs,
-                tool_choice="auto",
-            )
+            try:
+                completion = self._create_chat_completion(
+                    model=model,
+                    messages=working_messages,
+                    temperature=temperature,
+                    tools=tool_defs,
+                    tool_choice="auto",
+                )
+            except _HardTimeoutExpired:
+                if tool_turns:
+                    stop_reason = f"tool_iteration_timeout:iteration={iteration_index + 1}"
+                    final_text = self._best_effort_tool_timeout_answer(
+                        tool_turns=tool_turns,
+                        stop_reason=stop_reason,
+                        preview_chars=prompt_preview_chars,
+                    )
+                    timeout_recovery_stage = "tool_iteration"
+                    timeout_recovery_iteration = iteration_index + 1
+                    stopped_early = True
+                    self._log(
+                        "TOOL_LOOP_STOP "
+                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                        f"agent_id={agent_id} reason=tool_iteration_timeout "
+                        f"iteration={iteration_index + 1}"
+                    )
+                    self._log(
+                        "RECOVERED "
+                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                        f"agent_id={agent_id} mode=tool_iteration_timeout "
+                        f"iteration={iteration_index + 1} "
+                        "recovery=best_effort_evidence_fallback"
+                    )
+                    break
+                raise
             usage = getattr(completion, "usage", None)
             total_token_in += int(getattr(usage, "prompt_tokens", 0))
             total_token_out += int(getattr(usage, "completion_tokens", 0))
@@ -601,7 +629,7 @@ class OpenRouterLLMClient:
                         stop_reason=stop_reason,
                         preview_chars=prompt_preview_chars,
                     )
-                    recovered_force_final_timeout = True
+                    timeout_recovery_stage = "force_final"
                     self._log(
                         "RECOVERED "
                         f"request_id={request_id} task_id={task_id} run_index={run_index} "
@@ -622,10 +650,12 @@ class OpenRouterLLMClient:
         }
         if latest_context_stats["summarized_turns"] > 0:
             metadata["tool_context_compacted"] = True
-        if recovered_force_final_timeout:
+        if timeout_recovery_stage is not None:
             metadata["tool_loop_timeout_recovered"] = True
-            metadata["tool_loop_timeout_stage"] = "force_final"
+            metadata["tool_loop_timeout_stage"] = timeout_recovery_stage
             metadata["tool_loop_recovery_mode"] = "best_effort_evidence_fallback"
+            if timeout_recovery_iteration is not None:
+                metadata["tool_loop_timeout_iteration"] = timeout_recovery_iteration
         if stopped_early:
             if stop_reason and stop_reason.startswith("duplicate_tool_call:"):
                 repeated_sig = stop_reason.split(":", 1)[1]
@@ -635,6 +665,11 @@ class OpenRouterLLMClient:
             elif stop_reason and stop_reason.startswith("search_results_stagnated:"):
                 metadata["tool_loop_stopped_reason"] = (
                     "Search results stagnated across consecutive iterations; "
+                    f"{stop_reason.split(':', 1)[1]}"
+                )
+            elif stop_reason and stop_reason.startswith("tool_iteration_timeout:"):
+                metadata["tool_loop_stopped_reason"] = (
+                    "Tool-loop iteration timed out; returned a best-effort answer from gathered evidence. "
                     f"{stop_reason.split(':', 1)[1]}"
                 )
             else:
