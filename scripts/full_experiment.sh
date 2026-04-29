@@ -11,8 +11,8 @@ set -euo pipefail
 #   DISABLE_DYNAMIC_ROLES=1 bash scripts/full_experiment.sh   # use structural roles only
 #   MODELS="qwen/qwen3-32b" bash scripts/full_experiment.sh
 
-TASK_LIMIT="${TASK_LIMIT:-3}"
-RUNS_PER_TASK="${RUNS_PER_TASK:-1}"
+TASK_LIMIT="${TASK_LIMIT:-30}"
+RUNS_PER_TASK="${RUNS_PER_TASK:-3}"
 # BENCHMARKS="${BENCHMARKS:-workbench,scicode,browsecomp,plancraft,webshop,agentbench,stabletoolbench}"
 BENCHMARKS="${BENCHMARKS:-browsecomp,plancraft,stabletoolbench,workbench,finance_agent}"
 RETRY_FAILURES="${RETRY_FAILURES:-1}"

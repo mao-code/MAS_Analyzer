@@ -1421,6 +1421,139 @@ def _write_experiment_settings(path: Path, payload: dict[str, Any]) -> None:
     _write_json(path, payload)
 
 
+def _summary_task_entry_from_payload(task_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    artifacts_payload = payload.get("artifacts", {})
+    return {
+        "task_id": str(payload.get("task_id", "")),
+        "prompt_preview": payload.get("prompt_preview", ""),
+        "reference_answer": payload.get("reference_answer", ""),
+        "task_dir": str(task_dir.resolve()),
+        "evaluation": dict(payload.get("evaluation", {})),
+        "descriptor": dict(payload.get("descriptor", {})),
+        "stage_bottleneck": payload.get("stage_bottleneck", {}),
+        "artifacts": {
+            "task_summary_path": str((task_dir / "task_summary.json").resolve()),
+            "analysis_path": str(
+                artifacts_payload.get("analysis_path", (task_dir / "analysis.json").resolve())
+            ),
+        },
+    }
+
+
+def _summary_row_from_analysis(
+    *,
+    benchmark_name: str,
+    system_label: str,
+    topology: str,
+    agents: int,
+    default_model: str,
+    judge_model: str,
+    task_id: str,
+    task_dir: Path,
+    analysis: dict[str, Any],
+) -> dict[str, Any]:
+    evaluation = dict(analysis.get("evaluation", {}))
+    descriptor = dict(analysis.get("descriptor", {}))
+    row: dict[str, Any] = {
+        "benchmark": benchmark_name,
+        "system_label": system_label,
+        "topology": topology,
+        "agents": agents,
+        "default_model": default_model,
+        "judge_model": judge_model,
+        "task_id": task_id,
+        "runs": evaluation.get("count", 0),
+        "accuracy": descriptor.get("accuracy", evaluation.get("accuracy", 0.0)),
+        "eval_avg_score": evaluation.get("avg_score", 0.0),
+        "eval_success_rate": evaluation.get("success_rate", 0.0),
+        "eval_completion_rate": evaluation.get("completion_rate", 0.0),
+        "latency_e2e": descriptor.get("latency_e2e"),
+        "token_total": descriptor.get("token_total"),
+        "task_dir": str(task_dir.resolve()),
+    }
+    row.update(descriptor)
+    return row
+
+
+def _load_completed_task_resume(
+    *,
+    task: Any,
+    task_dir: Path,
+    benchmark_name: str,
+    system_info: dict[str, Any],
+    runs_per_task: int,
+    default_model: str,
+    judge_model: str,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    task_summary_path = task_dir / "task_summary.json"
+    if not task_summary_path.exists():
+        return None
+
+    try:
+        payload = json.loads(task_summary_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        _log_progress(
+            f"TASK_RESUME_INVALID task_id={task.task_id} path={task_summary_path} "
+            f"error={type(exc).__name__}:{exc}"
+        )
+        return None
+
+    if not isinstance(payload, dict):
+        _log_progress(
+            f"TASK_RESUME_INVALID task_id={task.task_id} path={task_summary_path} error=non_dict"
+        )
+        return None
+
+    if str(payload.get("task_id", "")) != str(task.task_id):
+        return None
+    payload_benchmark = str(payload.get("benchmark", "")).strip()
+    if payload_benchmark and payload_benchmark != str(benchmark_name):
+        return None
+
+    payload_system = payload.get("system", {})
+    if not isinstance(payload_system, dict):
+        return None
+    for key in (
+        "system_label",
+        "topology",
+        "agents",
+        "max_turns",
+        "discussion_rounds",
+        "termination_consensus_mode",
+        "final_vote_mode",
+        "peer_artifact_max_chars",
+        "communication_budget",
+    ):
+        if key in payload_system and payload_system.get(key) != system_info.get(key):
+            return None
+
+    runs = payload.get("runs", [])
+    if not isinstance(runs, list) or len(runs) != runs_per_task:
+        return None
+
+    evaluation = payload.get("evaluation", {})
+    descriptor = payload.get("descriptor", {})
+    if not isinstance(evaluation, dict) or not isinstance(descriptor, dict):
+        return None
+
+    task_summary = _summary_task_entry_from_payload(task_dir, payload)
+    row = _summary_row_from_analysis(
+        benchmark_name=benchmark_name,
+        system_label=str(system_info.get("system_label", "")),
+        topology=str(system_info.get("topology", "")),
+        agents=int(system_info.get("agents", 0) or 0),
+        default_model=default_model,
+        judge_model=judge_model,
+        task_id=str(task.task_id),
+        task_dir=task_dir,
+        analysis={
+            "evaluation": evaluation,
+            "descriptor": descriptor,
+        },
+    )
+    return task_summary, row
+
+
 def run_command(args: argparse.Namespace) -> int:
     # 1) Load runtime knobs (OpenRouter, MAS topology, model routing, benchmark settings).
     config = load_experiment_config(args.config)
@@ -1518,10 +1651,10 @@ def run_command(args: argparse.Namespace) -> int:
     if graph_payload is not None:
         summary_json["graph"] = graph_payload
 
+    default_model = str(config.models.get("default", ""))
+    judge_model = str(config.models.get("judge", config.models.get("default", "")))
+
     for task_idx, task in enumerate(tasks):
-        _log_progress(
-            f"TASK_START index={task_idx + 1}/{len(tasks)} task_id={task.task_id}"
-        )
         task_dir = (
             output_paths.run_root / task.task_id
             if output_paths.output_layout == "hierarchical"
@@ -1529,6 +1662,28 @@ def run_command(args: argparse.Namespace) -> int:
         )
         task_dir.mkdir(parents=True, exist_ok=True)
 
+        resumed = _load_completed_task_resume(
+            task=task,
+            task_dir=task_dir,
+            benchmark_name=benchmark_name,
+            system_info=system_info,
+            runs_per_task=runs_per_task,
+            default_model=default_model,
+            judge_model=judge_model,
+        )
+        if resumed is not None:
+            task_summary, row = resumed
+            summary_json["tasks"].append(task_summary)
+            summary_rows.append(row)
+            _log_progress(
+                f"TASK_RESUME_SKIP index={task_idx + 1}/{len(tasks)} task_id={task.task_id} "
+                f"path={task_dir / 'task_summary.json'}"
+            )
+            continue
+
+        _log_progress(
+            f"TASK_START index={task_idx + 1}/{len(tasks)} task_id={task.task_id}"
+        )
         run_traces = []
         evaluations = []
         run_outcomes: list[RunOutcome] = []
@@ -1682,25 +1837,19 @@ def run_command(args: argparse.Namespace) -> int:
         }
         summary_json["tasks"].append(task_summary)
 
-        row: dict[str, Any] = {
-            "benchmark": benchmark_name,
-            "system_label": output_paths.system_label,
-            "topology": config.mas.resolved_topology(),
-            "agents": config.mas.total_agents,
-            "default_model": str(config.models.get("default", "")),
-            "judge_model": str(config.models.get("judge", config.models.get("default", ""))),
-            "task_id": task.task_id,
-            "runs": analysis["evaluation"].get("count", 0),
-            "accuracy": analysis["descriptor"].get("accuracy", analysis["evaluation"].get("accuracy", 0.0)),
-            "eval_avg_score": analysis["evaluation"].get("avg_score", 0.0),
-            "eval_success_rate": analysis["evaluation"].get("success_rate", 0.0),
-            "eval_completion_rate": analysis["evaluation"].get("completion_rate", 0.0),
-            "latency_e2e": analysis["descriptor"].get("latency_e2e"),
-            "token_total": analysis["descriptor"].get("token_total"),
-            "task_dir": str(task_dir.resolve()),
-        }
-        row.update(analysis["descriptor"])
-        summary_rows.append(row)
+        summary_rows.append(
+            _summary_row_from_analysis(
+                benchmark_name=benchmark_name,
+                system_label=output_paths.system_label,
+                topology=config.mas.resolved_topology(),
+                agents=config.mas.total_agents,
+                default_model=default_model,
+                judge_model=judge_model,
+                task_id=str(task.task_id),
+                task_dir=task_dir,
+                analysis=analysis,
+            )
+        )
         _log_progress(
             f"TASK_FINISH index={task_idx + 1}/{len(tasks)} task_id={task.task_id} task_dir={task_dir}"
         )
