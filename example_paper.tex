@@ -98,12 +98,12 @@ We add two programmatic diagnostics on top of the primary labels. For StableTool
 For the full failed-run corpus, we also compute a first-critical-fault label. This is not a claim of formal causal identification. It is a diagnostic attribution rule that maps each failed run to the earliest visible bottleneck class implied by its evaluator output and trace artifacts: retrieval evidence gap, unsupported hypothesis, premature impossibility, tool/interface fault, entity grounding, workflow precondition, data-interface brittleness, or financial support gap.
 
 \section{Topology Does Not Have a Universal Winner}
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/topology_success_heatmap.pdf}
+\includegraphics[width=\columnwidth]{figures/topology_success_heatmap.pdf}
 \caption{Task success by benchmark and topology. No topology dominates across benchmarks; topology effects are largest on StableToolBench and weakest on Finance Agent.}
 \label{fig:success_heatmap}
-\end{figure*}
+\end{figure}
 
 \cref{fig:success_heatmap} shows the central result. \texttt{only\_voting} is strongest on BrowseComp, PlanCraft, and WorkBench; \texttt{group\_chat\_debate} is strongest on StableToolBench; and \texttt{orchestrator\_tree\_structure} is strongest on Finance Agent. The best topology is therefore benchmark-dependent, not a general property of agent count.
 
@@ -128,12 +128,12 @@ finance\_agent & orchestrator\_tree\_structure & .067 & .044 & +.022 & 8.4$\time
 
 \cref{tab:best} makes the trade-off explicit. StableToolBench gains 23.3 points over \texttt{sas}, while PlanCraft gains only 1.1 points despite using nearly four times as many tokens. Finance Agent is even more sobering: the best topology uses 8.4$\times$ the baseline tokens for a 2.2-point success lift. These results already suggest that coordination is useful only when it matches the benchmark's bottleneck.
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/topology_delta_heatmap.pdf}
+\includegraphics[width=\columnwidth]{figures/topology_delta_heatmap.pdf}
 \caption{Success lift relative to \texttt{sas}. Positive effects concentrate in StableToolBench; several debate and orchestrator variants underperform the single-agent baseline on BrowseComp and PlanCraft.}
 \label{fig:delta_heatmap}
-\end{figure*}
+\end{figure}
 
 \section{Failure Regimes Are Benchmark-Anchored}
 \begin{figure}[t]
@@ -205,6 +205,15 @@ This matters because it reframes tool failure as a transition property rather th
 \end{figure}
 
 These results sharpen the earlier failure taxonomy. The dominant failure is often not the last action. For WorkBench, the terminal symptom may be a missing calendar event, but the first critical fault is usually unresolved identity. For StableToolBench, the terminal symptom may be an unsupported synthesis, but the earliest visible bottleneck is often the tool state becoming sparse or schema-limited. For Finance Agent, the final answer may be fluent, blocked, or numerically specific, but the first critical fault is usually missing period-aligned financial support. This localization is why we frame repair as state-transition control rather than only better final-answer prompting.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fault_propagation_sankey.pdf}
+\caption{Aggregate diagnostic flow from first critical fault to contaminated state and terminal failure regime. The flow should be read as heuristic localization over traces, not as a formal causal graph.}
+\label{fig:fault_sankey}
+\end{figure*}
+
+\cref{fig:fault_sankey} summarizes the same point as a propagation view. Retrieval gaps and unsupported hypotheses feed contaminated evidence states, premature impossibility feeds invalid terminal states, and grounding failures feed unresolved action bindings. This is the picture behind the paper's repair claim: useful interventions should target the earliest state transition that contaminates the rest of the run.
 
 \section{Clinical Trace Anatomy}
 \subsection{BrowseComp: Hypothesis Lock-In}
@@ -286,14 +295,6 @@ Specific numerical answer with thin support & Support density and source disagre
 \caption{Trace-local triggers that can be converted into programmatic assertions.}
 \label{tab:triggers}
 \end{table}
-
-\section{Fault Propagation View}
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.95\textwidth]{figures/fault_propagation_sankey.pdf}
-\caption{Aggregate diagnostic flow from first critical fault to contaminated state and terminal failure regime. The flow is a heuristic localization view, not a formal causal graph.}
-\label{fig:fault_sankey}
-\end{figure}
 
 \section{Artifact Notes}
 The primary aggregate file is \texttt{experiment\_summary.csv}. Task-level metrics are drawn from \texttt{Plot/system\_level\_metrics.csv} and \texttt{Plot/task\_level\_metrics.csv}. Per-run diagnoses use \texttt{run\_*.eval.json}, \texttt{run\_*.trajectory.md}, and \texttt{run\_*.trace.jsonl}. The state-transition diagnostics are generated by \texttt{analysis/trace\_state\_diagnostics.py}, which writes the Markov transition, run-statistic, first-fault, and propagation files under \texttt{figures/}. The analysis excludes incomplete aggregate cells from topology-level summary claims.
