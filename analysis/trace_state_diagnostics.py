@@ -22,6 +22,15 @@ DEFAULT_ROOT = Path(
 )
 STATES = ("ok", "sparse", "error")
 STATE_LABELS = {"ok": "OK", "sparse": "Sparse", "error": "Error"}
+TOPOLOGY_ORDER = [
+    "sas",
+    "only_voting",
+    "fully_linked_debate",
+    "group_chat_debate",
+    "orchestrator_no_discussion",
+    "orchestrator_tree_structure",
+    "orchestrator_with_discussion",
+]
 
 
 def read_json(path: Path) -> dict:
@@ -44,6 +53,20 @@ def eval_success(eval_path: Path) -> bool:
     except FileNotFoundError:
         return False
     return bool(data.get("success") or data.get("outcome", {}).get("success"))
+
+
+def completed_cells(root: Path) -> set[tuple[str, str]]:
+    """Benchmark/topology cells present in the aggregate experiment export."""
+
+    summary_path = root / "experiment_summary.csv"
+    if not summary_path.exists():
+        return set()
+    with summary_path.open() as handle:
+        return {
+            (row["benchmark"], row["topology"])
+            for row in csv.DictReader(handle)
+            if row.get("benchmark") and row.get("topology")
+        }
 
 
 def matching_eval_for_trace(trace_path: Path) -> Path:
@@ -168,7 +191,7 @@ def write_csv(path: Path, rows: list[dict]) -> None:
     if not rows:
         return
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -213,12 +236,18 @@ def plot_markov(rows: list[dict], output_prefix: Path) -> None:
 
 
 def prediction_text(eval_data: dict) -> str:
+    details = eval_data.get("details", {})
+    details_prediction = details.get("prediction", "")
+    if not isinstance(details_prediction, str):
+        details_prediction = ""
+    judge_raw = details.get("judge_raw", {})
     pieces = [
         eval_data.get("prediction", ""),
         eval_data.get("final_answer", ""),
-        eval_data.get("details", {}).get("prediction", ""),
-        eval_data.get("details", {}).get("final_reason", ""),
-        eval_data.get("run_metadata", {}).get("final_reason", ""),
+        details_prediction,
+        details.get("reason", ""),
+        judge_raw.get("reason", "") if isinstance(judge_raw, dict) else "",
+        details.get("error", ""),
     ]
     return " ".join(str(piece) for piece in pieces if piece).lower()
 
@@ -238,11 +267,39 @@ def trace_has_adverse_tool_state(eval_path: Path) -> bool:
     return False
 
 
-def classify_first_fault(eval_path: Path, eval_data: dict) -> tuple[str, str, str]:
-    benchmark = eval_path.relative_to(DEFAULT_ROOT).parts[0] if DEFAULT_ROOT in eval_path.parents else eval_path.parts[-5]
+def trace_has_adverse_tool(eval_path: Path, tool_prefix: str) -> bool:
+    trace_path = eval_path.parent / eval_path.name.replace(".eval.json", ".trace.jsonl")
+    if not trace_path.exists():
+        return False
+    for event in iter_jsonl(trace_path):
+        if event.get("event_type") != "tool_result":
+            continue
+        payload = event.get("payload", {})
+        tool_name = payload.get("tool_name") or ""
+        if not tool_name.startswith(tool_prefix):
+            continue
+        if classify_tool_result(payload) != "ok":
+            return True
+    return False
+
+
+def classify_first_fault(eval_path: Path, eval_data: dict, root: Path) -> tuple[str, str, str]:
+    benchmark = eval_path.relative_to(root).parts[0]
     text = prediction_text(eval_data)
 
-    entity_terms = ("email", "assignee", "sender", "recipient", "contact", "person")
+    entity_terms = (
+        "no email",
+        "missing participant email",
+        "email not found",
+        "no email found",
+        "email resolution",
+        "assigned contact",
+        "assignee",
+        "sender",
+        "recipient",
+        "not found in the company directory",
+        "not found in company directory",
+    )
     tool_terms = (
         "api",
         "tool",
@@ -262,13 +319,26 @@ def classify_first_fault(eval_path: Path, eval_data: dict) -> tuple[str, str, st
         "not enough",
         "no direct evidence",
         "not recovered",
+        "unspecified",
         "unsupported",
         "unknown",
         "blocked",
+        "lack of",
+        "lack relevant",
+        "lacks",
+        "no actionable",
+        "no retrieved",
+        "could not be retrieved",
+        "unable to retrieve",
     )
 
     if benchmark == "workbench":
-        source = "entity_grounding" if any(t in text for t in entity_terms) else "workflow_precondition"
+        source = (
+            "entity_grounding"
+            if any(t in text for t in entity_terms)
+            or trace_has_adverse_tool(eval_path, "company_directory.find_email_address")
+            else "workflow_precondition"
+        )
     elif benchmark == "plancraft":
         source = "premature_impossibility" if "impossible" in text else "invalid_or_wrong_action"
     elif benchmark == "stabletoolbench":
@@ -317,12 +387,15 @@ def classify_first_fault(eval_path: Path, eval_data: dict) -> tuple[str, str, st
 
 def collect_first_faults(root: Path) -> tuple[list[dict], list[dict]]:
     rows: list[dict] = []
+    allowed_cells = completed_cells(root)
     for eval_path in sorted(root.glob("*/*/*/run_*.eval.json")):
+        rel = eval_path.relative_to(root)
+        if allowed_cells and (rel.parts[0], rel.parts[1]) not in allowed_cells:
+            continue
         data = read_json(eval_path)
         if data.get("success") or data.get("outcome", {}).get("success"):
             continue
-        rel = eval_path.relative_to(root)
-        source, propagation, terminal = classify_first_fault(eval_path, data)
+        source, propagation, terminal = classify_first_fault(eval_path, data, root)
         rows.append(
             {
                 "benchmark": rel.parts[0],
@@ -348,6 +421,73 @@ def collect_first_faults(root: Path) -> tuple[list[dict], list[dict]]:
         for (benchmark, source), count in sorted(counts.items())
     ]
     return rows, summary
+
+
+def plot_topology_fault_heatmaps(rows: list[dict], output_prefix: Path) -> None:
+    benchmarks = ["browsecomp", "plancraft", "stabletoolbench", "workbench", "finance_agent"]
+    source_order = [
+        "retrieval_evidence_gap",
+        "unsupported_hypothesis",
+        "premature_impossibility",
+        "invalid_or_wrong_action",
+        "tool_interface",
+        "evidence_gap",
+        "unsupported_synthesis",
+        "entity_grounding",
+        "workflow_precondition",
+        "data_interface_brittleness",
+        "financial_support_gap",
+    ]
+    counts = Counter((row["benchmark"], row["topology"], row["source"]) for row in rows)
+    totals = Counter((row["benchmark"], row["topology"]) for row in rows)
+
+    fig, axes = plt.subplots(2, 3, figsize=(7.4, 4.6), constrained_layout=True)
+    axes = axes.flatten()
+    last_image = None
+    for ax, benchmark in zip(axes, benchmarks):
+        sources = [s for s in source_order if any(row["benchmark"] == benchmark and row["source"] == s for row in rows)]
+        topologies = [t for t in TOPOLOGY_ORDER if totals[(benchmark, t)]]
+        matrix = [
+            [
+                counts[(benchmark, topology, source)] / totals[(benchmark, topology)]
+                if totals[(benchmark, topology)]
+                else 0.0
+                for source in sources
+            ]
+            for topology in topologies
+        ]
+        last_image = ax.imshow(matrix, vmin=0, vmax=1, cmap="Blues", aspect="auto")
+        ax.set_title(benchmark.replace("_", " "), fontsize=9)
+        ax.set_xticks(
+            range(len(sources)),
+            [s.replace("_", "\n") for s in sources],
+            fontsize=5.2,
+            rotation=0,
+        )
+        ax.set_yticks(
+            range(len(topologies)),
+            [t.replace("orchestrator_", "orch_").replace("_", "\n") for t in topologies],
+            fontsize=5.8,
+        )
+        for i, topology in enumerate(topologies):
+            for j, source in enumerate(sources):
+                val = matrix[i][j]
+                if val >= 0.08:
+                    ax.text(
+                        j,
+                        i,
+                        f"{val:.0%}",
+                        ha="center",
+                        va="center",
+                        fontsize=5.5,
+                        color="white" if val > 0.55 else "black",
+                    )
+    axes[-1].axis("off")
+    if last_image is not None:
+        fig.colorbar(last_image, ax=axes, fraction=0.025, pad=0.01, label="Failure share")
+    for ext in ("pdf", "png"):
+        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=220)
+    plt.close(fig)
 
 
 FAULT_COLORS = {
@@ -577,6 +717,7 @@ def main() -> None:
     write_csv(args.out / "first_fault_summary.csv", fault_summary)
     plot_first_fault_distribution(fault_summary, args.out / "first_fault_distribution")
     plot_fault_sankey(fault_rows, args.out / "fault_propagation_sankey")
+    plot_topology_fault_heatmaps(fault_rows, args.out / "topology_failure_regime_heatmaps")
 
     print("Wrote trace diagnostics to", args.out)
 
