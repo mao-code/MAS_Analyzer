@@ -68,7 +68,7 @@ The distinction matters because many benchmark reports emphasize issue-level tre
 
 \section{Corpus and Method}
 \subsection{Experiment Scope}
-The suite contains five benchmarks and seven topology labels: \texttt{sas}, \texttt{only\_voting}, \texttt{fully\_linked\_debate}, \texttt{group\_chat\_debate}, \texttt{orchestrator\_no\_discussion}, \texttt{orchestrator\_tree\_structure}, and \texttt{orchestrator\_with\_discussion}. One aggregate summary cell is absent from the completed export, leaving 34 benchmark--topology cells. Each completed cell has 30 tasks and three repeated runs, yielding 3,060 evaluated runs. The task-level metric export contains 990 task rows over 33 cells and is used for token, latency, communication, handoff, and tool-call analysis.
+The suite contains five benchmarks and seven topology labels: single-agent, voting, fully linked debate, group chat debate, orchestrator without discussion, tree orchestrator, and discussion orchestrator. One aggregate summary cell is absent from the completed export, leaving 34 benchmark--topology cells. Each completed cell has 30 tasks and three repeated runs, yielding 3,060 evaluated runs. The task-level metric export contains 990 task rows over 33 cells and is used for token, latency, communication, handoff, and tool-call analysis.
 
 \begin{figure*}[t]
 \centering
@@ -78,22 +78,22 @@ The suite contains five benchmarks and seven topology labels: \texttt{sas}, \tex
 \end{figure*}
 
 \subsection{Metrics}
-We report task success, stability across repeated runs, average token use, tool calls, communication count, and handoff count. For topology comparisons, we compute success lift relative to \texttt{sas} within the same benchmark and token multiplier relative to the same baseline. This gives a direct estimate of coordination tax: the extra inference budget spent for each topology-specific success gain.
+We report task success, stability across repeated runs, average token use, tool calls, communication count, and handoff count. For topology comparisons, we compute success lift relative to the single-agent baseline within the same benchmark and token multiplier relative to the same baseline. This gives a direct estimate of coordination tax: the extra inference budget spent for each topology-specific success gain.
 
 \subsection{Trace Artifacts}
-The audit is possible because the runtime standardizes intermediate agent outputs. Each answer-producing stage emits an \texttt{answer\_artifact}, \texttt{summary}, \texttt{critique}, \texttt{revision\_request}, \texttt{confidence}, \texttt{unresolved\_issues}, and \texttt{evidence\_summary}. The trajectory files also record task prompts, tool definitions, role assignments, visible peer packets, final reasons, and vote tallies when applicable. This structure is important methodologically: it lets us separate an unsupported final answer from an explicit blocked answer, and it lets us ask whether a topology introduced new evidence or merely recirculated the same artifact.
+The audit is possible because the runtime standardizes intermediate agent outputs. Each answer-producing stage emits an answer artifact, summary, critique, revision request, confidence, unresolved issues, and evidence summary. The trajectory files also record task prompts, tool definitions, role assignments, visible peer packets, final reasons, and vote tallies when applicable. This structure is important methodologically: it lets us separate an unsupported final answer from an explicit blocked answer, and it lets us ask whether a topology introduced new evidence or merely recirculated the same artifact.
 
 We treat the benchmark evaluator output as the outcome source of truth. The trace is then used to explain the failure path, not to override the evaluator. This distinction prevents fluent but wrong answers from being credited simply because they look coherent, and prevents honest blocked answers from being collapsed into generic model error.
 
 \subsection{Failure Coding}
-We code every failed run in the 34 completed cells, for 2,425 failures in total. Coding begins from the benchmark evaluator output, then uses the prediction string, final reason, trajectory markdown, vote tally, visible packets, tool outputs, and representative JSONL traces to assign one primary label. The labels are operational rather than universal. For example, PlanCraft failures are coded as \emph{premature impossibility} when the run emits \texttt{impossible} after a local shortage; WorkBench failures are coded as \emph{entity grounding failure} when a missing person, sender, email, or assignee blocks execution.
+We code every failed run in the 34 completed cells, for 2,425 failures in total. Coding begins from the benchmark evaluator output, then uses the prediction string, final reason, trajectory markdown, vote tally, visible packets, tool outputs, and representative JSONL traces to assign one primary label. The labels are operational rather than universal. For example, PlanCraft failures are coded as \emph{premature impossibility} when the run emits \emph{impossible} after a local shortage; WorkBench failures are coded as \emph{entity grounding failure} when a missing person, sender, email, or assignee blocks execution.
 
 When multiple mechanisms appear in the same run, we use an earliest-bottleneck rule: the primary label is the first trace-visible condition that makes the benchmark objective unattainable under the observed run. If a sparse API response later leads to an unsupported answer, the run is coded as tool/interface fragility when the tool layer is the binding constraint, and as unsupported synthesis when the tools return usable evidence but the final synthesis overstates it. If a workflow later stalls because an email address was never grounded, the run is coded as entity grounding rather than generic workflow blocking.
 
 This is a lightweight trace audit, not a multi-rater annotation study. Its purpose is diagnostic: to identify whether failures across topologies share the same trace-visible mechanism, and whether topology changes the distribution of those mechanisms. We therefore prefer labels with clear repair implications over labels that merely restate the benchmark outcome.
 
 \subsection{State-Transition Diagnostics}
-We add two programmatic diagnostics on top of the primary labels. For StableToolBench, we parse all non-communication \texttt{tool\_result} events from \texttt{run\_*.trace.jsonl} and collapse each result into one of three states: \emph{OK}, \emph{sparse}, or \emph{error}. We then estimate row-normalized Markov transitions separately for successful and failed runs. \Cref{tab:tool_state_rules} gives the reproducible state rules. Observed status strings include \texttt{completed}, \texttt{ok}, and \texttt{error}; status values \texttt{error}, \texttt{failed}, or \texttt{timeout} are always treated as \emph{error}.
+We add two programmatic diagnostics on top of the primary labels. For StableToolBench, we parse all non-communication tool-result events from run trace files and collapse each result into one of three states: \emph{OK}, \emph{sparse}, or \emph{error}. We then estimate row-normalized Markov transitions separately for successful and failed runs. \Cref{tab:tool_state_rules} gives the reproducible state rules. Observed status strings include \emph{completed}, \emph{ok}, and \emph{error}; status values \emph{error}, \emph{failed}, or \emph{timeout} are always treated as \emph{error}.
 
 \begin{table}[t]
 \centering
@@ -104,15 +104,15 @@ We add two programmatic diagnostics on top of the primary labels. For StableTool
 State & Rule & Examples \\
 \midrule
 \emph{OK} & Non-empty structured response, no error cue, and preview length at least 20 characters. & Valid JSON fields; populated records. \\
-\emph{sparse} & Empty or degenerate preview without an explicit error cue. & \texttt{[]}, \texttt{\{\}}, \texttt{null}, \texttt{No data found}. \\
-\emph{error} & Status or preview contains interface-failure cues. & \texttt{cache miss}, invalid parameters, exception, timeout, rate limit. \\
+\emph{sparse} & Empty or degenerate preview without an explicit error cue. & Empty list, empty object, null, no data found. \\
+\emph{error} & Status or preview contains interface-failure cues. & Cache miss, invalid parameters, exception, timeout, rate limit. \\
 \bottomrule
 \end{tabular}}
 \caption{Tool-result state rules used for StableToolBench Markov transitions. If multiple cues appear, \emph{error} takes precedence over \emph{sparse}.}
 \label{tab:tool_state_rules}
 \end{table}
 
-For the full failed-run corpus, we also compute a first-critical-fault label. This is not a claim of formal causal identification. It is a rule-based diagnostic attribution that maps each failed run to the earliest visible bottleneck class implied by evaluator output and trace artifacts: retrieval evidence gap, unsupported hypothesis, premature impossibility, tool/interface fault, entity grounding, workflow precondition, data-interface brittleness, or financial support gap. The first-critical-fault label differs from the primary failure label: the primary label explains the failed outcome, while first-critical-fault localizes the earliest trace-visible state that contaminates the rest of the run. We filter this diagnostic to the 34 completed cells in \texttt{experiment\_summary.csv}. As a sanity check, we re-audited a deterministic stratified sample of 30 failed runs, six per benchmark, and found 30/30 agreement with the rule output. This is a one-author reliability check rather than an independent multi-rater study.
+For the full failed-run corpus, we also compute a first-critical-fault label. This is not a claim of formal causal identification. It is a rule-based diagnostic attribution that maps each failed run to the earliest visible bottleneck class implied by evaluator output and trace artifacts: retrieval evidence gap, unsupported hypothesis, premature impossibility, tool/interface fault, entity grounding, workflow precondition, data-interface brittleness, or financial support gap. The first-critical-fault label differs from the primary failure label: the primary label explains the failed outcome, while first-critical-fault localizes the earliest trace-visible state that contaminates the rest of the run. We filter this diagnostic to the 34 completed cells in the experiment summary CSV. As a sanity check, we re-audited a deterministic stratified sample of 30 failed runs, six per benchmark, and found 30/30 agreement with the rule output. This is a one-author reliability check rather than an independent multi-rater study.
 
 \section{Topology Does Not Have a Universal Winner}
 \begin{figure}[t]
@@ -122,7 +122,7 @@ For the full failed-run corpus, we also compute a first-critical-fault label. Th
 \label{fig:success_heatmap}
 \end{figure}
 
-\cref{fig:success_heatmap} shows the central result. \texttt{only\_voting} is strongest on BrowseComp, PlanCraft, and WorkBench; \texttt{group\_chat\_debate} is strongest on StableToolBench; and \texttt{orchestrator\_tree\_structure} is strongest on Finance Agent. The best topology is therefore benchmark-dependent, not a general property of agent count.
+\cref{fig:success_heatmap} shows the central result. Voting is strongest on BrowseComp, PlanCraft, and WorkBench; group-chat debate is strongest on StableToolBench; and the tree orchestrator is strongest on Finance Agent. The best topology is therefore benchmark-dependent, not a general property of agent count.
 
 \begin{table}[t]
 \centering
@@ -143,12 +143,12 @@ finance\_agent & orchestrator\_tree\_structure & .067 & .044 & +.022 & 8.4$\time
 \label{tab:best}
 \end{table}
 
-\cref{tab:best} makes the trade-off explicit. StableToolBench gains 23.3 points over \texttt{sas}, while PlanCraft gains only 1.1 points despite using nearly four times as many tokens. Finance Agent is even more sobering: the best topology uses 8.4$\times$ the baseline tokens for a 2.2-point success lift. These results already suggest that coordination is useful only when it matches the benchmark's bottleneck.
+\cref{tab:best} makes the trade-off explicit. StableToolBench gains 23.3 points over the single-agent baseline, while PlanCraft gains only 1.1 points despite using nearly four times as many tokens. Finance Agent is even more sobering: the best topology uses 8.4$\times$ the baseline tokens for a 2.2-point success lift. These results already suggest that coordination is useful only when it matches the benchmark's bottleneck.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/topology_delta_heatmap.pdf}
-\caption{Success lift relative to \texttt{sas}. Positive effects concentrate in StableToolBench; several debate and orchestrator variants underperform the single-agent baseline on BrowseComp and PlanCraft.}
+\caption{Success lift relative to the single-agent baseline. Positive effects concentrate in StableToolBench; several debate and orchestrator variants underperform the baseline on BrowseComp and PlanCraft.}
 \label{fig:delta_heatmap}
 \end{figure}
 
@@ -174,7 +174,7 @@ The important point is not that these labels are perfect. The important point is
 Benchmark & Dominant trace mechanism & Topology implication & Repair-oriented diagnostic \\
 \midrule
 BrowseComp & Evidence state remains thin while candidate answers become increasingly salient. & Debate can amplify weak hypotheses unless agents seek disconfirming evidence. & Unique evidence growth and candidate-disconfirmation checks before final vote. \\
-PlanCraft & Local resource shortage is promoted to global impossibility. & More agents help only if one preserves the unexplored frontier. & Count alternate route expansions before \texttt{impossible}; require frontier-exhaustion proof. \\
+PlanCraft & Local resource shortage is promoted to global impossibility. & More agents help only if one preserves the unexplored frontier. & Count alternate route expansions before \emph{impossible}; require frontier-exhaustion proof. \\
 StableToolBench & Sparse or schema-limited API responses constrain downstream synthesis. & Discussion helps when agents can combine complementary tool outputs. & Low-information response streaks, API coverage gaps, and synthesis support density. \\
 WorkBench & Workflow cannot bind a required person, email, sender, or assignee. & Coordination is orthogonal unless an agent resolves the binding. & Unresolved entity count before first irreversible workflow action. \\
 Finance Agent & Financial claims exceed verified filings, definitions, or extracted numeric support. & Orchestration adds cost but often cannot repair missing evidence. & Source coverage, period alignment, formula completeness, and citation-to-claim density. \\
@@ -195,15 +195,15 @@ Finance Agent & Financial claims exceed verified filings, definitions, or extrac
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/coordination_tax_plane.pdf}
-\caption{Coordination tax: success lift versus token multiplier relative to \texttt{sas}. StableToolBench is the only clear high-cost, high-gain case.}
+\caption{Coordination tax: success lift versus token multiplier relative to the single-agent baseline. StableToolBench is the only clear high-cost, high-gain case.}
 \label{fig:coordination_tax}
 \end{figure}
 
-\cref{fig:coordination_tax} plots the economic side of the same story. Across non-\texttt{sas} topologies, \texttt{only\_voting} has the highest mean success lift (+3.1 points) with a lower mean token multiplier than discussion-heavy systems. \texttt{group\_chat\_debate} has high variance: it is excellent on StableToolBench but weak on BrowseComp and PlanCraft. \texttt{orchestrator\_with\_discussion} is especially costly, with negative mean lift across the task-level metric export.
+\cref{fig:coordination_tax} plots the economic side of the same story. Across non-baseline topologies, voting has the highest mean success lift (+3.1 points) with a lower mean token multiplier than discussion-heavy systems. Group-chat debate has high variance: it is excellent on StableToolBench but weak on BrowseComp and PlanCraft. The discussion orchestrator is especially costly, with negative mean lift across the task-level metric export.
 
 This suggests a practical diagnostic: evaluate whether extra coordination changes the evidence state. If additional agents introduce genuinely new tool evidence or independent checks, the tax may be justified. If they merely paraphrase the same weak intermediate claim, the system pays for redundancy. The failure traces repeatedly show the latter pattern in BrowseComp and PlanCraft: discussion increases commitment or deliberation length without changing the decisive state variable.
 
-The system-level averages sharpen this point. Among non-\texttt{sas} systems in the task-level metric export, \texttt{only\_voting} has the highest mean success lift (+3.1 points) while sending no inter-agent messages. By contrast, \texttt{orchestrator\_with\_discussion} averages roughly 27.8 communication events and 34.5 handoffs per task but has a negative mean lift. This does not imply that discussion is intrinsically bad. It implies that discussion must be evaluated by whether it changes the state variables that matter for the benchmark.
+The system-level averages sharpen this point. Among non-baseline systems in the task-level metric export, voting has the highest mean success lift (+3.1 points) while sending no inter-agent messages. By contrast, the discussion orchestrator averages roughly 27.8 communication events and 34.5 handoffs per task but has a negative mean lift. This does not imply that discussion is intrinsically bad. It implies that discussion must be evaluated by whether it changes the state variables that matter for the benchmark.
 
 StableToolBench illustrates the positive case. It is the only benchmark where the best topology is explicitly discussion-heavy and the lift is large (+23.3 points). The benchmark's API workflows create a natural division of labor: one agent may map parameters, another may interpret a response, and a third may notice that a different endpoint is needed. BrowseComp and PlanCraft lack that same benefit in many traces. If all agents inherit the same weak snippet set or the same local shortage, discussion increases linguistic surface area without increasing search coverage or planning completeness.
 
@@ -253,7 +253,7 @@ These results sharpen the earlier failure taxonomy. The dominant failure is ofte
 Trace trigger & Programmatic metric & Expected failure regime \\
 \midrule
 Repeated search with overlapping snippets & Unique-document growth across retrieval turns & Evidence starvation or unsupported hypothesis \\
-Early \texttt{impossible} after a local shortage & Alternate route expansions before termination & Premature impossibility \\
+Early \emph{impossible} after a local shortage & Alternate route expansions before termination & Premature impossibility \\
 Repeated sparse tool outputs & Low-information response streak length & Tool/interface fragility \\
 Missing person or email before first action & Unresolved binding count & Entity grounding failure \\
 Specific numerical answer with thin support & Support density and source disagreement & Financial support gap \\
@@ -265,29 +265,29 @@ Specific numerical answer with thin support & Support density and source disagre
 
 \section{Clinical Trace Anatomy}
 \subsection{BrowseComp: Hypothesis Lock-In}
-Task 769 asks for the learning institution satisfying five linked criteria, including a 2002 support event, a 2003 graduation ceremony, a 2022 plant-sampling article, a tribute event seven days later, and location in the country's capital. The reference answer is Queen Arwa University, but a \texttt{fully\_linked\_debate} run terminates with ``Blocked: No direct evidence for the 2022 article (Criterion C) found yet.'' The final reason is \texttt{no\_meaningful\_change}, and the vote tally collapses to four variants of \texttt{unknown}.
+Task 769 asks for the learning institution satisfying five linked criteria, including a 2002 support event, a 2003 graduation ceremony, a 2022 plant-sampling article, a tribute event seven days later, and location in the country's capital. The reference answer is Queen Arwa University, but a fully linked debate run terminates with ``Blocked: No direct evidence for the 2022 article (Criterion C) found yet.'' The final reason is \emph{no meaningful change}, and the vote tally collapses to four variants of \emph{unknown}.
 
 The important detail is that the topology is structurally rich: it assigns a query decomposer, search strategist, document navigator, and answer synthesizer. Yet the trace shows the group converging on the same missing boundary rather than discovering the decisive document. The fatal pivot is not a hallucinated final answer; it is a stagnation state in which the system recognizes that Criterion C is unsupported but has no recovery mechanism beyond additional debate. Debate correctly avoids overclaiming, but it also fails to generate new evidence. This case therefore explains both sides of BrowseComp: unsupported answers are dangerous, but blocked answers can also reveal that coordination has not changed retrieval coverage.
 
 \subsection{PlanCraft: Local Shortage Becomes Global Impossibility}
-Task VAL0132 asks for the next action to craft \texttt{pink\_dye}. The inventory contains \texttt{white\_dye} and \texttt{poppy}. The benchmark guidance explicitly treats \texttt{smelt} as a valid action and says not to require furnace or fuel unless the prompt does. Several voter artifacts propose \texttt{smelt: from [I3] to [I4] with quantity 1}, and one critique explicitly notes that marking the action impossible ignores the benchmark rule. Nevertheless, the final answer is \texttt{impossible}, with the reason that red dye is absent. The final reason is \texttt{only\_voting:deterministic\_tiebreak}.
+Task VAL0132 asks for the next action to craft pink dye. The inventory contains white dye and poppy. The benchmark guidance explicitly treats smelting as a valid action and says not to require furnace or fuel unless the prompt does. Several voter artifacts propose smelting the poppy into red dye, and one critique explicitly notes that marking the action impossible ignores the benchmark rule. Nevertheless, the final answer is \emph{impossible}, with the reason that red dye is absent. The final reason is deterministic voting tiebreak.
 
-This is a sharper failure than a generic planning miss. A valid route is visible in the artifact set, but the aggregation rule resolves a tie toward a terminal action. The fatal pivot is therefore a topology-mediated state transition: candidate actions include a feasible frontier-expanding step, yet finalization promotes the premature impossibility state. This case shows why voting is not automatically robust. It can reduce conversational amplification, but it still needs a domain-aware preference rule that ranks reversible frontier-expanding actions above irreversible \texttt{impossible} claims unless impossibility has been proven.
+This is a sharper failure than a generic planning miss. A valid route is visible in the artifact set, but the aggregation rule resolves a tie toward a terminal action. The fatal pivot is therefore a topology-mediated state transition: candidate actions include a feasible frontier-expanding step, yet finalization promotes the premature impossibility state. This case shows why voting is not automatically robust. It can reduce conversational amplification, but it still needs a domain-aware preference rule that ranks reversible frontier-expanding actions above irreversible \emph{impossible} claims unless impossibility has been proven.
 
 \subsection{StableToolBench: API Schema Mismatch}
-Task 12204 requires airplane records ordered by name while also reporting passenger capacity and range. In a \texttt{fully\_linked\_debate} failure, the available endpoint \texttt{airplanes\_ordered\_by\_descending\_for\_airplanesdb} orders airplanes by name, while other endpoints expose different access patterns such as search by engine, brand, or single airplane id. The final vote favors a blocked answer: the tools cannot both order by name and include capacity/range in one request.
+Task 12204 requires airplane records ordered by name while also reporting passenger capacity and range. In a fully linked debate failure, the available ordered-airplanes endpoint sorts airplanes by name, while other endpoints expose different access patterns such as search by engine, brand, or single airplane id. The final vote favors a blocked answer: the tools cannot both order by name and include capacity/range in one request.
 
 This trace is not merely a model reasoning failure. The tool surface creates a join problem: the desired answer requires fields and ordering guarantees that are not exposed by the same call. A stronger topology can help only if agents can decompose the operation into endpoint coverage, field recovery, and ordering validation. That is why StableToolBench is the benchmark where group chat plausibly pays for itself. The failure mode is still interface fragility, but the repair is genuinely collaborative when different agents explore complementary API paths instead of repeating the same blocked endpoint.
 
 \subsection{WorkBench and Finance: Grounding Versus Support}
-Workbench task \texttt{multi\_domain\_0} shows an operational grounding failure. The tool layer offers calendar operations and a company-directory lookup. The run repeatedly attempts \texttt{company\_directory.find\_email\_address} for Cameron Anderson, then ends with ``Meeting cannot be scheduled; no email found for Cameron Anderson or assignee.'' The final vote reaches consensus, but consensus is over an unresolved binding. No amount of scheduling logic can create the calendar event without the participant email.
+Workbench task multi-domain 0 shows an operational grounding failure. The tool layer offers calendar operations and a company-directory lookup. The run repeatedly attempts to find Cameron Anderson's email address, then ends with ``Meeting cannot be scheduled; no email found for Cameron Anderson or assignee.'' The final vote reaches consensus, but consensus is over an unresolved binding. No amount of scheduling logic can create the calendar event without the participant email.
 
 Finance task 21 shows the parallel failure in evidential rather than operational form. The reference answer requires GBV per Nights and Experiences Booked for FY2022--FY2024. The trace includes EDGAR search, web search, parsing, and retrieval tools, but the final answer blocks because FY2023--FY2024 data remain unverified under rate limiting and HTML parsing constraints. Some intermediate artifacts contain partial calculations or placeholders, which is exactly the dangerous state for financial QA: the system can produce numeric-looking output before the evidence chain is complete. The fatal pivot to avoid is not only wrong arithmetic; it is allowing partial filings and period-misaligned evidence to support a precise final claim.
 
 \section{Toward Mechanistic Evaluation}
 The audit supports a state-space view of agentic failure. Each retrieval, tool call, or entity lookup updates the latent execution state. A later action may look reasonable while inheriting a corrupted state. BrowseComp failures often inherit a narrowed hypothesis space; PlanCraft failures inherit an invalid impossibility state; WorkBench failures inherit an unresolved entity binding; StableToolBench failures inherit a low-information tool state.
 
-This framing turns failure labels into falsifiable mechanistic hypotheses. If evidence starvation is the driver, then forcing diverse retrieval or measuring unique evidence growth should change outcomes. If premature impossibility is the driver, then a formal frontier-exhaustion check should reduce false \texttt{impossible} actions. If tool fragility is the driver, causal interventions on tool responses should shift unsupported synthesis rates. The value of traces is that these hypotheses can be tested at the state-transition level, not only at the final-answer level.
+This framing turns failure labels into falsifiable mechanistic hypotheses. If evidence starvation is the driver, then forcing diverse retrieval or measuring unique evidence growth should change outcomes. If premature impossibility is the driver, then a formal frontier-exhaustion check should reduce false \emph{impossible} actions. If tool fragility is the driver, causal interventions on tool responses should shift unsupported synthesis rates. The value of traces is that these hypotheses can be tested at the state-transition level, not only at the final-answer level.
 
 The practical implication is that a stronger evaluation suite should log state changes, not only event counts. It is not enough to know that a tool was called; we need to know whether the call changed evidence coverage. It is not enough to know that several agents voted; we need to know whether the vote preferred reversible exploration over premature termination. And it is not enough to know that a financial answer contained citations; we need to know whether each numerical claim is aligned to the correct period, formula, and source.
 
@@ -316,7 +316,7 @@ This paper studies failure in agentic AI systems with the goal of improving reli
 \begin{itemize}
     \item \textbf{Unsupported hypothesis}: the run returns a candidate answer without sufficient supporting evidence.
     \item \textbf{Evidence starvation}: the run explicitly reports that necessary evidence was not recovered.
-    \item \textbf{Premature impossibility}: the run emits \texttt{impossible} before the search frontier is exhausted.
+    \item \textbf{Premature impossibility}: the run emits \emph{impossible} before the search frontier is exhausted.
     \item \textbf{Tool/interface fragility}: sparse, empty, inconsistent, or unavailable tool output is the primary bottleneck.
     \item \textbf{Unsupported synthesis}: tools return some evidence, but the final answer exceeds what the evidence supports.
     \item \textbf{Entity grounding failure}: a person, email, sender, recipient, user, or assignee cannot be resolved.
@@ -326,17 +326,17 @@ This paper studies failure in agentic AI systems with the goal of improving reli
 \end{itemize}
 
 \section{First-Critical-Fault Rule Details}
-The first-critical-fault diagnostic is generated programmatically by \texttt{analysis/trace\_state\_diagnostics.py}. The script first filters runs to benchmark--topology cells present in \texttt{experiment\_summary.csv}; this excludes the incomplete aggregate cell from diagnostic counts. It then assigns the earliest bottleneck class using evaluator text plus selected trace checks:
+The first-critical-fault diagnostic is generated programmatically by the trace-state diagnostics script. The script first filters runs to benchmark--topology cells present in the experiment summary CSV; this excludes the incomplete aggregate cell from diagnostic counts. It then assigns the earliest bottleneck class using evaluator text plus selected trace checks:
 \begin{itemize}
     \item \textbf{BrowseComp}: explicit blocked, missing, unsupported, or no-evidence language maps to retrieval evidence gap; otherwise a concrete wrong answer maps to unsupported hypothesis.
-    \item \textbf{PlanCraft}: answers containing \texttt{impossible} map to premature impossibility; other wrong actions map to invalid or wrong action.
+    \item \textbf{PlanCraft}: answers containing \emph{impossible} map to premature impossibility; other wrong actions map to invalid or wrong action.
     \item \textbf{StableToolBench}: tool error cues or adverse tool-result traces map to tool/interface fault; missing metadata or unresolved subqueries map to evidence gap; remaining failures map to unsupported synthesis.
-    \item \textbf{WorkBench}: sparse \texttt{company\_directory.find\_email\_address} results or explicit missing-email language map to entity grounding; remaining failures map to workflow precondition.
+    \item \textbf{WorkBench}: sparse company-directory email lookup results or explicit missing-email language map to entity grounding; remaining failures map to workflow precondition.
     \item \textbf{Finance Agent}: rate-limit, parsing, API, EDGAR, or other interface cues map to data-interface brittleness; remaining failures map to financial support gap.
 \end{itemize}
-We manually re-audited the deterministic stratified sample stored in \texttt{figures/first\_fault\_reaudit\_sample.csv}. The sample contains six failed runs per benchmark and matched the programmatic label in all 30 cases. This check verifies that the rules match visible trace evidence on the sample; it is not a substitute for independent multi-rater annotation.
+We manually re-audited the deterministic stratified sample stored with the generated figure artifacts. The sample contains six failed runs per benchmark and matched the programmatic label in all 30 cases. This check verifies that the rules match visible trace evidence on the sample; it is not a substitute for independent multi-rater annotation.
 
 \section{Artifact Notes}
-The primary aggregate file is \texttt{experiment\_summary.csv}. Task-level metrics are drawn from \texttt{Plot/system\_level\_metrics.csv} and \texttt{Plot/task\_level\_metrics.csv}. Per-run diagnoses use \texttt{run\_*.eval.json}, \texttt{run\_*.trajectory.md}, and \texttt{run\_*.trace.jsonl}. The state-transition diagnostics are generated by \texttt{analysis/trace\_state\_diagnostics.py}, which writes the Markov transition, run-statistic, first-fault, topology-conditioned fault, re-audit sample, and propagation files under \texttt{figures/}. The analysis excludes incomplete aggregate cells from topology-level summary claims.
+The primary aggregate file is the experiment summary CSV. Task-level metrics are drawn from system-level and task-level metric CSV exports. Per-run diagnoses use evaluation JSON, trajectory markdown, and event-level trace JSONL files. The state-transition diagnostics are generated by the trace-state diagnostics script, which writes the Markov transition, run-statistic, first-fault, topology-conditioned fault, re-audit sample, and propagation files under the figure artifact directory. The analysis excludes incomplete aggregate cells from topology-level summary claims.
 
 \end{document}
