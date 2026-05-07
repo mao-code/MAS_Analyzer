@@ -47,7 +47,7 @@
 \printAffiliationsAndNotice{}
 
 \begin{abstract}
-Multi-agent topologies are often evaluated as if additional agents were a general-purpose capability amplifier. We test that assumption with a trace-centered audit of MAS Analyzer runs across five benchmarks and seven coordination topologies. The completed corpus contains 34 benchmark--topology summary cells, 3,060 evaluated runs, 990 task-level metric rows, and 2,425 failed runs with trajectory and evaluation artifacts. The results show that topology effects are strongly benchmark-dependent: group-chat debate substantially improves StableToolBench, simple voting is strongest on BrowseComp, PlanCraft, and WorkBench, and orchestration barely moves Finance Agent despite large token costs. Trace-level failure labels and clinical case studies reveal why: benchmark identity largely determines the dominant failure regime, while topology mostly changes cost, communication, and the probability of escaping that regime. We argue that agent evaluation should report topology-sensitive failure regimes, state-transition diagnostics, and coordination tax, not only terminal success.
+Multi-agent topologies are often evaluated as if additional agents were a general-purpose capability amplifier. We test that assumption with a trace-centered audit of MAS Analyzer runs across five benchmarks and seven coordination topologies. The completed corpus contains 34 benchmark--topology summary cells, 3,060 evaluated runs, 990 task-level metric rows, and 2,425 failed runs with trajectory and evaluation artifacts. The results show that topology effects are strongly benchmark-dependent: group-chat debate substantially improves StableToolBench, simple voting is strongest on BrowseComp, PlanCraft, and WorkBench, and orchestration barely moves Finance Agent despite large token costs. We add two mechanistic diagnostics: tool-call Markov transitions for StableToolBench and first-critical-fault localization across all failed runs. Trace-level labels and clinical case studies reveal why benchmark identity largely determines the dominant failure regime, while topology mostly changes cost, communication, and the probability of escaping that regime.
 \end{abstract}
 
 \section{Introduction}
@@ -57,7 +57,7 @@ This paper studies whether multi-agent topology changes those failures. The ques
 
 Our central finding is that topology is not a universal intervention. The strongest topology differs by benchmark, and the largest success gain appears only on the tool-heavy StableToolBench. On several other benchmarks, richer coordination adds substantial token and communication overhead while leaving the dominant failure mode largely intact. We therefore frame failure modes as topology-sensitive but benchmark-anchored: topology can change the chance of escaping a failure regime, but the regime itself is usually induced by the benchmark's evidence and action structure.
 
-The paper makes three contributions. First, it reports a cross-benchmark topology matrix over 34 completed benchmark--topology cells. Second, it codes 2,425 failed runs into operational failure regimes using evaluation JSON, trajectory markdown, and representative trace inspection. Third, it introduces a coordination-tax view that relates success lift to token and communication overhead, making expensive multi-agent gains easier to interpret. Fourth, it grounds the aggregate labels in clinical trace anatomy: concrete failed runs in which the decisive error can be localized to a state transition such as unsupported hypothesis promotion, invalid impossibility, API-schema mismatch, or unresolved entity binding.
+The paper makes four contributions. First, it reports a cross-benchmark topology matrix over 34 completed benchmark--topology cells. Second, it codes 2,425 failed runs into operational failure regimes using evaluation JSON, trajectory markdown, and representative trace inspection. Third, it introduces a coordination-tax view that relates success lift to token and communication overhead, making expensive multi-agent gains easier to interpret. Fourth, it adds state-transition diagnostics: tool-call Markov transitions for tool-heavy tasks and first-critical-fault localization for tracing terminal failures back to their earliest visible bottleneck.
 
 \section{Related Work}
 Our study builds on agent architectures that interleave reasoning, action, tool use, and feedback. ReAct showed how reasoning traces can be coupled with environment interaction \cite{react}; Toolformer studied learned tool invocation \cite{toolformer}; Reflexion emphasized verbal feedback after failed attempts \cite{reflexion}; and AutoGen made multi-agent conversation a practical systems pattern \cite{autogen}. These works motivate the topologies we study, but they do not determine when coordination repairs failures rather than amplifying them.
@@ -91,6 +91,11 @@ We code every failed run in the 34 completed cells, for 2,425 failures in total.
 When multiple mechanisms appear in the same run, we use an earliest-bottleneck rule: the primary label is the first trace-visible condition that makes the benchmark objective unattainable under the observed run. If a sparse API response later leads to an unsupported answer, the run is coded as tool/interface fragility when the tool layer is the binding constraint, and as unsupported synthesis when the tools return usable evidence but the final synthesis overstates it. If a workflow later stalls because an email address was never grounded, the run is coded as entity grounding rather than generic workflow blocking.
 
 This is a lightweight trace audit, not a multi-rater annotation study. Its purpose is diagnostic: to identify whether failures across topologies share the same trace-visible mechanism, and whether topology changes the distribution of those mechanisms. We therefore prefer labels with clear repair implications over labels that merely restate the benchmark outcome.
+
+\subsection{State-Transition Diagnostics}
+We add two programmatic diagnostics on top of the primary labels. For StableToolBench, we parse all non-communication \texttt{tool\_result} events from \texttt{run\_*.trace.jsonl} and collapse each result into one of three states: \emph{OK}, \emph{sparse}, or \emph{error}. A result is marked \emph{error} when its status or preview contains failure cues such as cache misses, invalid parameters, exceptions, or rate limits; it is marked \emph{sparse} when the preview is empty or degenerate; otherwise it is marked \emph{OK}. We then estimate row-normalized Markov transitions separately for successful and failed runs.
+
+For the full failed-run corpus, we also compute a first-critical-fault label. This is not a claim of formal causal identification. It is a diagnostic attribution rule that maps each failed run to the earliest visible bottleneck class implied by its evaluator output and trace artifacts: retrieval evidence gap, unsupported hypothesis, premature impossibility, tool/interface fault, entity grounding, workflow precondition, data-interface brittleness, or financial support gap.
 
 \section{Topology Does Not Have a Universal Winner}
 \begin{figure*}[t]
@@ -176,6 +181,31 @@ The system-level averages sharpen this point. Among non-\texttt{sas} systems in 
 
 StableToolBench illustrates the positive case. It is the only benchmark where the best topology is explicitly discussion-heavy and the lift is large (+23.3 points). The benchmark's API workflows create a natural division of labor: one agent may map parameters, another may interpret a response, and a third may notice that a different endpoint is needed. BrowseComp and PlanCraft lack that same benefit in many traces. If all agents inherit the same weak snippet set or the same local shortage, discussion increases linguistic surface area without increasing search coverage or planning completeness.
 
+\section{State-Transition Diagnostics}
+\subsection{Tool-Call Markov Transitions}
+The StableToolBench traces let us quantify the interface-fragility story directly. \cref{fig:tool_markov} compares row-normalized transitions between coarse tool-result states for successful and failed runs. The largest separation is not the probability of remaining in an error state, which is high for both outcomes. Instead, it is the probability that an apparently usable tool state deteriorates on the next tool result. In successful runs, \emph{OK}$\rightarrow$\emph{sparse/error} occurs with probability 0.184. In failed runs, the same deterioration occurs with probability 0.298, a 1.62$\times$ increase.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/stabletoolbench_tool_markov.pdf}
+\caption{StableToolBench tool-result Markov transitions. Failed runs are more likely to transition from an \emph{OK} tool result into an adverse \emph{sparse/error} state on the next tool result.}
+\label{fig:tool_markov}
+\end{figure*}
+
+This matters because it reframes tool failure as a transition property rather than a terminal label. A single sparse response is not necessarily fatal; many successful runs also encounter imperfect tool outputs. The dangerous pattern is repeated deterioration without a strategy shift. Failed StableToolBench runs have a higher mean maximum adverse streak than successful runs (2.76 vs. 2.17), while using nearly the same mean number of tool results. The bottleneck is therefore not simply tool volume. It is whether the run can recover after the tool state becomes low-information.
+
+\subsection{First Critical Fault Localization}
+\cref{fig:first_fault} applies the same state-space view across all failed runs. The distribution is sharply benchmark-specific. In WorkBench, 484 of 518 failures (93.4\%) localize first to entity grounding. In PlanCraft, 445 of 447 failures (99.6\%) localize to premature impossibility. In StableToolBench, 284 of 352 failures (80.7\%) localize to tool/interface faults. Finance Agent splits between financial support gaps (403 of 573, 70.3\%) and data-interface brittleness (170 of 573, 29.7\%). BrowseComp is dominated by unsupported hypothesis promotion (458 of 596, 76.8\%), with the remainder showing explicit retrieval evidence gaps.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/first_fault_distribution.pdf}
+\caption{First critical fault localization over failed runs. The earliest visible bottleneck is benchmark-specific, supporting the claim that topology operates on top of benchmark-anchored failure regimes.}
+\label{fig:first_fault}
+\end{figure}
+
+These results sharpen the earlier failure taxonomy. The dominant failure is often not the last action. For WorkBench, the terminal symptom may be a missing calendar event, but the first critical fault is usually unresolved identity. For StableToolBench, the terminal symptom may be an unsupported synthesis, but the earliest visible bottleneck is often the tool state becoming sparse or schema-limited. For Finance Agent, the final answer may be fluent, blocked, or numerically specific, but the first critical fault is usually missing period-aligned financial support. This localization is why we frame repair as state-transition control rather than only better final-answer prompting.
+
 \section{Clinical Trace Anatomy}
 \subsection{BrowseComp: Hypothesis Lock-In}
 Task 769 asks for the learning institution satisfying five linked criteria, including a 2002 support event, a 2003 graduation ceremony, a 2022 plant-sampling article, a tribute event seven days later, and location in the country's capital. The reference answer is Queen Arwa University, but a \texttt{fully\_linked\_debate} run terminates with ``Blocked: No direct evidence for the 2022 article (Criterion C) found yet.'' The final reason is \texttt{no\_meaningful\_change}, and the vote tally collapses to four variants of \texttt{unknown}.
@@ -202,26 +232,7 @@ The audit supports a state-space view of agentic failure. Each retrieval, tool c
 
 This framing turns failure labels into falsifiable mechanistic hypotheses. If evidence starvation is the driver, then forcing diverse retrieval or measuring unique evidence growth should change outcomes. If premature impossibility is the driver, then a formal frontier-exhaustion check should reduce false \texttt{impossible} actions. If tool fragility is the driver, causal interventions on tool responses should shift unsupported synthesis rates. The value of traces is that these hypotheses can be tested at the state-transition level, not only at the final-answer level.
 
-\begin{table}[t]
-\centering
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{p{0.34\columnwidth} p{0.34\columnwidth} p{0.30\columnwidth}}
-\toprule
-Trace trigger & Programmatic metric & Expected regime \\
-\midrule
-Repeated search with overlapping snippets & Unique-document growth across retrieval turns & Evidence starvation or unsupported hypothesis \\
-Early \texttt{impossible} after a local shortage & Alternate route expansions before termination & Premature impossibility \\
-Repeated sparse tool outputs & Low-information response streak length & Tool/interface fragility \\
-Missing person or email before first action & Unresolved binding count & Entity grounding failure \\
-Specific numerical answer with thin support & Support density and source disagreement & Financial support gap \\
-\bottomrule
-\end{tabular}}
-\caption{Trace-local triggers that can be converted into programmatic assertions. These metrics turn qualitative failure labels into testable state-transition checks.}
-\label{tab:triggers}
-\end{table}
-
-The table also clarifies what a stronger evaluation suite should log. It is not enough to know that a tool was called; we need to know whether the call changed evidence coverage. It is not enough to know that several agents voted; we need to know whether the vote preferred reversible exploration over premature termination. And it is not enough to know that a financial answer contained citations; we need to know whether each numerical claim is aligned to the correct period, formula, and source.
+The practical implication is that a stronger evaluation suite should log state changes, not only event counts. It is not enough to know that a tool was called; we need to know whether the call changed evidence coverage. It is not enough to know that several agents voted; we need to know whether the vote preferred reversible exploration over premature termination. And it is not enough to know that a financial answer contained citations; we need to know whether each numerical claim is aligned to the correct period, formula, and source.
 
 \section{Implications for System Design}
 The results argue against topology selection by leaderboard average alone. A useful multi-agent system should match coordination to failure regime. Tool-heavy tasks benefit from discussion when agents can combine partial external evidence. Search tasks need stagnation detection and adversarial evidence checks. Planning tasks need formal impossibility standards. Workflow tasks need early entity grounding before deeper orchestration. Finance tasks need support-sensitive answer policies that penalize fluent unsupported specificity.
@@ -257,7 +268,34 @@ This paper studies failure in agentic AI systems with the goal of improving reli
     \item \textbf{Stack/data brittleness}: finance failures caused by interacting data, interface, and benchmark constraints.
 \end{itemize}
 
+\section{Diagnostic Trigger Metrics}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{p{0.30\textwidth} p{0.31\textwidth} p{0.30\textwidth}}
+\toprule
+Trace trigger & Programmatic metric & Expected failure regime \\
+\midrule
+Repeated search with overlapping snippets & Unique-document growth across retrieval turns & Evidence starvation or unsupported hypothesis \\
+Early \texttt{impossible} after a local shortage & Alternate route expansions before termination & Premature impossibility \\
+Repeated sparse tool outputs & Low-information response streak length & Tool/interface fragility \\
+Missing person or email before first action & Unresolved binding count & Entity grounding failure \\
+Specific numerical answer with thin support & Support density and source disagreement & Financial support gap \\
+\bottomrule
+\end{tabular}
+\caption{Trace-local triggers that can be converted into programmatic assertions.}
+\label{tab:triggers}
+\end{table}
+
+\section{Fault Propagation View}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fault_propagation_sankey.pdf}
+\caption{Aggregate diagnostic flow from first critical fault to contaminated state and terminal failure regime. The flow is a heuristic localization view, not a formal causal graph.}
+\label{fig:fault_sankey}
+\end{figure}
+
 \section{Artifact Notes}
-The primary aggregate file is \texttt{experiment\_summary.csv}. Task-level metrics are drawn from \texttt{Plot/system\_level\_metrics.csv} and \texttt{Plot/task\_level\_metrics.csv}. Per-run diagnoses use \texttt{run\_*.eval.json}, \texttt{run\_*.trajectory.md}, and \texttt{run\_*.trace.jsonl}. The analysis excludes incomplete aggregate cells from topology-level summary claims.
+The primary aggregate file is \texttt{experiment\_summary.csv}. Task-level metrics are drawn from \texttt{Plot/system\_level\_metrics.csv} and \texttt{Plot/task\_level\_metrics.csv}. Per-run diagnoses use \texttt{run\_*.eval.json}, \texttt{run\_*.trajectory.md}, and \texttt{run\_*.trace.jsonl}. The state-transition diagnostics are generated by \texttt{analysis/trace\_state\_diagnostics.py}, which writes the Markov transition, run-statistic, first-fault, and propagation files under \texttt{figures/}. The analysis excludes incomplete aggregate cells from topology-level summary claims.
 
 \end{document}
