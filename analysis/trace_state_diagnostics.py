@@ -196,6 +196,118 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
+def collect_vote_entropy(root: Path) -> tuple[list[dict], list[dict]]:
+    allowed_cells = completed_cells(root)
+    rows: list[dict] = []
+    for metadata_path in sorted(root.glob("*/*/*/run_*.metadata.json")):
+        rel = metadata_path.relative_to(root)
+        benchmark, topology, task_id = rel.parts[:3]
+        if allowed_cells and (benchmark, topology) not in allowed_cells:
+            continue
+        data = read_json(metadata_path)
+        vote_tally = data.get("vote_tally") or {}
+        if not vote_tally:
+            continue
+        counts = []
+        for value in vote_tally.values():
+            try:
+                counts.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        total = sum(counts)
+        if not counts or total <= 0:
+            continue
+        probabilities = [count / total for count in counts if count > 0]
+        entropy = -sum(p * math.log(p, 2) for p in probabilities)
+        normalized_entropy = entropy / math.log(len(probabilities), 2) if len(probabilities) > 1 else 0.0
+        eval_path = metadata_path.with_name(metadata_path.name.replace(".metadata.json", ".eval.json"))
+        rows.append(
+            {
+                "benchmark": benchmark,
+                "topology": topology,
+                "task_id": task_id,
+                "run": metadata_path.stem.replace(".metadata", ""),
+                "outcome": "success" if eval_success(eval_path) else "fail",
+                "vote_options": len(probabilities),
+                "vote_total": int(total),
+                "entropy_bits": entropy,
+                "normalized_entropy": normalized_entropy,
+                "max_vote_share": max(probabilities),
+                "single_option": int(len(probabilities) == 1),
+            }
+        )
+
+    grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for row in rows:
+        grouped[(row["topology"], row["outcome"])].append(row)
+    summary: list[dict] = []
+    for (topology, outcome), group in sorted(grouped.items()):
+        n = len(group)
+        summary.append(
+            {
+                "topology": topology,
+                "outcome": outcome,
+                "runs": n,
+                "mean_entropy_bits": sum(row["entropy_bits"] for row in group) / n,
+                "mean_normalized_entropy": sum(row["normalized_entropy"] for row in group) / n,
+                "mean_max_vote_share": sum(row["max_vote_share"] for row in group) / n,
+                "single_option_rate": sum(row["single_option"] for row in group) / n,
+            }
+        )
+    return rows, summary
+
+
+def plot_vote_entropy(summary: list[dict], output_prefix: Path) -> None:
+    topologies = [
+        "only_voting",
+        "fully_linked_debate",
+        "group_chat_debate",
+    ]
+    labels = ["Voting", "Fully linked", "Group chat"]
+    outcomes = ["success", "fail"]
+    colors = {"success": "#5B8FF9", "fail": "#E8684A"}
+    lookup = {(row["topology"], row["outcome"]): row for row in summary}
+
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 2.8), constrained_layout=True)
+    width = 0.36
+    x = list(range(len(topologies)))
+    metrics = [
+        ("mean_normalized_entropy", "Mean normalized entropy"),
+        ("single_option_rate", "Single-option tally rate"),
+    ]
+    for ax, (metric, title) in zip(axes, metrics):
+        for offset, outcome in zip((-width / 2, width / 2), outcomes):
+            vals = [lookup.get((topology, outcome), {}).get(metric, 0.0) for topology in topologies]
+            bars = ax.bar(
+                [pos + offset for pos in x],
+                vals,
+                width=width,
+                color=colors[outcome],
+                label=outcome.capitalize(),
+                edgecolor="white",
+                linewidth=0.7,
+            )
+            for bar, val in zip(bars, vals):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    min(val + 0.025, 1.02),
+                    f"{val:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                )
+        ax.set_title(title, fontsize=9)
+        ax.set_xticks(x, labels, fontsize=8)
+        ax.set_ylim(0, 1.05)
+        ax.grid(axis="y", alpha=0.25, linewidth=0.5)
+        ax.tick_params(axis="y", labelsize=8)
+    axes[0].set_ylabel("Rate / normalized entropy", fontsize=8)
+    axes[1].legend(loc="upper left", fontsize=7, frameon=False)
+    for ext in ("pdf", "png"):
+        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=220)
+    plt.close(fig)
+
+
 def plot_markov(rows: list[dict], output_prefix: Path) -> None:
     lookup = {
         (row["outcome"], row["from_state"], row["to_state"]): row for row in rows
@@ -718,6 +830,11 @@ def main() -> None:
     plot_first_fault_distribution(fault_summary, args.out / "first_fault_distribution")
     plot_fault_sankey(fault_rows, args.out / "fault_propagation_sankey")
     plot_topology_fault_heatmaps(fault_rows, args.out / "topology_failure_regime_heatmaps")
+
+    vote_rows, vote_summary = collect_vote_entropy(args.root)
+    write_csv(args.out / "vote_entropy_runs.csv", vote_rows)
+    write_csv(args.out / "vote_entropy_summary.csv", vote_summary)
+    plot_vote_entropy(vote_summary, args.out / "vote_entropy_by_topology")
 
     print("Wrote trace diagnostics to", args.out)
 
