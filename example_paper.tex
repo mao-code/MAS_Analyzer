@@ -55,9 +55,9 @@ Agentic systems are increasingly evaluated through benchmark success rates, but 
 
 This paper studies whether multi-agent topology changes those failures. The question is deliberately narrower than ``do more agents help?'' We ask when topology changes success, when it only changes cost, and when the same benchmark-specific failure regime persists across coordination structures. We analyze a MAS Analyzer experiment suite spanning \textit{browsecomp}, \textit{plancraft}, \textit{stabletoolbench}, \textit{workbench}, and \textit{finance\_agent}. The evaluated systems include a single-agent baseline, flat voting, fully linked debate, group-chat debate, and three orchestrator variants.
 
-Our central finding is that topology is not a universal intervention. The strongest topology differs by benchmark, and the largest success gain appears only on the tool-heavy StableToolBench. On several other benchmarks, richer coordination adds substantial token and communication overhead while leaving the dominant failure mode largely intact. We therefore frame failure modes as topology-sensitive but benchmark-anchored: topology can change the chance of escaping a failure regime, but the regime itself is usually induced by the benchmark's evidence and action structure.
+Our central finding is that failure regimes are topology-sensitive in rate but benchmark-anchored in kind: changing topology often changes how often a system escapes a regime, but rarely changes the dominant regime itself. The strongest topology differs by benchmark, and the largest success gain appears only on the tool-heavy StableToolBench. We view an agent run as a sequence of state transitions; a failure regime is the recurring pattern by which an early corrupted state propagates into a terminal failure.
 
-The paper makes four contributions. First, it reports a cross-benchmark topology matrix over 34 completed benchmark--topology cells. Second, it codes 2,425 failed runs into operational failure regimes using evaluation JSON, trajectory markdown, and representative trace inspection. Third, it introduces a coordination-tax view that relates success lift to token and communication overhead, making expensive multi-agent gains easier to interpret. Fourth, it adds state-transition diagnostics: tool-call Markov transitions for tool-heavy tasks, vote entropy for consensus health, and first-critical-fault localization for tracing terminal failures back to their earliest visible bottleneck. We treat these diagnostics as falsifiable repair hypotheses; intervention verification is left to future work.
+The paper makes four contributions. First, it reports a cross-benchmark topology matrix over 34 completed benchmark--topology cells. Second, it codes 2,425 failed runs into operational failure regimes using evaluation JSON, trajectory markdown, and representative trace inspection. Third, it introduces a coordination-tax view that relates success lift to token and communication overhead, making expensive multi-agent gains easier to interpret. Fourth, it converts each failure regime into a repair hypothesis with trace-local diagnostics: first-critical-fault localization for tracing terminal failures back to their earliest visible bottleneck, tool-call Markov transitions for tool-heavy tasks, and vote entropy for consensus health. We treat these diagnostics as falsifiable repair hypotheses; intervention verification is left to future work.
 
 \section{Related Work}
 Our study builds on agent architectures that interleave reasoning, action, tool use, and feedback. ReAct showed how reasoning traces can be coupled with environment interaction \cite{react}; Toolformer studied learned tool invocation \cite{toolformer}; Reflexion emphasized verbal feedback after failed attempts \cite{reflexion}; and AutoGen made multi-agent conversation a practical systems pattern \cite{autogen}. These works motivate the topologies we study, but they do not determine when coordination repairs failures rather than amplifying them.
@@ -93,7 +93,7 @@ When multiple mechanisms appear in the same run, we use an earliest-bottleneck r
 This is a lightweight trace audit, not a multi-rater annotation study. Its purpose is diagnostic: to identify whether failures across topologies share the same trace-visible mechanism, and whether topology changes the distribution of those mechanisms. We therefore prefer labels with clear repair implications over labels that merely restate the benchmark outcome.
 
 \subsection{State-Transition Diagnostics}
-We add two programmatic diagnostics on top of the primary labels. For StableToolBench, we parse all non-communication tool-result events from run trace files and collapse each result into one of three states: \emph{OK}, \emph{sparse}, or \emph{error}. We then estimate row-normalized Markov transitions separately for successful and failed runs. \Cref{tab:tool_state_rules} gives the reproducible state rules. Observed status strings include \emph{completed}, \emph{ok}, and \emph{error}; status values \emph{error}, \emph{failed}, or \emph{timeout} are always treated as \emph{error}.
+We add three trace diagnostics on top of the primary labels. For StableToolBench, we parse all non-communication tool-result events from run trace files and collapse each result into one of three states: \emph{OK}, \emph{sparse}, or \emph{error}. We then estimate row-normalized Markov transitions separately for successful and failed runs. \Cref{tab:tool_state_rules} gives the reproducible state rules. Observed status strings include \emph{completed}, \emph{ok}, and \emph{error}; status values \emph{error}, \emph{failed}, or \emph{timeout} are always treated as \emph{error}.
 
 \begin{table}[t]
 \centering
@@ -162,11 +162,13 @@ finance\_agent & orchestrator\_tree\_structure & .067 & .044 & +.022 & 8.4$\time
 \label{fig:failure_regimes}
 \end{figure}
 
+\Cref{fig:failure_regimes} reports primary failure labels: the terminal regime that best explains why a run failed. This is separate from the first-critical-fault diagnostic in \cref{fig:first_fault}, which asks where the failure first became trace-visible. The two views answer different questions: what failed at the end, and which earlier state made that ending likely.
+
 \cref{fig:failure_regimes} aggregates all failed runs in completed cells. BrowseComp is dominated by unsupported hypotheses: 487 of 596 failed runs return an answer whose support chain is too weak, while 109 explicitly report evidence starvation. PlanCraft is the cleanest regime: 444 of 447 failures are premature impossibility. StableToolBench splits between unsupported synthesis (180) and tool/interface fragility (172), showing that tool-heavy tasks fail both at the interface and at the synthesis layer. WorkBench failures are mostly grounding related: 304 entity grounding failures and 214 broader workflow blocks. Finance Agent is dominated by financial support gaps (430 of 512), with 82 stack or data brittleness cases.
 
 The important point is not that these labels are perfect. The important point is that topology rarely erases the benchmark's dominant regime. In BrowseComp, several coordination-heavy systems spend many more tokens but still fail by building around weak evidence. In PlanCraft, debate and orchestration do not prevent the local-to-global impossibility jump. In WorkBench, additional agents cannot execute a workflow if none of them resolves the missing entity. StableToolBench is the main exception: because its bottleneck often involves assembling partial tool evidence, group discussion can actually change the run's chance of success.
 
-\Cref{tab:regime_repair} is the bridge from taxonomy to repair: each label is paired with a trace-visible state variable, a topology implication, and a diagnostic that can be converted into an assertion. The topology-conditioned heatmaps in \cref{fig:topology_fault_heatmaps} support the same claim without aggregating away topology. Within most benchmarks, the darkest column remains stable across rows, while success rates and token costs vary. This is the empirical basis for saying that topology changes the probability of escaping a failure regime more often than it changes the regime itself.
+We do not propose a taxonomy merely for naming failures; we use labels as repair hypotheses. \Cref{tab:regime_repair} is the bridge from taxonomy to an automated audit blueprint: each label is paired with a trace-visible state variable, a topology implication, and a diagnostic that can be converted into an assertion. The topology-conditioned heatmaps in \cref{fig:topology_fault_heatmaps} support the same claim without aggregating away topology. Within most benchmarks, the darkest column remains stable across rows, while success rates and token costs vary. This is the empirical basis for saying that topology changes the probability of escaping a failure regime more often than it changes the regime itself.
 
 \begin{table*}[t]
 \centering
@@ -182,7 +184,7 @@ WorkBench & Workflow cannot bind a required person, email, sender, or assignee. 
 Finance Agent & Financial claims exceed verified filings, definitions, or extracted numeric support. & Orchestration adds cost but often cannot repair missing evidence. & Source coverage, period alignment, formula completeness, and citation-to-claim density. \\
 \bottomrule
 \end{tabular}
-\caption{Failure regimes as repair hypotheses. Each label is tied to a trace-visible state variable and a topology-specific implication rather than treated as a generic model error.}
+\caption{Automated audit blueprint. Each failure regime is tied to a trace-visible state variable, a topology-specific implication, and a repair-oriented diagnostic rather than treated as a generic model error.}
 \label{tab:regime_repair}
 \end{table*}
 
@@ -207,35 +209,11 @@ This suggests a practical diagnostic: evaluate whether extra coordination change
 
 The system-level averages sharpen this point. Among non-baseline systems in the task-level metric export, voting has the highest mean success lift (+3.1 points) while sending no inter-agent messages. By contrast, the discussion orchestrator averages roughly 27.8 communication events and 34.5 handoffs per task but has a negative mean lift. This does not imply that discussion is intrinsically bad. It implies that discussion must be evaluated by whether it changes the state variables that matter for the benchmark.
 
-StableToolBench illustrates the positive case. It is the only benchmark where the best topology is explicitly discussion-heavy and the lift is large (+23.3 points). The benchmark's API workflows create a natural division of labor: one agent may map parameters, another may interpret a response, and a third may notice that a different endpoint is needed. BrowseComp and PlanCraft lack that same benefit in many traces. If all agents inherit the same weak snippet set or the same local shortage, discussion increases linguistic surface area without increasing search coverage or planning completeness.
+StableToolBench is the positive control for coordination. It is the only benchmark where the best topology is explicitly discussion-heavy and the lift is large (+23.3 points). The benchmark's API workflows create a natural division of labor: one agent may map parameters, another may interpret a response, and a third may notice that a different endpoint is needed. BrowseComp and PlanCraft lack that same benefit in many traces. If all agents inherit the same weak snippet set or the same local shortage, discussion increases linguistic surface area without increasing search coverage or planning completeness.
 
 \section{State-Transition Diagnostics}
-\subsection{Tool-Call Markov Transitions}
-The StableToolBench traces let us quantify the interface-fragility story directly. \cref{fig:tool_markov} compares row-normalized transitions between coarse tool-result states for successful and failed runs. The largest separation is not the probability of remaining in an error state, which is high for both outcomes. Instead, it is the probability that an apparently usable tool state deteriorates on the next tool result. In successful runs, \emph{OK}$\rightarrow$\emph{sparse/error} occurs with probability 0.184. In failed runs, the same deterioration occurs with probability 0.298, a 1.62$\times$ increase.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.92\textwidth]{figures/stabletoolbench_tool_markov.pdf}
-\caption{StableToolBench tool-result Markov transitions. Failed runs are more likely to transition from an \emph{OK} tool result into an adverse \emph{sparse/error} state on the next tool result.}
-\label{fig:tool_markov}
-\end{figure*}
-
-This matters because it reframes tool failure as a transition property rather than a terminal label. A single sparse response is not necessarily fatal; many successful runs also encounter imperfect tool outputs. The dangerous pattern is repeated deterioration without a strategy shift. Failed StableToolBench runs have a higher mean maximum adverse streak than successful runs (2.76 vs. 2.17), while using nearly the same mean number of tool results. The bottleneck is therefore not simply tool volume. It is whether the run can recover after the tool state becomes low-information.
-
-\subsection{Vote Entropy and Consensus}
-\Cref{fig:vote_entropy} asks whether voting actually exposes disagreement. Across 1,236 runs with recorded vote tallies, consensus is often highly concentrated. In failed group-chat runs, the mean normalized vote entropy is only 0.084 and 91.6\% of tallies contain a single surviving option. Fully linked debate is also concentrated: failed runs have mean normalized entropy 0.279 and a 69.7\% single-option rate. Voting is less concentrated, but still far from adversarial: failed runs have mean normalized entropy 0.390 and a 58.6\% single-option rate.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/vote_entropy_by_topology.pdf}
-\caption{Recorded vote entropy by topology and outcome. Low entropy appears in both successes and failures, so consensus should not be treated as verification.}
-\label{fig:vote_entropy}
-\end{figure}
-
-The key result is not that low entropy uniquely predicts failure. Successful runs also often have low entropy. Instead, vote entropy shows why consensus is an unsafe proxy for independent verification: agents can converge quickly around either a correct answer or a contaminated evidence state. This is the quantitative counterpart to the clinical PlanCraft example, where a feasible action appears in the artifact set but the final aggregation still promotes a terminal impossibility state.
-
 \subsection{First Critical Fault Localization}
-\cref{fig:first_fault} applies the same state-space view across all failed runs. The distribution is sharply benchmark-specific. In WorkBench, 364 of 518 failures (70.3\%) localize first to entity grounding, with the remainder mostly workflow preconditions. In PlanCraft, 445 of 447 failures (99.6\%) localize to premature impossibility. In StableToolBench, 286 of 352 failures (81.3\%) localize to tool/interface faults. Finance Agent splits between financial support gaps (353 of 512, 68.9\%) and data-interface brittleness (159 of 512, 31.1\%). BrowseComp is dominated by unsupported hypothesis promotion (441 of 596, 74.0\%), with 155 failures (26.0\%) showing explicit retrieval evidence gaps.
+The primary labels in \cref{fig:failure_regimes} describe terminal failure regimes. \Cref{fig:first_fault} takes the complementary source-localization view: it asks which trace-visible state first made the later failure likely. The distribution is sharply benchmark-specific. In WorkBench, 364 of 518 failures (70.3\%) localize first to entity grounding, with the remainder mostly workflow preconditions. In PlanCraft, 445 of 447 failures (99.6\%) localize to premature impossibility. In StableToolBench, 286 of 352 failures (81.3\%) localize to tool/interface faults. Finance Agent splits between financial support gaps (353 of 512, 68.9\%) and data-interface brittleness (159 of 512, 31.1\%). BrowseComp is dominated by unsupported hypothesis promotion (441 of 596, 74.0\%), with 155 failures (26.0\%) showing explicit retrieval evidence gaps.
 
 \begin{figure}[t]
 \centering
@@ -255,33 +233,35 @@ These results sharpen the earlier failure taxonomy. The dominant failure is ofte
 
 \cref{fig:fault_sankey} summarizes the same point as a propagation view. Retrieval gaps and unsupported hypotheses feed contaminated evidence states, premature impossibility feeds invalid terminal states, and grounding failures feed unresolved action bindings. This is the picture behind the paper's repair claim: useful interventions should target the earliest state transition that contaminates the rest of the run.
 
-\subsection{Reproducible Trace Triggers}
-\Cref{tab:triggers} makes the diagnostic proposal operational. Each row is a trace-local condition that can be monitored before the terminal answer. These triggers are not verified fixes. They are repair-oriented hypotheses: if the trigger is causal, then an intervention that changes the corresponding state variable should change the downstream failure rate.
+\subsection{Tool-Call Markov Transitions}
+StableToolBench is the positive control for coordination, so we inspect its tool-state dynamics directly. \Cref{fig:tool_markov} compares row-normalized transitions between coarse tool-result states for successful and failed runs. The largest separation is not the probability of remaining in an error state, which is high for both outcomes. Instead, it is the probability that an apparently usable tool state deteriorates on the next tool result. In successful runs, \emph{OK}$\rightarrow$\emph{sparse/error} occurs with probability 0.184. In failed runs, the same deterioration occurs with probability 0.298, a 1.62$\times$ increase.
 
-\begin{table}[t]
+\begin{figure*}[t]
 \centering
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{p{0.34\columnwidth} p{0.34\columnwidth} p{0.30\columnwidth}}
-\toprule
-Trace trigger & Programmatic metric & Expected failure regime \\
-\midrule
-Repeated search with overlapping snippets & Unique-document growth across retrieval turns & Evidence starvation or unsupported hypothesis \\
-Early \emph{impossible} after a local shortage & Alternate route expansions before termination & Premature impossibility \\
-Repeated sparse tool outputs & Low-information response streak length & Tool/interface fragility \\
-Missing person or email before first action & Unresolved binding count & Entity grounding failure \\
-Specific numerical answer with thin support & Support density and source disagreement & Financial support gap \\
-\bottomrule
-\end{tabular}}
-\caption{Trace-local triggers that can be converted into programmatic assertions. These metrics turn qualitative failure labels into testable state-transition checks.}
-\label{tab:triggers}
-\end{table}
+\includegraphics[width=0.92\textwidth]{figures/stabletoolbench_tool_markov.pdf}
+\caption{StableToolBench tool-result Markov transitions. Failed runs are more likely to transition from an \emph{OK} tool result into an adverse \emph{sparse/error} state on the next tool result.}
+\label{fig:tool_markov}
+\end{figure*}
+
+This matters because it reframes tool failure as a transition property rather than a terminal label. A single sparse response is not necessarily fatal; many successful runs also encounter imperfect tool outputs. The dangerous pattern is repeated deterioration without a strategy shift. Failed StableToolBench runs have a higher mean maximum adverse streak than successful runs (2.76 vs. 2.17), while using nearly the same mean number of tool results. The bottleneck is therefore not simply tool volume. It is whether the run can recover after the tool state becomes low-information.
+
+\subsection{Consensus Is Not Verification}
+Vote entropy explains why topology can fail without visible disagreement. A group may look confident not because it verified the answer, but because all agents inherited the same contaminated state. \Cref{fig:vote_entropy} asks whether voting actually exposes disagreement. Across 1,236 runs with recorded vote tallies, consensus is often highly concentrated. In failed group-chat runs, the mean normalized vote entropy is only 0.084 and 91.6\% of tallies contain a single surviving option. Fully linked debate is also concentrated: failed runs have mean normalized entropy 0.279 and a 69.7\% single-option rate. Voting is less concentrated, but still far from adversarial: failed runs have mean normalized entropy 0.390 and a 58.6\% single-option rate.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/vote_entropy_by_topology.pdf}
+\caption{Recorded vote entropy by topology and outcome. Low entropy appears in both successes and failures, so consensus should not be treated as verification.}
+\label{fig:vote_entropy}
+\end{figure}
+
+The key result is not that low entropy uniquely predicts failure. Successful runs also often have low entropy. Instead, vote entropy shows why consensus is an unsafe proxy for independent verification: agents can converge quickly around either a correct answer or a contaminated evidence state. This is the quantitative counterpart to the PlanCraft case below, where a feasible action appears in the artifact set but the final aggregation still promotes a terminal impossibility state.
+
+\subsection{Reproducible Trace Triggers}
+\Cref{tab:regime_repair} makes the diagnostic proposal operational. Repeated search with overlapping snippets becomes a unique-document-growth check; early \emph{impossible} after a local shortage becomes a frontier-expansion check; repeated sparse tools become a low-information-streak check; missing people or emails become unresolved-binding checks; and thin numerical support becomes source-coverage and period-alignment checks. These triggers are not verified fixes. They are repair-oriented hypotheses: if the trigger is causal, then an intervention that changes the corresponding state variable should change the downstream failure rate.
 
 \section{Clinical Trace Anatomy}
-\subsection{BrowseComp: Hypothesis Lock-In}
-Task 769 asks for the learning institution satisfying five linked criteria, including a 2002 support event, a 2003 graduation ceremony, a 2022 plant-sampling article, a tribute event seven days later, and location in the country's capital. The reference answer is Queen Arwa University, but a fully linked debate run terminates with ``Blocked: No direct evidence for the 2022 article (Criterion C) found yet.'' The final reason is \emph{no meaningful change}, and the vote tally collapses to four variants of \emph{unknown}.
-
-The important detail is that the topology is structurally rich: it assigns a query decomposer, search strategist, document navigator, and answer synthesizer. Yet the trace shows the group converging on the same missing boundary rather than discovering the decisive document. The fatal pivot is not a hallucinated final answer; it is a stagnation state in which the system recognizes that Criterion C is unsupported but has no recovery mechanism beyond additional debate. Debate correctly avoids overclaiming, but it also fails to generate new evidence. This case therefore explains both sides of BrowseComp: unsupported answers are dangerous, but blocked answers can also reveal that coordination has not changed retrieval coverage.
+We keep two representative traces in the main text: one where aggregation promotes an avoidable terminal state, and one where coordination has a plausible division-of-labor target. Additional benchmark notes appear in the appendix.
 
 \subsection{PlanCraft: Local Shortage Becomes Global Impossibility}
 Task VAL0132 asks for the next action to craft pink dye. The inventory contains white dye and poppy. The benchmark guidance explicitly treats smelting as a valid action and says not to require furnace or fuel unless the prompt does. Several voter artifacts propose smelting the poppy into red dye, and one critique explicitly notes that marking the action impossible ignores the benchmark rule. Nevertheless, the final answer is \emph{impossible}, with the reason that red dye is absent. The final reason is deterministic voting tiebreak.
@@ -292,11 +272,6 @@ This is a sharper failure than a generic planning miss. A valid route is visible
 Task 12204 requires airplane records ordered by name while also reporting passenger capacity and range. In a fully linked debate failure, the available ordered-airplanes endpoint sorts airplanes by name, while other endpoints expose different access patterns such as search by engine, brand, or single airplane id. The final vote favors a blocked answer: the tools cannot both order by name and include capacity/range in one request.
 
 This trace is not merely a model reasoning failure. The tool surface creates a join problem: the desired answer requires fields and ordering guarantees that are not exposed by the same call. A stronger topology can help only if agents can decompose the operation into endpoint coverage, field recovery, and ordering validation. That is why StableToolBench is the benchmark where group chat plausibly pays for itself. The failure mode is still interface fragility, but the repair is genuinely collaborative when different agents explore complementary API paths instead of repeating the same blocked endpoint.
-
-\subsection{WorkBench and Finance: Grounding Versus Support}
-Workbench task multi-domain 0 shows an operational grounding failure. The tool layer offers calendar operations and a company-directory lookup. The run repeatedly attempts to find Cameron Anderson's email address, then ends with ``Meeting cannot be scheduled; no email found for Cameron Anderson or assignee.'' The final vote reaches consensus, but consensus is over an unresolved binding. No amount of scheduling logic can create the calendar event without the participant email.
-
-Finance task 21 shows the parallel failure in evidential rather than operational form. The reference answer requires GBV per Nights and Experiences Booked for FY2022--FY2024. The trace includes EDGAR search, web search, parsing, and retrieval tools, but the final answer blocks because FY2023--FY2024 data remain unverified under rate limiting and HTML parsing constraints. Some intermediate artifacts contain partial calculations or placeholders, which is exactly the dangerous state for financial QA: the system can produce numeric-looking output before the evidence chain is complete. The fatal pivot to avoid is not only wrong arithmetic; it is allowing partial filings and period-misaligned evidence to support a precise final claim.
 
 \section{Toward Mechanistic Evaluation}
 The audit supports a state-space view of agentic failure. Each retrieval, tool call, or entity lookup updates the latent execution state. A later action may look reasonable while inheriting a corrupted state. BrowseComp failures often inherit a narrowed hypothesis space; PlanCraft failures inherit an invalid impossibility state; WorkBench failures inherit an unresolved entity binding; StableToolBench failures inherit a low-information tool state.
@@ -349,6 +324,17 @@ The first-critical-fault diagnostic is generated programmatically by the trace-s
     \item \textbf{Finance Agent}: rate-limit, parsing, API, EDGAR, or other interface cues map to data-interface brittleness; remaining failures map to financial support gap.
 \end{itemize}
 We manually re-audited the deterministic stratified sample stored with the generated figure artifacts. The sample contains six failed runs per benchmark and matched the programmatic label in all 30 cases. This check verifies that the rules match visible trace evidence on the sample; it is not a substitute for independent multi-rater annotation.
+
+\section{Additional Case Notes}
+\subsection{BrowseComp: Hypothesis Lock-In}
+Task 769 asks for the learning institution satisfying five linked criteria, including a 2002 support event, a 2003 graduation ceremony, a 2022 plant-sampling article, a tribute event seven days later, and location in the country's capital. The reference answer is Queen Arwa University, but a fully linked debate run terminates with ``Blocked: No direct evidence for the 2022 article (Criterion C) found yet.'' The final reason is \emph{no meaningful change}, and the vote tally collapses to four variants of \emph{unknown}.
+
+The important detail is that the topology is structurally rich: it assigns a query decomposer, search strategist, document navigator, and answer synthesizer. Yet the trace shows the group converging on the same missing boundary rather than discovering the decisive document. The fatal pivot is not a hallucinated final answer; it is a stagnation state in which the system recognizes that Criterion C is unsupported but has no recovery mechanism beyond additional debate. Debate correctly avoids overclaiming, but it also fails to generate new evidence. This case therefore explains both sides of BrowseComp: unsupported answers are dangerous, but blocked answers can also reveal that coordination has not changed retrieval coverage.
+
+\subsection{WorkBench and Finance: Grounding Versus Support}
+Workbench task multi-domain 0 shows an operational grounding failure. The tool layer offers calendar operations and a company-directory lookup. The run repeatedly attempts to find Cameron Anderson's email address, then ends with ``Meeting cannot be scheduled; no email found for Cameron Anderson or assignee.'' The final vote reaches consensus, but consensus is over an unresolved binding. No amount of scheduling logic can create the calendar event without the participant email.
+
+Finance task 21 shows the parallel failure in evidential rather than operational form. The reference answer requires GBV per Nights and Experiences Booked for FY2022--FY2024. The trace includes EDGAR search, web search, parsing, and retrieval tools, but the final answer blocks because FY2023--FY2024 data remain unverified under rate limiting and HTML parsing constraints. Some intermediate artifacts contain partial calculations or placeholders, which is exactly the dangerous state for financial QA: the system can produce numeric-looking output before the evidence chain is complete. The fatal pivot to avoid is not only wrong arithmetic; it is allowing partial filings and period-misaligned evidence to support a precise final claim.
 
 \section{Artifact Notes}
 The primary aggregate file is the experiment summary CSV. Task-level metrics are drawn from system-level and task-level metric CSV exports. Per-run diagnoses use evaluation JSON, trajectory markdown, and event-level trace JSONL files. The state-transition diagnostics are generated by the trace-state diagnostics script, which writes the Markov transition, vote-entropy, run-statistic, first-fault, topology-conditioned fault, re-audit sample, and propagation files under the figure artifact directory. The analysis excludes incomplete aggregate cells from topology-level summary claims.
