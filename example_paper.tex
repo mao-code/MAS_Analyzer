@@ -12,6 +12,8 @@
 \usepackage{mathtools}
 \usepackage{amsthm}
 \usepackage[capitalize,noabbrev]{cleveref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
 
 \theoremstyle{plain}
 \newtheorem{theorem}{Theorem}[section]
@@ -24,13 +26,13 @@
 \theoremstyle{remark}
 \newtheorem{remark}[theorem]{Remark}
 
-\icmltitlerunning{Topology-Sensitive Failure Regimes in Agentic AI}
+\icmltitlerunning{Benchmark-Anchored Failure Regimes in MAS}
 
 \begin{document}
 
 \twocolumn[
-  \icmltitle{Topology-Sensitive Failure Regimes in Agentic AI:\\
-  A Cross-Benchmark Trace Audit with MAS Analyzer}
+  \icmltitle{Benchmark-Anchored Failure Regimes in\\
+  Multi-Agent Systems: A Topology-Controlled Trace Audit}
 
   \icmlsetsymbol{equal}{*}
 
@@ -47,7 +49,7 @@
 \printAffiliationsAndNotice{}
 
 \begin{abstract}
-Multi-agent topologies are often evaluated as if additional agents were a general-purpose capability amplifier. We test that assumption with a trace-centered audit of MAS Analyzer runs across five benchmarks and seven coordination designs. The completed corpus contains 34 benchmark-by-design summaries, 3,060 evaluated runs, 990 task summaries, and 2,425 failed runs with trajectory and evaluation artifacts. The results show that topology effects are strongly benchmark-dependent: group-chat debate substantially improves StableToolBench, simple voting is strongest on BrowseComp, PlanCraft, and WorkBench, and orchestration barely moves Finance Agent. We add three trace diagnostics: tool-call Markov transitions, vote entropy, and first-critical-fault localization. Trace-level labels and clinical case studies reveal why benchmark identity largely determines the dominant failure regime, while topology mostly changes the probability of escaping that regime. These results turn failure labels into reproducible trace triggers and repair hypotheses rather than post-hoc explanations.
+Multi-agent topologies are often evaluated as if additional agents were a general-purpose capability amplifier. We test that assumption with a trace-centered audit across five benchmarks and seven coordination designs using MAS Analyzer, our experimental framework for running and diagnosing multi-agent benchmark suites. The completed corpus contains 34 benchmark-by-design summaries, 3,060 evaluated runs, 990 task summaries, and 2,425 failed runs with trajectory and evaluation artifacts. Our central finding is that failure regimes are benchmark-anchored: benchmark identity largely determines the dominant failure kind, while topology mostly changes the probability of escaping that regime. Group-chat debate substantially improves StableToolBench; simple voting is strongest on BrowseComp, PlanCraft, and WorkBench; orchestration barely moves Finance Agent. These gains are often purchased at 4--14$\times$ token cost with little failure-regime change outside StableToolBench. Three trace diagnostics---tool-call Markov transitions, vote entropy, and first-critical-fault localization---confirm the mechanism and convert failure labels into reproducible repair hypotheses.
 \end{abstract}
 
 \section{Introduction}
@@ -57,7 +59,7 @@ This paper studies whether multi-agent topology changes those failures. The ques
 
 Our central finding is that failure regimes are topology-sensitive in rate but benchmark-anchored in kind: changing topology often changes how often a system escapes a regime, but rarely changes the dominant regime itself. The strongest topology differs by benchmark, and the largest success gain appears only on the tool-heavy StableToolBench. We view an agent run as a sequence of state transitions; a failure regime is the recurring pattern by which an early corrupted state propagates into a terminal failure.
 
-The paper makes four contributions. First, it reports a cross-benchmark topology matrix over 34 completed benchmark-by-design settings. Second, it codes 2,425 failed runs into operational failure regimes using evaluation JSON, trajectory markdown, and representative trace inspection. Third, it localizes failed runs to their first trace-visible bottleneck, separating the earliest corrupted state from the terminal failure label. Fourth, it converts each failure regime into a repair hypothesis with trace-local diagnostics: first-critical-fault localization for tracing terminal failures back to their earliest visible bottleneck, tool-call Markov transitions for tool-heavy tasks, and vote entropy for consensus health. We treat these diagnostics as falsifiable repair hypotheses; intervention verification is left to future work.
+The paper makes four contributions. First, it reports a cross-benchmark topology matrix over 34 completed benchmark-by-design settings run through MAS Analyzer, our open experimental framework for deploying, tracing, and evaluating multi-agent systems across benchmark suites. Second, it codes 2,425 failed runs into operational failure regimes using evaluation JSON, trajectory markdown, and representative trace inspection. Third, it localizes failed runs to their first trace-visible bottleneck, separating the earliest corrupted state from the terminal failure label. Fourth, it converts each failure regime into a repair hypothesis with trace-local diagnostics: first-critical-fault localization for tracing terminal failures back to their earliest visible bottleneck, tool-call Markov transitions for tool-heavy tasks, and vote entropy for consensus health. We treat these diagnostics as falsifiable repair hypotheses; intervention verification is left to future work.
 
 \section{Related Work}
 \paragraph{Reasoning, acting, and tool use in language agents.}
@@ -74,13 +76,34 @@ Most benchmark reporting emphasizes terminal success, but agent runs expose rich
 
 \section{Corpus and Method}
 \subsection{Coordination Designs}
-Topology is the experimental variable of interest. We compare seven coordination designs: a single-agent baseline, simple voting, fully linked debate, group-chat debate, an orchestrator without discussion, a tree-structured orchestrator, and a discussion orchestrator. These designs vary how many agents can propose, critique, exchange evidence, and delegate work before a final answer is selected.
+Topology is the experimental variable of interest. We compare seven coordination designs, listed in \cref{tab:topology_abbrev} with the short labels used in all figures throughout this paper.
 
-\subsection{Benchmark Corpus}
-The suite contains five benchmarks: BrowseComp, PlanCraft, StableToolBench, WorkBench, and Finance Agent. One aggregate summary is absent from the completed results, leaving 34 benchmark-by-design settings. Each completed setting has 30 tasks and three repeated runs, yielding 3,060 evaluated runs. The task-level summaries cover 990 benchmark tasks over 33 settings and support the token, latency, communication, handoff, and tool-call analysis.
+\begin{table}[h]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{l l p{0.40\columnwidth}}
+\toprule
+Short & Full name & Description \\
+\midrule
+SAS   & Single-agent baseline   & One agent; no coordination. \\
+Vote  & Simple voting           & $N$ agents propose independently; majority vote selects. \\
+Full  & Fully linked debate     & All agents debate in a fully connected graph. \\
+Chat  & Group-chat debate       & Agents debate via a shared group-chat channel. \\
+O-no  & Orchestrator (no disc.) & Orchestrator delegates; subagents do not discuss. \\
+O-tree& Orchestrator (tree)     & Tree-structured task decomposition. \\
+O-disc& Orchestrator (+disc.)   & Orchestrator with post-delegation agent discussion. \\
+\bottomrule
+\end{tabular}}
+\caption{Topology abbreviations used in all figures and tables.}
+\label{tab:topology_abbrev}
+\end{table}
+
+\subsection{Experiment Scope}
+The suite contains five benchmarks: BrowseComp, PlanCraft, StableToolBench, WorkBench (TheAgentCompany), and Finance Agent. One aggregate topology setting is absent from the completed results, leaving 34 benchmark-by-design pairs. Each completed pair has 30 tasks and three repeated runs, yielding 3,060 evaluated runs. Task-level summaries cover 990 benchmark tasks over 33 settings.
 
 \subsection{Metrics}
-We report task success, stability across repeated runs, average token use, tool calls, communication count, and handoff count. For topology comparisons, we compute success gain relative to the single-agent baseline within the same benchmark. Latency, token use, communication, and handoff counts are retained as descriptive trace context, but the main workshop analysis centers on failure regimes rather than cost optimization.
+We report task success, stability across repeated runs, average token use, tool calls, communication count, and handoff count. For topology comparisons, we compute success gain relative to the single-agent baseline (SAS) within the same benchmark. The token multiplier is each topology's average total tokens divided by the SAS average for the same benchmark.
 
 \subsection{Trace Artifacts}
 The audit is possible because the runtime standardizes intermediate agent outputs. Each answer-producing stage emits an answer artifact, summary, critique, revision request, confidence, unresolved issues, and evidence summary. The trajectory files also record task prompts, tool definitions, role assignments, visible peer packets, final reasons, and vote tallies when applicable. This structure is important methodologically: it lets us separate an unsupported final answer from an explicit blocked answer, and it lets us ask whether a topology introduced new evidence or merely recirculated the same artifact.
@@ -121,12 +144,12 @@ For the full failed-run corpus, we also compute a first-critical-fault label. Th
 \section{Topology Does Not Have a Universal Winner}
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.98\textwidth]{figures/topology_success_heatmap.pdf}
-\caption{Success rate by benchmark and topology. No topology dominates across benchmarks; topology effects are largest on StableToolBench and weakest on Finance Agent.}
-\label{fig:success_heatmap}
+\includegraphics[width=0.98\textwidth]{figures/topology_success_bars.pdf}
+\caption{Success rate by benchmark and topology (see \cref{tab:topology_abbrev} for abbreviations). No topology dominates across benchmarks; topology effects are largest on StableToolBench and near-flat on Finance Agent and PlanCraft.}
+\label{fig:success_bars}
 \end{figure*}
 
-\cref{fig:success_heatmap} shows the central result. Voting is strongest on BrowseComp, PlanCraft, and WorkBench; group-chat debate is strongest on StableToolBench; and the tree orchestrator is strongest on Finance Agent. The best topology is therefore benchmark-dependent, not a general property of agent count.
+\Cref{fig:success_bars} shows the central result. Vote is strongest on BrowseComp, PlanCraft, and WorkBench; Chat (group-chat debate) is strongest on StableToolBench; and O-tree is strongest on Finance Agent. The best topology is therefore benchmark-dependent, not a general property of agent count.
 
 \begin{table}[t]
 \centering
@@ -150,37 +173,40 @@ Finance Agent & Tree orchestrator & .067 & .044 & +.022 \\
 \cref{tab:best} shows that topology effects are uneven. StableToolBench gains 23.3 points over the single-agent baseline, while PlanCraft gains only 1.1 points and Finance Agent gains only 2.2 points. These results already suggest that coordination is useful only when it changes the benchmark's bottleneck.
 
 \section{Failure Regimes Are Benchmark-Anchored}
+\label{sec:regimes}
+The central question in this section is whether changing coordination topology also changes the kind of failure a run encounters. We approach this in two passes: first, by localizing the \emph{earliest} trace-visible bottleneck in each failed run (the first-critical-fault view); then, by examining the \emph{terminal} failure label that best explains the final outcome. The two views are complementary---they answer different questions---and together they establish that benchmark identity, not topology, determines the dominant failure mechanism.
+
 \subsection{First Critical Faults}
-We first ask where a failed run becomes unrecoverable in the trace. The first-critical-fault view localizes the earliest visible bottleneck, before the terminal answer or evaluator label. This matters because the final symptom can be misleading: an unsupported final answer may begin as a retrieval gap, and a blocked workflow may begin as an unresolved person or email address.
+We ask where a failed run first becomes unrecoverable. The first-critical-fault view localizes the earliest visible bottleneck before the terminal answer or evaluator label. This matters because the final symptom can be misleading: an unsupported final answer may begin as a retrieval gap, and a blocked workflow may begin as an unresolved person or email address.
 
 \Cref{fig:first_fault} shows that these earliest bottlenecks are sharply benchmark-specific. BrowseComp failures begin when retrieval fails to expand evidence or when a weak candidate becomes the working hypothesis. PlanCraft failures begin when a local resource shortage is promoted to a global \emph{impossible} judgment. StableToolBench failures begin when tool responses become sparse, schema-limited, or interface-constrained. WorkBench failures begin when a required entity remains ungrounded before an irreversible workflow action. Finance Agent failures begin when financial claims lack period-aligned filing support or when the data interface becomes brittle.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.86\textwidth]{figures/first_fault_distribution.pdf}
-\caption{First critical fault localization over failed runs. The earliest visible bottleneck is benchmark-specific, supporting the claim that topology operates on top of benchmark-anchored failure regimes.}
+\caption{First-critical-fault localization over failed runs. The earliest visible bottleneck is benchmark-specific and largely stable across topologies, supporting the claim that topology operates on top of benchmark-anchored failure regimes.}
 \label{fig:first_fault}
 \end{figure*}
 
 Quantitatively, WorkBench localizes first to entity grounding in 364 of 518 failures (70.3\%), while PlanCraft localizes to premature impossibility in 445 of 447 failures (99.6\%). StableToolBench localizes to tool/interface faults in 286 of 352 failures (81.3\%). Finance Agent splits between financial support gaps (353 of 512, 68.9\%) and data-interface brittleness (159 of 512, 31.1\%). BrowseComp is dominated by unsupported hypothesis promotion (441 of 596, 74.0\%), with 155 failures (26.0\%) showing explicit retrieval evidence gaps.
 
-Appendix \cref{fig:fault_sankey} summarizes the same point as a propagation view. Retrieval gaps and unsupported hypotheses feed contaminated evidence states, premature impossibility feeds invalid terminal states, and grounding failures feed unresolved action bindings. This is the picture behind the paper's repair claim: useful interventions should target the earliest state transition that contaminates the rest of the run.
+Appendix \cref{fig:fault_sankey} summarizes the same point as a propagation view. Retrieval gaps and unsupported hypotheses feed contaminated evidence states, premature impossibility feeds invalid terminal states, and grounding failures feed unresolved action bindings. Useful interventions should therefore target the earliest state transition that contaminates the rest of the run.
 
 \subsection{Terminal Failure Labels}
+Having established where failures originate, we now examine what they look like at the end. \Cref{fig:failure_regimes} reports primary failure labels: the terminal regime that best explains why a run failed.
+
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.86\textwidth]{figures/failure_regimes_all_topologies.pdf}
-\caption{Failure labels aggregated across completed topology slices. The dominant failure regime is largely determined by benchmark family.}
+\caption{Failure labels aggregated across all completed topology slices. The dominant failure regime is largely determined by benchmark family, not coordination topology.}
 \label{fig:failure_regimes}
 \end{figure*}
 
-\Cref{fig:failure_regimes} reports primary failure labels: the terminal regime that best explains why a run failed. This is separate from the first-critical-fault diagnostic in \cref{fig:first_fault}. The two views answer different questions: which trace state first contaminated the run, and what failure mode appeared at the end.
+BrowseComp is dominated by unsupported hypotheses: 487 of 596 failed runs return an answer whose support chain is too weak, while 109 explicitly report evidence starvation. PlanCraft is the cleanest regime: 444 of 447 failures are premature impossibility. StableToolBench splits between unsupported synthesis (180) and tool/interface fragility (172). WorkBench failures are mostly grounding related: 304 entity grounding failures and 214 broader workflow blocks. Finance Agent is dominated by financial support gaps (430 of 512), with 82 stack or data brittleness cases.
 
-\cref{fig:failure_regimes} aggregates all failed runs in completed settings. BrowseComp is dominated by unsupported hypotheses: 487 of 596 failed runs return an answer whose support chain is too weak, while 109 explicitly report evidence starvation. PlanCraft is the cleanest regime: 444 of 447 failures are premature impossibility. StableToolBench splits between unsupported synthesis (180) and tool/interface fragility (172), showing that tool-heavy tasks fail both at the interface and at the synthesis layer. WorkBench failures are mostly grounding related: 304 entity grounding failures and 214 broader workflow blocks. Finance Agent is dominated by financial support gaps (430 of 512), with 82 stack or data brittleness cases.
+The important point is not that these labels are perfect. The important point is that topology rarely erases the benchmark's dominant regime. In BrowseComp, coordination-heavy systems still fail by building around weak evidence. In PlanCraft, debate and orchestration do not prevent the local-to-global impossibility jump. In WorkBench, additional agents cannot execute a workflow if none of them resolves the missing entity. StableToolBench is the main exception: because its bottleneck involves assembling partial tool evidence, group discussion can change the run's chance of success.
 
-The important point is not that these labels are perfect. The important point is that topology rarely erases the benchmark's dominant regime. In BrowseComp, several coordination-heavy systems still fail by building around weak evidence. In PlanCraft, debate and orchestration do not prevent the local-to-global impossibility jump. In WorkBench, additional agents cannot execute a workflow if none of them resolves the missing entity. StableToolBench is the main exception: because its bottleneck often involves assembling partial tool evidence, group discussion can actually change the run's chance of success.
-
-We do not propose a taxonomy merely for naming failures; we use labels as repair hypotheses. \Cref{tab:regime_repair} is the bridge from taxonomy to an automated audit blueprint: each label is paired with a trace-visible state variable, a topology implication, and a diagnostic that can be converted into an assertion. The topology-conditioned heatmaps in Appendix \cref{fig:topology_fault_heatmaps} support the same claim without aggregating away topology. Within most benchmarks, the darkest column remains stable across rows, while success rates vary. This is the empirical basis for saying that topology changes the probability of escaping a failure regime more often than it changes the regime itself.
+We use labels as repair hypotheses, not merely as names. \Cref{tab:regime_repair} pairs each label with a trace-visible state variable, a topology implication, and a repair-oriented diagnostic. The topology-conditioned heatmaps in Appendix \cref{fig:topology_fault_heatmaps} support the same claim without aggregating away topology: within most benchmarks, the dominant failure column is stable across topology rows even as success rates vary.
 
 \begin{table*}[t]
 \centering
@@ -196,11 +222,38 @@ WorkBench & Workflow cannot bind a required person, email, sender, or assignee. 
 Finance Agent & Financial claims exceed verified filings, definitions, or extracted numeric support. & Orchestration often cannot repair missing evidence. & Source coverage, period alignment, formula completeness, and citation-to-claim density. \\
 \bottomrule
 \end{tabular}
-\caption{Automated audit blueprint. Each failure regime is tied to a trace-visible state variable, a topology-specific implication, and a repair-oriented diagnostic rather than treated as a generic model error.}
+\caption{Automated audit blueprint. Each failure regime is tied to a trace-visible state variable, a topology-specific implication, and a repair-oriented diagnostic. Repeated search with overlapping snippets becomes a unique-document-growth check; early \emph{impossible} after a local shortage becomes a frontier-expansion check; repeated sparse tools become a low-information-streak check; missing entities become unresolved-binding checks; and thin numerical support becomes source-coverage and period-alignment checks.}
 \label{tab:regime_repair}
 \end{table*}
 
+\section{Topology Changes Cost Before It Changes Failure}
+\label{sec:cost}
+\Cref{tab:cost} shows the token multiplier and success gain for the best-performing topology on each benchmark. Coordination almost always costs 3--15$\times$ more tokens than the single-agent baseline. The gain is substantial only on StableToolBench, where group-chat debate adds 23.3 points at 9.7$\times$ token cost. Elsewhere the picture is unfavorable: the best topology on BrowseComp (Vote, $+$3.3 points) costs 4.3$\times$, and on PlanCraft (Vote, $+$1.1 points) costs 3.9$\times$. Orchestration with discussion is the worst case: on PlanCraft it spends 14.5$\times$ tokens for a 18.9-point \emph{loss}.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{l l c c}
+\toprule
+Benchmark & Best topology & Token mult. & Success gain \\
+\midrule
+BrowseComp    & Vote   & $4.3\times$  & $+.033$ \\
+PlanCraft     & Vote   & $3.9\times$  & $+.011$ \\
+StableToolBench & Chat & $9.7\times$  & $+.233$ \\
+WorkBench     & Vote   & $3.5\times$  & $+.044$ \\
+Finance Agent & O-tree & $8.4\times$  & $+.022$ \\
+\bottomrule
+\end{tabular}}
+\caption{Token multiplier relative to SAS and success gain for the best topology per benchmark. Only StableToolBench shows a gain that plausibly justifies its cost.}
+\label{tab:cost}
+\end{table}
+
+This cost asymmetry matters for evaluation practice. A system that gains two points at 10$\times$ token cost is not an unqualified improvement over the single-agent baseline. Future reporting should therefore accompany topology comparisons with token multipliers so that downstream users can judge whether the coordination benefit is worth the inference budget. We return to this in \cref{sec:implications}.
+
 \section{Trace Diagnostics Explain the Mechanism}
+Having established that failure regimes are benchmark-anchored (\cref{sec:regimes}) and that coordination gains are often purchased at disproportionate cost (\cref{sec:cost}), we now examine the trace-level mechanism behind both findings. Three diagnostics confirm why topology shifts success probabilities without shifting failure kinds.
+
 \subsection{Tool-Call Markov Transitions}
 StableToolBench is the positive control for coordination, so we inspect its tool-state dynamics directly. \Cref{fig:tool_markov} compares row-normalized transitions between coarse tool-result states for successful and failed runs. The largest separation is not the probability of remaining in an error state, which is high for both outcomes. Instead, it is the probability that an apparently usable tool state deteriorates on the next tool result. In successful runs, \emph{OK}$\rightarrow$\emph{sparse/error} occurs with probability 0.184. In failed runs, the same deterioration occurs with probability 0.298, a 1.62$\times$ increase.
 
@@ -218,11 +271,8 @@ Vote entropy explains why topology can fail without visible disagreement. A grou
 
 The key result is not that low entropy uniquely predicts failure. Successful runs also often have low entropy. Instead, vote entropy shows why consensus is an unsafe proxy for independent verification: agents can converge quickly around either a correct answer or a contaminated evidence state. This is the quantitative counterpart to the PlanCraft case below, where a feasible action appears in the artifact set but the final aggregation still promotes a terminal impossibility state.
 
-\subsection{Reproducible Trace Triggers}
-\Cref{tab:regime_repair} makes the diagnostic proposal operational. Repeated search with overlapping snippets becomes a unique-document-growth check; early \emph{impossible} after a local shortage becomes a frontier-expansion check; repeated sparse tools become a low-information-streak check; missing people or emails become unresolved-binding checks; and thin numerical support becomes source-coverage and period-alignment checks. These triggers are not verified fixes. They are repair-oriented hypotheses: if the trigger is causal, then an intervention that changes the corresponding state variable should change the downstream failure rate.
-
-\section{Clinical Trace Anatomy}
-We keep two representative traces in the main text: one where aggregation promotes an avoidable terminal state, and one where coordination has a plausible division-of-labor target. Additional benchmark notes appear in the appendix.
+\section{Case Studies}
+We present two representative traces: one where coordination promotes an avoidable terminal state (PlanCraft), and one where coordination has a plausible division-of-labor target (StableToolBench). These two benchmarks were chosen because they represent opposite ends of the topology-effect spectrum---PlanCraft shows near-zero topology benefit with a single dominant failure regime, while StableToolBench shows the largest topology benefit via a genuinely collaborative repair mechanism. Additional benchmark notes appear in the appendix.
 
 \subsection{PlanCraft: Local Shortage Becomes Global Impossibility}
 One PlanCraft trace contains a feasible frontier-expanding action in the candidate artifacts, and one critique explicitly notes that declaring the task impossible ignores the benchmark rule. Nevertheless, the final answer is \emph{impossible}, with deterministic voting used to resolve the aggregation state.
@@ -235,6 +285,7 @@ One StableToolBench trace requires combining an ordering constraint with fields 
 This trace is not merely a model reasoning failure. The tool surface creates a join problem: the desired answer requires fields and ordering guarantees that are not exposed by the same call. A stronger topology can help only if agents can decompose the operation into endpoint coverage, field recovery, and ordering validation. That is why StableToolBench is the benchmark where group chat plausibly pays for itself. The failure mode is still interface fragility, but the repair is genuinely collaborative when different agents explore complementary API paths instead of repeating the same blocked endpoint.
 
 \section{Implications for System Design}
+\label{sec:implications}
 The audit supports a state-space view of agentic failure. Each retrieval, tool call, or entity lookup updates the latent execution state. A later action may look reasonable while inheriting a corrupted state. BrowseComp failures often inherit a narrowed hypothesis space; PlanCraft failures inherit an invalid impossibility state; WorkBench failures inherit an unresolved entity binding; StableToolBench failures inherit a low-information tool state.
 
 This framing turns failure labels into falsifiable mechanistic hypotheses. If evidence starvation is the driver, then forcing diverse retrieval or measuring unique evidence growth should change outcomes. If premature impossibility is the driver, then a formal frontier-exhaustion check should reduce false \emph{impossible} actions. If tool fragility is the driver, causal interventions on tool responses should shift unsupported synthesis rates. The value of traces is that these hypotheses can be tested at the state-transition level, not only at the final-answer level.
@@ -299,15 +350,120 @@ One Finance Agent trace shows the parallel failure in evidential rather than ope
 \section{Additional Figures}
 \begin{figure}[p]
 \centering
-\includegraphics[width=0.98\textwidth]{figures/topology_overview.pdf}
-\caption{The evaluated topologies span single-agent execution, independent voting, connected debate, group chat, and orchestrated control.}
+\tikzset{
+  ag/.style   = {circle, draw=black, thick, minimum size=7mm, inner sep=0pt, font=\small},
+  oc/.style   = {draw=black, thick, rounded corners=3pt,
+                  minimum width=10mm, minimum height=6mm, inner sep=2pt, font=\small},
+  vt/.style   = {draw=black, thick, ellipse, fill=gray!12,
+                  minimum width=12mm, minimum height=6mm, inner sep=0pt, font=\small},
+  arr/.style  = {-{Stealth[length=4pt]}, thin},
+  barr/.style = {{Stealth[length=4pt]}-{Stealth[length=4pt]}, thin},
+}
+%% SAS
+\begin{subfigure}[b]{0.12\textwidth}
+\centering
+\begin{tikzpicture}[node distance=8mm]
+  \node[ag] {$A$};
+\end{tikzpicture}
+\caption*{\small\textbf{SAS}}
+\end{subfigure}\hfil
+%% Vote
+\begin{subfigure}[b]{0.14\textwidth}
+\centering
+\begin{tikzpicture}
+  \node[ag] (a1) at (0,0)    {$A_1$};
+  \node[ag] (a2) at (0.8,0)  {$A_2$};
+  \node[ag] (a3) at (1.6,0)  {$A_3$};
+  \node[vt] (v)  at (0.8,-1.0){Vote};
+  \draw[arr] (a1) -- (v);
+  \draw[arr] (a2) -- (v);
+  \draw[arr] (a3) -- (v);
+\end{tikzpicture}
+\caption*{\small\textbf{Vote}}
+\end{subfigure}\hfil
+%% Full (fully linked debate)
+\begin{subfigure}[b]{0.13\textwidth}
+\centering
+\begin{tikzpicture}[node distance=6mm]
+  \node[ag] (a1) at (0,0)    {$A_1$};
+  \node[ag] (a2) at (1.1,0)  {$A_2$};
+  \node[ag] (a3) at (0.55,-1){$A_3$};
+  \draw[barr] (a1) -- (a2);
+  \draw[barr] (a1) -- (a3);
+  \draw[barr] (a2) -- (a3);
+\end{tikzpicture}
+\caption*{\small\textbf{Full}}
+\end{subfigure}\hfil
+%% Chat (group-chat debate via shared channel)
+\begin{subfigure}[b]{0.14\textwidth}
+\centering
+\begin{tikzpicture}
+  \node[ag] (a1) at (0,0)     {$A_1$};
+  \node[ag] (a2) at (1.3,0)   {$A_2$};
+  \node[ag] (a3) at (0.65,-1.3){$A_3$};
+  \node[vt] (ch) at (0.65,-0.55) {\tiny ch};
+  \draw[barr] (a1) -- (ch);
+  \draw[barr] (a2) -- (ch);
+  \draw[barr] (a3) -- (ch);
+\end{tikzpicture}
+\caption*{\small\textbf{Chat}}
+\end{subfigure}\hfil
+%% O-no (orchestrator, no discussion)
+\begin{subfigure}[b]{0.14\textwidth}
+\centering
+\begin{tikzpicture}
+  \node[oc] (o)  at (0.6, 0)   {Orch};
+  \node[ag] (a1) at (0,  -1.1) {$A_1$};
+  \node[ag] (a2) at (1.2,-1.1) {$A_2$};
+  \draw[barr] (o) -- (a1);
+  \draw[barr] (o) -- (a2);
+\end{tikzpicture}
+\caption*{\small\textbf{O-no}}
+\end{subfigure}\hfil
+%% O-tree (orchestrator, tree structure)
+\begin{subfigure}[b]{0.16\textwidth}
+\centering
+\begin{tikzpicture}
+  \node[oc] (o)  at (0.8, 0)   {Orch};
+  \node[oc] (s1) at (0,  -1.0) {Sub};
+  \node[oc] (s2) at (1.6,-1.0) {Sub};
+  \node[ag] (a1) at (0,  -2.1) {$A_1$};
+  \node[ag] (a2) at (1.6,-2.1) {$A_2$};
+  \draw[arr]  (o)  -- (s1);
+  \draw[arr]  (o)  -- (s2);
+  \draw[barr] (s1) -- (a1);
+  \draw[barr] (s2) -- (a2);
+\end{tikzpicture}
+\caption*{\small\textbf{O-tree}}
+\end{subfigure}\hfil
+%% O-disc (orchestrator, with discussion)
+\begin{subfigure}[b]{0.14\textwidth}
+\centering
+\begin{tikzpicture}
+  \node[oc] (o)  at (0.6, 0)   {Orch};
+  \node[ag] (a1) at (0,  -1.1) {$A_1$};
+  \node[ag] (a2) at (1.2,-1.1) {$A_2$};
+  \draw[barr] (o) -- (a1);
+  \draw[barr] (o) -- (a2);
+  \draw[barr] (a1) -- (a2);
+\end{tikzpicture}
+\caption*{\small\textbf{O-disc}}
+\end{subfigure}
+\caption{The seven evaluated topologies. Circles are agents, rectangles are orchestrators, ellipses are aggregators. Double-headed arrows indicate bidirectional communication; single-headed arrows indicate one-way delegation. See \cref{tab:topology_abbrev} for full names.}
 \label{fig:topology_overview}
 \end{figure}
 
 \begin{figure}[p]
 \centering
+\includegraphics[width=0.98\textwidth]{figures/topology_success_heatmap.pdf}
+\caption{Success rate heatmap by benchmark and topology. The bar chart in \cref{fig:success_bars} is the primary presentation; this heatmap shows the same data in a compact grid for direct cell comparison.}
+\label{fig:success_heatmap}
+\end{figure}
+
+\begin{figure}[p]
+\centering
 \includegraphics[width=0.98\textwidth]{figures/topology_delta_heatmap.pdf}
-\caption{Success lift relative to the single-agent baseline. Positive effects concentrate in StableToolBench; several debate and orchestrator variants underperform the baseline on BrowseComp and PlanCraft.}
+\caption{Success lift relative to SAS. Positive effects concentrate in StableToolBench; several debate and orchestrator variants underperform the baseline on BrowseComp and PlanCraft.}
 \label{fig:delta_heatmap}
 \end{figure}
 
@@ -321,7 +477,7 @@ One Finance Agent trace shows the parallel failure in evidential rather than ope
 \begin{figure}[p]
 \centering
 \includegraphics[width=0.98\textwidth]{figures/fault_propagation_sankey.pdf}
-\caption{Aggregate diagnostic flow from first critical fault to contaminated state and terminal failure regime. The flow should be read as heuristic localization over traces, not as a formal causal graph.}
+\caption{Aggregate diagnostic flow from first-critical-fault to contaminated state and terminal failure regime. The flow should be read as heuristic localization over traces, not as a formal causal graph.}
 \label{fig:fault_sankey}
 \end{figure}
 
