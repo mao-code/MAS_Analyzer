@@ -14,8 +14,10 @@
 \usepackage[capitalize,noabbrev]{cleveref}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage{float}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
+% topology bar colors
 \definecolor{colSAS}{HTML}{1f77b4}
 \definecolor{colVote}{HTML}{ff7f0e}
 \definecolor{colFull}{HTML}{2ca02c}
@@ -23,6 +25,17 @@
 \definecolor{colOno}{HTML}{8c564b}
 \definecolor{colOtree}{HTML}{9467bd}
 \definecolor{colOdisc}{HTML}{e377c2}
+% failure regime colors
+\definecolor{frUH}{HTML}{4878CF}
+\definecolor{frES}{HTML}{F87F13}
+\definecolor{frPI}{HTML}{3CB371}
+\definecolor{frWA}{HTML}{DC143C}
+\definecolor{frUS}{HTML}{20B2AA}
+\definecolor{frTF}{HTML}{9370DB}
+\definecolor{frEG}{HTML}{FF69B4}
+\definecolor{frWB}{HTML}{8B6914}
+\definecolor{frFSG}{HTML}{B0A898}
+\definecolor{frSDB}{HTML}{395F8F}
 
 \theoremstyle{plain}
 \newtheorem{theorem}{Theorem}[section]
@@ -248,7 +261,46 @@ Having established where failures originate, we now examine what they look like 
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.86\textwidth]{figures/failure_regimes_all_topologies.pdf}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+  ybar stacked, bar width=28pt,
+  width=13cm, height=5cm,
+  enlarge x limits=0.15,
+  ymin=0,
+  symbolic x coords={BrowseComp,PlanCraft,StableToolBench,WorkBench,Finance},
+  xtick=data,
+  xticklabel style={font=\small},
+  yticklabel style={font=\small},
+  ylabel={Failed runs}, ylabel style={font=\small},
+  ymajorgrids=true, grid style={dotted,gray!50},
+  legend style={at={(1.02,1.0)}, anchor=north west,
+                font=\scriptsize, legend columns=1, row sep=1pt},
+  legend cell align=left,
+  axis line style={thin}, tick align=outside,
+]
+\addplot[fill=frUH, draw=none] coordinates {(BrowseComp,487)(PlanCraft,0)(StableToolBench,0)(WorkBench,0)(Finance,0)};
+\addlegendentry{Unsupported hypothesis}
+\addplot[fill=frES, draw=none] coordinates {(BrowseComp,109)(PlanCraft,0)(StableToolBench,0)(WorkBench,0)(Finance,0)};
+\addlegendentry{Evidence starvation}
+\addplot[fill=frPI, draw=none] coordinates {(BrowseComp,0)(PlanCraft,444)(StableToolBench,0)(WorkBench,0)(Finance,0)};
+\addlegendentry{Premature impossibility}
+\addplot[fill=frWA, draw=none] coordinates {(BrowseComp,0)(PlanCraft,3)(StableToolBench,0)(WorkBench,0)(Finance,0)};
+\addlegendentry{Wrong/invalid action}
+\addplot[fill=frUS, draw=none] coordinates {(BrowseComp,0)(PlanCraft,0)(StableToolBench,180)(WorkBench,0)(Finance,0)};
+\addlegendentry{Unsupported synthesis}
+\addplot[fill=frTF, draw=none] coordinates {(BrowseComp,0)(PlanCraft,0)(StableToolBench,172)(WorkBench,0)(Finance,0)};
+\addlegendentry{Tool/interface fragility}
+\addplot[fill=frEG, draw=none] coordinates {(BrowseComp,0)(PlanCraft,0)(StableToolBench,0)(WorkBench,304)(Finance,0)};
+\addlegendentry{Entity grounding failure}
+\addplot[fill=frWB, draw=none] coordinates {(BrowseComp,0)(PlanCraft,0)(StableToolBench,0)(WorkBench,214)(Finance,0)};
+\addlegendentry{Workflow blocking}
+\addplot[fill=frFSG,draw=none] coordinates {(BrowseComp,0)(PlanCraft,0)(StableToolBench,0)(WorkBench,0)(Finance,430)};
+\addlegendentry{Financial support gap}
+\addplot[fill=frSDB,draw=none] coordinates {(BrowseComp,0)(PlanCraft,0)(StableToolBench,0)(WorkBench,0)(Finance,82)};
+\addlegendentry{Stack/data brittleness}
+\end{axis}
+\end{tikzpicture}}%
 \caption{Failure labels aggregated across all completed topology slices. The dominant failure regime is largely determined by benchmark family, not coordination topology.}
 \label{fig:failure_regimes}
 \end{figure*}
@@ -462,7 +514,8 @@ One WorkBench trace shows an operational grounding failure. The tool layer offer
 One Finance Agent trace shows the parallel failure in evidential rather than operational form. The trace includes filing search, web search, parsing, and retrieval tools, but the final answer blocks because period-aligned data remain unverified under interface constraints. Some intermediate artifacts contain partial calculations or placeholders, which is exactly the dangerous state for financial QA: the system can produce numeric-looking output before the evidence chain is complete. The fatal pivot to avoid is not only wrong arithmetic; it is allowing partial filings and period-misaligned evidence to support a precise final claim.
 
 \section{Additional Figures}
-\begin{figure}[p]
+\clearpage
+\begin{figure}[H]
 \centering
 \tikzset{
   ag/.style   = {circle, draw=black, thick, minimum size=7mm, inner sep=0pt, font=\small},
@@ -567,35 +620,35 @@ One Finance Agent trace shows the parallel failure in evidential rather than ope
 \label{fig:topology_overview}
 \end{figure}
 
-\begin{figure}[p]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.98\textwidth]{figures/topology_success_heatmap.pdf}
 \caption{Success rate heatmap by benchmark and topology. The bar chart in \cref{fig:success_bars} is the primary presentation; this heatmap shows the same data in a compact grid for direct cell comparison.}
 \label{fig:success_heatmap}
 \end{figure}
 
-\begin{figure}[p]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.98\textwidth]{figures/topology_delta_heatmap.pdf}
 \caption{Success lift relative to SAS. Positive effects concentrate in StableToolBench; several debate and orchestrator variants underperform the baseline on BrowseComp and PlanCraft.}
 \label{fig:delta_heatmap}
 \end{figure}
 
-\begin{figure}[p]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/topology_failure_regime_heatmaps.pdf}
 \caption{Topology-conditioned first-critical-fault shares. Rows are topologies and columns are first-fault classes within each benchmark. The dominant failure family is usually stable across topology even when success and cost change.}
 \label{fig:topology_fault_heatmaps}
 \end{figure}
 
-\begin{figure}[p]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.98\textwidth]{figures/fault_propagation_sankey.pdf}
 \caption{Aggregate diagnostic flow from first-critical-fault to contaminated state and terminal failure regime. The flow should be read as heuristic localization over traces, not as a formal causal graph.}
 \label{fig:fault_sankey}
 \end{figure}
 
-\begin{figure}[p]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.82\textwidth]{figures/vote_entropy_by_topology.pdf}
 \caption{Recorded vote entropy by topology and outcome. Low entropy appears in both successes and failures, so consensus should not be treated as verification.}
