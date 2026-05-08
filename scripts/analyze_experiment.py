@@ -23,7 +23,7 @@ if str(project_root) not in sys.path:
 from analysis.econ_eval.regime_classification import classify_regime
 
 
-PLOT_DPI = 300
+PLOT_DPI = 360
 PASS_AT_K_COLUMNS = ("pass_at_1", "pass_at_3", "pass_at_5", "pass_at_8")
 GENERATED_PLOT_SUFFIXES = (
     "_system_scorecard.png",

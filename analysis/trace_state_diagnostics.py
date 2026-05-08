@@ -304,7 +304,7 @@ def plot_vote_entropy(summary: list[dict], output_prefix: Path) -> None:
     axes[0].set_ylabel("Rate / normalized entropy", fontsize=8)
     axes[1].legend(loc="upper left", fontsize=7, frameon=False)
     for ext in ("pdf", "png"):
-        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=220)
+        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=450)
     plt.close(fig)
 
 
@@ -343,7 +343,7 @@ def plot_markov(rows: list[dict], output_prefix: Path) -> None:
                 )
     fig.colorbar(image, ax=axes, fraction=0.035, pad=0.02, label="Transition probability")
     for ext in ("pdf", "png"):
-        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=220)
+        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=450)
     plt.close(fig)
 
 
@@ -553,7 +553,7 @@ def plot_topology_fault_heatmaps(rows: list[dict], output_prefix: Path) -> None:
     counts = Counter((row["benchmark"], row["topology"], row["source"]) for row in rows)
     totals = Counter((row["benchmark"], row["topology"]) for row in rows)
 
-    fig, axes = plt.subplots(2, 3, figsize=(7.4, 4.6), constrained_layout=True)
+    fig, axes = plt.subplots(2, 3, figsize=(7.0, 4.8), constrained_layout=True)
     axes = axes.flatten()
     last_image = None
     for ax, benchmark in zip(axes, benchmarks):
@@ -569,17 +569,17 @@ def plot_topology_fault_heatmaps(rows: list[dict], output_prefix: Path) -> None:
             for topology in topologies
         ]
         last_image = ax.imshow(matrix, vmin=0, vmax=1, cmap="Blues", aspect="auto")
-        ax.set_title(benchmark.replace("_", " "), fontsize=9)
+        ax.set_title(benchmark.replace("_", " "), fontsize=10)
         ax.set_xticks(
             range(len(sources)),
             [s.replace("_", "\n") for s in sources],
-            fontsize=5.2,
+            fontsize=6.7,
             rotation=0,
         )
         ax.set_yticks(
             range(len(topologies)),
             [t.replace("orchestrator_", "orch_").replace("_", "\n") for t in topologies],
-            fontsize=5.8,
+            fontsize=7.0,
         )
         for i, topology in enumerate(topologies):
             for j, source in enumerate(sources):
@@ -591,14 +591,14 @@ def plot_topology_fault_heatmaps(rows: list[dict], output_prefix: Path) -> None:
                         f"{val:.0%}",
                         ha="center",
                         va="center",
-                        fontsize=5.5,
+                        fontsize=6.8,
                         color="white" if val > 0.55 else "black",
                     )
     axes[-1].axis("off")
     if last_image is not None:
         fig.colorbar(last_image, ax=axes, fraction=0.025, pad=0.01, label="Failure share")
     for ext in ("pdf", "png"):
-        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=220)
+        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=450)
     plt.close(fig)
 
 
@@ -663,7 +663,7 @@ def plot_first_fault_distribution(summary: list[dict], output_prefix: Path) -> N
         frameon=False,
     )
     for ext in ("pdf", "png"):
-        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=220)
+        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=450)
     plt.close(fig)
 
 
@@ -801,7 +801,7 @@ def plot_fault_sankey(rows: list[dict], output_prefix: Path) -> None:
     ax.text(0.50, 0.99, "Contaminated state", ha="center", va="bottom", fontsize=9, weight="bold")
     ax.text(0.92, 0.99, "Terminal regime", ha="center", va="bottom", fontsize=9, weight="bold")
     for ext in ("pdf", "png"):
-        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=220)
+        fig.savefig(output_prefix.with_suffix(f".{ext}"), dpi=450)
     plt.close(fig)
 
 
