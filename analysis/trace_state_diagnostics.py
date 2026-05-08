@@ -31,6 +31,35 @@ TOPOLOGY_ORDER = [
     "orchestrator_tree_structure",
     "orchestrator_with_discussion",
 ]
+TOPOLOGY_LABELS = {
+    "sas": "SAS",
+    "only_voting": "Vote",
+    "fully_linked_debate": "Full",
+    "group_chat_debate": "Chat",
+    "orchestrator_no_discussion": "O-no",
+    "orchestrator_tree_structure": "O-tree",
+    "orchestrator_with_discussion": "O-disc",
+}
+BENCHMARK_LABELS = {
+    "browsecomp": "Browse",
+    "plancraft": "Plan",
+    "stabletoolbench": "Tool",
+    "workbench": "Work",
+    "finance_agent": "Finance",
+}
+SOURCE_LABELS = {
+    "retrieval_evidence_gap": "retrieval",
+    "unsupported_hypothesis": "hypothesis",
+    "premature_impossibility": "impossible",
+    "invalid_or_wrong_action": "wrong act.",
+    "tool_interface": "tool",
+    "evidence_gap": "evidence",
+    "unsupported_synthesis": "synthesis",
+    "entity_grounding": "grounding",
+    "workflow_precondition": "workflow",
+    "data_interface_brittleness": "data/API",
+    "financial_support_gap": "finance",
+}
 
 
 def read_json(path: Path) -> dict:
@@ -287,15 +316,6 @@ def plot_vote_entropy(summary: list[dict], output_prefix: Path) -> None:
                 edgecolor="white",
                 linewidth=0.7,
             )
-            for bar, val in zip(bars, vals):
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    min(val + 0.025, 1.02),
-                    f"{val:.2f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=7,
-                )
         ax.set_title(title, fontsize=9)
         ax.set_xticks(x, labels, fontsize=8)
         ax.set_ylim(0, 1.05)
@@ -335,10 +355,10 @@ def plot_markov(rows: list[dict], output_prefix: Path) -> None:
                 ax.text(
                     j,
                     i,
-                    f"{row['probability']:.2f}\n(n={row['count']})",
+                    f"{row['probability']:.2f}",
                     ha="center",
                     va="center",
-                    fontsize=7,
+                    fontsize=8,
                     color="black" if row["probability"] < 0.65 else "white",
                 )
     fig.colorbar(image, ax=axes, fraction=0.035, pad=0.02, label="Transition probability")
@@ -569,31 +589,18 @@ def plot_topology_fault_heatmaps(rows: list[dict], output_prefix: Path) -> None:
             for topology in topologies
         ]
         last_image = ax.imshow(matrix, vmin=0, vmax=1, cmap="Blues", aspect="auto")
-        ax.set_title(benchmark.replace("_", " "), fontsize=10)
+        ax.set_title(BENCHMARK_LABELS.get(benchmark, benchmark), fontsize=10)
         ax.set_xticks(
             range(len(sources)),
-            [s.replace("_", "\n") for s in sources],
-            fontsize=6.7,
+            [SOURCE_LABELS.get(s, s) for s in sources],
+            fontsize=6.8,
             rotation=0,
         )
         ax.set_yticks(
             range(len(topologies)),
-            [t.replace("orchestrator_", "orch_").replace("_", "\n") for t in topologies],
+            [TOPOLOGY_LABELS.get(t, t) for t in topologies],
             fontsize=7.0,
         )
-        for i, topology in enumerate(topologies):
-            for j, source in enumerate(sources):
-                val = matrix[i][j]
-                if val >= 0.08:
-                    ax.text(
-                        j,
-                        i,
-                        f"{val:.0%}",
-                        ha="center",
-                        va="center",
-                        fontsize=6.8,
-                        color="white" if val > 0.55 else "black",
-                    )
     axes[-1].axis("off")
     if last_image is not None:
         fig.colorbar(last_image, ax=axes, fraction=0.025, pad=0.01, label="Failure share")
@@ -638,7 +645,7 @@ def plot_first_fault_distribution(summary: list[dict], output_prefix: Path) -> N
             color=FAULT_COLORS.get(source, "#BFBFBF"),
             edgecolor="white",
             height=0.72,
-            label=source.replace("_", " "),
+            label=SOURCE_LABELS.get(source, source),
         )
         for idx, val in enumerate(vals):
             if val >= 0.12:
@@ -651,14 +658,14 @@ def plot_first_fault_distribution(summary: list[dict], output_prefix: Path) -> N
                     fontsize=7,
                 )
         left = [a + b for a, b in zip(left, vals)]
-    ax.set_yticks(y, [b.replace("_", " ") for b in benchmarks], fontsize=8)
+    ax.set_yticks(y, [BENCHMARK_LABELS.get(b, b) for b in benchmarks], fontsize=8)
     ax.set_xlim(0, 1)
     ax.set_xlabel("Share of failed runs", fontsize=8)
     ax.set_title("First critical fault localization by benchmark", fontsize=10)
     ax.legend(
         loc="upper center",
         bbox_to_anchor=(0.5, -0.18),
-        ncol=3,
+        ncol=4,
         fontsize=6.5,
         frameon=False,
     )
