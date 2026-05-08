@@ -14,6 +14,15 @@
 \usepackage[capitalize,noabbrev]{cleveref}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\definecolor{colSAS}{HTML}{1f77b4}
+\definecolor{colVote}{HTML}{ff7f0e}
+\definecolor{colFull}{HTML}{2ca02c}
+\definecolor{colChat}{HTML}{d62728}
+\definecolor{colOno}{HTML}{8c564b}
+\definecolor{colOtree}{HTML}{9467bd}
+\definecolor{colOdisc}{HTML}{e377c2}
 
 \theoremstyle{plain}
 \newtheorem{theorem}{Theorem}[section]
@@ -144,7 +153,49 @@ For the full failed-run corpus, we also compute a first-critical-fault label. Th
 \section{Topology Does Not Have a Universal Winner}
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.98\textwidth]{figures/topology_success_bars.pdf}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=5.5pt,
+  width=14cm, height=5cm,
+  enlarge x limits=0.12,
+  ymin=0, ymax=0.70,
+  ymajorgrids=true, grid style={dotted,gray!50},
+  symbolic x coords={BrowseComp,PlanCraft,StableToolBench,WorkBench,Finance},
+  xtick=data,
+  xticklabel style={font=\small},
+  ytick={0,0.10,0.20,0.30,0.40,0.50,0.60,0.70},
+  yticklabel={\pgfmathprintnumber[fixed,precision=2]{\tick}},
+  yticklabel style={font=\small},
+  ylabel={Success rate}, ylabel style={font=\small},
+  legend style={at={(0.99,0.99)},anchor=north east,font=\scriptsize,
+                legend columns=4,column sep=3pt},
+  legend cell align=left,
+  axis line style={thin}, tick align=outside,
+]
+\addplot[fill=colSAS,  draw=white,line width=0.3pt] coordinates {
+  (BrowseComp,0.078)(PlanCraft,0.367)(StableToolBench,0.333)(WorkBench,0.167)(Finance,0.044)};
+\addlegendentry{SAS}
+\addplot[fill=colVote, draw=white,line width=0.3pt] coordinates {
+  (BrowseComp,0.111)(PlanCraft,0.378)(StableToolBench,0.389)(WorkBench,0.211)(Finance,0.056)};
+\addlegendentry{Vote}
+\addplot[fill=colFull, draw=white,line width=0.3pt] coordinates {
+  (BrowseComp,0.033)(PlanCraft,0.367)(StableToolBench,0.333)(WorkBench,0.178)(Finance,0.000)};
+\addlegendentry{Full}
+\addplot[fill=colChat, draw=white,line width=0.3pt] coordinates {
+  (BrowseComp,0.033)(PlanCraft,0.222)(StableToolBench,0.567)(WorkBench,0.200)(Finance,0.000)};
+\addlegendentry{Chat}
+\addplot[fill=colOno,  draw=white,line width=0.3pt] coordinates {
+  (BrowseComp,0.100)(PlanCraft,0.367)(StableToolBench,0.467)(WorkBench,0.167)(Finance,0.033)};
+\addlegendentry{O-no}
+\addplot[fill=colOtree,draw=white,line width=0.3pt] coordinates {
+  (BrowseComp,0.000)(PlanCraft,0.156)(StableToolBench,0.456)(WorkBench,0.167)(Finance,0.067)};
+\addlegendentry{O-tree}
+\addplot[fill=colOdisc,draw=white,line width=0.3pt] coordinates {
+  (BrowseComp,0.022)(PlanCraft,0.178)(StableToolBench,0.544)(WorkBench,0.156)(Finance,0.056)};
+\addlegendentry{O-disc}
+\end{axis}
+\end{tikzpicture}}%
 \caption{Success rate by benchmark and topology (see \cref{tab:topology_abbrev} for abbreviations). No topology dominates across benchmarks; topology effects are largest on StableToolBench and near-flat on Finance Agent and PlanCraft.}
 \label{fig:success_bars}
 \end{figure*}
@@ -259,8 +310,67 @@ StableToolBench is the positive control for coordination, so we inspect its tool
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.98\textwidth]{figures/stabletoolbench_tool_markov.pdf}
-\caption{StableToolBench tool-result Markov transitions. Failed runs are more likely to transition from an \emph{OK} tool result into an adverse \emph{sparse/error} state on the next tool result.}
+\begin{tikzpicture}[font=\small]
+  %% Successful runs panel
+  \begin{scope}
+    \node[anchor=south, font=\small\bfseries] at (2.475, 5.15) {Successful runs};
+    \foreach \lbl/\xi in {ok/0, sparse/1, error/2}{
+      \node[anchor=south, font=\scriptsize] at (\xi*1.65+0.825, 4.95) {\lbl};
+    }
+    \foreach \lbl/\yi in {ok/2, sparse/1, error/0}{
+      \node[anchor=east, font=\scriptsize] at (-0.1, \yi*1.65+0.825) {\lbl};
+    }
+    \node[rotate=90, anchor=center, font=\scriptsize] at (-1.0, 2.475) {From state};
+    \node[anchor=north, font=\scriptsize] at (2.475, -0.15) {To state};
+    \foreach \xi/\yi/\val/\pct in {
+      0/2/0.82/65, 1/2/0.02/1,  2/2/0.17/13,
+      0/1/0.17/14, 1/1/0.52/42, 2/1/0.30/24,
+      0/0/0.26/21, 1/0/0.03/3,  2/0/0.71/57}{
+      \pgfmathsetmacro{\px}{\xi*1.65}
+      \pgfmathsetmacro{\py}{\yi*1.65}
+      \fill[red!\pct!white] (\px, \py) rectangle +(1.65, 1.65);
+      \draw[gray!40, thin] (\px, \py) rectangle +(1.65, 1.65);
+      \node[font=\scriptsize] at (\px+0.825, \py+0.825) {\val};
+    }
+  \end{scope}
+  %% Failed runs panel
+  \begin{scope}[xshift=6.5cm]
+    \node[anchor=south, font=\small\bfseries] at (2.475, 5.15) {Failed runs};
+    \foreach \lbl/\xi in {ok/0, sparse/1, error/2}{
+      \node[anchor=south, font=\scriptsize] at (\xi*1.65+0.825, 4.95) {\lbl};
+    }
+    \foreach \lbl/\yi in {ok/2, sparse/1, error/0}{
+      \node[anchor=east, font=\scriptsize] at (-0.1, \yi*1.65+0.825) {\lbl};
+    }
+    \node[rotate=90, anchor=center, font=\scriptsize] at (-1.0, 2.475) {From state};
+    \node[anchor=north, font=\scriptsize] at (2.475, -0.15) {To state};
+    \foreach \xi/\yi/\val/\pct in {
+      0/2/0.70/56, 1/2/0.01/1,  2/2/0.29/23,
+      0/1/0.14/12, 1/1/0.36/29, 2/1/0.49/39,
+      0/0/0.25/20, 1/0/0.03/2,  2/0/0.72/58}{
+      \pgfmathsetmacro{\px}{\xi*1.65}
+      \pgfmathsetmacro{\py}{\yi*1.65}
+      \fill[red!\pct!white] (\px, \py) rectangle +(1.65, 1.65);
+      \draw[gray!40, thin] (\px, \py) rectangle +(1.65, 1.65);
+      \node[font=\scriptsize] at (\px+0.825, \py+0.825) {\val};
+    }
+  \end{scope}
+  %% Colorbar
+  \begin{scope}[xshift=13.5cm]
+    \node[anchor=south, font=\scriptsize] at (0.4, 4.95) {Prob.};
+    \foreach \i in {0,1,...,19}{
+      \pgfmathtruncatemacro{\pct}{\i*4}
+      \pgfmathsetmacro{\ypos}{\i*0.2475}
+      \fill[red!\pct!white] (0, \ypos) rectangle +(0.8, 0.2475);
+      \draw[gray!40, thin] (0, \ypos) rectangle +(0.8, 0.2475);
+    }
+    \foreach \tickval/\ticky in {0.0/0, 0.5/2.475, 1.0/4.95}{
+      \draw[thin] (0.8, \ticky) -- (0.95, \ticky);
+      \node[anchor=west, font=\scriptsize] at (0.95, \ticky) {\tickval};
+    }
+  \end{scope}
+\end{tikzpicture}
+\caption{StableToolBench tool-result Markov transitions (row-normalized). Failed runs are more likely to transition from an \emph{OK} state into an adverse \emph{sparse/error} state on the next tool result.}
 \label{fig:tool_markov}
 \end{figure*}
 
