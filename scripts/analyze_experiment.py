@@ -82,7 +82,7 @@ def _plot_dir(output_dir: Path, benchmark: str, category: str) -> Path:
 
 def _save_fig(fig: plt.Figure, path: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=180)
+    fig.savefig(path, dpi=360)
     plt.close(fig)
     return str(path.resolve())
 
