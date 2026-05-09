@@ -71,7 +71,7 @@
 \printAffiliationsAndNotice{}
 
 \begin{abstract}
-Multi-agent topologies are often evaluated as if additional agents were a general-purpose capability amplifier. We test that assumption with a trace-centered audit across five benchmarks and seven coordination designs, running all agents on Qwen3-32B \cite{qwen3}. The completed corpus covers 34 benchmark-by-design run settings (33 with full task-level summaries), 3,060 evaluated runs, 990 task summaries, and 2,425 failed runs with trajectory and evaluation artifacts. Our central finding is that failure regimes are benchmark-anchored: benchmark identity largely determines the dominant failure kind, while topology mostly changes the probability of escaping that regime. Group-chat debate substantially improves StableToolBench; simple voting is strongest on BrowseComp, PlanCraft, and WorkBench; orchestration barely moves Finance Agent. These gains are often purchased at 3--10$\times$ token cost for the best topology per benchmark, with little failure-regime change outside StableToolBench. Three trace diagnostics---tool-call Markov transitions, vote entropy, and first-critical-fault localization---confirm the mechanism and convert failure labels into reproducible repair hypotheses.
+Multi-agent topologies are often evaluated as if additional agents were a general-purpose capability amplifier. We test that assumption with a trace-centered audit across five benchmarks and seven coordination designs, running all agents on Qwen3-32B \cite{qwen3}. The completed corpus covers 34 benchmark-by-design run settings (33 with full task-level summaries), 3,060 evaluated runs, 990 task summaries, and 2,425 failed runs with trajectory and evaluation artifacts. Our central finding is that failure regimes are benchmark-anchored: benchmark identity largely determines the dominant failure kind, while topology mostly changes the probability of escaping that regime. Group-chat debate substantially improves StableToolBench; simple voting is strongest on BrowseComp, PlanCraft, and WorkBench; orchestration barely moves Finance Agent. These gains are often purchased at 3--10$\times$ token cost for the best topology per benchmark, with little failure-regime change outside StableToolBench. Three trace diagnostics---tool-call Markov transitions, vote entropy, and first-critical-fault localization---are consistent with this mechanism and convert failure labels into reproducible repair hypotheses.
 \end{abstract}
 
 \section{Introduction}
@@ -271,10 +271,10 @@ State & Rule & Examples \\
   (BrowseComp,0.111)(PlanCraft,0.378)(StableToolBench,0.389)(WorkBench,0.211)(Finance,0.056)};
 \addlegendentry{Vote}
 \addplot[fill=colFull, draw=white,line width=0.3pt] coordinates {
-  (BrowseComp,0.033)(PlanCraft,0.367)(StableToolBench,0.333)(WorkBench,0.178)(Finance,0.000)};
+  (BrowseComp,0.033)(PlanCraft,0.367)(StableToolBench,0.333)(WorkBench,0.178)};
 \addlegendentry{Full}
 \addplot[fill=colChat, draw=white,line width=0.3pt] coordinates {
-  (BrowseComp,0.033)(PlanCraft,0.222)(StableToolBench,0.567)(WorkBench,0.200)(Finance,0.000)};
+  (BrowseComp,0.033)(PlanCraft,0.222)(StableToolBench,0.567)(WorkBench,0.200)};
 \addlegendentry{Chat}
 \addplot[fill=colOno,  draw=white,line width=0.3pt] coordinates {
   (BrowseComp,0.100)(PlanCraft,0.367)(StableToolBench,0.467)(WorkBench,0.167)(Finance,0.033)};
@@ -287,7 +287,7 @@ State & Rule & Examples \\
 \addlegendentry{O-disc}
 \end{axis}
 \end{tikzpicture}}%
-\caption{Success rate by benchmark and topology (see \cref{tab:topology_abbrev} for abbreviations). Finance Agent bars for Full and Chat reflect incomplete data (task summaries absent) and are set to zero. No topology dominates across benchmarks; topology effects are largest on StableToolBench and near-flat on Finance Agent and PlanCraft.}
+\caption{Success rate by benchmark and topology (see \cref{tab:topology_abbrev} for abbreviations). Finance Agent bars for Full and Chat are omitted (task summaries absent; treating them as zero would misrepresent performance). No topology dominates across benchmarks; topology effects are largest on StableToolBench and near-flat on Finance Agent and PlanCraft.}
 \label{fig:success_bars}
 \end{figure*}
 
@@ -430,10 +430,10 @@ Finance Agent & O-tree & $8.4\times$  & $+.022$ \\
 \label{tab:cost}
 \end{table}
 
-This cost asymmetry matters for evaluation practice. A system that gains two points at 10$\times$ token cost is not an unqualified improvement over the single-agent baseline. Future reporting should therefore accompany topology comparisons with token multipliers so that downstream users can judge whether the coordination benefit is worth the inference budget. We return to this in \cref{sec:implications}.
+This cost asymmetry matters for evaluation practice. A system that gains two points at 10$\times$ token cost is not an unqualified improvement over the single-agent baseline. Future reporting should therefore accompany topology comparisons with token multipliers so that downstream users can judge whether the coordination benefit is worth the inference budget.
 
-\section{Trace Diagnostics Explain the Mechanism}
-Having established that failure regimes are benchmark-anchored (\cref{sec:regimes}) and that coordination gains are often purchased at disproportionate cost (\cref{sec:cost}), we now examine the trace-level mechanism behind both findings. Three diagnostics confirm why topology shifts success probabilities without shifting failure kinds.
+\section{Trace Diagnostics Support the Mechanism}
+Having established that failure regimes are benchmark-anchored (\cref{sec:regimes}) and that coordination gains are often purchased at disproportionate cost (\cref{sec:cost}), we now examine the trace-level evidence behind both findings. Three diagnostics are consistent with the proposed mechanism linking topology to success probability without shifting failure kinds.
 
 \subsection{Tool-Call Markov Transitions}
 StableToolBench is the positive control for coordination, so we inspect its tool-state dynamics directly. \Cref{fig:tool_markov} compares row-normalized transitions between coarse tool-result states for successful and failed runs. The largest separation is not the probability of remaining in an error state, which is high for both outcomes. Instead, it is the probability that an apparently usable tool state deteriorates on the next tool result. In successful runs, \emph{OK}$\rightarrow$\emph{sparse/error} occurs with probability 0.184. In failed runs, the same deterioration occurs with probability 0.298, a 1.62$\times$ increase.
@@ -512,11 +512,11 @@ Vote entropy explains why topology can fail without visible disagreement. A grou
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\columnwidth]{figures/vote_entropy_by_topology.pdf}
-\caption{Recorded vote entropy by topology and outcome. Low entropy appears in both successes and failures, confirming that consensus is not a reliable proxy for independent verification.}
+\caption{Recorded vote entropy by topology and outcome. Low entropy appears in both successes and failures, suggesting that consensus is not a reliable proxy for independent verification.}
 \label{fig:vote_entropy}
 \end{figure}
 
-The key result is not that low entropy uniquely predicts failure. Successful runs also often have low entropy. Instead, vote entropy shows why consensus is an unsafe proxy for independent verification: agents can converge quickly around either a correct answer or a contaminated evidence state. In PlanCraft, a feasible frontier-expanding action is visible in the artifact set, yet the aggregation still promotes the terminal impossibility state---confirming that voting is not automatically robust without domain-aware tie-breaking rules.
+The key result is not that low entropy uniquely predicts failure. Successful runs also often have low entropy. Instead, vote entropy shows why consensus is an unsafe proxy for independent verification: agents can converge quickly around either a correct answer or a contaminated evidence state. In PlanCraft, a feasible frontier-expanding action is visible in the artifact set, yet the aggregation still promotes the terminal impossibility state---suggesting that voting is not automatically robust without domain-aware tie-breaking rules.
 
 \section{Case Studies}
 We present two representative traces: one where coordination promotes an avoidable terminal state (PlanCraft), and one where coordination has a plausible division-of-labor target (StableToolBench). These two benchmarks represent opposite ends of the topology-effect spectrum---PlanCraft shows near-zero topology benefit with a single dominant failure regime, while StableToolBench shows the largest topology benefit via a genuinely collaborative repair mechanism.
@@ -536,7 +536,7 @@ Across five benchmarks and seven coordination designs, multi-agent coordination 
 
 Effective multi-agent design should match coordination to the binding failure mechanism: tool-heavy tasks benefit from agent discussion; search tasks need evidence-diversity and stagnation checks; planning tasks need formal impossibility standards; workflow and finance tasks require early entity grounding and support-sensitive answer policies. These are repair hypotheses from trace diagnostics, not verified fixes.
 
-These findings are conditional on Qwen3-32B and 30 tasks per cell; many reported differences are within binomial confidence intervals, and the first-critical-fault labels are partially definitional by construction. Future evaluation should accompany topology comparisons with first-critical-fault distributions, state-transition diagnostics, and token multipliers alongside terminal success rates.
+This work is an exploratory trace audit, not a controlled experiment. Findings are conditional on Qwen3-32B; many success-rate differences (e.g., BrowseComp $+.033$, Finance $+.022$) are within binomial confidence intervals and should not be over-interpreted. Failure coding is single-author and the first-critical-fault labels are partially definitional by construction. The trace diagnostics are consistent with the proposed mechanism but do not constitute causal verification; intervention experiments are left to future work. Future evaluation should accompany topology comparisons with first-critical-fault distributions, state-transition diagnostics, and token multipliers alongside terminal success rates.
 
 \section*{Impact Statement}
 This paper studies failure in agentic AI systems with the goal of improving reliability. Trace diagnostics can help developers separate unsupported answers from well-supported ones, distinguish tool failures from reasoning failures, and choose coordination designs with clearer evidence. The risk is that failure triggers could be used to construct adversarial tasks or overfit systems to benchmark artifacts; in finance-style settings, fluent answers with weak support chains are especially concerning.
