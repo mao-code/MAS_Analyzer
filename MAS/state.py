@@ -55,6 +55,7 @@ class WorkflowState(TypedDict, total=False):
     interaction_logs: Annotated[list[dict[str, Any]], operator.add]
     tool_records_log: Annotated[list[dict[str, Any]], operator.add]
     termination_history: Annotated[list[dict[str, Any]], operator.add]
+    transcript_compaction_history: Annotated[list[dict[str, Any]], operator.add]
 
     message_budget: dict[str, int]
     sent_counts: dict[str, int]
@@ -70,6 +71,7 @@ class WorkflowState(TypedDict, total=False):
     selected_source_artifact_ids: list[str]
     termination_decision: TerminationDecision
     descriptor_summary: dict[str, Any]
+    transcript_summary: dict[str, Any]
 
     domain_personas: dict[str, dict[str, str]]
     role_assignment: dict[str, Any]

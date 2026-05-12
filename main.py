@@ -5,6 +5,8 @@ import contextlib
 import csv
 import json
 import math
+import time
+import traceback
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
@@ -13,7 +15,9 @@ from typing import Any
 
 from benchmark import BenchmarkEvaluation, get_benchmark, list_benchmarks
 from descriptor.experiment import analyze_task_runs, write_run_trace
+from descriptor.io import read_trace_jsonl
 from descriptor.metrics import RunOutcome, compute_run_metrics, resolve_run_outcome
+from descriptor.schema import TraceEvent
 from MAS import MASRunner, OpenRouterLLMClient, load_experiment_config
 from MAS.langgraph_engine import ExperimentSpec, LangGraphMASEngine
 
@@ -316,6 +320,9 @@ def _compact_run_metadata(run_metadata: dict[str, Any]) -> dict[str, Any]:
         "run_index": run_metadata.get("run_index"),
         "seed": run_metadata.get("seed"),
         "topology": run_metadata.get("topology"),
+        "run_status": run_metadata.get("run_status", "completed"),
+        "fallback": bool(run_metadata.get("fallback", False)),
+        "needs_rerun": bool(run_metadata.get("needs_rerun", False)),
         "turns_executed": run_metadata.get("turns_executed"),
         "messages_sent_total": run_metadata.get("messages_sent_total", 0),
         "messages_sent_by_agent": run_metadata.get("messages_sent_by_agent", {}),
@@ -338,10 +345,129 @@ def _compact_run_metadata(run_metadata: dict[str, Any]) -> dict[str, Any]:
         "steps_taken",
         "final_reward",
         "paper_score_100",
+        "failure_category",
+        "fallback_reason",
     ):
         if key in run_metadata:
             payload[key] = run_metadata[key]
     return payload
+
+
+def _classify_run_exception(exc: Exception) -> str:
+    text = f"{type(exc).__name__}:{exc}".lower()
+    if "fatal_tool_failure" in text or "tool_failure_circuit_breaker" in text:
+        return "tool_failure"
+    if "429" in text or "rate-limit" in text or "rate limit" in text:
+        return "llm_rate_limited"
+    if "timeout" in text or "exceeded configured timeout" in text:
+        return "llm_timeout"
+    if "jsondecodeerror" in text or "expecting value" in text:
+        return "llm_invalid_response"
+    if "connection error" in text or "connectionerror" in text:
+        return "llm_connection_error"
+    return "run_exception"
+
+
+def _failed_run_result(
+    *,
+    task: Any,
+    benchmark_name: str,
+    system_info: dict[str, Any],
+    run_index: int,
+    seed: int,
+    exc: Exception,
+    started_s: float,
+) -> tuple[str, list[TraceEvent], dict[str, Any], BenchmarkEvaluation, RunOutcome]:
+    ended_s = time.time()
+    error_type = type(exc).__name__
+    error_message = str(exc)
+    failure_category = _classify_run_exception(exc)
+    final_answer = (
+        "Run failed and was marked for rerun. "
+        f"Failure category: {failure_category}. Error: {error_type}: {error_message}"
+    )
+    trace_events = [
+        TraceEvent(
+            timestamp_start=started_s,
+            timestamp_end=ended_s,
+            actor="system",
+            event_type="error",
+            payload={
+                "status": "failed",
+                "failure_category": failure_category,
+                "error_type": error_type,
+                "error_message": error_message,
+                "needs_rerun": True,
+            },
+            token_in=0,
+            token_out=0,
+            latency_ms=max(0.0, (ended_s - started_s) * 1000.0),
+            cost_usd=0.0,
+            state_id=f"run_{run_index}_error",
+        )
+    ]
+    run_metadata = {
+        "task_id": str(getattr(task, "task_id", "")),
+        "run_index": int(run_index),
+        "seed": int(seed),
+        "topology": str(system_info.get("topology", "")),
+        "run_status": "failed",
+        "fallback": True,
+        "needs_rerun": True,
+        "failure_category": failure_category,
+        "fallback_reason": f"{error_type}:{error_message}",
+        "error": {
+            "type": error_type,
+            "message": error_message,
+            "category": failure_category,
+            "traceback": traceback.format_exc(limit=12),
+        },
+        "turns_executed": 0,
+        "messages_sent_total": 0,
+        "messages_sent_by_agent": {},
+        "tool_calls_total": 0,
+        "tool_call_counts": {},
+        "retrieved_docids": [],
+        "vote_tally": {},
+        "final_reason": f"run_failed:{failure_category}",
+        "interaction_logs": _fallback_interaction_logs(
+            task=task,
+            system_info=system_info,
+            final_answer=final_answer,
+        ),
+        "termination_history": [
+            {
+                "stage_name": "run_exception",
+                "should_stop": True,
+                "reason": failure_category,
+                "reason_detail": f"{error_type}: {error_message}",
+            }
+        ],
+    }
+    evaluation = BenchmarkEvaluation(
+        task_id=str(getattr(task, "task_id", "")),
+        score=0.0,
+        success=False,
+        details={
+            "eval_mode": "run_fallback",
+            "prediction": final_answer,
+            "run_failed": True,
+            "fallback": True,
+            "needs_rerun": True,
+            "failure_category": failure_category,
+            "error_type": error_type,
+            "error_message": error_message,
+            "benchmark": benchmark_name,
+        },
+    )
+    run_outcome = RunOutcome(
+        success=False,
+        completion=False,
+        score=0.0,
+        success_source="run_fallback",
+        completion_source="run_fallback",
+    )
+    return final_answer, trace_events, run_metadata, evaluation, run_outcome
 
 
 def _task_manifest_payload(
@@ -1247,7 +1373,7 @@ def _write_run_artifacts(
     run_outcome: RunOutcome,
     run_metadata: dict[str, Any],
     system_info: dict[str, Any],
-) -> dict[str, str]:
+) -> dict[str, Any]:
     task_manifest_path = task_dir / "task.json"
     if not task_manifest_path.exists():
         _write_json(
@@ -1301,6 +1427,10 @@ def _write_run_artifacts(
         "benchmark": benchmark_name,
         "run_index": int(run_index),
         "system": system_info,
+        "run_status": str(run_metadata.get("run_status", "completed") or "completed"),
+        "fallback": bool(run_metadata.get("fallback", False)),
+        "needs_rerun": bool(run_metadata.get("needs_rerun", False)),
+        "failure_category": str(run_metadata.get("failure_category", "") or ""),
         "final_answer": final_answer,
         "evaluation": {
             "score": float(evaluation.score),
@@ -1334,6 +1464,10 @@ def _write_run_artifacts(
         "trace_metrics_path": str(trace_metrics_path.resolve()),
         "trajectory_json_path": str(trajectory_json_path.resolve()),
         "trajectory_md_path": str(trajectory_md_path.resolve()),
+        "run_status": str(run_metadata.get("run_status", "completed") or "completed"),
+        "fallback": bool(run_metadata.get("fallback", False)),
+        "needs_rerun": bool(run_metadata.get("needs_rerun", False)),
+        "failure_category": str(run_metadata.get("failure_category", "") or ""),
     }
 
 
@@ -1431,6 +1565,10 @@ def _summary_task_entry_from_payload(task_dir: Path, payload: dict[str, Any]) ->
         "evaluation": dict(payload.get("evaluation", {})),
         "descriptor": dict(payload.get("descriptor", {})),
         "stage_bottleneck": payload.get("stage_bottleneck", {}),
+        "run_status_summary": dict(payload.get("run_status_summary", {})),
+        "run_failure_count": int(payload.get("run_failure_count", 0) or 0),
+        "fallback_count": int(payload.get("fallback_count", 0) or 0),
+        "needs_rerun": bool(payload.get("needs_rerun", False)),
         "artifacts": {
             "task_summary_path": str((task_dir / "task_summary.json").resolve()),
             "analysis_path": str(
@@ -1473,6 +1611,170 @@ def _summary_row_from_analysis(
     }
     row.update(descriptor)
     return row
+
+
+def _llm_payload_needs_rerun(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if bool(payload.get("mock_used", False)):
+        return True
+    metadata = payload.get("metadata", {})
+    if isinstance(metadata, dict):
+        if bool(metadata.get("tool_loop_timeout_recovered", False)):
+            return True
+        if metadata.get("tool_loop_recovery_mode"):
+            return True
+        if bool(metadata.get("tool_failure_circuit_breaker_triggered", False)):
+            return True
+        if metadata.get("fallback_reason"):
+            return True
+    return False
+
+
+def _metadata_needs_rerun(run_metadata: dict[str, Any]) -> bool:
+    if str(run_metadata.get("run_status", "completed") or "completed") != "completed":
+        return True
+    if bool(run_metadata.get("fallback", False) or run_metadata.get("needs_rerun", False)):
+        return True
+    if run_metadata.get("failure_category") or run_metadata.get("fallback_reason"):
+        return True
+    if run_metadata.get("error"):
+        return True
+
+    for artifact in run_metadata.get("artifact_records", []):
+        if isinstance(artifact, dict) and _llm_payload_needs_rerun(artifact.get("llm")):
+            return True
+    for log in run_metadata.get("interaction_logs", []):
+        if isinstance(log, dict) and _llm_payload_needs_rerun(log.get("llm")):
+            return True
+    return False
+
+
+def _task_payload_needs_rerun(task_dir: Path, payload: dict[str, Any]) -> bool:
+    if bool(payload.get("needs_rerun", False) or payload.get("fallback", False)):
+        return True
+    if int(payload.get("run_failure_count", 0) or 0) > 0:
+        return True
+    if int(payload.get("fallback_count", 0) or 0) > 0:
+        return True
+
+    runs = payload.get("runs", [])
+    if isinstance(runs, list):
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            if str(run.get("run_status", "completed") or "completed") != "completed":
+                return True
+            if bool(run.get("fallback", False) or run.get("needs_rerun", False)):
+                return True
+            metadata_path = run.get("metadata_path")
+            if metadata_path:
+                path = Path(str(metadata_path))
+                if not path.exists():
+                    path = task_dir / Path(str(metadata_path)).name
+                if path.exists():
+                    try:
+                        metadata = json.loads(path.read_text(encoding="utf-8"))
+                    except Exception:
+                        return True
+                    if isinstance(metadata, dict) and _metadata_needs_rerun(metadata):
+                        return True
+
+    for metadata_path in sorted(task_dir.glob("run_*.metadata.json")):
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except Exception:
+            return True
+        if isinstance(metadata, dict) and _metadata_needs_rerun(metadata):
+            return True
+
+    return False
+
+
+def _run_artifact_paths(task_dir: Path, run_index: int) -> dict[str, Path]:
+    return {
+        "task_manifest_path": task_dir / "task.json",
+        "answer_path": task_dir / f"run_{run_index}.answer.txt",
+        "metadata_path": task_dir / f"run_{run_index}.metadata.json",
+        "result_path": task_dir / f"run_{run_index}.result.json",
+        "trace_path": task_dir / f"run_{run_index}.trace.jsonl",
+        "eval_path": task_dir / f"run_{run_index}.eval.json",
+        "trace_metrics_path": task_dir / f"run_{run_index}.trace_metrics.json",
+        "trajectory_json_path": task_dir / f"run_{run_index}.trajectory.json",
+        "trajectory_md_path": task_dir / f"run_{run_index}.trajectory.md",
+    }
+
+
+def _load_completed_run_resume(
+    *,
+    task_dir: Path,
+    run_index: int,
+) -> tuple[str, list[TraceEvent], dict[str, Any], BenchmarkEvaluation, RunOutcome, dict[str, Any]] | None:
+    paths = _run_artifact_paths(task_dir, run_index)
+    required = ("answer_path", "metadata_path", "trace_path", "eval_path")
+    if any(not paths[key].exists() for key in required):
+        return None
+
+    try:
+        metadata = json.loads(paths["metadata_path"].read_text(encoding="utf-8"))
+        eval_payload = json.loads(paths["eval_path"].read_text(encoding="utf-8"))
+        trace_events = read_trace_jsonl(paths["trace_path"], strict=False)
+        final_answer = paths["answer_path"].read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+    if not isinstance(metadata, dict) or not isinstance(eval_payload, dict):
+        return None
+    if _metadata_needs_rerun(metadata):
+        return None
+
+    details = eval_payload.get("details", {})
+    if not isinstance(details, dict):
+        details = {}
+    evaluation = BenchmarkEvaluation(
+        task_id=str(eval_payload.get("task_id", "")),
+        score=float(eval_payload.get("score", 0.0) or 0.0),
+        success=bool(eval_payload.get("success", False)),
+        details=details,
+    )
+
+    outcome_payload = eval_payload.get("outcome", {})
+    if isinstance(outcome_payload, dict):
+        score_value = outcome_payload.get("score")
+        run_outcome = RunOutcome(
+            success=bool(outcome_payload.get("success", evaluation.success)),
+            completion=bool(outcome_payload.get("completion", eval_payload.get("completion", False))),
+            score=float(score_value) if score_value is not None else float(evaluation.score),
+            success_source=str(outcome_payload.get("success_source", "resumed_eval")),
+            completion_source=str(outcome_payload.get("completion_source", "resumed_eval")),
+        )
+    else:
+        run_outcome = resolve_run_outcome(
+            trace_events,
+            evaluation=evaluation,
+            final_answer=final_answer,
+            run_metadata=metadata,
+        )
+
+    artifact_record = {
+        "task_manifest_path": str(paths["task_manifest_path"].resolve()),
+        "answer_path": str(paths["answer_path"].resolve()),
+        "metadata_path": str(paths["metadata_path"].resolve()),
+        "result_path": str(paths["result_path"].resolve()),
+        "trace_metrics_path": str(paths["trace_metrics_path"].resolve()),
+        "trajectory_json_path": str(paths["trajectory_json_path"].resolve()),
+        "trajectory_md_path": str(paths["trajectory_md_path"].resolve()),
+        "trace_path": str(paths["trace_path"].resolve()),
+        "eval_path": str(paths["eval_path"].resolve()),
+        "run_status": str(metadata.get("run_status", "completed") or "completed"),
+        "fallback": bool(metadata.get("fallback", False)),
+        "needs_rerun": bool(metadata.get("needs_rerun", False)),
+        "failure_category": str(metadata.get("failure_category", "") or ""),
+        "score": float(evaluation.score),
+        "success": bool(evaluation.success),
+        "completion": bool(run_outcome.completion),
+    }
+    return final_answer, trace_events, metadata, evaluation, run_outcome, artifact_record
 
 
 def _load_completed_task_resume(
@@ -1529,6 +1831,11 @@ def _load_completed_task_resume(
 
     runs = payload.get("runs", [])
     if not isinstance(runs, list) or len(runs) != runs_per_task:
+        return None
+    if _task_payload_needs_rerun(task_dir, payload):
+        _log_progress(
+            f"TASK_RESUME_RERUN_REQUIRED task_id={task.task_id} path={task_summary_path}"
+        )
         return None
 
     evaluation = payload.get("evaluation", {})
@@ -1688,10 +1995,32 @@ def run_command(args: argparse.Namespace) -> int:
         evaluations = []
         run_outcomes: list[RunOutcome] = []
         run_artifacts: list[dict[str, Any]] = []
+        task_failure_details: list[dict[str, Any]] = []
 
         for run_index in range(runs_per_task):
             run_seed = seed + (task_idx * 1000) + run_index
+            resumed_run = _load_completed_run_resume(task_dir=task_dir, run_index=run_index)
+            if resumed_run is not None:
+                (
+                    final_answer,
+                    trace_events,
+                    run_metadata,
+                    evaluation,
+                    run_outcome,
+                    artifact_record,
+                ) = resumed_run
+                run_traces.append(trace_events)
+                evaluations.append(evaluation)
+                run_outcomes.append(run_outcome)
+                run_artifacts.append(artifact_record)
+                _log_progress(
+                    f"RUN_RESUME_SKIP task_id={task.task_id} run_index={run_index} "
+                    f"path={task_dir / f'run_{run_index}.metadata.json'}"
+                )
+                continue
+
             run_started = datetime.now(UTC)
+            run_started_s = time.time()
             _log_progress(
                 f"RUN_START task_id={task.task_id} run_index={run_index} seed={run_seed}"
             )
@@ -1703,20 +2032,54 @@ def run_command(args: argparse.Namespace) -> int:
                     seed=run_seed,
                 )
             except Exception as exc:
+                failure_category = _classify_run_exception(exc)
                 _log_progress(
                     f"RUN_ERROR task_id={task.task_id} run_index={run_index} "
-                    f"seed={run_seed} error={type(exc).__name__}:{exc}"
+                    f"seed={run_seed} category={failure_category} "
+                    f"error={type(exc).__name__}:{exc}"
                 )
-                raise
+                (
+                    final_answer,
+                    trace_events,
+                    run_metadata,
+                    evaluation,
+                    run_outcome,
+                ) = _failed_run_result(
+                    task=task,
+                    benchmark_name=benchmark_name,
+                    system_info=system_info,
+                    run_index=run_index,
+                    seed=run_seed,
+                    exc=exc,
+                    started_s=run_started_s,
+                )
+                task_failure_details.append(
+                    {
+                        "task_id": str(task.task_id),
+                        "run_index": int(run_index),
+                        "seed": int(run_seed),
+                        "failure_category": failure_category,
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    }
+                )
+            else:
+                final_answer = run.final_answer
+                trace_events = run.trace_events
+                run_metadata = run.run_metadata
+                evaluation = None
+                run_outcome = None
+
             _log_progress(
                 f"RUN_FINISH task_id={task.task_id} run_index={run_index} "
                 f"elapsed_s={(datetime.now(UTC) - run_started).total_seconds():.2f} "
-                f"trace_events={len(run.trace_events)} final_answer_chars={len(str(run.final_answer or ''))}"
+                f"trace_events={len(trace_events)} final_answer_chars={len(str(final_answer or ''))} "
+                f"status={str(run_metadata.get('run_status', 'completed') or 'completed')}"
             )
 
             trace_path = task_dir / f"run_{run_index}.trace.jsonl"
-            write_run_trace(run.trace_events, trace_path)
-            run_traces.append(run.trace_events)
+            write_run_trace(trace_events, trace_path)
+            run_traces.append(trace_events)
             _log_progress(
                 f"TRACE_WRITTEN task_id={task.task_id} run_index={run_index} path={trace_path}"
             )
@@ -1724,29 +2087,35 @@ def run_command(args: argparse.Namespace) -> int:
             raw_output_path = task_dir / f"run_{run_index}.raw.json"
             _write_raw_output(
                 raw_output_path,
-                final_answer=run.final_answer,
-                run_metadata=run.run_metadata,
+                final_answer=final_answer,
+                run_metadata=run_metadata,
             )
             _log_progress(
                 f"RAW_OUTPUT_WRITTEN task_id={task.task_id} run_index={run_index} path={raw_output_path}"
             )
 
             # 4) Let the benchmark score the model output.
-            evaluation = benchmark.evaluate(
-                task,
-                run.final_answer,
-                run_metadata=run.run_metadata,
-            )
+            if evaluation is None:
+                evaluation = benchmark.evaluate(
+                    task,
+                    final_answer,
+                    run_metadata=run_metadata,
+                )
             _log_progress(
                 f"EVAL_FINISH task_id={task.task_id} run_index={run_index} "
                 f"score={float(evaluation.score):.4f} success={bool(evaluation.success)}"
             )
-            run_outcome = resolve_run_outcome(
-                run.trace_events,
-                evaluation=evaluation,
-                final_answer=run.final_answer,
-                run_metadata=run.run_metadata,
-            )
+            if run_outcome is None:
+                run_outcome = resolve_run_outcome(
+                    trace_events,
+                    evaluation=evaluation,
+                    final_answer=final_answer,
+                    run_metadata=run_metadata,
+                )
+            if _metadata_needs_rerun(run_metadata):
+                run_metadata["fallback"] = True
+                run_metadata["needs_rerun"] = True
+                run_metadata.setdefault("fallback_reason", "llm_or_tool_fallback")
             evaluations.append(evaluation)
             run_outcomes.append(run_outcome)
 
@@ -1755,20 +2124,20 @@ def run_command(args: argparse.Namespace) -> int:
                 benchmark_name=benchmark_name,
                 task=task,
                 run_index=run_index,
-                final_answer=run.final_answer,
-                trace_events=run.trace_events,
+                final_answer=final_answer,
+                trace_events=trace_events,
                 evaluation=evaluation,
                 run_outcome=run_outcome,
-                run_metadata=run.run_metadata,
+                run_metadata=run_metadata,
                 system_info=system_info,
             )
             eval_path = task_dir / f"run_{run_index}.eval.json"
             _write_eval(
                 eval_path,
                 evaluation,
-                run.final_answer,
+                final_answer,
                 run_outcome=run_outcome,
-                metadata_summary=_compact_run_metadata(run.run_metadata),
+                metadata_summary=_compact_run_metadata(run_metadata),
                 metadata_path=Path(artifact_paths["metadata_path"]),
             )
             run_artifacts.append(
@@ -1802,6 +2171,23 @@ def run_command(args: argparse.Namespace) -> int:
             f"success_rate={float(analysis['evaluation'].get('success_rate', 0.0)):.4f} "
             f"completion_rate={float(analysis['evaluation'].get('completion_rate', 0.0)):.4f}"
         )
+        run_status_summary: dict[str, int] = {}
+        for artifact in run_artifacts:
+            status = str(artifact.get("run_status", "completed") or "completed")
+            run_status_summary[status] = run_status_summary.get(status, 0) + 1
+        run_failure_count = sum(
+            1
+            for artifact in run_artifacts
+            if str(artifact.get("run_status", "completed") or "completed") != "completed"
+        )
+        fallback_count = sum(1 for artifact in run_artifacts if bool(artifact.get("fallback", False)))
+        needs_rerun = run_failure_count > 0 or fallback_count > 0 or bool(task_failure_details)
+        rerun_details = {
+            "run_failure_count": run_failure_count,
+            "fallback_count": fallback_count,
+            "run_status_summary": run_status_summary,
+            "failure_details": task_failure_details,
+        }
 
         task_summary_payload = {
             "task_id": str(task.task_id),
@@ -1814,6 +2200,11 @@ def run_command(args: argparse.Namespace) -> int:
             "descriptor": analysis["descriptor"],
             "stage_bottleneck": analysis["stage_bottleneck"],
             "runs": run_artifacts,
+            "run_status_summary": run_status_summary,
+            "run_failure_count": run_failure_count,
+            "fallback_count": fallback_count,
+            "needs_rerun": needs_rerun,
+            "rerun_details": rerun_details,
             "artifacts": {
                 "analysis_path": str((task_dir / "analysis.json").resolve()),
                 "descriptor_json_path": str((task_dir / "descriptor.json").resolve()),
@@ -1830,6 +2221,10 @@ def run_command(args: argparse.Namespace) -> int:
             "evaluation": analysis["evaluation"],
             "descriptor": analysis["descriptor"],
             "stage_bottleneck": analysis["stage_bottleneck"],
+            "run_status_summary": run_status_summary,
+            "run_failure_count": run_failure_count,
+            "fallback_count": fallback_count,
+            "needs_rerun": needs_rerun,
             "artifacts": {
                 "task_summary_path": str((task_dir / "task_summary.json").resolve()),
                 "analysis_path": str((task_dir / "analysis.json").resolve()),
@@ -1837,22 +2232,52 @@ def run_command(args: argparse.Namespace) -> int:
         }
         summary_json["tasks"].append(task_summary)
 
-        summary_rows.append(
-            _summary_row_from_analysis(
-                benchmark_name=benchmark_name,
-                system_label=output_paths.system_label,
-                topology=config.mas.resolved_topology(),
-                agents=config.mas.total_agents,
-                default_model=default_model,
-                judge_model=judge_model,
-                task_id=str(task.task_id),
-                task_dir=task_dir,
-                analysis=analysis,
-            )
+        row = _summary_row_from_analysis(
+            benchmark_name=benchmark_name,
+            system_label=output_paths.system_label,
+            topology=config.mas.resolved_topology(),
+            agents=config.mas.total_agents,
+            default_model=default_model,
+            judge_model=judge_model,
+            task_id=str(task.task_id),
+            task_dir=task_dir,
+            analysis=analysis,
         )
+        row.update(
+            {
+                "run_failure_count": run_failure_count,
+                "fallback_count": fallback_count,
+                "needs_rerun": needs_rerun,
+            }
+        )
+        summary_rows.append(row)
         _log_progress(
-            f"TASK_FINISH index={task_idx + 1}/{len(tasks)} task_id={task.task_id} task_dir={task_dir}"
+            f"TASK_FINISH index={task_idx + 1}/{len(tasks)} task_id={task.task_id} "
+            f"task_dir={task_dir} failures={run_failure_count} fallbacks={fallback_count} "
+            f"needs_rerun={needs_rerun}"
         )
+
+    total_run_failures = sum(
+        int(task.get("run_failure_count", 0) or 0)
+        for task in summary_json["tasks"]
+        if isinstance(task, dict)
+    )
+    total_fallbacks = sum(
+        int(task.get("fallback_count", 0) or 0)
+        for task in summary_json["tasks"]
+        if isinstance(task, dict)
+    )
+    rerun_tasks = [
+        str(task.get("task_id", ""))
+        for task in summary_json["tasks"]
+        if isinstance(task, dict) and bool(task.get("needs_rerun", False))
+    ]
+    summary_json["run_status_summary"] = {
+        "run_failure_count": total_run_failures,
+        "fallback_count": total_fallbacks,
+        "needs_rerun_task_count": len(rerun_tasks),
+        "needs_rerun_task_ids": rerun_tasks,
+    }
 
     summary_json_path = output_paths.run_root / "summary.json"
     summary_csv_path = output_paths.run_root / "summary.csv"
@@ -1860,6 +2285,13 @@ def run_command(args: argparse.Namespace) -> int:
     _write_summary_csv(summary_csv_path, summary_rows)
     _log_progress(
         f"SUMMARY_WRITTEN summary_json={summary_json_path} summary_csv={summary_csv_path}"
+    )
+    _log_progress(
+        "RUN_STATUS_SUMMARY "
+        f"benchmark={benchmark_name} system={output_paths.system_label} "
+        f"run_failures={total_run_failures} fallbacks={total_fallbacks} "
+        f"needs_rerun_tasks={len(rerun_tasks)} "
+        f"needs_rerun_task_ids={','.join(rerun_tasks) if rerun_tasks else 'none'}"
     )
 
     print(f"Run complete: {output_paths.run_root}")
@@ -1910,12 +2342,39 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
         for system_dir in sorted(path for path in benchmark_dir.iterdir() if path.is_dir()):
             summary_json_path = system_dir / "summary.json"
             settings_path = system_dir / "experiment_settings.json"
-            if not summary_json_path.exists() or not settings_path.exists():
+            if not settings_path.exists():
                 continue
 
-            summary = json.loads(summary_json_path.read_text(encoding="utf-8"))
+            task_entries: list[dict[str, Any]] = []
+            for task_summary_path in sorted(system_dir.glob("*/task_summary.json")):
+                try:
+                    payload = json.loads(task_summary_path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                entry = _summary_task_entry_from_payload(task_summary_path.parent, payload)
+                if _task_payload_needs_rerun(task_summary_path.parent, payload):
+                    entry["needs_rerun"] = True
+                    if int(entry.get("fallback_count", 0) or 0) == 0:
+                        entry["fallback_count"] = 1
+                task_entries.append(entry)
+
             settings = json.loads(settings_path.read_text(encoding="utf-8"))
-            tasks = list(summary.get("tasks", []))
+            if summary_json_path.exists():
+                summary = json.loads(summary_json_path.read_text(encoding="utf-8"))
+                tasks = task_entries or list(summary.get("tasks", []))
+            else:
+                summary = {
+                    "task_count": int(
+                        settings.get("benchmark", {}).get("task_count", len(task_entries)) or 0
+                    ),
+                    "runs_per_task": int(
+                        settings.get("runtime", {}).get("runs_per_task", 0) or 0
+                    ),
+                    "tasks": task_entries,
+                }
+                tasks = task_entries
             scores = [
                 float(task.get("evaluation", {}).get("avg_score", 0.0))
                 for task in tasks
@@ -1930,6 +2389,21 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
                 float(task.get("evaluation", {}).get("completion_rate", 0.0))
                 for task in tasks
                 if isinstance(task, dict)
+            ]
+            run_failure_count = sum(
+                int(task.get("run_failure_count", 0) or 0)
+                for task in tasks
+                if isinstance(task, dict)
+            )
+            fallback_count = sum(
+                int(task.get("fallback_count", 0) or 0)
+                for task in tasks
+                if isinstance(task, dict)
+            )
+            needs_rerun_task_ids = [
+                str(task.get("task_id", ""))
+                for task in tasks
+                if isinstance(task, dict) and bool(task.get("needs_rerun", False))
             ]
 
             row = {
@@ -1947,6 +2421,12 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
                 "avg_task_score": _mean(scores),
                 "avg_task_success_rate": _mean(success_rates),
                 "avg_task_completion_rate": _mean(completion_rates),
+                "completed_task_count": len(tasks),
+                "missing_task_count": max(int(summary.get("task_count", 0)) - len(tasks), 0),
+                "run_failure_count": run_failure_count,
+                "fallback_count": fallback_count,
+                "needs_rerun_task_count": len(needs_rerun_task_ids),
+                "needs_rerun_task_ids": ",".join(needs_rerun_task_ids),
                 "system_root": str(system_dir.resolve()),
                 "summary_json_path": str(summary_json_path.resolve()),
                 "summary_csv_path": str((system_dir / "summary.csv").resolve()),
@@ -1964,6 +2444,33 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
     _write_json(experiment_root / "experiment_summary.json", experiment_manifest)
     _write_summary_csv(experiment_root / "experiment_summary.csv", experiment_rows)
     print(f"Experiment summary complete: {experiment_root}")
+    total_missing = sum(int(row.get("missing_task_count", 0) or 0) for row in experiment_rows)
+    total_run_failures = sum(int(row.get("run_failure_count", 0) or 0) for row in experiment_rows)
+    total_fallbacks = sum(int(row.get("fallback_count", 0) or 0) for row in experiment_rows)
+    total_rerun_tasks = sum(int(row.get("needs_rerun_task_count", 0) or 0) for row in experiment_rows)
+    print(
+        "Experiment run-status summary: "
+        f"missing_tasks={total_missing} "
+        f"run_failures={total_run_failures} "
+        f"fallbacks={total_fallbacks} "
+        f"needs_rerun_tasks={total_rerun_tasks}"
+    )
+    for row in experiment_rows:
+        if (
+            int(row.get("missing_task_count", 0) or 0) > 0
+            or int(row.get("run_failure_count", 0) or 0) > 0
+            or int(row.get("fallback_count", 0) or 0) > 0
+            or int(row.get("needs_rerun_task_count", 0) or 0) > 0
+        ):
+            print(
+                "  - "
+                f"{row.get('benchmark')}::{row.get('system_label')} "
+                f"completed={row.get('completed_task_count')}/{row.get('task_count')} "
+                f"missing={row.get('missing_task_count')} "
+                f"run_failures={row.get('run_failure_count')} "
+                f"fallbacks={row.get('fallback_count')} "
+                f"needs_rerun={row.get('needs_rerun_task_count')}"
+            )
     return 0
 
 

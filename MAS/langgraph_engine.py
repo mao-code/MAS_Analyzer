@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import math
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -327,6 +328,8 @@ class LangGraphMASEngine:
             "interaction_logs": [],
             "tool_records_log": [],
             "termination_history": [],
+            "transcript_summary": {},
+            "transcript_compaction_history": [],
             "message_budget": {
                 agent_id: int(spec.communication_budget_per_agent) for agent_id in layout.agent_ids
             },
@@ -392,6 +395,10 @@ class LangGraphMASEngine:
             "descriptor_records": list(end_state.get("descriptor_records", [])),
             "descriptor_summary": dict(end_state.get("descriptor_summary", {})),
             "termination_history": list(end_state.get("termination_history", [])),
+            "transcript_summary": dict(end_state.get("transcript_summary", {})),
+            "transcript_compaction_history": list(
+                end_state.get("transcript_compaction_history", [])
+            ),
             "domain_personas": dict(end_state.get("domain_personas", {})),
             "role_assignment": dict(end_state.get("role_assignment", role_assignment_payload)),
             "topology_layout": layout.to_payload(),
@@ -1471,6 +1478,14 @@ class LangGraphMASEngine:
             updates["final_reason"] = f"{state['topology']}:{decision.get('reason', 'judge')}"
             return updates
 
+        compaction = self._compact_transcript_update(
+            state,
+            stage_name="debate_controller",
+            artifacts=artifacts,
+            next_round=current_round + 1,
+            next_discussion=0,
+        )
+        self._merge_compaction_update(updates, compaction)
         emitted = self._emit_packets(
             state,
             dispatch_id=int(state.get("dispatch_id", -1)),
@@ -1583,6 +1598,14 @@ class LangGraphMASEngine:
             "trace_payloads": [self._termination_event(state, "group_controller", decision)],
         }
         if bool(decision.get("should_stop", False)):
+            compaction = self._compact_transcript_update(
+                state,
+                stage_name="group_controller",
+                artifacts=artifacts,
+                next_round=current_round,
+                next_discussion=0,
+            )
+            self._merge_compaction_update(updates, compaction)
             emitted = self._emit_packets(
                 state,
                 dispatch_id=int(state.get("dispatch_id", -1)),
@@ -1596,6 +1619,14 @@ class LangGraphMASEngine:
             updates["discussion_index"] = 0
             return updates
 
+        compaction = self._compact_transcript_update(
+            state,
+            stage_name="group_controller",
+            artifacts=artifacts,
+            next_round=current_round + 1,
+            next_discussion=0,
+        )
+        self._merge_compaction_update(updates, compaction)
         emitted = self._emit_packets(
             state,
             dispatch_id=int(state.get("dispatch_id", -1)),
@@ -1660,6 +1691,14 @@ class LangGraphMASEngine:
                 updates["final_reason"] = f"{state['topology']}:{decision.get('reason', 'judge')}"
             return updates
 
+        compaction = self._compact_transcript_update(
+            state,
+            stage_name="representative_controller",
+            artifacts=artifacts,
+            next_round=int(state.get("round_index", 0)),
+            next_discussion=current_discussion + 1,
+        )
+        self._merge_compaction_update(updates, compaction)
         emitted = self._emit_packets(
             state,
             dispatch_id=int(state.get("dispatch_id", -1)),
@@ -1786,6 +1825,14 @@ class LangGraphMASEngine:
             updates["next_step"] = "orchestrator_merge"
             return updates
 
+        compaction = self._compact_transcript_update(
+            state,
+            stage_name="orchestrator_relay",
+            artifacts=artifacts,
+            next_round=current_round,
+            next_discussion=current_discussion + 1,
+        )
+        self._merge_compaction_update(updates, compaction)
         emitted = self._emit_packets(
             state,
             dispatch_id=int(state.get("dispatch_id", -1)),
@@ -1798,6 +1845,278 @@ class LangGraphMASEngine:
         updates["discussion_index"] = current_discussion + 1
         updates["next_step"] = "dispatch_revision_round"
         return updates
+
+    def _compact_transcript_update(
+        self,
+        state: WorkflowState,
+        *,
+        stage_name: str,
+        artifacts: list[ArtifactRecord],
+        next_round: int,
+        next_discussion: int,
+    ) -> dict[str, Any]:
+        if not artifacts:
+            return {}
+        if str(state.get("topology", "")) not in {
+            TOPOLOGY_FULLY_LINKED_DEBATE,
+            TOPOLOGY_GROUP_CHAT_DEBATE,
+            TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION,
+            TOPOLOGY_ORCHESTRATOR_TREE,
+        }:
+            return {}
+        if not self._transcript_compaction_enabled():
+            return {}
+
+        previous = dict(state.get("transcript_summary", {}) or {})
+        prompt = self._build_transcript_compaction_prompt(
+            state=state,
+            stage_name=stage_name,
+            previous_summary=previous,
+            artifacts=artifacts,
+        )
+        source = "llm_summarizer"
+        token_in = 0
+        token_out = 0
+        latency_ms = 1.0
+        cost_usd = 0.0
+        try:
+            t0 = time.perf_counter()
+            llm = state["llm_client"].generate(
+                prompt=prompt,
+                agent_type="judge",
+                task_id=str(state.get("task_id", "")),
+                run_index=int(state.get("run_index", 0)),
+                agent_id=f"{stage_name}_transcript_summarizer",
+                tools=None,
+                max_tool_iterations=1,
+                temperature=0.0,
+            )
+            latency_ms = max((time.perf_counter() - t0) * 1000.0, 1.0)
+            token_in = int(llm.token_in)
+            token_out = int(llm.token_out)
+            cost_usd = float(llm.cost_usd)
+            parsed = self._parse_transcript_summary(str(llm.text or ""))
+            if parsed is None or bool(llm.mock_used):
+                source = "deterministic_fallback_mock" if bool(llm.mock_used) else "deterministic_fallback_parse_error"
+                parsed = self._deterministic_transcript_summary(
+                    state=state,
+                    previous_summary=previous,
+                    artifacts=artifacts,
+                    source=source,
+                )
+        except Exception as exc:
+            source = "deterministic_fallback_error"
+            parsed = self._deterministic_transcript_summary(
+                state=state,
+                previous_summary=previous,
+                artifacts=artifacts,
+                source=source,
+            )
+            parsed["fallback_reason"] = f"{type(exc).__name__}:{exc}"
+
+        summary = self._bounded_transcript_summary(parsed)
+        summary.update(
+            {
+                "source": source,
+                "stage_name": stage_name,
+                "round_index": int(state.get("round_index", 0)),
+                "discussion_index": int(state.get("discussion_index", 0)),
+                "next_round": int(next_round),
+                "next_discussion": int(next_discussion),
+            }
+        )
+        history = {
+            "stage_name": stage_name,
+            "round_index": int(state.get("round_index", 0)),
+            "discussion_index": int(state.get("discussion_index", 0)),
+            "next_round": int(next_round),
+            "next_discussion": int(next_discussion),
+            "source": source,
+            "artifact_count": len(artifacts),
+            "summary_chars": len(json.dumps(summary, ensure_ascii=False)),
+            "token_in": token_in,
+            "token_out": token_out,
+            "cost_usd": cost_usd,
+            "latency_ms": latency_ms,
+        }
+        trace = self._draft_event(
+            dispatch_id=int(state.get("dispatch_id", -1)),
+            node_order=2,
+            agent_order=-1,
+            event_order=0,
+            actor="system",
+            event_type="verify",
+            payload={
+                "node": stage_name,
+                "operation": "transcript_compaction",
+                "source": source,
+                "artifact_count": len(artifacts),
+                "summary_keys": sorted(summary.keys()),
+            },
+            token_in=token_in,
+            token_out=token_out,
+            latency_ms=latency_ms,
+            cost_usd=cost_usd,
+            state_id=(
+                f"run_{state['run_index']}_{stage_name}_"
+                f"compact_{state.get('round_index', 0)}_{state.get('discussion_index', 0)}"
+            ),
+        )
+        return {
+            "transcript_summary": summary,
+            "transcript_compaction_history": [history],
+            "trace_payloads": [trace],
+        }
+
+    @staticmethod
+    def _merge_compaction_update(updates: dict[str, Any], compaction: dict[str, Any]) -> None:
+        if not compaction:
+            return
+        if "transcript_summary" in compaction:
+            updates["transcript_summary"] = compaction["transcript_summary"]
+        if compaction.get("transcript_compaction_history"):
+            updates.setdefault("transcript_compaction_history", []).extend(
+                compaction["transcript_compaction_history"]
+            )
+        if compaction.get("trace_payloads"):
+            updates.setdefault("trace_payloads", []).extend(compaction["trace_payloads"])
+
+    @staticmethod
+    def _transcript_compaction_enabled() -> bool:
+        raw = str(os.getenv("MAS_TRANSCRIPT_COMPACTION_ENABLED", "1")).strip().lower()
+        return raw not in {"0", "false", "no", "off"}
+
+    def _build_transcript_compaction_prompt(
+        self,
+        *,
+        state: WorkflowState,
+        stage_name: str,
+        previous_summary: dict[str, Any],
+        artifacts: list[ArtifactRecord],
+    ) -> list[dict[str, Any]]:
+        payload = {
+            "task": state.get("task_prompt"),
+            "topology": state.get("topology"),
+            "stage_name": stage_name,
+            "round_index": int(state.get("round_index", 0)),
+            "discussion_index": int(state.get("discussion_index", 0)),
+            "previous_summary": previous_summary,
+            "latest_artifacts": [
+                {
+                    "agent_id": str(artifact.get("agent_id", "")),
+                    "role": str(artifact.get("role", "")),
+                    "answer": self._trim_text(str(artifact.get("answer", "")), max_chars=1200),
+                    "summary": self._trim_text(str(artifact.get("summary", "")), max_chars=500),
+                    "critique": self._trim_text(str(artifact.get("critique", "")), max_chars=500),
+                    "confidence": float(artifact.get("confidence", 0.5)),
+                    "unresolved_issues": list(artifact.get("unresolved_issues", []))[:6],
+                    "evidence_summary": list(artifact.get("evidence_summary", []))[:6],
+                }
+                for artifact in artifacts[:8]
+            ],
+        }
+        return [
+            {
+                "role": "system",
+                "content": (
+                    "You compact multi-agent debate history for later rounds. "
+                    "Return exactly one JSON object with keys: claims, evidence, "
+                    "disagreements, unresolved_questions, best_current_answer, confidence."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(payload, ensure_ascii=False),
+            },
+        ]
+
+    @classmethod
+    def _parse_transcript_summary(cls, text: str) -> dict[str, Any] | None:
+        payload = cls._extract_json_object(text)
+        if not isinstance(payload, dict):
+            return None
+        return payload
+
+    def _deterministic_transcript_summary(
+        self,
+        *,
+        state: WorkflowState,
+        previous_summary: dict[str, Any],
+        artifacts: list[ArtifactRecord],
+        source: str,
+    ) -> dict[str, Any]:
+        claims = list(previous_summary.get("claims", [])) if isinstance(previous_summary.get("claims"), list) else []
+        evidence = list(previous_summary.get("evidence", [])) if isinstance(previous_summary.get("evidence"), list) else []
+        unresolved = (
+            list(previous_summary.get("unresolved_questions", []))
+            if isinstance(previous_summary.get("unresolved_questions"), list)
+            else []
+        )
+        disagreements = (
+            list(previous_summary.get("disagreements", []))
+            if isinstance(previous_summary.get("disagreements"), list)
+            else []
+        )
+        best_answer = str(previous_summary.get("best_current_answer", "") or "")
+        best_conf = float(previous_summary.get("confidence", 0.0) or 0.0)
+        signatures: dict[str, list[str]] = {}
+        for artifact in artifacts:
+            agent_id = str(artifact.get("agent_id", ""))
+            answer = str(artifact.get("answer", "")).strip()
+            summary = str(artifact.get("summary", "")).strip()
+            if summary:
+                claims.append(f"{agent_id}: {summary}")
+            for item in list(artifact.get("evidence_summary", []))[:4]:
+                evidence.append(f"{agent_id}: {item}")
+            for item in list(artifact.get("unresolved_issues", []))[:4]:
+                unresolved.append(f"{agent_id}: {item}")
+            signature = answer_signature(answer)
+            if signature:
+                signatures.setdefault(signature, []).append(agent_id)
+            confidence = float(artifact.get("confidence", 0.0) or 0.0)
+            if answer and confidence >= best_conf:
+                best_answer = self._trim_text(answer, max_chars=1200)
+                best_conf = confidence
+        if len(signatures) > 1:
+            disagreements.append(
+                "Agents still disagree across answer signatures: "
+                + "; ".join(f"{','.join(ids)}" for ids in signatures.values())
+            )
+        return {
+            "claims": claims,
+            "evidence": evidence,
+            "disagreements": disagreements,
+            "unresolved_questions": unresolved,
+            "best_current_answer": best_answer,
+            "confidence": best_conf,
+            "source": source,
+        }
+
+    def _bounded_transcript_summary(self, summary: dict[str, Any]) -> dict[str, Any]:
+        def bounded_list(key: str, *, limit: int = 10, max_chars: int = 360) -> list[str]:
+            values = summary.get(key, [])
+            if not isinstance(values, list):
+                values = [values] if values else []
+            return [
+                self._trim_text(str(item), max_chars=max_chars)
+                for item in values
+                if str(item).strip()
+            ][:limit]
+
+        try:
+            confidence = float(summary.get("confidence", 0.5))
+        except Exception:
+            confidence = 0.5
+        return {
+            "claims": bounded_list("claims"),
+            "evidence": bounded_list("evidence"),
+            "disagreements": bounded_list("disagreements", limit=8),
+            "unresolved_questions": bounded_list("unresolved_questions", limit=8),
+            "best_current_answer": self._trim_text(
+                str(summary.get("best_current_answer", "")), max_chars=1200
+            ),
+            "confidence": max(0.0, min(1.0, confidence)),
+        }
 
     def _descriptor_monitor_node(self, state: WorkflowState) -> dict[str, Any]:
         descriptor = state.get("descriptor")
@@ -1977,6 +2296,7 @@ class LangGraphMASEngine:
             temperature=0.0,
         )
         latency_ms = max((time.perf_counter() - t0) * 1000.0, 1.0)
+        self._raise_for_fatal_tool_failure(llm, agent_id=agent_id, node_name=node_name)
         tool_retry_used = False
         tool_records = list(llm.tool_calls)
         answer_mode = self._answer_mode(str(llm.text or ""))
@@ -2025,6 +2345,7 @@ class LangGraphMASEngine:
                 temperature=0.0,
             )
             latency_ms += max((time.perf_counter() - t0) * 1000.0, 1.0)
+            self._raise_for_fatal_tool_failure(llm, agent_id=agent_id, node_name=node_name)
             prompt_messages = self._normalize_prompt_messages(retry_prompt)
             tool_records = list(llm.tool_calls)
             tool_retry_used = True
@@ -2214,6 +2535,24 @@ class LangGraphMASEngine:
             "interaction_logs": [interaction_log],
             "tool_records_log": tool_log_records,
         }
+
+    @staticmethod
+    def _raise_for_fatal_tool_failure(
+        llm: Any,
+        *,
+        agent_id: str,
+        node_name: str,
+    ) -> None:
+        metadata = dict(getattr(llm, "metadata", {}) or {})
+        if not bool(metadata.get("fatal_tool_failure", False)):
+            return
+        tool_name = str(metadata.get("tool_failure_tool_name", ""))
+        consecutive = int(metadata.get("tool_failure_consecutive_count", 0) or 0)
+        raise RuntimeError(
+            "fatal_tool_failure: "
+            f"tool_failure_circuit_breaker triggered in node={node_name} "
+            f"agent_id={agent_id} tool={tool_name} consecutive={consecutive}"
+        )
 
     def _build_orchestrator_task_packets(
         self,
@@ -4196,6 +4535,9 @@ class LangGraphMASEngine:
             else None,
             "visible_packets": self._serialize_for_json(visible_messages),
         }
+        transcript_summary = state.get("transcript_summary")
+        if isinstance(transcript_summary, dict) and transcript_summary:
+            payload["rolling_transcript_summary"] = self._serialize_for_json(transcript_summary)
         if serialized_tools:
             payload["available_tools"] = serialized_tools
         if persona_info:

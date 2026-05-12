@@ -347,6 +347,157 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
             self.assertIn("776", summary_csv)
             self.assertTrue((run_root / "776" / "task_summary.json").exists())
 
+    def test_run_failure_is_written_as_rerunnable_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            cfg_path = base / "experiment.toml"
+            out_dir = base / "outputs"
+            cfg_path.write_text(
+                textwrap.dedent(
+                    f"""
+                    [openrouter]
+                    api_key = ""
+
+                    [experiment]
+                    output_dir = "{out_dir.as_posix()}"
+                    runs_per_task = 2
+                    seed = 42
+
+                    [mas]
+                    levels = 1
+                    intra_level_link_ratio = 1.0
+                    full_linked = true
+                    number_of_agents = 1
+                    agent_types = ["general"]
+                    communication_count_internally = 0
+                    turn_mode = "single_turn"
+                    max_turns = 1
+
+                    [models]
+                    default = "openai/gpt-4o-mini"
+                    judge = "openai/gpt-4o-mini"
+
+                    [browsecomp]
+                    eval_mode = "substring"
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            task = BenchmarkTask(task_id="task_fail", prompt="prompt", reference_answer="answer")
+
+            class FakeBenchmark:
+                def load_tasks(self, task_limit: int | None = None):
+                    return [task]
+
+                def run(self, task, runner, run_index, seed):
+                    if run_index == 0:
+                        raise RuntimeError("provider 429")
+                    return SimpleNamespace(
+                        final_answer="answer",
+                        trace_events=[],
+                        run_metadata={
+                            "task_id": task.task_id,
+                            "run_index": run_index,
+                            "seed": seed,
+                            "topology": "sas",
+                            "run_status": "completed",
+                        },
+                    )
+
+                def evaluate(self, task, prediction, *, run_metadata=None):
+                    return BenchmarkEvaluation(
+                        task_id=task.task_id,
+                        score=1.0 if prediction == "answer" else 0.0,
+                        success=prediction == "answer",
+                        details={},
+                    )
+
+                def requirements(self):
+                    return {}
+
+            args = Namespace(
+                config=str(cfg_path),
+                benchmark="browsecomp",
+                task_limit=1,
+                runs_per_task=2,
+                seed=42,
+                output_dir=str(out_dir),
+                output_layout="hierarchical",
+                experiment_id="failure_case",
+                system_label="sas",
+                topology="sas",
+                agents=1,
+                mas_rounds=1,
+                discussion_rounds=1,
+                communication_budget=0,
+                termination_consensus_mode=None,
+                final_vote_mode=None,
+                default_model=None,
+                judge_model=None,
+                benchmark_eval_judge_model=None,
+                peer_artifact_max_chars=None,
+                agents_per_level=None,
+                group_sizes=None,
+                agent_types=None,
+                no_dynamic_roles=False,
+            )
+
+            with patch.object(main_module, "get_benchmark", return_value=FakeBenchmark()):
+                with patch.object(main_module, "OpenRouterLLMClient", return_value=object()):
+                    with patch.object(main_module, "MASRunner", return_value=SimpleNamespace()):
+                        with patch.object(
+                            main_module,
+                            "_write_system_graph_artifact",
+                            return_value={"png_path": "graph.png"},
+                        ):
+                            exit_code = main_module.run_command(args)
+
+            self.assertEqual(exit_code, 0)
+            task_dir = out_dir / "failure_case" / "browsecomp" / "sas" / "task_fail"
+            metadata = json.loads((task_dir / "run_0.metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["run_status"], "failed")
+            self.assertTrue(metadata["fallback"])
+            task_summary = json.loads((task_dir / "task_summary.json").read_text(encoding="utf-8"))
+            self.assertTrue(task_summary["needs_rerun"])
+            self.assertEqual(task_summary["run_failure_count"], 1)
+            self.assertEqual(task_summary["fallback_count"], 1)
+
+            rerun_calls: list[int] = []
+
+            class SecondPassBenchmark(FakeBenchmark):
+                def run(self, task, runner, run_index, seed):
+                    rerun_calls.append(run_index)
+                    return SimpleNamespace(
+                        final_answer="answer",
+                        trace_events=[],
+                        run_metadata={
+                            "task_id": task.task_id,
+                            "run_index": run_index,
+                            "seed": seed,
+                            "topology": "sas",
+                            "run_status": "completed",
+                        },
+                    )
+
+            with patch.object(main_module, "get_benchmark", return_value=SecondPassBenchmark()):
+                with patch.object(main_module, "OpenRouterLLMClient", return_value=object()):
+                    with patch.object(main_module, "MASRunner", return_value=SimpleNamespace()):
+                        with patch.object(
+                            main_module,
+                            "_write_system_graph_artifact",
+                            return_value={"png_path": "graph.png"},
+                        ):
+                            exit_code = main_module.run_command(args)
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(rerun_calls, [0])
+            task_summary = json.loads((task_dir / "task_summary.json").read_text(encoding="utf-8"))
+            self.assertFalse(task_summary["needs_rerun"])
+            self.assertEqual(task_summary["run_failure_count"], 0)
+            self.assertEqual(task_summary["fallback_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

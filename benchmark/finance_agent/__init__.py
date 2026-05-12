@@ -19,6 +19,7 @@ Evaluation modes:
 
 from __future__ import annotations
 
+import asyncio
 import ast
 import csv
 import json
@@ -26,7 +27,6 @@ import logging
 import os
 import random
 import re
-import time
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
@@ -150,6 +150,10 @@ class FinanceAgentBenchmark:
         self.web_search_top_n: int = int(cfg.get("web_search_top_n", 10))
         # In-session HTML store shared across tool calls within one run
         self._html_store: dict[str, str] = {}
+        # Exact SEC tool-call reuse is instance-local so repeated agent searches
+        # do not replay the same EDGAR POST during a benchmark experiment.
+        self._edgar_search_cache: dict[str, dict[str, Any]] = {}
+        self._edgar_search_inflight: dict[str, asyncio.Task[dict[str, Any]]] = {}
 
     # ------------------------------------------------------------------
     # BenchmarkAdapter interface
@@ -326,7 +330,9 @@ class FinanceAgentBenchmark:
                             return {"success": True, "result": json.dumps(results)}
                     except aiohttp.ClientResponseError as exc:
                         if exc.status == 429 and attempt < 7:
-                            time.sleep(min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0)))
+                            await asyncio.sleep(
+                                min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0))
+                            )
                             continue
                         raise
                 return {"success": False, "result": "Max retries reached for Tavily"}
@@ -351,6 +357,47 @@ class FinanceAgentBenchmark:
         # 2. edgar_search
         sec_key = self.sec_api_key
 
+        async def execute_edgar_search(
+            payload: dict[str, Any],
+            top_n_results: int,
+        ) -> dict[str, Any]:
+            import aiohttp
+
+            for attempt in range(8):
+                try:
+                    async with (
+                        aiohttp.ClientSession() as session,
+                        session.post(
+                            "https://api.sec-api.io/full-text-search",
+                            json=payload,
+                            headers={
+                                "Authorization": sec_key,
+                                "Content-Type": "application/json",
+                            },
+                            timeout=20,
+                        ) as response,
+                    ):
+                        if response.status == 429:
+                            raise aiohttp.ClientResponseError(
+                                request_info=response.request_info,
+                                history=response.history,
+                                status=429,
+                                message="429",
+                                headers=response.headers,
+                            )
+                        response.raise_for_status()
+                        result = await response.json()
+                        filings = result.get("filings", [])[:top_n_results]
+                        return {"success": True, "result": json.dumps(filings)}
+                except aiohttp.ClientResponseError as exc:
+                    if exc.status == 429 and attempt < 7:
+                        await asyncio.sleep(
+                            min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0))
+                        )
+                        continue
+                    raise
+            return {"success": False, "result": "Max retries reached for SEC API"}
+
         async def edgar_search(args: dict[str, Any]) -> Any:
             if not sec_key:
                 return {
@@ -367,41 +414,28 @@ class FinanceAgentBenchmark:
                     "page": str(args.get("page", "1")),
                 }
                 top_n_results = int(args.get("top_n_results", 5))
+                request_key = json.dumps(
+                    {"payload": payload, "top_n_results": top_n_results},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                cached = self._edgar_search_cache.get(request_key)
+                if cached is not None:
+                    return dict(cached)
 
-                import aiohttp
+                task = self._edgar_search_inflight.get(request_key)
+                if task is None:
+                    task = asyncio.create_task(execute_edgar_search(payload, top_n_results))
+                    self._edgar_search_inflight[request_key] = task
+                try:
+                    tool_result = await task
+                finally:
+                    if self._edgar_search_inflight.get(request_key) is task:
+                        self._edgar_search_inflight.pop(request_key, None)
 
-                for attempt in range(8):
-                    try:
-                        async with (
-                            aiohttp.ClientSession() as session,
-                            session.post(
-                                "https://api.sec-api.io/full-text-search",
-                                json=payload,
-                                headers={
-                                    "Authorization": sec_key,
-                                    "Content-Type": "application/json",
-                                },
-                                timeout=20,
-                            ) as response,
-                        ):
-                            if response.status == 429:
-                                raise aiohttp.ClientResponseError(
-                                    request_info=response.request_info,
-                                    history=response.history,
-                                    status=429,
-                                    message="429",
-                                    headers=response.headers,
-                                )
-                            response.raise_for_status()
-                            result = await response.json()
-                            filings = result.get("filings", [])[:top_n_results]
-                            return {"success": True, "result": json.dumps(filings)}
-                    except aiohttp.ClientResponseError as exc:
-                        if exc.status == 429 and attempt < 7:
-                            time.sleep(min(20.0, (3 * (2**attempt)) + random.uniform(0.0, 1.0)))
-                            continue
-                        raise
-                return {"success": False, "result": "Max retries reached for SEC API"}
+                if tool_result.get("success"):
+                    self._edgar_search_cache[request_key] = dict(tool_result)
+                return dict(tool_result)
             except Exception as exc:
                 return {"success": False, "result": str(exc)}
 

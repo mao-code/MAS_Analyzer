@@ -9,6 +9,52 @@ import scripts.full_experiment as batch_module
 
 
 class TestFullExperimentBatchSmoke(unittest.TestCase):
+    def test_system_summary_is_clean_requires_no_rerun_debt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            summary_json = base / "summary.json"
+            summary_csv = base / "summary.csv"
+            summary_csv.write_text("ok\n", encoding="utf-8")
+
+            summary_json.write_text(
+                json.dumps(
+                    {
+                        "task_count": 2,
+                        "tasks": [
+                            {"task_id": "a", "needs_rerun": False},
+                            {"task_id": "b", "needs_rerun": False},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertTrue(batch_module.system_summary_is_clean(summary_json, summary_csv))
+
+            summary_json.write_text(
+                json.dumps(
+                    {
+                        "task_count": 2,
+                        "tasks": [
+                            {"task_id": "a", "needs_rerun": False},
+                            {"task_id": "b", "needs_rerun": True},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertFalse(batch_module.system_summary_is_clean(summary_json, summary_csv))
+
+            summary_json.write_text(
+                json.dumps(
+                    {
+                        "task_count": 2,
+                        "tasks": [{"task_id": "a", "needs_rerun": False}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertFalse(batch_module.system_summary_is_clean(summary_json, summary_csv))
+
     def test_system_extra_args_ignores_raw_model_flags(self) -> None:
         with patch.dict(
             "os.environ",

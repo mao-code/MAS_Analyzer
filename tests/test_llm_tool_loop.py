@@ -56,6 +56,23 @@ class _SlowClient:
         self.chat = SimpleNamespace(completions=_SlowCompletions())
 
 
+class _SlowOnceCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            time.sleep(0.2)
+            return _make_completion(content="late answer", prompt_tokens=3, completion_tokens=2)
+        return _make_completion(content="FINAL ANSWER: timeout retry recovered", prompt_tokens=5, completion_tokens=4)
+
+
+class _SlowOnceClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_SlowOnceCompletions())
+
+
 class _CompactingCompletions:
     def __init__(self) -> None:
         self.calls: list[dict] = []
@@ -110,6 +127,52 @@ class _StagnatingCompletions:
 class _StagnatingClient:
     def __init__(self) -> None:
         self.chat = SimpleNamespace(completions=_StagnatingCompletions())
+
+
+class _FailingSearchCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.tool_call_count = 0
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if "tools" not in kwargs:
+            return _make_completion(
+                content="FINAL ANSWER: blocked by tool failure",
+                prompt_tokens=7,
+                completion_tokens=5,
+            )
+        self.tool_call_count += 1
+        tool_call = SimpleNamespace(
+            id=f"call_{self.tool_call_count}",
+            type="function",
+            function=SimpleNamespace(
+                name="google_web_search",
+                arguments=json.dumps({"search_query": f"q{self.tool_call_count}"}),
+            ),
+        )
+        return _make_completion(tool_calls=[tool_call], prompt_tokens=18, completion_tokens=2)
+
+
+class _FailingSearchClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_FailingSearchCompletions())
+
+
+class _RateLimitOnceCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            raise RuntimeError("Error code: 429 retry_after_seconds: 1")
+        return _make_completion(content="FINAL ANSWER: recovered", prompt_tokens=5, completion_tokens=4)
+
+
+class _RateLimitOnceClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_RateLimitOnceCompletions())
 
 
 class _ForceFinalTimeoutCompletions:
@@ -224,16 +287,47 @@ class TestLLMToolLoop(unittest.TestCase):
         )
         client.client = _SlowClient()
 
-        result = client.generate(
-            prompt="solve this",
-            agent_type="general",
-            task_id="t1",
-            run_index=0,
-            agent_id="agent_0",
-        )
+        with patch.dict("os.environ", {"MAS_LLM_TIMEOUT_RETRY_ATTEMPTS": "1"}, clear=False):
+            result = client.generate(
+                prompt="solve this",
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+            )
 
         self.assertTrue(result.mock_used)
         self.assertIn("timeout", str(result.metadata.get("fallback_reason", "")).lower())
+
+    def test_generate_retries_hard_timeout_when_enabled(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test", timeout_s=0.05), {"default": "openai/gpt-4o-mini"}
+        )
+        fake = _SlowOnceClient()
+        client.client = fake
+
+        with patch.dict(
+            "os.environ",
+            {
+                "MAS_LLM_TIMEOUT_RETRY_ATTEMPTS": "2",
+                "MAS_LLM_RETRY_BACKOFF_S": "0",
+                "MAS_LLM_RETRY_MAX_BACKOFF_S": "1",
+                "MAS_OPENROUTER_PROVIDER_ORDER": "DeepInfra,Chutes",
+                "MAS_OPENROUTER_SHUFFLE_PROVIDER_ORDER": "1",
+            },
+            clear=False,
+        ):
+            result = client.generate(
+                prompt="solve this",
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+            )
+
+        self.assertFalse(result.mock_used)
+        self.assertIn("timeout retry recovered", result.text)
+        self.assertEqual(len(fake.chat.completions.calls), 2)
 
     def test_compacts_prompt_facing_tool_output_and_summarizes_older_turns(self) -> None:
         client = OpenRouterLLMClient(
@@ -487,6 +581,83 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertTrue(result.metadata.get("tool_loop_forced_final_answer"))
         self.assertIn("search results have stagnated", joined_content.lower())
         self.assertIn("insufficient-evidence", joined_content.lower())
+
+    def test_tool_failure_circuit_breaker_stops_failed_search_query_loop(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _FailingSearchClient()
+
+        with patch.dict("os.environ", {"MAS_TOOL_FAILURE_CIRCUIT_BREAKER": "2"}, clear=False):
+            result = client.generate(
+                prompt=[{"role": "user", "content": "solve this"}],
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+                tools=[
+                    {
+                        "name": "google_web_search",
+                        "description": "Search tool",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                        "handler": lambda args: {
+                            "success": False,
+                            "result": "432, message='', url='https://api.tavily.com/search'",
+                        },
+                    }
+                ],
+                max_tool_iterations=8,
+            )
+
+        completions = client.client.chat.completions
+        force_final_messages = completions.calls[2]["messages"]
+        joined_content = "\n".join(str(message.get("content", "")) for message in force_final_messages)
+
+        self.assertEqual(result.text, "FINAL ANSWER: blocked by tool failure")
+        self.assertEqual(len(result.tool_calls), 2)
+        self.assertTrue(result.metadata.get("tool_failure_circuit_breaker_triggered"))
+        self.assertIn("Repeated tool failures", result.metadata.get("tool_loop_stopped_reason", ""))
+        self.assertTrue(all(call["status"] == "error" for call in result.tool_calls))
+        self.assertIn("tool failure circuit breaker", joined_content.lower())
+
+    def test_retry_adds_openrouter_provider_and_model_fallbacks(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "google/gemma-4-31b-it"}
+        )
+        fake = _RateLimitOnceClient()
+        client.client = fake
+
+        with patch.dict(
+            "os.environ",
+            {
+                "MAS_LLM_RETRY_ATTEMPTS": "2",
+                "MAS_LLM_RETRY_BACKOFF_S": "0.1",
+                "MAS_LLM_RETRY_MAX_BACKOFF_S": "1",
+                "MAS_OPENROUTER_PROVIDER_ORDER": "DeepInfra,Chutes",
+                "MAS_OPENROUTER_FALLBACK_MODELS": "google/gemini-2.0-flash-001,qwen/qwen3-32b",
+            },
+            clear=False,
+        ):
+            with patch("time.sleep") as sleep_mock:
+                result = client.generate(
+                    prompt="solve",
+                    agent_type="general",
+                    task_id="t1",
+                    run_index=0,
+                    agent_id="agent_0",
+                )
+
+        self.assertIn("recovered", result.text)
+        calls = fake.chat.completions.calls
+        self.assertEqual(len(calls), 2)
+        extra_body = calls[0]["extra_body"]
+        self.assertEqual(extra_body["provider"]["order"], ["DeepInfra", "Chutes"])
+        self.assertTrue(extra_body["provider"]["allow_fallbacks"])
+        self.assertEqual(
+            extra_body["models"],
+            ["google/gemini-2.0-flash-001", "qwen/qwen3-32b"],
+        )
+        sleep_mock.assert_called_once()
 
 
 if __name__ == "__main__":
