@@ -2,6 +2,7 @@ import json
 import unittest
 from dataclasses import dataclass
 from typing import Any
+from unittest.mock import patch
 
 from MAS import ExperimentSpec, LangGraphMASEngine, build_runtime_config, run_experiment
 from MAS.llm import LLMResult, OpenRouterLLMClient
@@ -173,6 +174,78 @@ class _WorkbenchRoleAwareLLM(OpenRouterLLMClient):
         )
 
 
+class _CompactionLLM(OpenRouterLLMClient):
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        self.calls.append({"agent_id": agent_id, "prompt": prompt})
+        if agent_id.endswith("_transcript_summarizer"):
+            text = (
+                '{"claims":["rolling claim"],"evidence":["rolling evidence"],'
+                '"disagreements":["rolling disagreement"],'
+                '"unresolved_questions":["rolling unresolved"],'
+                '"best_current_answer":"42","confidence":0.75}'
+            )
+        else:
+            text = (
+                '{"answer_artifact":"42","summary":"answer 42",'
+                '"critique":"","revision_request":"","confidence":0.8,'
+                '"unresolved_issues":[],"evidence_summary":["local evidence"]}'
+            )
+        return LLMResult(
+            text=text,
+            token_in=11,
+            token_out=7,
+            cost_usd=0.0,
+            model="mock-model",
+            mock_used=False,
+            metadata={},
+        )
+
+
+class _FatalToolFailureLLM(OpenRouterLLMClient):
+    def __init__(self) -> None:
+        pass
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        return LLMResult(
+            text='{"answer_artifact":"blocked","summary":"blocked","critique":"","revision_request":"","confidence":0.0,"unresolved_issues":["tool failed"],"evidence_summary":[]}',
+            token_in=3,
+            token_out=2,
+            cost_usd=0.0,
+            model="mock-model",
+            mock_used=False,
+            metadata={
+                "fatal_tool_failure": True,
+                "tool_failure_tool_name": "google_web_search",
+                "tool_failure_consecutive_count": 2,
+            },
+        )
+
+
 class TestLangGraphTopologies(unittest.TestCase):
     def test_experiment_spec_normalized_preserves_role_assignment_fields(self) -> None:
         spec = ExperimentSpec(
@@ -213,6 +286,55 @@ class TestLangGraphTopologies(unittest.TestCase):
                 self.assertEqual(result.run_metadata["topology"], topology)
                 self.assertIn("relay_messages", result.run_metadata)
                 self.assertIn("message_views", result.run_metadata)
+
+    def test_transcript_compaction_summary_is_added_to_later_round_prompts(self) -> None:
+        llm = _CompactionLLM()
+        engine = LangGraphMASEngine(llm)
+
+        with patch.dict("os.environ", {"MAS_TRANSCRIPT_COMPACTION_ENABLED": "1"}, clear=False):
+            result = engine.run(
+                task=_Task(task_id="t1", prompt="What is the answer?"),
+                run_index=0,
+                seed=7,
+                spec=ExperimentSpec(
+                    topology="fully_linked_debate",
+                    num_agents=2,
+                    rounds=2,
+                    communication_budget_per_agent=5,
+                    termination_consensus_mode="lexical",
+                    final_vote_mode="deterministic",
+                    enable_dynamic_roles=False,
+                ),
+                agent_types=["general"],
+            )
+
+        self.assertIn("rolling claim", result.run_metadata["transcript_summary"]["claims"])
+        self.assertGreaterEqual(len(result.run_metadata["transcript_compaction_history"]), 1)
+        second_round_prompts = [
+            json.dumps(call["prompt"])
+            for call in llm.calls
+            if call["agent_id"] in {"agent_0", "agent_1"}
+            and "rolling_transcript_summary" in json.dumps(call["prompt"])
+        ]
+        self.assertTrue(second_round_prompts)
+
+    def test_fatal_search_tool_failure_raises_for_run_level_rerun(self) -> None:
+        engine = LangGraphMASEngine(_FatalToolFailureLLM())
+
+        with self.assertRaisesRegex(RuntimeError, "fatal_tool_failure"):
+            engine.run(
+                task=_Task(task_id="t1", prompt="Find the evidence."),
+                run_index=0,
+                seed=7,
+                spec=ExperimentSpec(
+                    topology="sas",
+                    num_agents=1,
+                    rounds=1,
+                    enable_dynamic_roles=False,
+                ),
+                agent_types=["general"],
+                tools=[{"name": "google_web_search", "description": "Search"}],
+            )
 
     def test_orchestrator_no_discussion_visibility(self) -> None:
         result = run_experiment(
@@ -790,6 +912,55 @@ class TestLangGraphTopologies(unittest.TestCase):
         )
 
         self.assertEqual(vote["answer"], "Queen Arwa University")
+
+    def test_final_vote_empty_judgment_uses_non_direct_fallback_when_needed(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text_by_agent_id={
+                    "judge_final_vote_judge": (
+                        '{"groups":[],"winner_index":null,"invalid_indices":[0,1],'
+                        '"explanation":"All candidates leave required criteria unresolved."}'
+                    )
+                }
+            )
+        )
+        state = {
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which institution is best supported?",
+        }
+        artifacts = [
+            {
+                "artifact_id": "candidate_0",
+                "agent_id": "agent_0",
+                "answer": "Queen Arwa University",
+                "summary": "Queen Arwa University",
+                "confidence": 0.9,
+                "unresolved_issues": ["Criteria C and D remain unresolved."],
+                "evidence_summary": ["Document 82002 confirms the graduation ceremony date."],
+            },
+            {
+                "artifact_id": "candidate_1",
+                "agent_id": "agent_1",
+                "answer": "Queen Arwa University",
+                "summary": "Queen Arwa University",
+                "confidence": 0.8,
+                "unresolved_issues": ["The 2022 events remain unverified."],
+                "evidence_summary": ["Document 5412 confirms the 2002 event."],
+            },
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["source"], "deterministic_non_direct_fallback_empty_judgment")
+        self.assertEqual(vote["answer"], "Queen Arwa University")
+        self.assertEqual(vote["selected_artifact_id"], "candidate_0")
 
     def test_plancraft_control_prompts_use_current_turn_not_few_shot_examples(self) -> None:
         engine = LangGraphMASEngine(_JudgeLLM(text="unused"))

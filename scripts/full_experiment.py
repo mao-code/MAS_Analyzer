@@ -10,6 +10,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 try:
@@ -118,6 +119,114 @@ def info(message: str) -> None:
 
 def env_flag(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_float(value: str | None, default: float) -> float:
+    raw = str(value or "").strip()
+    if not raw:
+        return default
+    try:
+        parsed = float(raw)
+    except ValueError:
+        return default
+    return max(parsed, 0.0)
+
+
+def progress_snapshot_lines(experiment_root: Path) -> list[str]:
+    if not experiment_root.exists():
+        return [f"[progress] waiting_for_experiment_root={experiment_root}"]
+
+    command = [
+        sys.executable,
+        "main.py",
+        "summarize-experiment",
+        "--experiment-root",
+        str(experiment_root),
+    ]
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip().splitlines()
+        suffix = f" detail={detail[-1]}" if detail else ""
+        return [
+            f"[progress] summary_unavailable experiment={experiment_root.name} "
+            f"returncode={result.returncode}{suffix}"
+        ]
+
+    selected = [
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith("Experiment run-status summary:")
+        or line.startswith("  - ")
+    ]
+    if not selected:
+        return [f"[progress] summary_empty experiment={experiment_root.name}"]
+    return [f"[progress] experiment={experiment_root.name}", *[f"[progress] {line}" for line in selected]]
+
+
+def system_summary_is_clean(summary_json: Path, summary_csv: Path) -> bool:
+    if not summary_json.exists() or not summary_csv.exists():
+        return False
+    try:
+        payload = json.loads(summary_json.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if not isinstance(payload, dict):
+        return False
+
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list):
+        return False
+    task_count = int(payload.get("task_count", len(tasks)) or 0)
+    if len(tasks) < task_count:
+        return False
+
+    for task in tasks:
+        if not isinstance(task, dict):
+            return False
+        if bool(task.get("needs_rerun", False)):
+            return False
+    return True
+
+
+class ProgressReporter:
+    def __init__(self, experiment_roots: list[Path], interval_s: float) -> None:
+        self.experiment_roots = list(experiment_roots)
+        self.interval_s = max(interval_s, 0.0)
+        self.stop_event = threading.Event()
+        self.thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if self.interval_s <= 0.0 or not self.experiment_roots:
+            return
+        self.thread = threading.Thread(
+            target=self._run,
+            name="full-experiment-progress",
+            daemon=True,
+        )
+        self.thread.start()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+        if self.thread is not None:
+            self.thread.join(timeout=5.0)
+
+    def emit_snapshot(self, label: str = "Progress snapshot") -> None:
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        info("")
+        info(f"=== {label} {timestamp} ===")
+        for experiment_root in self.experiment_roots:
+            for line in progress_snapshot_lines(experiment_root):
+                info(line)
+
+    def _run(self) -> None:
+        while not self.stop_event.wait(self.interval_s):
+            self.emit_snapshot()
 
 
 def run_command(
@@ -1055,244 +1164,261 @@ def batch_run(options: BatchOptions) -> int:
                     )
                     return 0
 
-                overall_failures: list[str] = []
-                executed_roots: list[str] = []
-                model_runs = models if models else [None]
-
-                for model in model_runs:
-                    experiment_id = (
-                        f"{options.experiment_id}__{_model_slug(model)}"
-                        if model
-                        else options.experiment_id
-                    )
-                    experiment_root = options.output_root / experiment_id
-                    logs_root = experiment_root / "logs"
-                    logs_root.mkdir(parents=True, exist_ok=True)
-                    executed_roots.append(str(experiment_root))
-                    if model:
-                        info("")
-                        info(
-                            f"=== Running model={model} experiment_id={experiment_id} "
-                            f"experiment_root={experiment_root} ==="
-                        )
-                    else:
-                        info("")
-                        info(f"Experiment root: {experiment_root}")
-
-                    jobs: list[RunJob] = []
-                    skipped_jobs = 0
-                    for benchmark_name, config_path in selected_configs.items():
-                        for (
-                            system_label,
-                            topology,
-                            agents,
-                            rounds,
-                            discussion_rounds,
-                            communication_budget,
-                        ) in SYSTEMS:
-                            system_root = experiment_root / benchmark_name / system_label
-                            summary_json = system_root / "summary.json"
-                            summary_csv = system_root / "summary.csv"
-                            if summary_json.exists() and summary_csv.exists():
-                                skipped_jobs += 1
-                                info("")
-                                info(
-                                    f"SKIP benchmark={benchmark_name} system={system_label} "
-                                    f"(existing summary found)"
-                                )
-                                continue
-
-                            cmd = [
-                                sys.executable,
-                                "main.py",
-                                "run",
-                                "--config",
-                                str(config_path),
-                                "--benchmark",
-                                benchmark_name,
-                                "--output-dir",
-                                str(options.output_root),
-                                "--output-layout",
-                                "hierarchical",
-                                "--experiment-id",
-                                experiment_id,
-                                "--system-label",
-                                system_label,
-                                "--topology",
-                                topology,
-                                "--agents",
-                                str(agents),
-                                "--mas-rounds",
-                                str(rounds),
-                                "--discussion-rounds",
-                                str(discussion_rounds),
-                                "--communication-budget",
-                                str(communication_budget),
-                            ]
-                            cmd.extend(system_extra_args(system_label, model=model))
-                            if options.task_limit is not None:
-                                cmd.extend(["--task-limit", str(options.task_limit)])
-                            if options.runs_per_task is not None:
-                                cmd.extend(["--runs-per-task", str(options.runs_per_task)])
-                            if options.final_vote_mode is not None:
-                                cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
-                            if options.benchmark_eval_judge_model is not None:
-                                cmd.extend(
-                                    [
-                                        "--benchmark-eval-judge-model",
-                                        str(options.benchmark_eval_judge_model),
-                                    ]
-                                )
-                            if options.no_dynamic_roles:
-                                cmd.append("--no-dynamic-roles")
-                            jobs.append(
-                                RunJob(
-                                    benchmark_name=benchmark_name,
-                                    config_path=config_path,
-                                    system_label=system_label,
-                                    topology=topology,
-                                    agents=agents,
-                                    rounds=rounds,
-                                    discussion_rounds=discussion_rounds,
-                                    communication_budget=communication_budget,
-                                    cmd=cmd,
-                                    log_path=logs_root / benchmark_name / f"{system_label}.log",
-                                )
-                            )
-
+                progress_interval_s = env_float(
+                    os.environ.get("FULL_EXPERIMENT_PROGRESS_INTERVAL_S"),
+                    300.0,
+                )
+                progress_reporter = ProgressReporter(experiment_roots, progress_interval_s)
+                if progress_interval_s > 0.0:
                     info("")
                     info(
-                        "=== Running batch "
-                        f"(jobs={len(jobs)}, skipped={skipped_jobs}, "
-                        f"max_parallel={options.max_parallel}, retries={options.retry_failures}) ==="
+                        "Live progress snapshots enabled: "
+                        f"interval_s={progress_interval_s:.0f}"
                     )
+                    progress_reporter.emit_snapshot("Initial progress snapshot")
+                    progress_reporter.start()
 
-                    def run_job(job: RunJob) -> RunJobResult:
-                        ensure_parent(job.log_path)
-                        started = time.perf_counter()
-                        attempt_count = 0
-                        returncode = 1
-                        with job.log_path.open("a", encoding="utf-8") as cell_log:
-                            for attempt in range(options.retry_failures + 1):
-                                attempt_count = attempt + 1
-                                cell_log.write(
-                                    f"\n=== attempt {attempt_count}/{options.retry_failures + 1} "
-                                    f"benchmark={job.benchmark_name} system={job.system_label} ===\n"
+                try:
+                    overall_failures: list[str] = []
+                    executed_roots: list[str] = []
+                    model_runs = models if models else [None]
+
+                    for model in model_runs:
+                        experiment_id = (
+                            f"{options.experiment_id}__{_model_slug(model)}"
+                            if model
+                            else options.experiment_id
+                        )
+                        experiment_root = options.output_root / experiment_id
+                        logs_root = experiment_root / "logs"
+                        logs_root.mkdir(parents=True, exist_ok=True)
+                        executed_roots.append(str(experiment_root))
+                        if model:
+                            info("")
+                            info(
+                                f"=== Running model={model} experiment_id={experiment_id} "
+                                f"experiment_root={experiment_root} ==="
+                            )
+                        else:
+                            info("")
+                            info(f"Experiment root: {experiment_root}")
+
+                        jobs: list[RunJob] = []
+                        skipped_jobs = 0
+                        for benchmark_name, config_path in selected_configs.items():
+                            for (
+                                system_label,
+                                topology,
+                                agents,
+                                rounds,
+                                discussion_rounds,
+                                communication_budget,
+                            ) in SYSTEMS:
+                                system_root = experiment_root / benchmark_name / system_label
+                                summary_json = system_root / "summary.json"
+                                summary_csv = system_root / "summary.csv"
+                                if system_summary_is_clean(summary_json, summary_csv):
+                                    skipped_jobs += 1
+                                    info("")
+                                    info(
+                                        f"SKIP benchmark={benchmark_name} system={system_label} "
+                                        f"(clean summary found)"
+                                    )
+                                    continue
+
+                                cmd = [
+                                    sys.executable,
+                                    "main.py",
+                                    "run",
+                                    "--config",
+                                    str(config_path),
+                                    "--benchmark",
+                                    benchmark_name,
+                                    "--output-dir",
+                                    str(options.output_root),
+                                    "--output-layout",
+                                    "hierarchical",
+                                    "--experiment-id",
+                                    experiment_id,
+                                    "--system-label",
+                                    system_label,
+                                    "--topology",
+                                    topology,
+                                    "--agents",
+                                    str(agents),
+                                    "--mas-rounds",
+                                    str(rounds),
+                                    "--discussion-rounds",
+                                    str(discussion_rounds),
+                                    "--communication-budget",
+                                    str(communication_budget),
+                                ]
+                                cmd.extend(system_extra_args(system_label, model=model))
+                                if options.task_limit is not None:
+                                    cmd.extend(["--task-limit", str(options.task_limit)])
+                                if options.runs_per_task is not None:
+                                    cmd.extend(["--runs-per-task", str(options.runs_per_task)])
+                                if options.final_vote_mode is not None:
+                                    cmd.extend(["--final-vote-mode", str(options.final_vote_mode)])
+                                if options.benchmark_eval_judge_model is not None:
+                                    cmd.extend(
+                                        [
+                                            "--benchmark-eval-judge-model",
+                                            str(options.benchmark_eval_judge_model),
+                                        ]
+                                    )
+                                if options.no_dynamic_roles:
+                                    cmd.append("--no-dynamic-roles")
+                                jobs.append(
+                                    RunJob(
+                                        benchmark_name=benchmark_name,
+                                        config_path=config_path,
+                                        system_label=system_label,
+                                        topology=topology,
+                                        agents=agents,
+                                        rounds=rounds,
+                                        discussion_rounds=discussion_rounds,
+                                        communication_budget=communication_budget,
+                                        cmd=cmd,
+                                        log_path=logs_root / benchmark_name / f"{system_label}.log",
+                                    )
                                 )
-                                cell_log.write(f"$ {shlex.join(job.cmd)}\n")
-                                cell_log.flush()
-                                result = subprocess.run(
-                                    job.cmd,
-                                    cwd=ROOT,
-                                    env=live_env,
-                                    text=True,
-                                    stdout=cell_log,
-                                    stderr=subprocess.STDOUT,
-                                    check=False,
-                                )
-                                returncode = result.returncode
-                                if returncode == 0:
-                                    break
-                                cell_log.write(
-                                    f"--- attempt {attempt_count} failed with code {returncode} ---\n"
-                                )
-                                cell_log.flush()
-                        return RunJobResult(
-                            job=job,
-                            returncode=returncode,
-                            attempt_count=attempt_count,
-                            elapsed_s=max(time.perf_counter() - started, 0.0),
+
+                        info("")
+                        info(
+                            "=== Running batch "
+                            f"(jobs={len(jobs)}, skipped={skipped_jobs}, "
+                            f"max_parallel={options.max_parallel}, retries={options.retry_failures}) ==="
                         )
 
-                    failures: list[str] = []
-                    completed = 0
-                    total = len(jobs)
-                    active: dict[Future[RunJobResult], RunJob] = {}
-                    pending_jobs = list(jobs)
-
-                    with ThreadPoolExecutor(max_workers=options.max_parallel) as executor:
-                        while pending_jobs or active:
-                            while pending_jobs and len(active) < options.max_parallel:
-                                job = pending_jobs.pop(0)
-                                info("")
-                                info(
-                                    f"[{completed + len(active) + 1}/{total}] "
-                                    f"START benchmark={job.benchmark_name} system={job.system_label} "
-                                    f"log={job.log_path}"
-                                )
-                                future = executor.submit(run_job, job)
-                                active[future] = job
-
-                            done, _ = wait(active.keys(), return_when=FIRST_COMPLETED)
-                            for future in done:
-                                job = active.pop(future)
-                                result = future.result()
-                                completed += 1
-                                if result.returncode != 0:
-                                    failures.append(f"{job.benchmark_name}::{job.system_label}")
-                                    info(
-                                        f"[{completed}/{total}] FAIL benchmark={job.benchmark_name} "
-                                        f"system={job.system_label} attempts={result.attempt_count} "
-                                        f"elapsed_s={result.elapsed_s:.1f} log={job.log_path}"
+                        def run_job(job: RunJob) -> RunJobResult:
+                            ensure_parent(job.log_path)
+                            started = time.perf_counter()
+                            attempt_count = 0
+                            returncode = 1
+                            with job.log_path.open("a", encoding="utf-8") as cell_log:
+                                for attempt in range(options.retry_failures + 1):
+                                    attempt_count = attempt + 1
+                                    cell_log.write(
+                                        f"\n=== attempt {attempt_count}/{options.retry_failures + 1} "
+                                        f"benchmark={job.benchmark_name} system={job.system_label} ===\n"
                                     )
-                                else:
-                                    info(
-                                        f"[{completed}/{total}] OK benchmark={job.benchmark_name} "
-                                        f"system={job.system_label} attempts={result.attempt_count} "
-                                        f"elapsed_s={result.elapsed_s:.1f}"
+                                    cell_log.write(f"$ {shlex.join(job.cmd)}\n")
+                                    cell_log.flush()
+                                    result = subprocess.run(
+                                        job.cmd,
+                                        cwd=ROOT,
+                                        env=live_env,
+                                        text=True,
+                                        stdout=cell_log,
+                                        stderr=subprocess.STDOUT,
+                                        check=False,
                                     )
+                                    returncode = result.returncode
+                                    if returncode == 0:
+                                        break
+                                    cell_log.write(
+                                        f"--- attempt {attempt_count} failed with code {returncode} ---\n"
+                                    )
+                                    cell_log.flush()
+                            return RunJobResult(
+                                job=job,
+                                returncode=returncode,
+                                attempt_count=attempt_count,
+                                elapsed_s=max(time.perf_counter() - started, 0.0),
+                            )
 
-                    info("")
-                    info("=== Aggregating experiment summary ===")
-                    run_command(
-                        [
-                            sys.executable,
-                            "main.py",
-                            "summarize-experiment",
-                            "--experiment-root",
-                            str(experiment_root),
-                        ]
-                    )
+                        failures: list[str] = []
+                        completed = 0
+                        total = len(jobs)
+                        active: dict[Future[RunJobResult], RunJob] = {}
+                        pending_jobs = list(jobs)
 
-                    info("")
-                    if failures:
-                        info("Completed with failures:")
-                        for failure in failures:
-                            info(f"  - {failure}")
-                        label = model if model else options.experiment_id
-                        overall_failures.extend(f"{label}:{failure}" for failure in failures)
-                    else:
-                        info(f"Completed successfully: {experiment_root}")
+                        with ThreadPoolExecutor(max_workers=options.max_parallel) as executor:
+                            while pending_jobs or active:
+                                while pending_jobs and len(active) < options.max_parallel:
+                                    job = pending_jobs.pop(0)
+                                    info("")
+                                    info(
+                                        f"[{completed + len(active) + 1}/{total}] "
+                                        f"START benchmark={job.benchmark_name} system={job.system_label} "
+                                        f"log={job.log_path}"
+                                    )
+                                    future = executor.submit(run_job, job)
+                                    active[future] = job
 
-                if models:
-                    manifest_path = manifest_root / "multi_model_manifest.json"
-                    manifest_payload = {
-                        "batch_experiment_id": options.experiment_id,
-                        "models": [
-                            {
-                                "model": model,
-                                "experiment_id": f"{options.experiment_id}__{_model_slug(model)}",
-                                "experiment_root": str(
-                                    (options.output_root / f"{options.experiment_id}__{_model_slug(model)}").resolve()
-                                ),
-                            }
-                            for model in models
-                        ],
-                    }
-                    manifest_path.write_text(
-                        json.dumps(manifest_payload, indent=2, sort_keys=True),
-                        encoding="utf-8",
-                    )
-                    info(f"Wrote multi-model manifest: {manifest_path}")
+                                done, _ = wait(active.keys(), return_when=FIRST_COMPLETED)
+                                for future in done:
+                                    job = active.pop(future)
+                                    result = future.result()
+                                    completed += 1
+                                    if result.returncode != 0:
+                                        failures.append(f"{job.benchmark_name}::{job.system_label}")
+                                        info(
+                                            f"[{completed}/{total}] FAIL benchmark={job.benchmark_name} "
+                                            f"system={job.system_label} attempts={result.attempt_count} "
+                                            f"elapsed_s={result.elapsed_s:.1f} log={job.log_path}"
+                                        )
+                                    else:
+                                        info(
+                                            f"[{completed}/{total}] OK benchmark={job.benchmark_name} "
+                                            f"system={job.system_label} attempts={result.attempt_count} "
+                                            f"elapsed_s={result.elapsed_s:.1f}"
+                                        )
 
-                if overall_failures:
-                    return 1
+                        info("")
+                        info("=== Aggregating experiment summary ===")
+                        run_command(
+                            [
+                                sys.executable,
+                                "main.py",
+                                "summarize-experiment",
+                                "--experiment-root",
+                                str(experiment_root),
+                            ]
+                        )
 
-                if models:
-                    info("Completed successfully:")
-                    for root in executed_roots:
-                        info(f"  - {root}")
-                return 0
+                        info("")
+                        if failures:
+                            info("Completed with failures:")
+                            for failure in failures:
+                                info(f"  - {failure}")
+                            label = model if model else options.experiment_id
+                            overall_failures.extend(f"{label}:{failure}" for failure in failures)
+                        else:
+                            info(f"Completed successfully: {experiment_root}")
+
+                    if models:
+                        manifest_path = manifest_root / "multi_model_manifest.json"
+                        manifest_payload = {
+                            "batch_experiment_id": options.experiment_id,
+                            "models": [
+                                {
+                                    "model": model,
+                                    "experiment_id": f"{options.experiment_id}__{_model_slug(model)}",
+                                    "experiment_root": str(
+                                        (options.output_root / f"{options.experiment_id}__{_model_slug(model)}").resolve()
+                                    ),
+                                }
+                                for model in models
+                            ],
+                        }
+                        manifest_path.write_text(
+                            json.dumps(manifest_payload, indent=2, sort_keys=True),
+                            encoding="utf-8",
+                        )
+                        info(f"Wrote multi-model manifest: {manifest_path}")
+
+                    if overall_failures:
+                        return 1
+
+                    if models:
+                        info("Completed successfully:")
+                        for root in executed_roots:
+                            info(f"  - {root}")
+                    return 0
+                finally:
+                    progress_reporter.stop()
         finally:
             sys.stdout = stdout_original
             sys.stderr = stderr_original

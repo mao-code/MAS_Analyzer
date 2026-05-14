@@ -37,9 +37,17 @@ def analyze_task_runs(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    valid_indices = [
+        idx
+        for idx, (evaluation, outcome) in enumerate(zip(evaluations, run_outcomes, strict=True))
+        if _include_in_score(evaluation, outcome)
+    ]
+    descriptor_traces = [run_traces[idx] for idx in valid_indices] or list(run_traces)
+    descriptor_outcomes = [run_outcomes[idx] for idx in valid_indices] or list(run_outcomes)
+
     descriptor_result: DescriptorResult = compute_descriptor_from_runs(
-        run_traces,
-        run_outcomes=run_outcomes,
+        descriptor_traces,
+        run_outcomes=descriptor_outcomes,
         extensions=extensions,
     )
 
@@ -84,10 +92,12 @@ def _summarize_runs(
         success = bool(getattr(entry, "success", False))
         task_id = str(getattr(entry, "task_id", ""))
         details = getattr(entry, "details", {})
+        include_in_score = _include_in_score(entry, outcome)
 
-        scores.append(score)
-        successes.append(1.0 if success else 0.0)
-        completions.append(1.0 if outcome.completion else 0.0)
+        if include_in_score:
+            scores.append(score)
+            successes.append(1.0 if success else 0.0)
+            completions.append(1.0 if outcome.completion else 0.0)
         items.append(
             {
                 "task_id": task_id,
@@ -97,28 +107,45 @@ def _summarize_runs(
                 "completion": bool(outcome.completion),
                 "success_source": outcome.success_source,
                 "completion_source": outcome.completion_source,
+                "included_in_score": include_in_score,
                 "details": details,
             }
         )
 
+    total_count = len(items)
     if not scores:
         return {
-            "count": 0,
+            "count": total_count,
+            "valid_count": 0,
+            "excluded_count": total_count,
             "accuracy": 0.0,
             "avg_score": 0.0,
             "success_rate": 0.0,
             "completion_rate": 0.0,
-            "runs": [],
+            "runs": items,
         }
 
     return {
-        "count": len(scores),
+        "count": total_count,
+        "valid_count": len(scores),
+        "excluded_count": total_count - len(scores),
         "accuracy": float(sum(scores) / len(scores)),
         "avg_score": float(sum(scores) / len(scores)),
         "success_rate": float(sum(successes) / len(successes)),
         "completion_rate": float(sum(completions) / len(completions)),
         "runs": items,
     }
+
+
+def _include_in_score(evaluation: Any, outcome: RunOutcome) -> bool:
+    details = getattr(evaluation, "details", {})
+    if isinstance(details, dict) and (
+        details.get("run_failed") or details.get("fallback") or details.get("needs_rerun")
+    ):
+        return False
+    if outcome.success_source == "run_fallback" or outcome.completion_source == "run_fallback":
+        return False
+    return True
 
 
 def _infer_stage_bottleneck(metrics: dict[str, Any]) -> dict[str, Any]:

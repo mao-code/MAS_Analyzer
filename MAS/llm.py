@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import hashlib
 import inspect
 import json
@@ -121,6 +122,13 @@ class OpenRouterLLMClient:
         raw = os.getenv(name, "").strip()
         return raw or None
 
+    @staticmethod
+    def _env_list(name: str) -> list[str]:
+        raw = os.getenv(name, "").strip()
+        if not raw:
+            return []
+        return [item.strip() for item in raw.split(",") if item.strip()]
+
     def _apply_openrouter_sampling_overrides(
         self,
         kwargs: dict[str, Any],
@@ -153,6 +161,49 @@ class OpenRouterLLMClient:
             request_kwargs["extra_body"] = extra_body
 
         return request_kwargs
+
+    def _apply_openrouter_routing_overrides(
+        self,
+        kwargs: dict[str, Any],
+        *,
+        retry_index: int = 0,
+    ) -> dict[str, Any]:
+        request_kwargs = dict(kwargs)
+        extra_body = dict(request_kwargs.get("extra_body") or {})
+
+        provider = dict(extra_body.get("provider") or {})
+        provider.setdefault("allow_fallbacks", True)
+        provider_order = self._env_list("MAS_OPENROUTER_PROVIDER_ORDER")
+        if provider_order:
+            order = list(provider_order)
+            if self._env_flag("MAS_OPENROUTER_SHUFFLE_PROVIDER_ORDER"):
+                random.shuffle(order)
+            provider["order"] = order
+        ignored_providers = self._env_list("MAS_OPENROUTER_IGNORE_PROVIDERS")
+        if ignored_providers:
+            provider["ignore"] = ignored_providers
+        extra_body["provider"] = provider
+
+        fallback_models = self._fallback_models_for_request(str(request_kwargs.get("model", "")))
+        if fallback_models:
+            extra_body["models"] = fallback_models
+        request_kwargs["extra_body"] = extra_body
+        return request_kwargs
+
+    def _fallback_models_for_request(self, primary_model: str) -> list[str]:
+        candidates: list[str] = []
+        candidates.extend(self._env_list("MAS_OPENROUTER_FALLBACK_MODELS"))
+        for key, value in sorted(self.models.items()):
+            if key.startswith("fallback") and str(value).strip():
+                candidates.extend(item.strip() for item in str(value).split(",") if item.strip())
+        seen = {primary_model}
+        fallbacks: list[str] = []
+        for model in candidates:
+            if model in seen:
+                continue
+            seen.add(model)
+            fallbacks.append(model)
+        return fallbacks
 
     def generate(
         self,
@@ -324,6 +375,15 @@ class OpenRouterLLMClient:
         }
         timeout_recovery_stage: str | None = None
         timeout_recovery_iteration: int | None = None
+        consecutive_tool_failures: dict[str, int] = {}
+        tool_failure_circuit_breaker = max(
+            1,
+            self._env_int("MAS_TOOL_FAILURE_CIRCUIT_BREAKER") or 3,
+        )
+        search_tool_failure_circuit_breaker = max(
+            1,
+            self._env_int("MAS_SEARCH_TOOL_FAILURE_CIRCUIT_BREAKER") or 2,
+        )
 
         for iteration_index in range(max(1, int(max_tool_iterations))):
             working_messages, latest_context_stats = self._build_tool_loop_messages(
@@ -481,6 +541,10 @@ class OpenRouterLLMClient:
                         status = "error"
                         error = str(exc)
                         output = {"error": error}
+                output_failure = self._tool_output_failure_reason(output)
+                if status == "completed" and output_failure:
+                    status = "error"
+                    error = output_failure
                 self._log(
                     "TOOL_CALL_RESULT "
                     f"request_id={request_id} task_id={task_id} run_index={run_index} "
@@ -541,6 +605,45 @@ class OpenRouterLLMClient:
                         "content": output_payload,
                     }
                 )
+                if status == "error":
+                    consecutive_tool_failures[tool_name] = (
+                        consecutive_tool_failures.get(tool_name, 0) + 1
+                    )
+                    failure_limit = (
+                        search_tool_failure_circuit_breaker
+                        if self._is_search_tool_name(tool_name)
+                        else tool_failure_circuit_breaker
+                    )
+                    if consecutive_tool_failures[tool_name] >= failure_limit:
+                        self._log(
+                            "TOOL_LOOP_STOP "
+                            f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                            f"agent_id={agent_id} reason=tool_failure_circuit_breaker "
+                            f"tool_name={tool_name} "
+                            f"consecutive={consecutive_tool_failures[tool_name]}"
+                        )
+                        stop_reason = (
+                            "tool_failure_circuit_breaker:"
+                            f"tool={tool_name},consecutive={consecutive_tool_failures[tool_name]},"
+                            f"limit={failure_limit}"
+                        )
+                        current_turn.tool_messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"The tool {tool_name} has failed "
+                                    f"{consecutive_tool_failures[tool_name]} consecutive times. "
+                                    "Stop calling this tool now. Based only on the evidence already "
+                                    "gathered, provide your best final answer. If the evidence is "
+                                    "insufficient, explicitly return a concise blocked-status answer."
+                                ),
+                            }
+                        )
+                        final_text = ""
+                        stopped_early = True
+                        break
+                else:
+                    consecutive_tool_failures[tool_name] = 0
 
             if not stopped_early:
                 search_fingerprint = self._search_iteration_fingerprint(current_turn.tool_records)
@@ -672,6 +775,23 @@ class OpenRouterLLMClient:
                     "Tool-loop iteration timed out; returned a best-effort answer from gathered evidence. "
                     f"{stop_reason.split(':', 1)[1]}"
                 )
+            elif stop_reason and stop_reason.startswith("tool_failure_circuit_breaker:"):
+                metadata["tool_loop_stopped_reason"] = (
+                    "Repeated tool failures triggered the circuit breaker; "
+                    f"{stop_reason.split(':', 1)[1]}"
+                )
+                metadata["tool_failure_circuit_breaker_triggered"] = True
+                details = self._parse_stop_reason_details(stop_reason)
+                failed_tool = str(details.get("tool", ""))
+                metadata["tool_failure_tool_name"] = failed_tool
+                metadata["tool_failure_consecutive_count"] = int(
+                    details.get("consecutive", 0) or 0
+                )
+                metadata["tool_failure_limit"] = int(details.get("limit", 0) or 0)
+                metadata["tool_failure_is_search"] = self._is_search_tool_name(failed_tool)
+                if metadata["tool_failure_is_search"]:
+                    metadata["fatal_tool_failure"] = True
+                    metadata["failure_category"] = "tool_failure"
             else:
                 metadata["tool_loop_stopped_reason"] = (
                     f"Reached max_tool_iterations={max(1, int(max_tool_iterations))}"
@@ -783,11 +903,11 @@ class OpenRouterLLMClient:
         base_messages: list[dict[str, Any]],
         tool_turns: list[_ToolLoopTurn],
     ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-        raw_turn_window = max(1, self._env_int("MAS_TOOL_CONTEXT_RAW_TURNS") or 1)
+        raw_turn_window = max(1, self._env_int("MAS_TOOL_CONTEXT_RAW_TURNS") or 2)
         preview_chars = max(80, self._env_int("MAS_TOOL_CONTEXT_PREVIEW_CHARS") or 160)
         summary_max_chars = max(
             160,
-            self._env_int("MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS") or 1800,
+            self._env_int("MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS") or 6000,
         )
         summarized_turns = max(0, len(tool_turns) - raw_turn_window)
         older_turns = tool_turns[:summarized_turns]
@@ -846,13 +966,27 @@ class OpenRouterLLMClient:
             else:
                 lines.append(f"Iteration {turn.iteration} assistant: [no direct answer text]")
             for record in turn.tool_records:
+                compact_output = self._compact_tool_output_for_prompt(
+                    record.get("output"),
+                    preview_chars=preview_chars,
+                )
+                output_limit = preview_chars
+                output = record.get("output")
+                if isinstance(output, dict) and output.get("text"):
+                    output_limit = max(
+                        preview_chars,
+                        min(
+                            max_chars,
+                            self._env_int("MAS_TOOL_CONTEXT_DOCUMENT_CHARS") or 12000,
+                        ),
+                    )
                 lines.append(
                     (
                         f"Iteration {turn.iteration} tool {record['tool_name']} "
                         f"args={self._truncate_for_log(record.get('arguments'), limit=preview_chars)} "
                         f"status={record.get('status', 'completed')} "
                         "output="
-                        f"{self._truncate_for_log(self._compact_tool_output_for_prompt(record.get('output'), preview_chars=preview_chars), limit=preview_chars)}"
+                        f"{self._truncate_for_log(compact_output, limit=output_limit)}"
                     )
                 )
 
@@ -914,11 +1048,33 @@ class OpenRouterLLMClient:
                 if value:
                     compact[key] = self._preview_text(value, limit=preview_chars)
 
-            for key in ("snippet", "text", "content", "payload"):
-                value = output.get(key)
-                if value:
-                    compact[f"{key}_preview"] = self._preview_text(value, limit=preview_chars)
-                    break
+            snippet = output.get("snippet")
+            if snippet:
+                compact["snippet_preview"] = self._preview_text(snippet, limit=preview_chars)
+
+            text = output.get("text")
+            if text:
+                document_chars = max(
+                    preview_chars,
+                    self._env_int("MAS_TOOL_CONTEXT_DOCUMENT_CHARS") or 12000,
+                )
+                text_value = str(text)
+                compact["text_preview"] = self._preview_document_text(
+                    text_value,
+                    limit=document_chars,
+                )
+                if len(text_value) > document_chars:
+                    compact["text_omitted_chars"] = len(text_value) - document_chars
+            elif output.get("content"):
+                compact["content_preview"] = self._preview_text(
+                    output.get("content"),
+                    limit=preview_chars,
+                )
+            elif output.get("payload"):
+                compact["payload_preview"] = self._preview_text(
+                    output.get("payload"),
+                    limit=preview_chars,
+                )
 
             if output.get("url"):
                 compact["url"] = self._preview_text(output.get("url"), limit=min(120, preview_chars))
@@ -1004,6 +1160,29 @@ class OpenRouterLLMClient:
             lines.append("Best-effort conclusion: insufficient evidence to provide a reliable final answer.")
         return "\n".join(lines)
 
+    def _preview_document_text(self, value: Any, *, limit: int) -> str:
+        text = str(value or "")
+        if len(text) <= limit:
+            return text
+        if limit < 900:
+            return self._preview_text(text, limit=limit)
+
+        marker_1 = "\n... [middle of document omitted] ...\n"
+        marker_2 = "\n... [later middle omitted] ...\n"
+        content_budget = max(1, limit - len(marker_1) - len(marker_2))
+        head_chars = max(1, content_budget // 2)
+        middle_chars = max(1, content_budget // 4)
+        tail_chars = max(1, content_budget - head_chars - middle_chars)
+        middle_start = max(0, (len(text) - middle_chars) // 2)
+
+        return (
+            text[:head_chars].rstrip()
+            + marker_1
+            + text[middle_start : middle_start + middle_chars].strip()
+            + marker_2
+            + text[-tail_chars:].lstrip()
+        )
+
     @staticmethod
     def _insert_context_message(
         base_messages: list[dict[str, Any]],
@@ -1028,8 +1207,9 @@ class OpenRouterLLMClient:
             arguments = record.get("arguments")
             if "search" not in tool_name:
                 continue
-            if not isinstance(arguments, dict) or "query" not in arguments:
+            if not isinstance(arguments, dict):
                 continue
+            query = self._extract_search_query(arguments)
             output = record.get("output")
             docids = self._search_result_docids(output)
             if docids:
@@ -1040,9 +1220,64 @@ class OpenRouterLLMClient:
                 fingerprints.append(
                     f"text:{hashlib.sha256(output_text.encode('utf-8')).hexdigest()[:16]}"
                 )
+            elif query:
+                fingerprints.append(
+                    f"query:{hashlib.sha256(query.encode('utf-8')).hexdigest()[:16]}"
+                )
             else:
                 fingerprints.append("empty")
         return frozenset(fingerprints)
+
+    @staticmethod
+    def _extract_search_query(arguments: dict[str, Any]) -> str:
+        for key in ("query", "search_query", "q", "search", "text", "keyword"):
+            value = arguments.get(key)
+            if value is None:
+                continue
+            text = " ".join(str(value).lower().split())
+            if text:
+                return text
+        return ""
+
+    @staticmethod
+    def _is_search_tool_name(tool_name: str) -> bool:
+        lowered = str(tool_name or "").lower()
+        return "search" in lowered or "tavily" in lowered or "serp" in lowered
+
+    @staticmethod
+    def _parse_stop_reason_details(stop_reason: str | None) -> dict[str, str]:
+        if not stop_reason or ":" not in stop_reason:
+            return {}
+        details: dict[str, str] = {}
+        for part in stop_reason.split(":", 1)[1].split(","):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            details[key.strip()] = value.strip()
+        return details
+
+    def _tool_output_failure_reason(self, output: Any) -> str | None:
+        if isinstance(output, dict):
+            success = output.get("success")
+            if success is False:
+                return self._preview_text(
+                    output.get("error") or output.get("result") or output,
+                    limit=240,
+                )
+            if output.get("error"):
+                return self._preview_text(output.get("error"), limit=240)
+
+        if not isinstance(output, str):
+            return None
+
+        output_text = self._truncate_for_log(output, limit=320).lower()
+        if "429" in output_text and (
+            "rate" in output_text or "limit" in output_text or "error" in output_text
+        ):
+            return "tool returned 429/rate-limit failure"
+        if "432" in output_text and "error" in output_text:
+            return "tool returned 432 failure"
+        return None
 
     @staticmethod
     def _search_result_docids(output: Any) -> list[str]:
@@ -1093,6 +1328,17 @@ class OpenRouterLLMClient:
                     ),
                 }
             )
+        elif stop_reason and stop_reason.startswith("tool_failure_circuit_breaker:"):
+            follow_up_messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "A tool failure circuit breaker has stopped further tool use. "
+                        "Do not call more tools. If the currently gathered evidence is insufficient, "
+                        "say so explicitly and return a concise blocked-status answer."
+                    ),
+                }
+            )
         follow_up_messages.append(
             {
                 "role": "user",
@@ -1123,6 +1369,58 @@ class OpenRouterLLMClient:
             temperature=kwargs.get("temperature"),
         )
         kwargs.setdefault("timeout", self.config.timeout_s)
+        attempts = max(1, self._env_int("MAS_LLM_RETRY_ATTEMPTS") or 3)
+        timeout_attempts = max(1, self._env_int("MAS_LLM_TIMEOUT_RETRY_ATTEMPTS") or 2)
+        backoff_s = max(0.0, self._env_float("MAS_LLM_RETRY_BACKOFF_S") or 2.0)
+        max_backoff_s = max(backoff_s, self._env_float("MAS_LLM_RETRY_MAX_BACKOFF_S") or 60.0)
+        for attempt_index in range(attempts):
+            request_kwargs = self._apply_openrouter_routing_overrides(
+                kwargs,
+                retry_index=attempt_index,
+            )
+            try:
+                return self._create_chat_completion_once(**request_kwargs)
+            except _HardTimeoutExpired as exc:
+                if attempt_index >= min(attempts, timeout_attempts) - 1:
+                    raise
+                retry_after_s = self._retry_after_seconds(exc)
+                delay_s = min(max_backoff_s, backoff_s * (2 ** attempt_index))
+                if retry_after_s is not None:
+                    delay_s = min(max_backoff_s, max(delay_s, retry_after_s))
+                jitter_factor = random.uniform(0.75, 1.35) if delay_s else 0.0
+                sleep_s = delay_s * jitter_factor if delay_s else 0.0
+                self._log(
+                    "RETRY "
+                    f"model={request_kwargs.get('model', '')} "
+                    f"attempt={attempt_index + 1}/{min(attempts, timeout_attempts)} "
+                    f"delay_s={sleep_s:.2f} "
+                    f"fallback_models={len(self._fallback_models_for_request(str(request_kwargs.get('model', ''))))} "
+                    f"error={type(exc).__name__}:{exc}"
+                )
+                if sleep_s:
+                    time.sleep(sleep_s)
+            except Exception as exc:
+                if attempt_index >= attempts - 1 or not self._is_retryable_llm_error(exc):
+                    raise
+                retry_after_s = self._retry_after_seconds(exc)
+                delay_s = min(max_backoff_s, backoff_s * (2 ** attempt_index))
+                if retry_after_s is not None:
+                    delay_s = min(max_backoff_s, max(delay_s, retry_after_s))
+                jitter_factor = random.uniform(0.75, 1.35) if delay_s else 0.0
+                sleep_s = delay_s * jitter_factor if delay_s else 0.0
+                self._log(
+                    "RETRY "
+                    f"model={request_kwargs.get('model', '')} "
+                    f"attempt={attempt_index + 1}/{attempts} "
+                    f"delay_s={sleep_s:.2f} "
+                    f"fallback_models={len(self._fallback_models_for_request(str(request_kwargs.get('model', ''))))} "
+                    f"error={type(exc).__name__}:{exc}"
+                )
+                if sleep_s:
+                    time.sleep(sleep_s)
+        raise RuntimeError("unreachable LLM retry loop state")
+
+    def _create_chat_completion_once(self, **kwargs: Any) -> Any:
         timeout_value = float(self.config.timeout_s or 0.0)
         # On the main thread we can use SIGALRM for a true wall-clock deadline.
         # On worker threads (LangGraph Send branches) SIGALRM is unavailable, so
@@ -1132,8 +1430,6 @@ class OpenRouterLLMClient:
             timeout_value > 0.0
             and threading.current_thread() is not threading.main_thread()
         ):
-            import concurrent.futures
-
             # Do NOT use the context-manager form of ThreadPoolExecutor here.
             # Its __exit__ calls shutdown(wait=True), which would block forever
             # waiting for the background API thread even after a timeout fires.
@@ -1158,6 +1454,42 @@ class OpenRouterLLMClient:
                 raise
         with self._hard_timeout(self.config.timeout_s):
             return self.client.chat.completions.create(**kwargs)
+
+    @staticmethod
+    def _is_retryable_llm_error(exc: Exception) -> bool:
+        text = f"{type(exc).__name__}:{exc}".lower()
+        return any(
+            marker in text
+            for marker in (
+                "429",
+                "rate limit",
+                "rate-limit",
+                "temporarily rate-limited",
+                "connection error",
+                "connectionerror",
+                "jsondecodeerror",
+                "expecting value",
+                "server disconnected",
+                "temporarily unavailable",
+            )
+        )
+
+    @staticmethod
+    def _retry_after_seconds(exc: Exception) -> float | None:
+        text = f"{type(exc).__name__}:{exc}"
+        patterns = (
+            r"retry_after_seconds['\"]?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"retry-after['\"]?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"retry after\s+([0-9]+(?:\.[0-9]+)?)",
+        )
+        for pattern in patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                try:
+                    return max(0.0, float(match.group(1)))
+                except Exception:
+                    return None
+        return None
 
     @contextmanager
     def _hard_timeout(self, timeout_s: float | None):
