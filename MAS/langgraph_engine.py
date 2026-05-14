@@ -3558,9 +3558,24 @@ class LangGraphMASEngine:
             groups.append([index])
 
         if not remaining_valid or not groups:
+            fallback_result = deterministic_result
+            if not fallback_result.get("answer"):
+                non_direct_result = self._non_direct_majority_vote_result(
+                    state=state,
+                    artifacts=artifacts,
+                    candidate_by_index=candidate_by_index,
+                    groups=singleton_groups,
+                    mode=mode,
+                )
+                if non_direct_result is not None:
+                    fallback_result = non_direct_result
             return {
-                **deterministic_result,
-                "source": "deterministic_fallback_empty_judgment",
+                **fallback_result,
+                "source": (
+                    "deterministic_non_direct_fallback_empty_judgment"
+                    if fallback_result is not deterministic_result
+                    else "deterministic_fallback_empty_judgment"
+                ),
                 "explanation": "Final vote judge did not return any usable valid groups; deterministic voting was used instead.",
                 "token_in": int(llm.token_in),
                 "token_out": int(llm.token_out),

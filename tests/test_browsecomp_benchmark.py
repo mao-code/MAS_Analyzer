@@ -62,6 +62,101 @@ class TestBrowseCompBenchmark(unittest.TestCase):
             self.assertFalse(eval_bad.success)
             self.assertEqual(eval_bad.score, 0.0)
 
+    def test_get_document_tool_returns_full_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            decrypted = base / "decrypted.jsonl"
+            qrel_evidence = base / "qrel_evidence.txt"
+            qrel_golds = base / "qrel_golds.txt"
+
+            full_text = " ".join(f"token{i}" for i in range(20))
+            row = {
+                "query_id": "q1",
+                "query": "Which doc contains answer?",
+                "answer": "token19",
+                "gold_docs": [{"docid": "100", "text": full_text, "url": "u"}],
+                "evidence_docs": [],
+            }
+            decrypted.write_text(json.dumps(row) + "\n", encoding="utf-8")
+            qrel_evidence.write_text("", encoding="utf-8")
+            qrel_golds.write_text("q1 Q0 100 1\n", encoding="utf-8")
+
+            bench = BrowseCompBenchmark(
+                {
+                    "decrypted_path": str(decrypted),
+                    "qrel_evidence_path": str(qrel_evidence),
+                    "qrel_golds_path": str(qrel_golds),
+                    "tool_snippet_max_tokens": 3,
+                    "include_get_document": True,
+                }
+            )
+            task = bench.load_tasks()[0]
+            tools = {tool["name"]: tool for tool in bench._build_tools_for_task(task.task_id)}
+
+            search_result = tools["search"]["handler"]({"query": "token19"})[0]
+            document = tools["get_document"]["handler"]({"docid": "100"})
+
+            self.assertEqual(search_result["snippet"], "token17 token18 token19")
+            self.assertEqual(document["snippet"], "token0 token1 token2")
+            self.assertEqual(document["text"], full_text)
+
+    def test_search_ignores_prompt_stopwords_and_zero_score_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            decrypted = base / "decrypted.jsonl"
+            qrel_evidence = base / "qrel_evidence.txt"
+            qrel_golds = base / "qrel_golds.txt"
+
+            row = {
+                "query_id": "q1",
+                "query": "Which institution gathered alpine moss samples?",
+                "answer": "Needle College",
+                "gold_docs": [
+                    {
+                        "docid": "gold",
+                        "text": "Needle College botany students gathered alpine moss samples near the ridge.",
+                        "url": "u",
+                    }
+                ],
+                "evidence_docs": [
+                    {
+                        "docid": "generic",
+                        "text": "The institution was in the city and it was the place of the event.",
+                        "url": "u",
+                    }
+                ],
+            }
+            decrypted.write_text(json.dumps(row) + "\n", encoding="utf-8")
+            qrel_evidence.write_text("q1 Q0 gold 1\n", encoding="utf-8")
+            qrel_golds.write_text("q1 Q0 gold 1\n", encoding="utf-8")
+
+            bench = BrowseCompBenchmark(
+                {
+                    "decrypted_path": str(decrypted),
+                    "qrel_evidence_path": str(qrel_evidence),
+                    "qrel_golds_path": str(qrel_golds),
+                    "tool_snippet_max_tokens": 6,
+                    "include_get_document": True,
+                }
+            )
+            task = bench.load_tasks()[0]
+            search = {
+                tool["name"]: tool for tool in bench._build_tools_for_task(task.task_id)
+            }["search"]["handler"]
+
+            results = search({"query": "Please tell me the institution with alpine moss samples"})
+            self.assertEqual(results[0]["docid"], "gold")
+            self.assertIn("alpine moss samples", results[0]["snippet"])
+            self.assertEqual(search({"query": "zzzxxyy unlikelytoken"}), [])
+
+    def test_substring_normalization_tolerates_accents_and_hyphens(self) -> None:
+        self.assertTrue(
+            BrowseCompBenchmark._normalized_exact_or_numeric_match(
+                "The answer is Laura Lojo Rodríguez.",
+                "Laura Lojo-Rodriguez",
+            )
+        )
+
 
 class TestParseJudgeResponse(unittest.TestCase):
     def test_parse_standard_format(self) -> None:

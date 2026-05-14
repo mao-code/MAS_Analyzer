@@ -903,11 +903,11 @@ class OpenRouterLLMClient:
         base_messages: list[dict[str, Any]],
         tool_turns: list[_ToolLoopTurn],
     ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-        raw_turn_window = max(1, self._env_int("MAS_TOOL_CONTEXT_RAW_TURNS") or 1)
+        raw_turn_window = max(1, self._env_int("MAS_TOOL_CONTEXT_RAW_TURNS") or 2)
         preview_chars = max(80, self._env_int("MAS_TOOL_CONTEXT_PREVIEW_CHARS") or 160)
         summary_max_chars = max(
             160,
-            self._env_int("MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS") or 1800,
+            self._env_int("MAS_TOOL_CONTEXT_SUMMARY_MAX_CHARS") or 6000,
         )
         summarized_turns = max(0, len(tool_turns) - raw_turn_window)
         older_turns = tool_turns[:summarized_turns]
@@ -966,13 +966,27 @@ class OpenRouterLLMClient:
             else:
                 lines.append(f"Iteration {turn.iteration} assistant: [no direct answer text]")
             for record in turn.tool_records:
+                compact_output = self._compact_tool_output_for_prompt(
+                    record.get("output"),
+                    preview_chars=preview_chars,
+                )
+                output_limit = preview_chars
+                output = record.get("output")
+                if isinstance(output, dict) and output.get("text"):
+                    output_limit = max(
+                        preview_chars,
+                        min(
+                            max_chars,
+                            self._env_int("MAS_TOOL_CONTEXT_DOCUMENT_CHARS") or 12000,
+                        ),
+                    )
                 lines.append(
                     (
                         f"Iteration {turn.iteration} tool {record['tool_name']} "
                         f"args={self._truncate_for_log(record.get('arguments'), limit=preview_chars)} "
                         f"status={record.get('status', 'completed')} "
                         "output="
-                        f"{self._truncate_for_log(self._compact_tool_output_for_prompt(record.get('output'), preview_chars=preview_chars), limit=preview_chars)}"
+                        f"{self._truncate_for_log(compact_output, limit=output_limit)}"
                     )
                 )
 
@@ -1034,11 +1048,33 @@ class OpenRouterLLMClient:
                 if value:
                     compact[key] = self._preview_text(value, limit=preview_chars)
 
-            for key in ("snippet", "text", "content", "payload"):
-                value = output.get(key)
-                if value:
-                    compact[f"{key}_preview"] = self._preview_text(value, limit=preview_chars)
-                    break
+            snippet = output.get("snippet")
+            if snippet:
+                compact["snippet_preview"] = self._preview_text(snippet, limit=preview_chars)
+
+            text = output.get("text")
+            if text:
+                document_chars = max(
+                    preview_chars,
+                    self._env_int("MAS_TOOL_CONTEXT_DOCUMENT_CHARS") or 12000,
+                )
+                text_value = str(text)
+                compact["text_preview"] = self._preview_document_text(
+                    text_value,
+                    limit=document_chars,
+                )
+                if len(text_value) > document_chars:
+                    compact["text_omitted_chars"] = len(text_value) - document_chars
+            elif output.get("content"):
+                compact["content_preview"] = self._preview_text(
+                    output.get("content"),
+                    limit=preview_chars,
+                )
+            elif output.get("payload"):
+                compact["payload_preview"] = self._preview_text(
+                    output.get("payload"),
+                    limit=preview_chars,
+                )
 
             if output.get("url"):
                 compact["url"] = self._preview_text(output.get("url"), limit=min(120, preview_chars))
@@ -1124,6 +1160,29 @@ class OpenRouterLLMClient:
             lines.append("Best-effort conclusion: insufficient evidence to provide a reliable final answer.")
         return "\n".join(lines)
 
+    def _preview_document_text(self, value: Any, *, limit: int) -> str:
+        text = str(value or "")
+        if len(text) <= limit:
+            return text
+        if limit < 900:
+            return self._preview_text(text, limit=limit)
+
+        marker_1 = "\n... [middle of document omitted] ...\n"
+        marker_2 = "\n... [later middle omitted] ...\n"
+        content_budget = max(1, limit - len(marker_1) - len(marker_2))
+        head_chars = max(1, content_budget // 2)
+        middle_chars = max(1, content_budget // 4)
+        tail_chars = max(1, content_budget - head_chars - middle_chars)
+        middle_start = max(0, (len(text) - middle_chars) // 2)
+
+        return (
+            text[:head_chars].rstrip()
+            + marker_1
+            + text[middle_start : middle_start + middle_chars].strip()
+            + marker_2
+            + text[-tail_chars:].lstrip()
+        )
+
     @staticmethod
     def _insert_context_message(
         base_messages: list[dict[str, Any]],
@@ -1208,10 +1267,15 @@ class OpenRouterLLMClient:
             if output.get("error"):
                 return self._preview_text(output.get("error"), limit=240)
 
+        if not isinstance(output, str):
+            return None
+
         output_text = self._truncate_for_log(output, limit=320).lower()
-        if "429" in output_text:
+        if "429" in output_text and (
+            "rate" in output_text or "limit" in output_text or "error" in output_text
+        ):
             return "tool returned 429/rate-limit failure"
-        if "432" in output_text:
+        if "432" in output_text and "error" in output_text:
             return "tool returned 432 failure"
         return None
 

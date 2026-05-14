@@ -387,6 +387,76 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertNotIn(raw_outputs["q2"], joined_content)
         self.assertEqual(len(result.tool_calls), 3)
 
+    def test_document_tool_prompt_compaction_keeps_text_preview(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        document_text = "TITLE\n" + ("A" * 180) + " NEEDLE_FACT " + ("B" * 300)
+
+        with patch.dict(
+            "os.environ",
+            {"MAS_TOOL_CONTEXT_DOCUMENT_CHARS": "240"},
+            clear=False,
+        ):
+            compact = client._compact_tool_output_for_prompt(
+                {
+                    "docid": "doc-1",
+                    "snippet": "TITLE",
+                    "text": document_text,
+                    "url": "https://example.test/doc-1",
+                },
+                preview_chars=40,
+            )
+
+        self.assertEqual(compact["docid"], "doc-1")
+        self.assertEqual(compact["snippet_preview"], "TITLE")
+        self.assertIn("NEEDLE_FACT", compact["text_preview"])
+        self.assertIn("text_omitted_chars", compact)
+
+    def test_document_tool_prompt_compaction_samples_middle_for_long_text(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        document_text = ("A" * 5000) + " SECRETARY_NEEDLE " + ("B" * 5000)
+
+        with patch.dict(
+            "os.environ",
+            {"MAS_TOOL_CONTEXT_DOCUMENT_CHARS": "2400"},
+            clear=False,
+        ):
+            compact = client._compact_tool_output_for_prompt(
+                {
+                    "docid": "doc-1",
+                    "snippet": "TITLE",
+                    "text": document_text,
+                },
+                preview_chars=120,
+            )
+
+        self.assertIn("SECRETARY_NEEDLE", compact["text_preview"])
+        self.assertIn("middle of document omitted", compact["text_preview"])
+
+    def test_numeric_search_results_are_not_tool_failures(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+
+        self.assertIsNone(
+            client._tool_output_failure_reason(
+                [
+                    {
+                        "docid": "429",
+                        "score": 1.0,
+                        "snippet": "A normal BrowseComp result mentioning 432 pages.",
+                    }
+                ]
+            )
+        )
+        self.assertEqual(
+            client._tool_output_failure_reason("error 429 rate limit from provider"),
+            "tool returned 429/rate-limit failure",
+        )
+
     def test_bounds_older_tool_turn_summary_size(self) -> None:
         client = OpenRouterLLMClient(
             OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}

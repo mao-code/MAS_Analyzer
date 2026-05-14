@@ -913,6 +913,55 @@ class TestLangGraphTopologies(unittest.TestCase):
 
         self.assertEqual(vote["answer"], "Queen Arwa University")
 
+    def test_final_vote_empty_judgment_uses_non_direct_fallback_when_needed(self) -> None:
+        engine = LangGraphMASEngine(
+            _JudgeLLM(
+                text_by_agent_id={
+                    "judge_final_vote_judge": (
+                        '{"groups":[],"winner_index":null,"invalid_indices":[0,1],'
+                        '"explanation":"All candidates leave required criteria unresolved."}'
+                    )
+                }
+            )
+        )
+        state = {
+            "final_vote_mode": "llm_judge",
+            "llm_client": engine.llm_client,
+            "task_id": "task",
+            "run_index": 0,
+            "task_prompt": "Which institution is best supported?",
+        }
+        artifacts = [
+            {
+                "artifact_id": "candidate_0",
+                "agent_id": "agent_0",
+                "answer": "Queen Arwa University",
+                "summary": "Queen Arwa University",
+                "confidence": 0.9,
+                "unresolved_issues": ["Criteria C and D remain unresolved."],
+                "evidence_summary": ["Document 82002 confirms the graduation ceremony date."],
+            },
+            {
+                "artifact_id": "candidate_1",
+                "agent_id": "agent_1",
+                "answer": "Queen Arwa University",
+                "summary": "Queen Arwa University",
+                "confidence": 0.8,
+                "unresolved_issues": ["The 2022 events remain unverified."],
+                "evidence_summary": ["Document 5412 confirms the 2002 event."],
+            },
+        ]
+
+        vote = engine._select_final_answer(
+            state=state,
+            stage_name="judge",
+            artifacts=artifacts,
+        )
+
+        self.assertEqual(vote["source"], "deterministic_non_direct_fallback_empty_judgment")
+        self.assertEqual(vote["answer"], "Queen Arwa University")
+        self.assertEqual(vote["selected_artifact_id"], "candidate_0")
+
     def test_plancraft_control_prompts_use_current_turn_not_few_shot_examples(self) -> None:
         engine = LangGraphMASEngine(_JudgeLLM(text="unused"))
         state = {

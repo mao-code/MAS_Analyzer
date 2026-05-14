@@ -5,6 +5,7 @@ import contextlib
 import csv
 import json
 import math
+import os
 import time
 import traceback
 from collections.abc import Sequence
@@ -35,6 +36,10 @@ def _now_stamp() -> str:
 
 def _log_progress(message: str) -> None:
     print(f"[{_now_stamp()}] {message}", flush=True)
+
+
+def _env_truthy(name: str) -> bool:
+    return str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -917,6 +922,16 @@ def _trajectory_payload(
     }
 
 
+def _append_markdown_fence(lines: list[str], content: Any, *, language: str = "text") -> None:
+    text = str(content)
+    fence = "```"
+    while fence in text:
+        fence += "`"
+    lines.append(f"{fence}{language}")
+    lines.append(text)
+    lines.append(fence)
+
+
 def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
     lines = [
         f"# Trajectory: {payload.get('task_id', '')}",
@@ -1004,18 +1019,14 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
                 continue
             lines.append(f"#### Prompt {index} [{str(message.get('role', '')).upper()}]")
             lines.append("")
-            lines.append("```text")
-            lines.append(str(message.get("content", "")))
-            lines.append("```")
+            _append_markdown_fence(lines, message.get("content", ""))
             lines.append("")
 
     lines.append("### Response")
     lines.append("")
     response = str(role_assignment.get("response", ""))
     if response.strip():
-        lines.append("```text")
-        lines.append(response)
-        lines.append("```")
+        _append_markdown_fence(lines, response)
         lines.append("")
     else:
         lines.append("_None_")
@@ -1079,9 +1090,7 @@ def _render_trajectory_markdown(payload: dict[str, Any]) -> str:
             else:
                 lines.append("- Tool Calls: _None_")
             lines.append("")
-            lines.append("```text")
-            lines.append(str(agent.get("response", "")))
-            lines.append("```")
+            _append_markdown_fence(lines, agent.get("response", ""))
             lines.append("")
 
         lines.append("#### Messages Sent")
@@ -2295,6 +2304,8 @@ def run_command(args: argparse.Namespace) -> int:
     )
 
     print(f"Run complete: {output_paths.run_root}")
+    if rerun_tasks and _env_truthy("MAS_REQUIRE_LIVE_LLM") and not _env_truthy("MAS_DISABLE_LIVE_LLM"):
+        return 2
     return 0
 
 
@@ -2375,20 +2386,24 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
                     "tasks": task_entries,
                 }
                 tasks = task_entries
-            scores = [
-                float(task.get("evaluation", {}).get("avg_score", 0.0))
+            scoreable_tasks = [
+                task
                 for task in tasks
                 if isinstance(task, dict)
+                and not bool(task.get("needs_rerun", False))
+                and int(task.get("evaluation", {}).get("valid_count", 1) or 0) > 0
+            ]
+            scores = [
+                float(task.get("evaluation", {}).get("avg_score", 0.0))
+                for task in scoreable_tasks
             ]
             success_rates = [
                 float(task.get("evaluation", {}).get("success_rate", 0.0))
-                for task in tasks
-                if isinstance(task, dict)
+                for task in scoreable_tasks
             ]
             completion_rates = [
                 float(task.get("evaluation", {}).get("completion_rate", 0.0))
-                for task in tasks
-                if isinstance(task, dict)
+                for task in scoreable_tasks
             ]
             run_failure_count = sum(
                 int(task.get("run_failure_count", 0) or 0)
@@ -2422,6 +2437,7 @@ def summarize_experiment_command(args: argparse.Namespace) -> int:
                 "avg_task_success_rate": _mean(success_rates),
                 "avg_task_completion_rate": _mean(completion_rates),
                 "completed_task_count": len(tasks),
+                "scored_task_count": len(scoreable_tasks),
                 "missing_task_count": max(int(summary.get("task_count", 0)) - len(tasks), 0),
                 "run_failure_count": run_failure_count,
                 "fallback_count": fallback_count,

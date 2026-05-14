@@ -30,6 +30,7 @@ import json
 import logging
 import math
 import re
+import unicodedata
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
@@ -87,10 +88,101 @@ confidence: The extracted confidence score between 0|%| and 100|%| from \
 """
 
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9]+")
+_STOPWORDS = {
+    "a",
+    "about",
+    "above",
+    "after",
+    "again",
+    "all",
+    "also",
+    "an",
+    "and",
+    "any",
+    "are",
+    "around",
+    "as",
+    "at",
+    "based",
+    "be",
+    "been",
+    "before",
+    "being",
+    "between",
+    "by",
+    "can",
+    "certain",
+    "could",
+    "criteria",
+    "criterion",
+    "date",
+    "did",
+    "do",
+    "does",
+    "during",
+    "each",
+    "establishment",
+    "event",
+    "following",
+    "for",
+    "from",
+    "give",
+    "had",
+    "has",
+    "have",
+    "held",
+    "help",
+    "how",
+    "in",
+    "individual",
+    "institution",
+    "is",
+    "it",
+    "its",
+    "me",
+    "name",
+    "of",
+    "on",
+    "or",
+    "particular",
+    "please",
+    "provide",
+    "published",
+    "some",
+    "tell",
+    "that",
+    "the",
+    "their",
+    "them",
+    "there",
+    "these",
+    "this",
+    "to",
+    "was",
+    "were",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "with",
+    "would",
+    "you",
+}
+
+
+def _strip_accents(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", text or "")
+    return "".join(char for char in normalized if not unicodedata.combining(char))
 
 
 def _tokenize(text: str) -> list[str]:
-    return [token.lower() for token in _TOKEN_RE.findall(text or "")]
+    tokens = [token.lower() for token in _TOKEN_RE.findall(_strip_accents(text))]
+    return [
+        token
+        for token in tokens
+        if token not in _STOPWORDS and (len(token) > 1 or token.isdigit())
+    ]
 
 
 class _BrowseCompTaskSearcher:
@@ -113,6 +205,8 @@ class _BrowseCompTaskSearcher:
         self.snippet_max_tokens = max(1, int(snippet_max_tokens))
 
         self._doc_terms: dict[str, Counter[str]] = {}
+        self._doc_lengths: dict[str, int] = {}
+        self._avg_doc_len = 1.0
         self._idf: dict[str, float] = {}
         self._prepare_index()
 
@@ -125,9 +219,14 @@ class _BrowseCompTaskSearcher:
             docid = doc["docid"]
             tf = Counter(_tokenize(doc["text"]))
             self._doc_terms[docid] = tf
+            self._doc_lengths[docid] = sum(tf.values())
             df.update(tf.keys())
 
         total_docs = max(1, len(self.docs))
+        self._avg_doc_len = max(
+            1.0,
+            sum(self._doc_lengths.values()) / max(1, len(self._doc_lengths)),
+        )
         self._idf = {
             term: (math.log((1.0 + total_docs) / (1.0 + count)) + 1.0)
             for term, count in df.items()
@@ -138,21 +237,26 @@ class _BrowseCompTaskSearcher:
         if not terms or not self.docs:
             return []
 
-        qtf = Counter(terms)
+        qtf = Counter(set(terms))
         scored: list[tuple[float, dict[str, str]]] = []
         for doc in self.docs:
             docid = doc["docid"]
             tf = self._doc_terms.get(docid, Counter())
+            doc_len = max(1, self._doc_lengths.get(docid, 1))
 
             score = 0.0
+            k1 = 1.2
+            b = 0.75
             for term, q_count in qtf.items():
                 doc_count = tf.get(term, 0)
                 if doc_count <= 0:
                     continue
                 idf = self._idf.get(term, 1.0)
-                score += float(q_count) * (1.0 + math.log(1.0 + doc_count)) * idf
+                denom = doc_count + k1 * (1.0 - b + b * (doc_len / self._avg_doc_len))
+                score += float(q_count) * idf * ((doc_count * (k1 + 1.0)) / denom)
 
-            scored.append((score, doc))
+            if score > 0.0:
+                scored.append((score, doc))
 
         scored.sort(key=lambda item: item[0], reverse=True)
         top = scored[: max(1, int(k))]
@@ -162,7 +266,7 @@ class _BrowseCompTaskSearcher:
                 {
                     "docid": doc["docid"],
                     "score": float(score),
-                    "snippet": self._truncate_snippet(doc["text"]),
+                    "snippet": self._make_snippet(doc["text"], terms),
                     "text": doc["text"],
                     "url": doc["url"],
                 }
@@ -179,6 +283,35 @@ class _BrowseCompTaskSearcher:
             "text": doc["text"],
             "url": doc["url"],
         }
+
+    def _make_snippet(self, text: str, query_terms: Sequence[str]) -> str:
+        words = re.findall(r"\S+", text or "")
+        if len(words) <= self.snippet_max_tokens:
+            return text
+
+        term_set = set(query_terms)
+        if not term_set:
+            return self._truncate_snippet(text)
+
+        tokenized_words = [_tokenize(word) for word in words]
+        best_start = 0
+        best_score = -1
+        window = self.snippet_max_tokens
+        for idx, word_terms in enumerate(tokenized_words):
+            if not term_set.intersection(word_terms):
+                continue
+            start = max(0, min(idx - window // 4, len(words) - window))
+            end = min(len(words), start + window)
+            score = sum(
+                1
+                for terms in tokenized_words[start:end]
+                if term_set.intersection(terms)
+            )
+            if score > best_score:
+                best_score = score
+                best_start = start
+
+        return " ".join(words[best_start : best_start + window])
 
     def _truncate_snippet(self, text: str) -> str:
         words = re.findall(r"\S+", text or "")
@@ -445,13 +578,14 @@ class BrowseCompBenchmark:
                 return {
                     "docid": result["docid"],
                     "snippet": result["snippet"],
+                    "text": result.get("text", ""),
                     "url": result.get("url", ""),
                 }
 
             tools.append(
                 {
                     "name": "get_document",
-                    "description": "Retrieve a full document by docid from BrowseComp-Plus.",
+                    "description": "Retrieve the full document text by docid from BrowseComp-Plus.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -653,9 +787,9 @@ class BrowseCompBenchmark:
 
     @staticmethod
     def _normalize_text(text: str) -> str:
-        text = text.strip().lower()
+        text = _strip_accents(text).strip().lower()
+        text = re.sub(r"[^a-z0-9.%$]+", " ", text)
         text = re.sub(r"\s+", " ", text)
-        text = re.sub(r"[^a-z0-9.%$\- ]", "", text)
         return text.strip()
 
     @classmethod

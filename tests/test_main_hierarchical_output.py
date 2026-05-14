@@ -10,6 +10,25 @@ import main as main_module
 
 
 class TestMainHierarchicalOutput(unittest.TestCase):
+    def test_trajectory_markdown_uses_longer_fence_for_nested_backticks(self) -> None:
+        markdown = main_module._render_trajectory_markdown(
+            {
+                "task_id": "t1",
+                "run_index": 0,
+                "final_answer": "answer",
+                "role_assignment": {
+                    "enabled": True,
+                    "assignments": {},
+                    "prompt_messages": [],
+                    "response": "```json\n{\"a\": 1}\n```",
+                },
+                "prompt_catalog": [],
+                "steps": [],
+            }
+        )
+
+        self.assertIn("````text\n```json", markdown)
+
     def test_hierarchical_layout_writes_graph_and_trajectory(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             base = Path(tmpdir)
