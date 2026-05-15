@@ -11,10 +11,51 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 
+PLOT_DPI = 300
+matplotlib.rcParams.update(
+    {
+        "figure.dpi": PLOT_DPI,
+        "savefig.dpi": PLOT_DPI,
+        "savefig.bbox": "tight",
+        "savefig.pad_inches": 0.04,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+        "font.family": "DejaVu Sans",
+        "font.size": 9,
+        "axes.titlesize": 10,
+        "axes.titleweight": "semibold",
+        "axes.labelsize": 9,
+        "axes.edgecolor": "#333333",
+        "axes.linewidth": 0.8,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "legend.fontsize": 8,
+        "legend.title_fontsize": 8.5,
+        "legend.frameon": False,
+        "grid.color": "#d9d9d9",
+        "grid.linewidth": 0.55,
+        "grid.alpha": 0.65,
+        "lines.linewidth": 1.45,
+        "patch.linewidth": 0.6,
+    }
+)
+
+
 def _save(fig: plt.Figure, path: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(path, dpi=180)
+    fig.patch.set_facecolor("white")
+    for ax in fig.axes:
+        ax.set_facecolor("white")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color("#333333")
+        ax.spines["bottom"].set_color("#333333")
+        ax.tick_params(axis="both", which="both", direction="out", length=3.0, width=0.7)
+        ax.grid(True, axis="y", alpha=0.45)
+    fig.savefig(path, dpi=PLOT_DPI)
+    if path.suffix.lower() != ".pdf":
+        fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
     return str(path.resolve())
 
@@ -38,7 +79,7 @@ def _marker_for_system(name: str) -> str:
 
 
 def _benchmark_color_map(benchmarks: list[str]) -> dict[str, tuple[float, float, float, float]]:
-    cmap = plt.cm.get_cmap("tab10")
+    cmap = matplotlib.colormaps["tab10"]
     return {benchmark: cmap(i % 10) for i, benchmark in enumerate(sorted(benchmarks))}
 
 

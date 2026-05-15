@@ -23,15 +23,51 @@ if str(project_root) not in sys.path:
 from analysis.econ_eval.regime_classification import classify_regime
 
 
+PLOT_DPI = 300
 PASS_AT_K_COLUMNS = ("pass_at_1", "pass_at_3", "pass_at_5", "pass_at_8")
 GENERATED_PLOT_SUFFIXES = (
     "_system_scorecard.png",
+    "_system_scorecard.pdf",
     "_success_vs_tokens_frontier.png",
+    "_success_vs_tokens_frontier.pdf",
     "_vs_sas_tradeoff.png",
+    "_vs_sas_tradeoff.pdf",
     "_pass_at_k.png",
+    "_pass_at_k.pdf",
     "_coordination_breakdown.png",
+    "_coordination_breakdown.pdf",
     "_vs_sas_delta_heatmap.png",
+    "_vs_sas_delta_heatmap.pdf",
     "_cost_predictability.png",
+    "_cost_predictability.pdf",
+)
+matplotlib.rcParams.update(
+    {
+        "figure.dpi": PLOT_DPI,
+        "savefig.dpi": PLOT_DPI,
+        "savefig.bbox": "tight",
+        "savefig.pad_inches": 0.04,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+        "font.family": "DejaVu Sans",
+        "font.size": 9,
+        "axes.titlesize": 10,
+        "axes.titleweight": "semibold",
+        "axes.labelsize": 9,
+        "axes.labelcolor": "#222222",
+        "axes.edgecolor": "#333333",
+        "axes.linewidth": 0.8,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "legend.fontsize": 8,
+        "legend.title_fontsize": 8.5,
+        "legend.frameon": False,
+        "grid.color": "#d9d9d9",
+        "grid.linewidth": 0.55,
+        "grid.alpha": 0.65,
+        "lines.linewidth": 1.45,
+        "patch.linewidth": 0.6,
+    }
 )
 SYSTEM_PLOT_STYLES: dict[str, dict[str, str]] = {
     "sas": {
@@ -80,9 +116,28 @@ def _plot_dir(output_dir: Path, benchmark: str, category: str) -> Path:
     return output_dir / benchmark / category
 
 
+def _apply_publication_style(fig: plt.Figure) -> None:
+    fig.patch.set_facecolor("white")
+    for ax in fig.axes:
+        ax.set_facecolor("white")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color("#333333")
+        ax.spines["bottom"].set_color("#333333")
+        ax.tick_params(axis="both", which="both", direction="out", length=3.0, width=0.7)
+        ax.grid(True, axis="y", alpha=0.45)
+        if ax.get_xlabel():
+            ax.xaxis.labelpad = 6
+        if ax.get_ylabel():
+            ax.yaxis.labelpad = 6
+
+
 def _save_fig(fig: plt.Figure, path: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=180)
+    _apply_publication_style(fig)
+    fig.savefig(path, dpi=PLOT_DPI)
+    if path.suffix.lower() != ".pdf":
+        fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
     return str(path.resolve())
 
@@ -609,7 +664,7 @@ def _color_for_system(system_label: str) -> str:
 
 
 def _color_for_benchmark(benchmark: str) -> tuple[float, float, float, float]:
-    cmap = plt.cm.get_cmap("tab10")
+    cmap = matplotlib.colormaps["tab10"]
     idx = abs(hash(str(benchmark).lower())) % 10
     return cmap(idx)
 
