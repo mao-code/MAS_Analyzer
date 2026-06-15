@@ -16,6 +16,7 @@ TOPOLOGY_ORCHESTRATOR_WITH_DISCUSSION = "orchestrator_with_discussion"
 TOPOLOGY_ONLY_VOTING = "only_voting"
 TOPOLOGY_FULLY_LINKED_DEBATE = "fully_linked_debate"
 TOPOLOGY_GROUP_CHAT_DEBATE = "group_chat_debate"
+TOPOLOGY_SELF_EVOLVED = "self_evolved"
 TOPOLOGY_AUTO = "auto"
 
 SUPPORTED_TOPOLOGIES = {
@@ -26,6 +27,7 @@ SUPPORTED_TOPOLOGIES = {
     TOPOLOGY_ONLY_VOTING,
     TOPOLOGY_FULLY_LINKED_DEBATE,
     TOPOLOGY_GROUP_CHAT_DEBATE,
+    TOPOLOGY_SELF_EVOLVED,
     TOPOLOGY_AUTO,
 }
 
@@ -49,6 +51,8 @@ _TOPOLOGY_ALIASES = {
     "group_chat_debate": TOPOLOGY_GROUP_CHAT_DEBATE,
     "group_chat_plus_debate": TOPOLOGY_GROUP_CHAT_DEBATE,
     "group_chat+debate": TOPOLOGY_GROUP_CHAT_DEBATE,
+    "self_evolved": TOPOLOGY_SELF_EVOLVED,
+    "self_evolved_topology": TOPOLOGY_SELF_EVOLVED,
     "auto": TOPOLOGY_AUTO,
 }
 
@@ -124,6 +128,11 @@ def build_layout(
     topo = normalize_topology_name(topology)
     if topo == TOPOLOGY_AUTO:
         topo = auto_topology_for_agents(num_agents)
+    if topo == TOPOLOGY_SELF_EVOLVED:
+        raise ValueError(
+            "self_evolved layouts are built per-run by MAS.self_evolved; "
+            "build_layout only supports static topologies"
+        )
 
     agent_ids = [f"agent_{idx}" for idx in range(num_agents)]
     adjacency: dict[str, set[str]] = {agent_id: set() for agent_id in agent_ids}

@@ -1278,6 +1278,19 @@ def _write_system_graph_artifact(
     config: Any,
     run_root: Path,
 ) -> dict[str, Any]:
+    if config.mas.resolved_topology() == "self_evolved":
+        # The target topology is planned per run; per-run layouts live in
+        # run_*.raw.json under run_metadata.topology_layout.
+        payload = {
+            "topology": "self_evolved",
+            "dynamic": True,
+            "render_backend": "none",
+            "render_error": "",
+            "note": "Topology is planned per run; see run_*.raw.json topology_layout.",
+        }
+        _write_json(run_root / "mas_graph.json", payload)
+        return payload
+
     spec = ExperimentSpec(
         topology=config.mas.resolved_topology(),
         num_agents=config.mas.total_agents,
@@ -1948,6 +1961,7 @@ def run_command(args: argparse.Namespace) -> int:
         "final_vote_mode": str(config.mas.final_vote_mode),
         "peer_artifact_max_chars": int(config.mas.peer_artifact_max_chars),
         "communication_budget": int(config.mas.communication_count_internally),
+        "harness_backend": str(config.self_evolved.harness_backend),
     }
 
     summary_rows: list[dict[str, Any]] = []

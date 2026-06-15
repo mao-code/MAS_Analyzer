@@ -40,6 +40,22 @@ termination_consensus_mode = "llm_judge"  # "llm_judge" (default) or "lexical"
 final_vote_mode = "llm_judge"             # "llm_judge" (default) or "deterministic"
 peer_artifact_max_chars = 320             # Max chars copied from one agent artifact into peer-visible packets
 
+# --- Self-evolved topology (set mas.topology = "self_evolved" to enable) ---
+# An LLM Topology Planner proposes a per-task topology, a Trace Auditor updates
+# short-term turn memory and can trigger at most one trace-backed repair, then
+# the run finalizes.
+# [self_evolved]
+# harness_backend = "openrouter"      # "openrouter" or "claude_agent_sdk" (needs ANTHROPIC_API_KEY)
+# max_initial_agents = 5              # Cap on the planner's initial topology size
+# max_total_agents = 10               # Hard cap after the single mutation
+# max_turns = 2                       # 1 initial turn + at most 1 repair turn
+# audit_mode = "heuristic"            # "heuristic" or "llm_judge"
+# playbook_path = "config/topology_playbook.json"
+# playbook_read = true                # Planner reads long-term playbook priors
+# Runs update a short-term in-memory playbook every turn; persistent playbook
+# writes stay post-hoc via scripts/update_topology_playbook.py.
+# default_packet_max_chars = 320      # Packet bound when mas.peer_artifact_max_chars = 0
+
 # ============================================================================
 # Benchmark-specific sections
 # Uncomment/fill the section matching your --benchmark flag

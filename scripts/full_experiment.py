@@ -36,6 +36,7 @@ SYSTEMS: list[tuple[str, str, int, int, int, int]] = [
     ("only_voting", "only_voting", 4, 1, 1, 0),
     ("fully_linked_debate", "fully_linked_debate", 4, 2, 1, 2),
     ("group_chat_debate", "group_chat_debate", 4, 2, 2, 2),
+    ("self_evolved", "self_evolved", 5, 2, 1, 2),
 ]
 
 SYSTEM_ARG_ENV_BY_LABEL: dict[str, str] = {
@@ -46,6 +47,7 @@ SYSTEM_ARG_ENV_BY_LABEL: dict[str, str] = {
     "only_voting": "ONLY_VOTING_ARGS",
     "fully_linked_debate": "FULLY_LINKED_DEBATE_ARGS",
     "group_chat_debate": "GROUP_CHAT_DEBATE_ARGS",
+    "self_evolved": "SELF_EVOLVED_ARGS",
 }
 
 DEFAULT_CONFIG_DIR = ROOT / "config" / "benchmarks"

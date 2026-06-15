@@ -35,6 +35,7 @@ SYSTEM_LABELS = {
     "orchestrator_tree_structure": "Orchestrator tree",
     "fully_linked_debate": "Fully linked debate",
     "group_chat_debate": "Group chat debate",
+    "self_evolved": "Self-evolved topology",
 }
 
 FAILURE_MODE_DEFS = {

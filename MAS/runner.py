@@ -9,6 +9,7 @@ from .config import ExperimentConfig
 from .langgraph_engine import ExperimentSpec, LangGraphMASEngine
 from .llm import OpenRouterLLMClient
 from .monitor import DescriptorHook
+from .relay import TOPOLOGY_SELF_EVOLVED
 
 
 @dataclass
@@ -23,8 +24,12 @@ class MASRunner:
 
     def __init__(self, config: ExperimentConfig, llm_client: OpenRouterLLMClient) -> None:
         self.config = config
-        self.llm_client = llm_client
-        self.engine = LangGraphMASEngine(llm_client)
+        from .self_evolved.harness import build_harness
+
+        self.openrouter_client = llm_client
+        self.llm_client = build_harness(config.self_evolved.harness_backend, llm_client)
+        self.engine = LangGraphMASEngine(self.llm_client)
+        self._self_evolved_engine: Any | None = None
 
     def run_task(
         self,
@@ -91,7 +96,12 @@ class MASRunner:
             enable_dynamic_roles=bool(mas_cfg.enable_dynamic_roles),
         )
 
-        run_result = self.engine.run(
+        engine = (
+            self._resolve_self_evolved_engine()
+            if resolved_topology == TOPOLOGY_SELF_EVOLVED
+            else self.engine
+        )
+        run_result = engine.run(
             task=task,
             run_index=run_index,
             seed=seed,
@@ -107,3 +117,13 @@ class MASRunner:
             trace_events=run_result.trace_events,
             run_metadata=run_result.run_metadata,
         )
+
+    def _resolve_self_evolved_engine(self) -> Any:
+        if self._self_evolved_engine is None:
+            from .self_evolved.engine import SelfEvolvedEngine
+
+            self._self_evolved_engine = SelfEvolvedEngine(
+                self.llm_client,
+                self.config.self_evolved,
+            )
+        return self._self_evolved_engine

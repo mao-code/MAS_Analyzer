@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "key": "browsecomp::tools::long",
+      "benchmark": "browsecomp",
+      "pattern": {
+        "pattern": "star",
+        "num_agents": 4,
+        "expansions": []
+      },
+      "support": {"runs": 0, "successes": 0},
+      "notes": "Long multi-hop retrieval: coordinator splits query facets across workers; keep a verifier critic so retrieved evidence is checked before synthesis.",
+      "failure_memories": []
+    },
+    {
+      "key": "finance_agent::tools::short",
+      "benchmark": "finance_agent",
+      "pattern": {
+        "pattern": "star",
+        "num_agents": 3,
+        "expansions": []
+      },
+      "support": {"runs": 0, "successes": 0},
+      "notes": "Short quantitative retrieval: one retrieval worker plus one verification worker under a coordinator is usually enough; larger topologies add cost without lift.",
+      "failure_memories": []
+    },
+    {
+      "key": "workbench::tools::medium",
+      "benchmark": "workbench",
+      "pattern": {
+        "pattern": "star",
+        "num_agents": 4,
+        "expansions": [
+          {"parent_agent_id": "agent_1", "pattern": "star", "num_subagents": 2}
+        ]
+      },
+      "support": {"runs": 0, "successes": 0},
+      "notes": "Multi-domain tool tasks: expand the branch owning the most tool domains into a subgroup so tool selection is split per domain.",
+      "failure_memories": []
+    },
+    {
+      "key": "unknown::no_tools::short",
+      "benchmark": "unknown",
+      "pattern": {
+        "pattern": "singleton",
+        "num_agents": 1,
+        "expansions": []
+      },
+      "support": {"runs": 0, "successes": 0},
+      "notes": "Short tasks without tools rarely benefit from coordination; start single-agent and rely on the repair path if the answer collapses.",
+      "failure_memories": []
+    }
+  ]
+}

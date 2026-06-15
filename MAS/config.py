@@ -75,14 +75,10 @@ class MASConfig:
             raise ValueError("mas.minimum_discussion_rounds must be >= 0")
 
         if self.termination_consensus_mode not in {"llm_judge", "lexical"}:
-            raise ValueError(
-                "mas.termination_consensus_mode must be one of: llm_judge, lexical"
-            )
+            raise ValueError("mas.termination_consensus_mode must be one of: llm_judge, lexical")
 
         if self.final_vote_mode not in {"llm_judge", "deterministic"}:
-            raise ValueError(
-                "mas.final_vote_mode must be one of: llm_judge, deterministic"
-            )
+            raise ValueError("mas.final_vote_mode must be one of: llm_judge, deterministic")
 
         if self.peer_artifact_max_chars < 0:
             raise ValueError("mas.peer_artifact_max_chars must be >= 0 (0 = unlimited)")
@@ -166,6 +162,40 @@ class MASConfig:
 
 
 @dataclass
+class SelfEvolvedConfig:
+    """Settings for the self-evolved topology system (topology = "self_evolved")."""
+
+    harness_backend: str = "openrouter"
+    max_initial_agents: int = 5
+    max_total_agents: int = 10
+    max_turns: int = 2
+    audit_mode: str = "heuristic"
+    playbook_path: str = "config/topology_playbook.json"
+    playbook_read: bool = True
+    default_packet_max_chars: int = 320
+
+    def validate(self) -> None:
+        if self.harness_backend not in {"openrouter", "claude_agent_sdk"}:
+            raise ValueError(
+                "self_evolved.harness_backend must be one of: openrouter, claude_agent_sdk"
+            )
+        if self.max_initial_agents < 1:
+            raise ValueError("self_evolved.max_initial_agents must be >= 1")
+        if self.max_total_agents < self.max_initial_agents:
+            raise ValueError(
+                "self_evolved.max_total_agents must be >= self_evolved.max_initial_agents"
+            )
+        if not 1 <= self.max_turns <= 2:
+            raise ValueError(
+                "self_evolved.max_turns must be 1 or 2 (one initial turn plus at most one repair)"
+            )
+        if self.audit_mode not in {"heuristic", "llm_judge"}:
+            raise ValueError("self_evolved.audit_mode must be one of: heuristic, llm_judge")
+        if self.default_packet_max_chars < 0:
+            raise ValueError("self_evolved.default_packet_max_chars must be >= 0")
+
+
+@dataclass
 class ExperimentRuntimeConfig:
     output_dir: str = "outputs"
     runs_per_task: int = 3
@@ -186,6 +216,7 @@ class ExperimentConfig:
     openrouter: OpenRouterConfig
     mas: MASConfig
     experiment: ExperimentRuntimeConfig
+    self_evolved: SelfEvolvedConfig = field(default_factory=SelfEvolvedConfig)
     models: dict[str, str] = field(default_factory=dict)
     browsecomp: dict[str, Any] = field(default_factory=dict)
     stabletoolbench: dict[str, Any] = field(default_factory=dict)
@@ -200,6 +231,7 @@ class ExperimentConfig:
         self.openrouter.validate()
         self.mas.validate()
         self.experiment.validate()
+        self.self_evolved.validate()
 
         if "default" not in self.models:
             raise ValueError("models.default is required in the config")
@@ -262,9 +294,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         max_turns=int(mas_raw.get("max_turns", 20)),
         discussion_rounds=int(mas_raw.get("discussion_rounds", 1)),
         minimum_discussion_rounds=int(mas_raw.get("minimum_discussion_rounds", 1)),
-        termination_consensus_mode=str(
-            mas_raw.get("termination_consensus_mode", "llm_judge")
-        ),
+        termination_consensus_mode=str(mas_raw.get("termination_consensus_mode", "llm_judge")),
         final_vote_mode=str(mas_raw.get("final_vote_mode", "llm_judge")),
         peer_artifact_max_chars=int(mas_raw.get("peer_artifact_max_chars", 0)),
         enable_dynamic_roles=bool(mas_raw.get("enable_dynamic_roles", True)),
@@ -277,12 +307,25 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         task_limit=(int(experiment_raw["task_limit"]) if "task_limit" in experiment_raw else None),
     )
 
+    self_evolved_raw = _as_dict(data.get("self_evolved"), "[self_evolved]")
+    self_evolved = SelfEvolvedConfig(
+        harness_backend=str(self_evolved_raw.get("harness_backend", "openrouter")),
+        max_initial_agents=int(self_evolved_raw.get("max_initial_agents", 5)),
+        max_total_agents=int(self_evolved_raw.get("max_total_agents", 10)),
+        max_turns=int(self_evolved_raw.get("max_turns", 2)),
+        audit_mode=str(self_evolved_raw.get("audit_mode", "heuristic")),
+        playbook_path=str(self_evolved_raw.get("playbook_path", "config/topology_playbook.json")),
+        playbook_read=bool(self_evolved_raw.get("playbook_read", True)),
+        default_packet_max_chars=int(self_evolved_raw.get("default_packet_max_chars", 320)),
+    )
+
     models = {str(key): str(value) for key, value in models_raw.items()}
 
     config = ExperimentConfig(
         openrouter=openrouter,
         mas=mas,
         experiment=experiment,
+        self_evolved=self_evolved,
         models=models,
         browsecomp=_as_dict(data.get("browsecomp", {}), "[browsecomp]"),
         stabletoolbench=_as_dict(data.get("stabletoolbench", {}), "[stabletoolbench]"),

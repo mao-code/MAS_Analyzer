@@ -402,6 +402,7 @@ For a hierarchical batch experiment:
 - `benchmark/`: benchmark adapters and evaluation logic
 - `benchmarks/`: benchmark overview docs
 - `MAS/`: SAS/MAS runtimes and LangGraph topologies
+- `MAS/self_evolved/`: query-conditioned dynamic topology system (see below)
 - `descriptor/`: trace schema, run metrics, task descriptor aggregation, topology analysis
 - `scripts/`: experiment and analysis helpers
 - `config/`: experiment configs
@@ -484,6 +485,109 @@ Hierarchical outputs are written under:
 ```text
 artifacts/full_experiment/<experiment-id>/<benchmark>/<system>/<task_id>/
 ```
+
+## Self-evolved topology system
+
+Setting `topology = "self_evolved"` in `[mas]` replaces the fixed layout with one
+the system designs per task (`MAS/self_evolved/`). Instead of running a
+hand-picked topology, each run plans its own agent graph from the query, executes
+it, audits its own trace for failure modes, and is allowed **at most one**
+structural repair before finalizing. It flows through the same CLI, artifact
+hierarchy, and `summary.csv` as every other system, so it stays Q/C/D/R/P-comparable
+to SAS and fixed MAS.
+
+The orchestration is deterministic code; the LLM decides graph *shape* and does the
+agent reasoning, but never decides when the loop stops. `benchmark.evaluate(...).success`
+remains the only correctness authority — the in-run auditor never sees ground truth.
+
+### Workflow diagram
+
+```mermaid
+flowchart TD
+    Start([Run start]) --> Plan
+    PB[("Long-term playbook<br/>config/topology_playbook.json")]
+    PB -. read .-> Plan
+
+    Plan["<b>Plan</b><br/>Topology Planner proposes<br/>TopologySpec v0<br/>(deterministic fallback)"]
+    Spawn["<b>Spawn</b><br/>layout + personas + state"]
+    Execute["<b>Execute turn</b><br/>Turn Executor walks the graph<br/>singleton / star / chain / debate / voting"]
+    Audit["<b>Audit</b><br/>Trace Auditor scans<br/>process failure modes"]
+    Control{"<b>Control</b> (deterministic)<br/>repair recommended?<br/>mutation unused?<br/>turn remaining?"}
+    Mutate["<b>Mutate</b><br/>apply one TopologyMutation<br/>revalidate visibility → spec v1"]
+    Finalize["<b>Finalize</b><br/>vote / synthesize final answer"]
+    Record["<b>Record</b><br/>playbook update candidate<br/>→ run_metadata"]
+    Done([Trace + descriptor])
+    ST[("Short-term playbook<br/>in-memory")]
+
+    Plan --> Spawn --> Execute --> Audit
+    Audit --> ST
+    Audit --> Control
+    Control -- "continue (≤ 1 repair)" --> Mutate
+    Mutate --> Execute
+    Control -- stop --> Finalize --> Record --> Done
+    Record -. "post-hoc, success-conditioned" .-> PB
+```
+
+### Turn lifecycle
+
+Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns = 2`):
+
+1. **Plan** — look up the playbook, then the LLM **Topology Planner** proposes a
+   per-task `TopologySpec` (nested agents/groups + per-agent context policy). If the
+   LLM is mocked, unparseable, or errors, it falls back to a deterministic spec
+   (`sas` for one agent, else `orchestrator_no_discussion`) and flags `used_fallback`.
+2. **Spawn** — project the spec to a real layout, assign domain personas, init state.
+3. **Execute** — the **Turn Executor** walks the graph depth-first and runs each group
+   by its pattern (`singleton` / `star` / `chain` / `debate` / `voting`). All agent
+   work reuses the standard stage runner, so prompts, the tool loop, artifacts, and
+   trace events match fixed MAS.
+4. **Audit** — the **Trace Auditor** scans the turn's artifacts and tool records for
+   process-observable failure modes: `tool_error_cascade`, `branch_collapse`,
+   `evidence_lost_before_synthesis`, `premature_consensus`, `message_compaction_loss`,
+   `missing_validator`. (`audit_mode = "llm_judge"` adds an LLM refinement pass.)
+5. **Control** — deterministic ordered checks decide stop vs. continue. The *only*
+   continue path is: the audit recommends a repair, no mutation has been used yet, and
+   a turn remains. Otherwise the run finalizes.
+6. **Mutate** (continue path only) — the planner proposes one `TopologyMutation`
+   (e.g. expand a leaf into a star or debate group, change a group pattern, add an
+   agent/edge). It is applied once, visibility is revalidated, and the new spec runs
+   one more turn. Hard caps: `max_total_agents` and one mutation.
+7. **Finalize** — vote/synthesize a final answer from the root aggregator's output (or
+   members), then record a post-hoc playbook update candidate into `run_metadata`.
+
+The resulting trace reads `plan → spawn → turn 0 → audit → (revise) → turn 1 → finalize`,
+with meta-agent tokens/cost on their own events so `C*` includes meta-control overhead.
+
+### Playbook (two timescales)
+
+- **Short-term** — an in-memory playbook updated after each audited turn; it can inform
+  the single in-run repair.
+- **Long-term** — a persistent JSON file (default `config/topology_playbook.json`),
+  keyed by benchmark + coarse task features, that the planner *reads* at plan time. Runs
+  never write it. Instead each run records an update candidate, and
+  `python scripts/update_topology_playbook.py --experiment-root <dir>` merges those
+  candidates **conditioned on `eval.json` success** post-hoc. This keeps runs independent,
+  avoids write races under parallel experiments, and ties learning to real correctness.
+
+### Config and backend
+
+```toml
+[self_evolved]
+harness_backend = "openrouter"   # or "claude_agent_sdk"
+max_initial_agents = 5
+max_total_agents = 10            # hard cap after the repair mutation
+max_turns = 2                    # one initial turn plus at most one repair
+audit_mode = "heuristic"         # or "llm_judge"
+playbook_path = "config/topology_playbook.json"
+playbook_read = true
+default_packet_max_chars = 320
+```
+
+The expert-agent harness is switchable via `harness_backend`: `"openrouter"` (default,
+mock mode preserved for offline tests) or `"claude_agent_sdk"` (needs
+`pip install -e ".[claude]"` and `ANTHROPIC_API_KEY`). `C*` cost metrics are not directly
+comparable across backends — the Claude Agent SDK runs its own internal agent loop, so its
+per-stage token/latency totals are cumulative — so treat the backend as an experiment dimension.
 
 ## Topology analysis
 
