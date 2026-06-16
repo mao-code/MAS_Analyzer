@@ -29,6 +29,7 @@ _SERVER_NAME = "mas"
 _DEFAULT_QUERY_TIMEOUT_S = 600.0
 _TOOL_OUTPUT_MAX_CHARS = 4000
 _FINALIZE_NOTES_MAX_CHARS = 4000
+_SYNTHETIC_FINAL_MAX_CHARS = 2400
 # The finalize call needs >1 turn: with max_turns=1 the SDK raises "Reached maximum
 # number of turns" before emitting a result. Two turns suffice (verified), three gives margin.
 _FINALIZE_MAX_TURNS = 3
@@ -158,19 +159,36 @@ class ClaudeAgentSDKClient:
         # emits the final JSON answer, so the parse fails downstream. Mirror the
         # OpenRouter ``_force_final_response`` path: one no-tools synthesis call.
         if has_tools and _extract_json_payload(text) is None:
-            fin = self._finalize_answer(
-                sdk,
-                model=model,
-                prompt_text=prompt_text,
-                assistant_text=scan["assistant_text"],
-                tool_records=tool_records,
-            )
-            fin_text = self._primary_text(fin)
-            if fin_text.strip():
-                text = fin_text
-                extra_in, extra_out = fin["token_in"], fin["token_out"]
-                extra_cost = fin["cost_usd"]
-                finalized = True
+            if _env_truthy("CLAUDE_AGENT_SDK_SKIP_FINALIZE", default=False):
+                text = self._synthetic_answer_json(
+                    assistant_text=scan["assistant_text"],
+                    tool_records=tool_records,
+                    reason="sdk_finalize_skipped",
+                )
+                scan.setdefault("run_meta", {})["sdk_finalize_skipped"] = True
+            else:
+                try:
+                    fin = self._finalize_answer(
+                        sdk,
+                        model=model,
+                        prompt_text=prompt_text,
+                        assistant_text=scan["assistant_text"],
+                        tool_records=tool_records,
+                    )
+                except Exception as exc:
+                    text = self._synthetic_answer_json(
+                        assistant_text=scan["assistant_text"],
+                        tool_records=tool_records,
+                        reason=f"sdk_finalize_failed: {exc}",
+                    )
+                    scan.setdefault("run_meta", {})["sdk_finalize_error"] = str(exc)
+                else:
+                    fin_text = self._primary_text(fin)
+                    if fin_text.strip():
+                        text = fin_text
+                        extra_in, extra_out = fin["token_in"], fin["token_out"]
+                        extra_cost = fin["cost_usd"]
+                        finalized = True
 
         return self._build_result(
             scan,
@@ -248,6 +266,29 @@ class ClaudeAgentSDKClient:
                 output = json.dumps(rec.get("output", ""), ensure_ascii=False, default=str)
                 lines.append(f"- {rec.get('tool_name', '')}({args[:200]}) -> {output[:600]}")
         return "\n".join(lines)[:_FINALIZE_NOTES_MAX_CHARS]
+
+    @staticmethod
+    def _synthetic_answer_json(
+        *, assistant_text: str, tool_records: list[dict[str, Any]], reason: str
+    ) -> str:
+        evidence_lines: list[str] = []
+        for rec in tool_records[-6:]:
+            args = json.dumps(rec.get("arguments", {}), ensure_ascii=False, default=str)
+            output = json.dumps(rec.get("output", ""), ensure_ascii=False, default=str)
+            evidence_lines.append(
+                f"{rec.get('tool_name', '')}({args[:180]}) -> {output[:420]}"
+            )
+        answer = assistant_text.strip() or "Insufficient evidence gathered by Claude Agent SDK."
+        payload = {
+            "answer_artifact": answer[:_SYNTHETIC_FINAL_MAX_CHARS],
+            "summary": "Structured fallback from Claude Agent SDK assistant text and tool evidence.",
+            "critique": reason,
+            "revision_request": "No revision requested by fallback packager.",
+            "confidence": 0.05,
+            "unresolved_issues": [reason],
+            "evidence_summary": evidence_lines,
+        }
+        return json.dumps(payload, ensure_ascii=False, default=str)
 
     # -- SDK plumbing ----------------------------------------------------------
 

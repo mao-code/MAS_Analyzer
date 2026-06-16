@@ -13,6 +13,18 @@ HARNESS_BACKEND="${HARNESS_BACKEND:-openrouter}"
 MODEL="${MODEL:-}"
 ENABLE_TOOLS="${ENABLE_TOOLS:-true}"
 NO_DYNAMIC_ROLES="${NO_DYNAMIC_ROLES:-0}"
+MAS_NUMBER_OF_AGENTS="${MAS_NUMBER_OF_AGENTS:-4}"
+MAS_COMMUNICATION_BUDGET="${MAS_COMMUNICATION_BUDGET:-2}"
+PEER_ARTIFACT_MAX_CHARS="${PEER_ARTIFACT_MAX_CHARS:-320}"
+DEFAULT_PACKET_MAX_CHARS="${DEFAULT_PACKET_MAX_CHARS:-320}"
+TERMINATION_CONSENSUS_MODE="${TERMINATION_CONSENSUS_MODE:-lexical}"
+FINAL_VOTE_MODE="${FINAL_VOTE_MODE:-deterministic}"
+SELF_EVOLVED_MAX_INITIAL_AGENTS="${SELF_EVOLVED_MAX_INITIAL_AGENTS:-4}"
+SELF_EVOLVED_MAX_TOTAL_AGENTS="${SELF_EVOLVED_MAX_TOTAL_AGENTS:-8}"
+SELF_EVOLVED_MAX_TURNS="${SELF_EVOLVED_MAX_TURNS:-2}"
+BROWSECOMP_MAX_TOOL_ITERATIONS="${BROWSECOMP_MAX_TOOL_ITERATIONS:-8}"
+INCLUDE_GET_DOCUMENT="${INCLUDE_GET_DOCUMENT:-true}"
+TOOL_SNIPPET_MAX_TOKENS="${TOOL_SNIPPET_MAX_TOKENS:-512}"
 CLAUDE_AGENT_SDK_EFFORT="${CLAUDE_AGENT_SDK_EFFORT:-low}"
 CLAUDE_AGENT_SDK_QUERY_TIMEOUT_S="${CLAUDE_AGENT_SDK_QUERY_TIMEOUT_S:-90}"
 CLAUDE_AGENT_SDK_PERMISSION_MODE="${CLAUDE_AGENT_SDK_PERMISSION_MODE:-dontAsk}"
@@ -60,24 +72,24 @@ levels = 1
 intra_level_link_ratio = 1.0
 full_linked = true
 topology = "self_evolved"
-number_of_agents = 4
+number_of_agents = $MAS_NUMBER_OF_AGENTS
 agent_types = ["general"]
-communication_count_internally = 2
+communication_count_internally = $MAS_COMMUNICATION_BUDGET
 turn_mode = "single_turn"
 max_turns = 1
-termination_consensus_mode = "lexical"
-final_vote_mode = "deterministic"
-peer_artifact_max_chars = 320
+termination_consensus_mode = "$TERMINATION_CONSENSUS_MODE"
+final_vote_mode = "$FINAL_VOTE_MODE"
+peer_artifact_max_chars = $PEER_ARTIFACT_MAX_CHARS
 
 [self_evolved]
 harness_backend = "$HARNESS_BACKEND"
-max_initial_agents = 4
-max_total_agents = 8
-max_turns = 2
+max_initial_agents = $SELF_EVOLVED_MAX_INITIAL_AGENTS
+max_total_agents = $SELF_EVOLVED_MAX_TOTAL_AGENTS
+max_turns = $SELF_EVOLVED_MAX_TURNS
 audit_mode = "heuristic"
 playbook_path = "config/topology_playbook.json"
 playbook_read = true
-default_packet_max_chars = 320
+default_packet_max_chars = $DEFAULT_PACKET_MAX_CHARS
 
 [browsecomp]
 decrypted_path = "benchmark/browsecomp/data/browsecomp_plus_decrypted.jsonl"
@@ -87,15 +99,23 @@ auto_download = true
 eval_mode = "substring"
 enable_tools = $ENABLE_TOOLS
 tool_k = 5
-include_get_document = false
-tool_snippet_max_tokens = 160
-max_tool_iterations = 4
+include_get_document = $INCLUDE_GET_DOCUMENT
+tool_snippet_max_tokens = $TOOL_SNIPPET_MAX_TOKENS
+max_tool_iterations = $BROWSECOMP_MAX_TOOL_ITERATIONS
 TOML
 
 echo "Config: $CONFIG_PATH"
 echo "Experiment: $OUT_ROOT/$EXPERIMENT_ID"
 echo "BrowseComp tools enabled: $ENABLE_TOOLS"
 echo "No dynamic roles: $NO_DYNAMIC_ROLES"
+echo "MAS agents: $MAS_NUMBER_OF_AGENTS"
+echo "MAS communication budget: $MAS_COMMUNICATION_BUDGET"
+echo "Self-evolved max initial agents: $SELF_EVOLVED_MAX_INITIAL_AGENTS"
+echo "Self-evolved max total agents: $SELF_EVOLVED_MAX_TOTAL_AGENTS"
+echo "Self-evolved max turns: $SELF_EVOLVED_MAX_TURNS"
+echo "BrowseComp max tool iterations: $BROWSECOMP_MAX_TOOL_ITERATIONS"
+echo "BrowseComp include get_document: $INCLUDE_GET_DOCUMENT"
+echo "BrowseComp snippet max tokens: $TOOL_SNIPPET_MAX_TOKENS"
 if [[ "$HARNESS_BACKEND" == "claude_agent_sdk" ]]; then
   echo "Claude SDK effort: $CLAUDE_AGENT_SDK_EFFORT"
   echo "Claude SDK query timeout: ${CLAUDE_AGENT_SDK_QUERY_TIMEOUT_S}s"
