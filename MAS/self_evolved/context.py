@@ -15,16 +15,17 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..artifacts import RelayPacket, _bounded_text, packet_content
+from ..artifacts import (
+    RelayPacket,
+    _bounded_text,
+    _sentence_bounded_text,
+    compact_packet_payload,
+    packet_content,
+)
 from .spec import ContextPolicy, TopologySpec
 
 DIGEST_SENDER = "shared_context"
 DIGEST_KIND = "evidence_digest"
-_DIGEST_MAX_ENTRIES = 12
-_DIGEST_CLAIM_CHARS = 160
-_DIGEST_EVIDENCE_CHARS = 100
-_DIGEST_EVIDENCE_ITEMS = 3
-_DEFAULT_READER_CHARS = 320
 
 
 class SharedContextController:
@@ -94,36 +95,50 @@ class SharedContextController:
     # -- evidence ledger -------------------------------------------------------
 
     def record_evidence(self, state: dict[str, Any], artifact: Any, *, agent_id: str) -> None:
-        """Append a bounded claim+evidence entry for one produced artifact."""
+        """Append a full claim+evidence entry for one produced artifact.
+
+        Entries are stored at full fidelity (whitespace-normalized only) and
+        deduplicated by (agent, round, claim); any budgeting happens at digest
+        render time, so nothing is lost before a synthesis stage could need it.
+        """
 
         if artifact is None:
             return
         raw_evidence = artifact.get("evidence_summary", [])
         evidence = [
-            _bounded_text(item, max_chars=_DIGEST_EVIDENCE_CHARS)
-            for item in (raw_evidence if isinstance(raw_evidence, list) else [])[
-                :_DIGEST_EVIDENCE_ITEMS
-            ]
+            _bounded_text(item, max_chars=0)
+            for item in (raw_evidence if isinstance(raw_evidence, list) else [])
             if str(item or "").strip()
         ]
         claim = _bounded_text(
             artifact.get("summary", "") or artifact.get("answer", ""),
-            max_chars=_DIGEST_CLAIM_CHARS,
+            max_chars=0,
         )
         if not claim and not evidence:
             return
-        state.setdefault("evidence_ledger", []).append(
-            {
-                "agent_id": str(agent_id),
-                "group_id": str(self._spec.agent(agent_id).group_id),
-                # Packet-style key ("round", like RelayPacket), not "round_index".
-                "round": int(state.get("round_index", 0)),
-                "artifact_id": str(artifact.get("artifact_id", "")),
-                "claim": claim,
-                "evidence": evidence,
-                "confidence": float(artifact.get("confidence", 0.5)),
-            }
-        )
+        entry = {
+            "agent_id": str(agent_id),
+            "group_id": str(self._spec.agent(agent_id).group_id),
+            # Packet-style key ("round", like RelayPacket), not "round_index".
+            "round": int(state.get("round_index", 0)),
+            "artifact_id": str(artifact.get("artifact_id", "")),
+            "claim": claim,
+            "evidence": evidence,
+            "confidence": float(artifact.get("confidence", 0.5)),
+        }
+        ledger = state.get("evidence_ledger")
+        if ledger is None:
+            state["evidence_ledger"] = [entry]
+            return
+        key = self._evidence_key(entry)
+        if any(self._evidence_key(existing) == key for existing in ledger):
+            return
+        ledger.append(entry)
+
+    @staticmethod
+    def _evidence_key(entry: dict[str, Any]) -> tuple[str, int, str]:
+        claim = re.sub(r"\s+", " ", str(entry.get("claim", ""))).strip().lower()
+        return (str(entry.get("agent_id", "")), int(entry.get("round", 0)), claim)
 
     def evidence_digest_packet(
         self,
@@ -147,7 +162,7 @@ class SharedContextController:
         if effective == "branch":
             branch = self.branch_agent_ids(agent_id)
             ledger = [entry for entry in ledger if str(entry.get("agent_id", "")) in branch]
-        entries = ledger[-_DIGEST_MAX_ENTRIES:]
+        entries = ledger
         if not entries:
             return None
 
@@ -237,39 +252,36 @@ class SharedContextController:
     def _apply_reader_bounds(
         self, packets: list[RelayPacket], policy: ContextPolicy
     ) -> list[RelayPacket]:
-        """summary_only compaction and per-reader max_packet_chars bounding.
+        """summary_only compaction and per-reader structural budgeting.
 
-        Returns compacted copies; the packets stored in state stay intact.
+        Returns compacted copies; the packets stored in state stay intact. Full
+        fidelity unless the reader's policy sets ``summary_only`` or a positive
+        ``max_packet_chars`` budget — there is no implicit truncation floor.
         """
 
-        if not policy.summary_only and int(policy.max_packet_chars) <= 0:
+        max_chars = max(0, int(policy.max_packet_chars))
+        if not policy.summary_only and max_chars <= 0:
             return packets
-        max_chars = (
-            int(policy.max_packet_chars)
-            if int(policy.max_packet_chars) > 0
-            else _DEFAULT_READER_CHARS
-        )
         bounded: list[RelayPacket] = []
         for packet in packets:
             compacted = dict(packet)
             payload = dict(packet.get("payload", {}) or {})
             if policy.summary_only:
-                summary = (
-                    packet_content(payload, max_chars=max_chars)
-                    if payload
-                    else _bounded_text(packet.get("content", ""), max_chars=max_chars)
+                summary_source = (
+                    payload.get("summary")
+                    or payload.get("answer_artifact")
+                    or packet.get("content", "")
                 )
+                summary = _sentence_bounded_text(summary_source, max_chars=max_chars)
                 compact_payload = {"artifact_id": payload.get("artifact_id"), "summary": summary}
                 if "confidence" in payload:
                     compact_payload["confidence"] = payload["confidence"]
                 compacted["payload"] = compact_payload
                 compacted["content"] = summary
             else:
-                for key in ("summary", "answer_artifact", "critique", "revision_request"):
-                    if payload.get(key):
-                        payload[key] = _bounded_text(payload[key], max_chars=max_chars)
-                compacted["payload"] = payload
-                compacted["content"] = _bounded_text(packet.get("content", ""), max_chars=max_chars)
+                compacted_payload = compact_packet_payload(payload, max_chars=max_chars)
+                compacted["payload"] = compacted_payload
+                compacted["content"] = packet_content(compacted_payload, max_chars=max_chars)
             bounded.append(compacted)
         return bounded
 

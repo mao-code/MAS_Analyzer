@@ -172,7 +172,7 @@ class SelfEvolvedConfig:
     audit_mode: str = "heuristic"
     playbook_path: str = "config/topology_playbook.json"
     playbook_read: bool = True
-    default_packet_max_chars: int = 320
+    default_packet_max_chars: int = 0  # 0 = full fidelity; optional generous structural budget
 
     def validate(self) -> None:
         if self.harness_backend not in {"openrouter", "claude_agent_sdk"}:
@@ -316,7 +316,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         audit_mode=str(self_evolved_raw.get("audit_mode", "heuristic")),
         playbook_path=str(self_evolved_raw.get("playbook_path", "config/topology_playbook.json")),
         playbook_read=bool(self_evolved_raw.get("playbook_read", True)),
-        default_packet_max_chars=int(self_evolved_raw.get("default_packet_max_chars", 320)),
+        default_packet_max_chars=int(self_evolved_raw.get("default_packet_max_chars", 0)),
     )
 
     models = {str(key): str(value) for key, value in models_raw.items()}

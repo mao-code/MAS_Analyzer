@@ -238,11 +238,14 @@ The stage stops with `consensus_reached` when:
 - `valid_count > 1`
 - `consensus_ratio >= 0.75`
 - the semantic judge marks the majority answer as substantive
+- the agreement is **decision-grade**: average confidence is `>= 0.5` and no agent still
+  lists unresolved issues — *or* no further step (another round / the single repair) is available
 
 Interpretation:
 
 - consensus here is semantic agreement as judged by the termination judge, not exact string identity
 - if the judge clusters 3 of 4 valid answers together, `consensus_ratio = 0.75`
+- the decision-grade gate mirrors the Trace Auditor's `premature_consensus` check, so the controller never stops on a uniformly low-confidence (or unresolved) agreement while a repair or another round could still improve it; when no step remains, agreement always stops the loop (no infinite loops). The `consensus_ratio` metric itself is unchanged, and the decision logs `consensus_gate_blocked` / `consensus_gate_reason`.
 - this consensus check is still a workflow-control heuristic, not the benchmark evaluator and not the final correctness decision
 
 Fallback behavior:
@@ -312,7 +315,7 @@ Important:
 The checks are applied in this order:
 
 1. `invalid_or_failed_branch`
-2. `consensus_reached`
+2. `consensus_reached` (only when the agreement is decision-grade — see Consensus above)
 3. `no_meaningful_change`
 4. `max_rounds_reached`
 
@@ -327,6 +330,7 @@ Each termination decision logs:
 - `consensus_mode`
 - `consensus_source`
 - `consensus_ratio`
+- `consensus_gate_blocked` / `consensus_gate_reason`
 - `consensus_groups`
 - `consensus_explanation`
 - `progress_source`
@@ -552,8 +556,11 @@ Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns 
    (e.g. expand a leaf into a star or debate group, change a group pattern, add an
    agent/edge). It is applied once, visibility is revalidated, and the new spec runs
    one more turn. Hard caps: `max_total_agents` and one mutation.
-7. **Finalize** — vote/synthesize a final answer from the root aggregator's output (or
-   members), then record a post-hoc playbook update candidate into `run_metadata`.
+7. **Finalize** — vote over the final candidates (deterministic or judge). Evidence-grounded
+   re-synthesis runs not only when the pick is empty/planning/blocked but also on a **weak pick**
+   (an unbroken vote tie, winner confidence `< 0.5`, or open unresolved issues), and is skipped
+   when no tool evidence exists — so confident, agreed answers are never disturbed. Then record a
+   post-hoc playbook update candidate into `run_metadata`.
 
 The resulting trace reads `plan → spawn → turn 0 → audit → (revise) → turn 1 → finalize`,
 with meta-agent tokens/cost on their own events so `C*` includes meta-control overhead.
@@ -580,7 +587,7 @@ max_turns = 2                    # one initial turn plus at most one repair
 audit_mode = "heuristic"         # or "llm_judge"
 playbook_path = "config/topology_playbook.json"
 playbook_read = true
-default_packet_max_chars = 320
+default_packet_max_chars = 0     # 0 = full fidelity; a positive value is a generous structural-compaction budget
 ```
 
 The expert-agent harness is switchable via `harness_backend`: `"openrouter"` (default,

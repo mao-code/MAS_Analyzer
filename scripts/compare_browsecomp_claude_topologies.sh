@@ -11,10 +11,19 @@ EXPERIMENT_ID="${EXPERIMENT_ID:-browsecomp_${HARNESS_BACKEND}_topology_compare_$
 OUT_ROOT="${OUT_ROOT:-artifacts/browsecomp_${HARNESS_BACKEND}_topology_compare}"
 CONFIG_PATH="${CONFIG_PATH:-config/browsecomp_claude_topology_compare.toml}"
 NO_DYNAMIC_ROLES="${NO_DYNAMIC_ROLES:-1}"
-ENABLE_TOOLS="${ENABLE_TOOLS:-false}"
+ENABLE_TOOLS="${ENABLE_TOOLS:-true}"
 FAST_MODE="${FAST_MODE:-1}"
+# Run independent systems concurrently (each system is its own main.py run writing
+# to its own output subdir). Keep the cap modest to respect Anthropic API rate limits.
+MAX_PARALLEL_SYSTEMS="${MAX_PARALLEL_SYSTEMS:-1}"
+STAGGER_SECONDS="${STAGGER_SECONDS:-8}"
+# BrowseComp retrieval-tool behavior. The Claude SDK harness runs its own tool
+# loop, so these are just the benchmark defaults (not tuned to match static).
+INCLUDE_GET_DOCUMENT="${INCLUDE_GET_DOCUMENT:-true}"
+TOOL_SNIPPET_MAX_TOKENS="${TOOL_SNIPPET_MAX_TOKENS:-512}"
+BROWSECOMP_MAX_TOOL_ITERATIONS="${BROWSECOMP_MAX_TOOL_ITERATIONS:-8}"
 CLAUDE_AGENT_SDK_EFFORT="${CLAUDE_AGENT_SDK_EFFORT:-low}"
-CLAUDE_AGENT_SDK_QUERY_TIMEOUT_S="${CLAUDE_AGENT_SDK_QUERY_TIMEOUT_S:-90}"
+CLAUDE_AGENT_SDK_QUERY_TIMEOUT_S="${CLAUDE_AGENT_SDK_QUERY_TIMEOUT_S:-900}"
 CLAUDE_AGENT_SDK_PERMISSION_MODE="${CLAUDE_AGENT_SDK_PERMISSION_MODE:-dontAsk}"
 CLAUDE_AGENT_SDK_THINKING="${CLAUDE_AGENT_SDK_THINKING:-disabled}"
 CLAUDE_AGENT_SDK_JSON_SCHEMA="${CLAUDE_AGENT_SDK_JSON_SCHEMA:-0}"
@@ -73,7 +82,7 @@ max_turns = 1
 discussion_rounds = 1
 termination_consensus_mode = "lexical"
 final_vote_mode = "deterministic"
-peer_artifact_max_chars = 320
+peer_artifact_max_chars = 4000
 
 [self_evolved]
 harness_backend = "$HARNESS_BACKEND"
@@ -83,7 +92,7 @@ max_turns = 2
 audit_mode = "heuristic"
 playbook_path = "config/topology_playbook.json"
 playbook_read = true
-default_packet_max_chars = 320
+default_packet_max_chars = 0
 
 [browsecomp]
 decrypted_path = "benchmark/browsecomp/data/browsecomp_plus_decrypted.jsonl"
@@ -93,9 +102,9 @@ auto_download = true
 eval_mode = "substring"
 enable_tools = $ENABLE_TOOLS
 tool_k = 5
-include_get_document = false
-tool_snippet_max_tokens = 160
-max_tool_iterations = 4
+include_get_document = $INCLUDE_GET_DOCUMENT
+tool_snippet_max_tokens = $TOOL_SNIPPET_MAX_TOKENS
+max_tool_iterations = $BROWSECOMP_MAX_TOOL_ITERATIONS
 TOML
 
 if [[ "$FAST_MODE" == "1" ]]; then
@@ -150,10 +159,11 @@ else
   fi
 fi
 
-for entry in "${SYSTEMS[@]}"; do
+run_one_system() {
+  local entry="$1"
+  local label topology agents rounds discussion comm
   IFS="|" read -r label topology agents rounds discussion comm <<<"$entry"
-  log_path="$OUT_ROOT/$EXPERIMENT_ID/logs/${label}.log"
-  args=(
+  local args=(
     python main.py run
     --config "$CONFIG_PATH"
     --benchmark browsecomp
@@ -173,11 +183,35 @@ for entry in "${SYSTEMS[@]}"; do
   if [[ "$NO_DYNAMIC_ROLES" == "1" ]]; then
     args+=(--no-dynamic-roles)
   fi
+  "${UV_RUN[@]}" "${args[@]}"
+}
 
+if [[ "$MAX_PARALLEL_SYSTEMS" -gt 1 ]]; then
   echo
-  echo "=== Running $label ==="
-  "${UV_RUN[@]}" "${args[@]}" 2>&1 | tee "$log_path"
-done
+  echo "Parallel mode: up to $MAX_PARALLEL_SYSTEMS systems concurrently (stagger ${STAGGER_SECONDS}s)."
+  running=0
+  for entry in "${SYSTEMS[@]}"; do
+    label="${entry%%|*}"
+    log_path="$OUT_ROOT/$EXPERIMENT_ID/logs/${label}.log"
+    echo "=== Launching $label -> $log_path ==="
+    run_one_system "$entry" >"$log_path" 2>&1 &
+    running=$((running + 1))
+    if [[ "$running" -ge "$MAX_PARALLEL_SYSTEMS" ]]; then
+      wait  # batch barrier (bash 3.2 compatible): drain current batch before launching more
+      running=0
+    fi
+    sleep "$STAGGER_SECONDS"
+  done
+  wait
+else
+  for entry in "${SYSTEMS[@]}"; do
+    label="${entry%%|*}"
+    log_path="$OUT_ROOT/$EXPERIMENT_ID/logs/${label}.log"
+    echo
+    echo "=== Running $label ==="
+    run_one_system "$entry" 2>&1 | tee "$log_path"
+  done
+fi
 
 uv run python scripts/summarize_browsecomp_topology_compare.py \
   --experiment-root "$OUT_ROOT/$EXPERIMENT_ID" \

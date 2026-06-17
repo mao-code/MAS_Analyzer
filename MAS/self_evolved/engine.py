@@ -24,6 +24,7 @@ from answer_utils import has_substantive_answer
 from ..artifacts import (
     ArtifactRecord,
     TerminationDecision,
+    artifacts_by_id,
     build_artifact,
     latest_artifact_by_agent,
 )
@@ -638,6 +639,7 @@ class SelfEvolvedEngine:
             state=state,
             final_answer=final_answer,
             selected_artifact_id=str(vote_result.get("selected_artifact_id", "")),
+            vote_result=vote_result,
         )
         if synthesis_artifact is not None:
             candidates = [synthesis_artifact]
@@ -672,8 +674,9 @@ class SelfEvolvedEngine:
         state: dict[str, Any],
         final_answer: str,
         selected_artifact_id: str,
+        vote_result: dict[str, Any],
     ) -> ArtifactRecord | None:
-        if not self._needs_final_synthesis(final_answer):
+        if not self._needs_final_synthesis(final_answer, vote_result=vote_result, state=state):
             return None
         evidence = self._collect_tool_evidence_for_synthesis(state)
         if not evidence:
@@ -827,7 +830,13 @@ class SelfEvolvedEngine:
         )
         return artifact
 
-    def _needs_final_synthesis(self, final_answer: str) -> bool:
+    def _needs_final_synthesis(
+        self,
+        final_answer: str,
+        *,
+        vote_result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> bool:
         text = str(final_answer or "").strip()
         if not text:
             return True
@@ -841,11 +850,30 @@ class SelfEvolvedEngine:
             "need to search",
             "search for the specific evidence",
         )
-        return (
+        if (
             not has_substantive_answer(text)
             or self._stage._answer_mode(text) in {"plan", "blocked", "empty"}
             or any(marker in lowered for marker in planning_markers)
-        )
+        ):
+            return True
+
+        # A substantive answer can still be a weak pick worth re-synthesizing
+        # from evidence: an unbroken vote tie, low winner confidence, or open
+        # issues on the selected artifact. Synthesis still no-ops when no tool
+        # evidence exists, so confident, agreed answers are never disturbed.
+        tally = vote_result.get("tally", {}) or {}
+        counts = sorted((int(value) for value in tally.values()), reverse=True)
+        if len(counts) >= 2 and counts[0] == counts[1]:
+            return True
+        selected_id = str(vote_result.get("selected_artifact_id", "") or "")
+        if selected_id:
+            selected = artifacts_by_id(list(state.get("artifacts", []))).get(selected_id)
+            if selected is not None:
+                if float(selected.get("confidence", 0.5)) < 0.5:
+                    return True
+                if selected.get("unresolved_issues"):
+                    return True
+        return False
 
     def _collect_tool_evidence_for_synthesis(self, state: dict[str, Any]) -> list[str]:
         evidence: list[str] = []
@@ -964,8 +992,11 @@ class SelfEvolvedEngine:
         role_assignment_payload: dict[str, Any],
         workflow_definition: dict[str, Any],
     ) -> dict[str, Any]:
+        # Full fidelity by default; an explicit peer_artifact_max_chars (or the
+        # optional self_evolved default_packet_max_chars knob) sets a generous
+        # structural-compaction budget rather than a blunt truncation floor.
         peer_artifact_max_chars = int(spec.peer_artifact_max_chars)
-        if peer_artifact_max_chars <= 0:
+        if peer_artifact_max_chars <= 0 and int(self.se_config.default_packet_max_chars) > 0:
             peer_artifact_max_chars = int(self.se_config.default_packet_max_chars)
         return {
             "task_id": str(getattr(task, "task_id", "task")),

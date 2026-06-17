@@ -81,6 +81,8 @@ class TerminationDecision(TypedDict, total=False):
     consensus_groups: list[list[int]]
     consensus_explanation: str
     consensus_is_substantive: bool | None
+    consensus_gate_blocked: bool
+    consensus_gate_reason: str
     progress_source: str
     progress_status: str | None
     expected_improvement: str | None
@@ -165,37 +167,102 @@ def build_artifact(
 def packet_payload_from_artifact(
     artifact: ArtifactRecord,
     *,
-    max_chars: int = 320,
+    max_chars: int = 0,
 ) -> dict[str, Any]:
-    """Create a bounded relay payload from a full artifact."""
+    """Create a relay payload from a full artifact.
 
-    bounded = max(32, int(max_chars))
-    return {
+    Full fidelity by default (``max_chars <= 0``). A positive budget triggers
+    structural compaction via :func:`compact_packet_payload` — dropping
+    low-priority fields and preferring the agent's own summary — rather than a
+    blunt mid-string truncation of every field.
+    """
+
+    payload = {
         "artifact_id": artifact.get("artifact_id"),
-        "summary": _bounded_text(artifact.get("summary", ""), max_chars=bounded),
-        "answer_artifact": _bounded_text(artifact.get("answer", ""), max_chars=bounded),
-        "critique": _bounded_text(artifact.get("critique", ""), max_chars=bounded),
-        "revision_request": _bounded_text(artifact.get("revision_request", ""), max_chars=bounded),
+        "summary": _bounded_text(artifact.get("summary", ""), max_chars=0),
+        "answer_artifact": _bounded_text(artifact.get("answer", ""), max_chars=0),
+        "critique": _bounded_text(artifact.get("critique", ""), max_chars=0),
+        "revision_request": _bounded_text(artifact.get("revision_request", ""), max_chars=0),
         "confidence": float(artifact.get("confidence", 0.5)),
-        "unresolved_issues": list(artifact.get("unresolved_issues", []))[:4],
-        "evidence_summary": list(artifact.get("evidence_summary", []))[:4],
+        "unresolved_issues": list(artifact.get("unresolved_issues", [])),
+        "evidence_summary": list(artifact.get("evidence_summary", [])),
     }
+    return compact_packet_payload(payload, max_chars=int(max_chars))
 
 
-def packet_content(payload: dict[str, Any], *, max_chars: int = 320) -> str:
-    """Render a compact single-string packet summary for logs and traces."""
+def packet_content(payload: dict[str, Any], *, max_chars: int = 0) -> str:
+    """Render a single-string packet summary for logs and traces.
 
-    bounded = max(32, int(max_chars))
-    summary = _bounded_text(payload.get("summary"), max_chars=bounded)
-    if summary:
-        return summary
-    answer = _bounded_text(payload.get("answer_artifact"), max_chars=bounded)
-    if answer:
-        return answer
-    revision = _bounded_text(payload.get("revision_request"), max_chars=bounded)
-    if revision:
-        return revision
+    Full text by default; a positive ``max_chars`` sentence-bounds the chosen
+    field (summary, else answer, else revision request) at a sentence/whitespace
+    boundary instead of a mid-token cut.
+    """
+
+    for key in ("summary", "answer_artifact", "revision_request"):
+        text = _bounded_text(payload.get(key), max_chars=0)
+        if text:
+            if int(max_chars) <= 0:
+                return text
+            return _sentence_bounded_text(text, max_chars=int(max_chars))
     return "No bounded content provided."
+
+
+_COMPACT_LIST_LIMIT = 4
+_COMPACT_TEXT_KEYS = ("summary", "answer_artifact", "critique", "revision_request")
+_COMPACT_LIST_KEYS = ("evidence_summary", "unresolved_issues")
+
+
+def compact_packet_payload(payload: dict[str, Any], *, max_chars: int) -> dict[str, Any]:
+    """Deterministically shrink a relay payload toward ``max_chars`` characters.
+
+    Full fidelity when ``max_chars <= 0``. Over budget, reduce *structurally*
+    rather than chopping the answer mid-token: drop ``revision_request``, then
+    ``critique``; then drop the long ``answer_artifact`` when a ``summary``
+    exists; then trim the evidence/issue lists; and only as a last resort
+    sentence-bound the remaining primary text field at a sentence/whitespace
+    boundary. The model's answer is never cut mid-token — the whole field is
+    dropped in favor of the agent's own summary instead.
+    """
+
+    compacted = dict(payload)
+    if int(max_chars) <= 0:
+        return compacted
+    budget = int(max_chars)
+
+    def field_len(value: Any) -> int:
+        if isinstance(value, list):
+            return sum(len(str(item)) for item in value)
+        return len(str(value or ""))
+
+    def total() -> int:
+        return sum(
+            field_len(compacted.get(key)) for key in (*_COMPACT_TEXT_KEYS, *_COMPACT_LIST_KEYS)
+        )
+
+    # 1. Drop low-priority free-text fields first.
+    for key in ("revision_request", "critique"):
+        if total() <= budget:
+            return compacted
+        if compacted.get(key):
+            compacted[key] = ""
+
+    # 2. Prefer the agent's own summary over the long answer.
+    if total() > budget and compacted.get("summary") and compacted.get("answer_artifact"):
+        compacted["answer_artifact"] = ""
+
+    # 3. Trim evidence / unresolved lists.
+    if total() > budget:
+        for key in _COMPACT_LIST_KEYS:
+            if compacted.get(key):
+                compacted[key] = list(compacted[key])[:_COMPACT_LIST_LIMIT]
+
+    # 4. Last resort: sentence-bound the remaining primary text field.
+    if total() > budget:
+        for key in ("summary", "answer_artifact"):
+            if compacted.get(key):
+                compacted[key] = _sentence_bounded_text(compacted[key], max_chars=budget)
+                break
+    return compacted
 
 
 def answer_signature(text: str) -> str:
@@ -407,3 +474,23 @@ def _bounded_text(value: Any, *, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
     return text[: max(0, max_chars - 3)].rstrip() + "..."
+
+
+def _sentence_bounded_text(value: Any, *, max_chars: int) -> str:
+    """Boundary-aware truncation: cut at the last sentence terminator or
+    whitespace before ``max_chars`` (never mid-token) and append an ellipsis.
+    ``max_chars <= 0`` returns the whitespace-normalized text unchanged."""
+
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    budget = max(1, max_chars - 3)
+    window = text[:budget]
+    cut = max(window.rfind("."), window.rfind("!"), window.rfind("?"))
+    if cut >= budget // 2:
+        cut += 1  # keep the sentence terminator
+    else:
+        space = window.rfind(" ")
+        cut = space if space > 0 else budget
+    snippet = text[:cut].rstrip()
+    return (snippet + "...") if snippet else window.rstrip() + "..."

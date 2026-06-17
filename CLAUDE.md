@@ -109,12 +109,16 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
 
 - **Prompt instruction priority** (enforced in the engine): structural stage contract → tool-use
   contract → task/benchmark instructions → domain persona. Personas never override stage behavior.
-- Agents pass **bounded relay packets** derived from structured artifacts, never raw chat transcripts.
+- Agents pass **compacted relay packets** derived from structured artifacts, never raw chat
+  transcripts (full fidelity by default; a positive budget triggers structural compaction —
+  drop low-priority fields, prefer the agent's own summary — never a blunt mid-string truncation).
   Visibility is controlled in code via `message_selector(...)`, not left to prompts.
 - Tool-enabled answer stages must call tools when evidence is weak; the runtime never fabricates tool
   calls after the fact. Blocked/planning/no-evidence outputs are non-substantive for voting/termination.
 - Agents never decide when a loop stops — controller nodes do, via the ordered checks
-  `invalid_or_failed_branch → consensus_reached → no_meaningful_change → max_rounds_reached`.
+  `invalid_or_failed_branch → consensus_reached → no_meaningful_change → max_rounds_reached`
+  (`consensus_reached` fires only when the agreement is decision-grade — avg confidence ≥ 0.5 and
+  no open unresolved issues — unless no repair/round remains).
 
 ## Artifact layout
 

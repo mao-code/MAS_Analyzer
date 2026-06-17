@@ -3078,6 +3078,8 @@ class LangGraphMASEngine:
             "consensus_groups": [],
             "consensus_explanation": "",
             "consensus_is_substantive": None,
+            "consensus_gate_blocked": False,
+            "consensus_gate_reason": "",
             "consensus_ratio": 0.0,
             "progress_source": "uncomputed",
             "progress_status": None,
@@ -3114,6 +3116,30 @@ class LangGraphMASEngine:
         avg_conf = average_confidence(candidate_artifacts or consensus_artifacts)
         mean_delta = compute_mean_delta(previous_candidate_artifacts, candidate_artifacts)
 
+        assessment_source = str(assessment.get("source", "lexical"))
+        consensus_is_substantive = assessment.get("is_substantive")
+        consensus_supported = assessment_source != "llm_judge" or consensus_is_substantive is True
+
+        # Consensus stopping-gate: high lexical/semantic agreement only stops the
+        # loop when it is decision-grade. Mirrors the Trace Auditor's
+        # premature_consensus predicate so the controller and auditor never
+        # disagree; the consensus_ratio metric itself is left untouched.
+        consensus_pool = consensus_artifacts or candidate_artifacts
+        consensus_quorum = (
+            int(assessment.get("valid_count", 0)) > 1
+            and float(assessment.get("ratio", 0.0)) >= 0.75
+            and consensus_supported
+        )
+        consensus_decision_grade = self._consensus_is_decision_grade(
+            consensus_pool, repair_available=not max_reached
+        )
+        consensus_gate_blocked = bool(consensus_quorum and not consensus_decision_grade)
+        consensus_gate_reason = (
+            self._consensus_gate_reason(consensus_pool, float(assessment.get("ratio", 0.0)))
+            if consensus_gate_blocked
+            else ""
+        )
+
         decision_common: TerminationDecision = {
             **base_decision,
             "consensus_mode": str(assessment.get("mode", base_decision["consensus_mode"])),
@@ -3128,6 +3154,8 @@ class LangGraphMASEngine:
             ],
             "consensus_explanation": str(assessment.get("explanation", "")),
             "consensus_is_substantive": assessment.get("is_substantive"),
+            "consensus_gate_blocked": consensus_gate_blocked,
+            "consensus_gate_reason": consensus_gate_reason,
             "consensus_ratio": float(assessment.get("ratio", 0.0)),
             "progress_source": str(assessment.get("progress_source", assessment.get("source", "lexical"))),
             "progress_status": assessment.get("progress_status"),
@@ -3143,10 +3171,6 @@ class LangGraphMASEngine:
             "control_cost_usd": float(assessment.get("cost_usd", 0.0)),
             "control_latency_ms": float(assessment.get("latency_ms", 1.0)),
         }
-
-        assessment_source = str(assessment.get("source", "lexical"))
-        consensus_is_substantive = assessment.get("is_substantive")
-        consensus_supported = assessment_source != "llm_judge" or consensus_is_substantive is True
 
         min_rounds = (
             int(state.get("minimum_discussion_rounds", 1))
@@ -3168,17 +3192,16 @@ class LangGraphMASEngine:
                 ),
             }
 
-        if int(assessment.get("valid_count", 0)) > 1 and float(assessment.get("ratio", 0.0)) >= 0.75:
-            if consensus_supported:
-                return {
-                    **decision_common,
-                    "should_stop": True,
-                    "next_step": stop_next_step,
-                    "reason": "consensus_reached",
-                    "reason_detail": (
-                        f"Consensus ratio {float(assessment['ratio']):.2f} met the 0.75 threshold."
-                    ),
-                }
+        if consensus_quorum and consensus_decision_grade:
+            return {
+                **decision_common,
+                "should_stop": True,
+                "next_step": stop_next_step,
+                "reason": "consensus_reached",
+                "reason_detail": (
+                    f"Consensus ratio {float(assessment['ratio']):.2f} met the 0.75 threshold."
+                ),
+            }
 
         if mean_delta is not None:
             if assessment_source == "llm_judge":
@@ -3221,6 +3244,35 @@ class LangGraphMASEngine:
             "reason": "continue",
             "reason_detail": "No explicit stop condition fired; proceed to the next routed stage.",
         }
+
+    @staticmethod
+    def _consensus_is_decision_grade(
+        artifacts: list[ArtifactRecord], *, repair_available: bool
+    ) -> bool:
+        """Whether high answer agreement should actually stop the loop.
+
+        Mirrors the Trace Auditor's ``premature_consensus`` predicate: agreement
+        is *not* decision-grade when average confidence is below 0.5 or unresolved
+        issues remain — but only while a further step (another round or the single
+        repair) is still available. With no step left, agreement always stops the
+        loop so a weak-but-stalled turn cannot spin forever.
+        """
+
+        if not repair_available:
+            return True
+        weak = average_confidence(artifacts) < 0.5 or any(
+            artifact.get("unresolved_issues") for artifact in artifacts
+        )
+        return not weak
+
+    @staticmethod
+    def _consensus_gate_reason(artifacts: list[ArtifactRecord], ratio: float) -> str:
+        unresolved = any(artifact.get("unresolved_issues") for artifact in artifacts)
+        return (
+            f"Agreement ratio {ratio:.2f} held but consensus is not decision-grade "
+            f"(avg confidence {average_confidence(artifacts):.2f}; "
+            f"{'open' if unresolved else 'no'} unresolved issues) while a repair/round remains."
+        )
 
     def _compute_termination_assessment(
         self,

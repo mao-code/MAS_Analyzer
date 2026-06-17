@@ -241,7 +241,7 @@ class TestEvidenceLedger(unittest.TestCase):
         self.assertIsNotNone(digest)
         self.assertIn("agent_5[r0]", digest["content"])
 
-    def test_digest_is_bounded(self) -> None:
+    def test_digest_retains_full_entries_and_dedupes(self) -> None:
         controller = SharedContextController(_nested_spec())
         state: dict[str, Any] = {"round_index": 0}
         for index in range(15):
@@ -250,12 +250,20 @@ class TestEvidenceLedger(unittest.TestCase):
                 _artifact("agent_3", answer=f"claim {index} " + "z" * 1000),
                 agent_id="agent_3",
             )
+        # An identical (agent, round, claim) is deduplicated rather than appended.
+        controller.record_evidence(
+            state,
+            _artifact("agent_3", answer="claim 0 " + "z" * 1000),
+            agent_id="agent_3",
+        )
         digest = controller.evidence_digest_packet(state, agent_id="agent_0", scope="global")
         entries = digest["payload"]["entries"]
-        self.assertEqual(len(entries), 12)
+        # All 15 distinct claims are retained at full fidelity: no hard entry cap
+        # and no mid-string truncation; the duplicate is dropped.
+        self.assertEqual(len(entries), 15)
         for entry in entries:
-            self.assertLessEqual(len(entry["claim"]), 160)
-            self.assertTrue(entry["claim"].endswith("..."))
+            self.assertGreater(len(entry["claim"]), 160)
+            self.assertFalse(entry["claim"].endswith("..."))
 
     def test_empty_or_unsubstantive_artifacts_not_recorded(self) -> None:
         controller = SharedContextController(_nested_spec())

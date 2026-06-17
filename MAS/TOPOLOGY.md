@@ -26,7 +26,7 @@ Each agent step produces a structured artifact with fields such as:
 - `unresolved_issues`
 - `evidence_summary`
 
-When one stage sends information to another stage, it sends a bounded relay packet derived from that artifact, not the full transcript.
+When one stage sends information to another stage, it sends a compacted relay packet derived from that artifact, not the full transcript. Packets are full fidelity by default; a positive budget triggers *structural* compaction (drop low-priority fields, prefer the agent's own summary) rather than a blunt mid-string truncation.
 
 ### 2. Message visibility is explicit
 
@@ -75,6 +75,8 @@ Fallbacks:
 
 - if `termination_consensus_mode = "lexical"`, normalized string matching is used
 - if `llm_judge` is configured but unavailable or unparsable, the controller falls back to lexical consensus
+
+A high `consensus_ratio` only stops the loop when the agreement is **decision-grade** — average confidence `>= 0.5` and no open unresolved issues — while a further step (another round or the single repair) remains. This mirrors the Trace Auditor's `premature_consensus` check; the `consensus_ratio` metric itself is unchanged, and the decision logs `consensus_gate_blocked` / `consensus_gate_reason`.
 
 ### 5a. Unified semantic termination judge
 
@@ -444,7 +446,7 @@ It does not see:
 Then it checks, in order:
 
 1. too few valid artifacts survived
-2. consensus ratio `>= 0.75` and the semantic judge says the answer is substantive
+2. consensus ratio `>= 0.75`, the semantic judge says the answer is substantive, and the agreement is decision-grade (avg confidence `>= 0.5`, no open issues) unless no further step remains
 3. semantic no-progress on another round, or lexical delta `<= 0.05` in fallback mode
 4. max rounds reached
 

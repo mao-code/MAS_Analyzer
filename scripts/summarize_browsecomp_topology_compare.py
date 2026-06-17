@@ -147,14 +147,20 @@ def _detect_harness_backend(experiment_root: Path) -> str:
     return "unknown"
 
 
-def build_report(experiment_root: Path) -> str:
-    benchmark_root = experiment_root / "browsecomp"
-    harness_backend = _detect_harness_backend(experiment_root)
+def collect_metrics(benchmark_root: Path) -> list[dict[str, Any]]:
     metrics = []
     for system in SYSTEM_ORDER:
         root = benchmark_root / system
         if root.exists():
             metrics.append(_system_metrics(root))
+    return metrics
+
+
+def build_report(experiment_root: Path) -> str:
+    benchmark_root = experiment_root / "browsecomp"
+    harness_backend = _detect_harness_backend(experiment_root)
+    metrics = collect_metrics(benchmark_root)
+    sample_count = max((item["task_count"] for item in metrics), default=0)
 
     by_system = {item["system"]: item for item in metrics}
     self_metrics = by_system.get("self_evolved")
@@ -166,7 +172,7 @@ def build_report(experiment_root: Path) -> str:
         "",
         f"- Experiment root: `{experiment_root}`",
         "- Benchmark: `browsecomp`",
-        "- Samples: 3 by default unless the run config says otherwise",
+        f"- Samples: {sample_count} tasks per system",
         f"- Harness backend: `{harness_backend}`",
         "- Evaluation: substring smoke-test mode",
         "- Final vote / termination: deterministic or lexical to avoid extra judge calls",
@@ -204,8 +210,8 @@ def build_report(experiment_root: Path) -> str:
             f"(delta `{_fmt(delta)}`)."
         )
         lines.append(
-            "- Treat this as a smoke-test signal, not a benchmark claim: only three samples "
-            "and substring evaluation are used."
+            f"- Treat this as a smoke-test signal, not a benchmark claim: only {sample_count} "
+            "samples per system and substring evaluation are used."
         )
     else:
         lines.append("- Comparison incomplete: missing self-evolved or static summary.")
@@ -256,10 +262,122 @@ def build_report(experiment_root: Path) -> str:
     return "\n".join(lines)
 
 
+def _family(system: str) -> str:
+    if system == "self_evolved":
+        return "self_evolved"
+    if system == "sas":
+        return "sas"
+    return "static"
+
+
+def write_figures(experiment_root: Path, metrics: list[dict[str, Any]]) -> list[Path]:
+    """Emit comparison figures across systems. All systems share one model here,
+    so color encodes the system family (SAS / static MAS / self-evolved)."""
+    metrics = [m for m in metrics if m.get("task_count")]
+    if not metrics:
+        return []
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+
+    figures_dir = experiment_root / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    color_by_family = {"sas": "#7FC9A6", "static": "#4C78A8", "self_evolved": "#E4801E"}
+    label_by_family = {
+        "sas": "SAS baseline",
+        "static": "Static MAS",
+        "self_evolved": "Self-evolved",
+    }
+    systems = [m["system"] for m in metrics]
+    fams = [_family(s) for s in systems]
+    colors = [color_by_family[f] for f in fams]
+    x = list(range(len(systems)))
+    legend_handles = [
+        Patch(facecolor=color_by_family[f], label=label_by_family[f])
+        for f in ["sas", "static", "self_evolved"]
+        if f in fams
+    ]
+    written: list[Path] = []
+
+    def _save(fig, fname: str) -> None:
+        for ext in ("png", "pdf"):
+            path = figures_dir / f"{fname}.{ext}"
+            fig.savefig(path, dpi=150)
+            written.append(path)
+        plt.close(fig)
+
+    def _bar(metric_key: str, title: str, ylabel: str, fname: str, pct: bool = False) -> None:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        vals = [m[metric_key] * (100 if pct else 1) for m in metrics]
+        ax.bar(x, vals, color=colors)
+        ax.set_xticks(x)
+        ax.set_xticklabels(systems, rotation=30, ha="right")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        for xi, v in zip(x, vals):
+            ax.text(xi, v, f"{v:.0f}%" if pct else f"{v:.0f}", ha="center", va="bottom", fontsize=8)
+        ax.legend(handles=legend_handles, loc="best", fontsize=8)
+        fig.tight_layout()
+        _save(fig, fname)
+
+    _bar(
+        "success_rate",
+        "BrowseComp success rate by system (Claude SDK harness)",
+        "Success rate (%)",
+        "success_rate_by_system",
+        pct=True,
+    )
+    _bar(
+        "tool_calls_total",
+        "Avg tool calls per task by system (Claude SDK harness)",
+        "Avg tool calls",
+        "tool_calls_by_system",
+    )
+    _bar(
+        "tokens_total",
+        "Avg tokens per task by system (Claude SDK harness)",
+        "Avg tokens",
+        "tokens_by_system",
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    for m, c in zip(metrics, colors):
+        ax.scatter(
+            m["tokens_total"],
+            m["success_rate"] * 100,
+            color=c,
+            s=90,
+            edgecolor="black",
+            linewidth=0.5,
+            zorder=3,
+        )
+        ax.annotate(
+            m["system"],
+            (m["tokens_total"], m["success_rate"] * 100),
+            fontsize=7,
+            xytext=(4, 4),
+            textcoords="offset points",
+        )
+    ax.set_xlabel("Avg tokens per task (cost proxy)")
+    ax.set_ylabel("Success rate (%)")
+    ax.set_title("Quality vs cost by system (Claude SDK harness)")
+    ax.legend(handles=legend_handles, loc="best", fontsize=8)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    _save(fig, "quality_cost_plane")
+
+    return written
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment-root", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--no-figures", action="store_true", help="Skip figure generation.")
     args = parser.parse_args()
 
     experiment_root = Path(args.experiment_root).expanduser().resolve()
@@ -267,6 +385,10 @@ def main() -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(build_report(experiment_root), encoding="utf-8")
     print(output)
+    if not args.no_figures:
+        figures = write_figures(experiment_root, collect_metrics(experiment_root / "browsecomp"))
+        for path in figures:
+            print(path)
     return 0
 
 
