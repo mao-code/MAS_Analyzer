@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Any
+
+from benchmark.base import BenchmarkTask
+
+from .adapters import ScoreCallback, TemplateBenchmarkAdapter
+from .executor import MASSCandidateExecutor, ModelCallback
+from .interfaces import BenchmarkExample
+from .models import CandidateEvaluation, ExampleExecution, MASSCandidate
+
+
+@dataclass
+class ExistingBenchmarkMASSAdapter(TemplateBenchmarkAdapter):
+    """Adapter that lets MASS reproduction run against existing repo benchmarks."""
+
+    benchmark: Any = None
+    tasks: Sequence[BenchmarkTask] = field(default_factory=list)
+
+    def __init__(
+        self,
+        *,
+        benchmark: Any,
+        tasks: Sequence[BenchmarkTask],
+        executor: MASSCandidateExecutor | None = None,
+        model_callback: ModelCallback | None = None,
+        score_callback: ScoreCallback | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.benchmark = benchmark
+        self.tasks = list(tasks)
+        self._task_by_id = {str(task.task_id): task for task in self.tasks}
+        resolved_executor = executor or MASSCandidateExecutor(
+            model_callback=model_callback or MASSCandidateExecutor().model_callback
+        )
+        super().__init__(
+            examples=[self._task_to_example(task) for task in self.tasks],
+            executor=resolved_executor,
+            score_callback=score_callback or self._score_existing_benchmark,
+            metadata=metadata or {},
+        )
+
+    def evaluate_candidate(
+        self,
+        candidate: MASSCandidate,
+        examples: Sequence[BenchmarkExample],
+    ) -> CandidateEvaluation:
+        evaluation = super().evaluate_candidate(candidate, examples)
+        details = dict(evaluation.details)
+        details["benchmark_scores"] = list(details.get("scores", []))
+        details["candidate"] = {
+            "stage": candidate.stage,
+            "workflow": candidate.workflow.to_payload(),
+            "prompt_blocks": sorted(candidate.prompts.keys()),
+        }
+        return CandidateEvaluation(score=evaluation.score, details=details)
+
+    def _task_to_example(self, task: BenchmarkTask) -> BenchmarkExample:
+        return BenchmarkExample(
+            example_id=str(task.task_id),
+            prompt=task.prompt,
+            reference_answer=task.reference_answer,
+            metadata=dict(task.metadata or {}),
+        )
+
+    def _score_existing_benchmark(
+        self,
+        execution: ExampleExecution,
+        example: BenchmarkExample,
+    ) -> float:
+        task = self._task_by_id[str(example.example_id)]
+        evaluation = self.benchmark.evaluate(
+            task,
+            execution.final_answer,
+            run_metadata={
+                "mass_reproduce": True,
+                "workflow": execution.workflow.to_payload(),
+                "execution": {
+                    "turn_count": len(execution.turns),
+                    "metadata": execution.metadata,
+                },
+            },
+        )
+        return float(evaluation.score)
