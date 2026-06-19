@@ -44,6 +44,15 @@ class _HardTimeoutExpired(RuntimeError):
     """Raised when an LLM request exceeds the configured wall-clock timeout."""
 
 
+class _EmptyCompletionError(RuntimeError):
+    """Raised when the provider returns a 200 response with no usable choice.
+
+    Distinguishes an *infrastructure* failure (provider returned nothing) from a
+    model *choice* (the model deliberately produced an empty/blocked answer). The
+    former is retryable across providers; the latter is recorded, not retried.
+    """
+
+
 class OpenRouterLLMClient:
     """OpenRouter chat client with deterministic local fallback."""
 
@@ -281,6 +290,7 @@ class OpenRouterLLMClient:
                     metadata={
                         "provider": "openrouter",
                         "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+                        "generation_status": "answered" if text.strip() else "failed",
                     },
                 )
                 elapsed_s = max(time.perf_counter() - started, 0.0)
@@ -384,6 +394,13 @@ class OpenRouterLLMClient:
             1,
             self._env_int("MAS_SEARCH_TOOL_FAILURE_CIRCUIT_BREAKER") or 2,
         )
+        # Read-gate: in benchmarks that expose a get_document tool, an agent that
+        # searches but never opens a document and then gives up with a blocked /
+        # "insufficient evidence" answer is the search-without-reading failure mode.
+        # When that happens we nudge it to read the top hit instead of bailing out.
+        # Inert for benchmarks without get_document (and for mock mode).
+        get_document_available = "get_document" in set(original_tool_names.values())
+        read_gate_nudged = False
 
         for iteration_index in range(max(1, int(max_tool_iterations))):
             working_messages, latest_context_stats = self._build_tool_loop_messages(
@@ -448,7 +465,16 @@ class OpenRouterLLMClient:
             choice = completion.choices[0] if getattr(completion, "choices", None) else None
             message = getattr(choice, "message", None)
             if message is None:
-                final_text = ""
+                # Empty completion survived all provider retries. Don't silently
+                # emit an empty artifact: flag it so the force-final recovery
+                # below runs and the result is recorded as a typed failure.
+                stopped_early = True
+                stop_reason = "empty_completion"
+                self._log(
+                    "TOOL_LOOP_STOP "
+                    f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                    f"agent_id={agent_id} reason=empty_completion iteration={iteration_index + 1}"
+                )
                 break
 
             message_content = getattr(message, "content", "")
@@ -502,6 +528,29 @@ class OpenRouterLLMClient:
             )
 
             if not serialized_tool_calls:
+                if (
+                    get_document_available
+                    and not read_gate_nudged
+                    and self._looks_evidence_blocked(assistant_text)
+                    and any(
+                        self._is_search_tool_name(str(rec.get("tool_name", "")))
+                        for rec in tool_call_records
+                    )
+                    and not self._records_have_successful_read(tool_call_records)
+                ):
+                    read_gate_nudged = True
+                    final_text = ""
+                    current_turn.tool_messages.append(
+                        {"role": "user", "content": self._READ_GATE_NUDGE}
+                    )
+                    tool_turns.append(current_turn)
+                    self._log(
+                        "READ_GATE "
+                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                        f"agent_id={agent_id} iteration={iteration_index + 1} "
+                        "reason=blocked_finalize_without_read"
+                    )
+                    continue
                 tool_turns.append(current_turn)
                 break
 
@@ -671,32 +720,53 @@ class OpenRouterLLMClient:
                     search_fingerprint
                     and consecutive_stagnant_search_iterations >= stagnation_threshold
                 ):
-                    self._log(
-                        "TOOL_LOOP_STOP "
-                        f"request_id={request_id} task_id={task_id} run_index={run_index} "
-                        f"agent_id={agent_id} reason=search_results_stagnated "
-                        f"consecutive={consecutive_stagnant_search_iterations} "
-                        f"fingerprint_size={len(search_fingerprint)}"
-                    )
-                    stop_reason = (
-                        "search_results_stagnated:"
-                        f"consecutive={consecutive_stagnant_search_iterations}"
-                    )
-                    current_turn.tool_messages.append(
-                        {
-                            "role": "user",
-                            "content": (
-                                "Recent search iterations are stagnating: consecutive search calls are "
-                                "returning substantially overlapping documents without meaningful new evidence. "
-                                "Stop searching now. Based only on the evidence already gathered, provide "
-                                "your best final answer. If the evidence is insufficient, explicitly return "
-                                "a concise insufficient-evidence or blocked-status answer instead of making "
-                                "more paraphrase searches."
-                            ),
-                        }
-                    )
-                    final_text = ""
-                    stopped_early = True
+                    if (
+                        get_document_available
+                        and not read_gate_nudged
+                        and not self._records_have_successful_read(tool_call_records)
+                    ):
+                        # Searches have stagnated but no document was ever opened.
+                        # Redirect to reading the top hit instead of bailing out with
+                        # a blocked answer — that is the real evidence the agent needs.
+                        read_gate_nudged = True
+                        consecutive_stagnant_search_iterations = 0
+                        previous_search_fingerprint = None
+                        current_turn.tool_messages.append(
+                            {"role": "user", "content": self._READ_GATE_NUDGE}
+                        )
+                        self._log(
+                            "READ_GATE "
+                            f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                            f"agent_id={agent_id} iteration={iteration_index + 1} "
+                            "reason=stagnation_without_read"
+                        )
+                    else:
+                        self._log(
+                            "TOOL_LOOP_STOP "
+                            f"request_id={request_id} task_id={task_id} run_index={run_index} "
+                            f"agent_id={agent_id} reason=search_results_stagnated "
+                            f"consecutive={consecutive_stagnant_search_iterations} "
+                            f"fingerprint_size={len(search_fingerprint)}"
+                        )
+                        stop_reason = (
+                            "search_results_stagnated:"
+                            f"consecutive={consecutive_stagnant_search_iterations}"
+                        )
+                        current_turn.tool_messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    "Recent search iterations are stagnating: consecutive search calls are "
+                                    "returning substantially overlapping documents without meaningful new evidence. "
+                                    "Stop searching now. Based only on the evidence already gathered, provide "
+                                    "your best final answer. If the evidence is insufficient, explicitly return "
+                                    "a concise insufficient-evidence or blocked-status answer instead of making "
+                                    "more paraphrase searches."
+                                ),
+                            }
+                        )
+                        final_text = ""
+                        stopped_early = True
 
             tool_turns.append(current_turn)
             if stopped_early:
@@ -792,12 +862,23 @@ class OpenRouterLLMClient:
                 if metadata["tool_failure_is_search"]:
                     metadata["fatal_tool_failure"] = True
                     metadata["failure_category"] = "tool_failure"
+            elif stop_reason == "empty_completion":
+                metadata["tool_loop_stopped_reason"] = (
+                    "Provider returned an empty completion (no usable choice) after retries."
+                )
+                metadata["empty_completion"] = True
+                metadata["failure_category"] = "empty_completion"
             else:
                 metadata["tool_loop_stopped_reason"] = (
                     f"Reached max_tool_iterations={max(1, int(max_tool_iterations))}"
                 )
             if final_text:
                 metadata["tool_loop_forced_final_answer"] = True
+
+        # Single typed post-condition: every result carries an explicit
+        # generation_status so an infrastructure failure (provider returned
+        # nothing) is never indistinguishable from a deliberate empty answer.
+        metadata["generation_status"] = "answered" if final_text.strip() else "failed"
 
         return LLMResult(
             text=final_text,
@@ -1050,7 +1131,16 @@ class OpenRouterLLMClient:
 
             snippet = output.get("snippet")
             if snippet:
-                compact["snippet_preview"] = self._preview_text(snippet, limit=preview_chars)
+                # A search hit's snippet is the only evidence the calling agent gets
+                # from that hit (full document text is fetched separately via
+                # get_document). Give it a much larger budget than generic preview
+                # fields so the agent that ran the search is not starved of its own
+                # retrieval evidence and forced to re-search instead of reading.
+                snippet_chars = max(
+                    preview_chars,
+                    self._env_int("MAS_TOOL_CONTEXT_SNIPPET_CHARS") or 1200,
+                )
+                compact["snippet_preview"] = self._preview_text(snippet, limit=snippet_chars)
 
             text = output.get("text")
             if text:
@@ -1244,6 +1334,38 @@ class OpenRouterLLMClient:
         lowered = str(tool_name or "").lower()
         return "search" in lowered or "tavily" in lowered or "serp" in lowered
 
+    _READ_GATE_NUDGE = (
+        "You have run searches and found candidate documents, but you have not opened any of "
+        "them with get_document. Before concluding, call get_document on the single most "
+        "relevant docid from your search results to read its full text. Do not answer "
+        "'insufficient evidence' or return a blocked status until you have read at least one "
+        "full document."
+    )
+
+    _READ_GATE_BLOCKED_MARKERS = (
+        "insufficient evidence",
+        "insufficient information",
+        "no evidence",
+        "not enough information",
+        "cannot determine",
+        "unable to determine",
+        "blocked",
+    )
+
+    @staticmethod
+    def _looks_evidence_blocked(text: str) -> bool:
+        lowered = str(text or "").lower()
+        return any(
+            marker in lowered for marker in OpenRouterLLMClient._READ_GATE_BLOCKED_MARKERS
+        )
+
+    @staticmethod
+    def _records_have_successful_read(records: list[dict[str, Any]]) -> bool:
+        return any(
+            str(rec.get("tool_name")) == "get_document" and rec.get("status") == "completed"
+            for rec in records
+        )
+
     @staticmethod
     def _parse_stop_reason_details(stop_reason: str | None) -> dict[str, str]:
         if not stop_reason or ":" not in stop_reason:
@@ -1379,7 +1501,34 @@ class OpenRouterLLMClient:
                 retry_index=attempt_index,
             )
             try:
-                return self._create_chat_completion_once(**request_kwargs)
+                completion = self._create_chat_completion_once(**request_kwargs)
+                if self._completion_has_usable_choice(completion):
+                    return completion
+                # Provider returned a 200 with no usable choice. On the final
+                # attempt, hand the empty completion back so the caller records a
+                # typed failure; otherwise retry — routing overrides rotate the
+                # provider per attempt, so a different upstream often succeeds.
+                if attempt_index >= attempts - 1:
+                    self._log(
+                        "EMPTY_COMPLETION "
+                        f"model={request_kwargs.get('model', '')} "
+                        f"attempt={attempt_index + 1}/{attempts} returning_empty_after_retries"
+                    )
+                    return completion
+                raise _EmptyCompletionError("provider returned an empty completion")
+            except _EmptyCompletionError:
+                delay_s = min(max_backoff_s, backoff_s * (2 ** attempt_index))
+                jitter_factor = random.uniform(0.75, 1.35) if delay_s else 0.0
+                sleep_s = delay_s * jitter_factor if delay_s else 0.0
+                self._log(
+                    "RETRY "
+                    f"model={request_kwargs.get('model', '')} "
+                    f"attempt={attempt_index + 1}/{attempts} delay_s={sleep_s:.2f} "
+                    f"fallback_models={len(self._fallback_models_for_request(str(request_kwargs.get('model', ''))))} "
+                    "reason=empty_completion"
+                )
+                if sleep_s:
+                    time.sleep(sleep_s)
             except _HardTimeoutExpired as exc:
                 if attempt_index >= min(attempts, timeout_attempts) - 1:
                     raise
@@ -1540,6 +1689,34 @@ class OpenRouterLLMClient:
             suffix += 1
         used_names.add(candidate)
         return candidate
+
+    @staticmethod
+    def _completion_has_usable_choice(completion: Any) -> bool:
+        """True if the completion carries a usable assistant turn.
+
+        A tool-call turn legitimately has empty ``content``, so it counts as
+        usable. "Unusable" means no choices, no message, or a message with
+        neither text content nor tool calls — i.e. the provider gave us nothing
+        to act on (an infrastructure failure, not a deliberate empty answer).
+        """
+
+        choices = getattr(completion, "choices", None)
+        if not choices:
+            return False
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            return False
+        if getattr(message, "tool_calls", None):
+            return True
+        content = getattr(message, "content", "")
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
+                if isinstance(text, str):
+                    parts.append(text)
+            content = " ".join(parts)
+        return bool(str(content or "").strip())
 
     @staticmethod
     def _extract_text(completion: Any) -> str:

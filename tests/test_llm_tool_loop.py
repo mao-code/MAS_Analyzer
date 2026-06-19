@@ -129,6 +129,47 @@ class _StagnatingClient:
         self.chat = SimpleNamespace(completions=_StagnatingCompletions())
 
 
+class _ReadGateCompletions:
+    """Searches stagnate without ever reading; once the read-gate nudges, it opens a
+    document via get_document and only then produces a real answer."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.search_count = 0
+        self.read_count = 0
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if "tools" not in kwargs:
+            return _make_completion(content="FINAL ANSWER: forced", prompt_tokens=5, completion_tokens=4)
+        joined = "\n".join(str(m.get("content", "")) for m in kwargs.get("messages", []))
+        nudged = "have not opened" in joined
+        if nudged and self.read_count == 0:
+            self.read_count += 1
+            tool_call = SimpleNamespace(
+                id="read_1",
+                type="function",
+                function=SimpleNamespace(name="get_document", arguments=json.dumps({"docid": "59188"})),
+            )
+            return _make_completion(tool_calls=[tool_call], prompt_tokens=15, completion_tokens=2)
+        if self.read_count >= 1:
+            return _make_completion(
+                content="FINAL ANSWER: the capital is Paris", prompt_tokens=8, completion_tokens=5
+            )
+        self.search_count += 1
+        tool_call = SimpleNamespace(
+            id=f"search_{self.search_count}",
+            type="function",
+            function=SimpleNamespace(name="search", arguments=json.dumps({"query": f"q{self.search_count}"})),
+        )
+        return _make_completion(tool_calls=[tool_call], prompt_tokens=18, completion_tokens=2)
+
+
+class _ReadGateClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_ReadGateCompletions())
+
+
 class _FailingSearchCompletions:
     def __init__(self) -> None:
         self.calls: list[dict] = []
@@ -651,6 +692,75 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertTrue(result.metadata.get("tool_loop_forced_final_answer"))
         self.assertIn("search results have stagnated", joined_content.lower())
         self.assertIn("insufficient-evidence", joined_content.lower())
+
+    def test_read_gate_forces_get_document_before_blocked_finalize(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _ReadGateClient()
+
+        with patch.dict("os.environ", {"MAS_SEARCH_STAGNATION_CONSECUTIVE": "1"}, clear=False):
+            result = client.generate(
+                prompt=[{"role": "user", "content": "what is the capital"}],
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+                tools=[
+                    {
+                        "name": "search",
+                        "description": "Search tool",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                        "handler": lambda args: [
+                            {"docid": "59188", "score": 50.0, "snippet": "same-doc"}
+                        ],
+                    },
+                    {
+                        "name": "get_document",
+                        "description": "Read a document",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                        "handler": lambda args: {"docid": "59188", "text": "Paris is the capital."},
+                    },
+                ],
+                max_tool_iterations=8,
+            )
+
+        tool_names = [c.get("tool_name") for c in result.tool_calls]
+        # The read-gate must have redirected the stagnating search loop into a read,
+        # and the post-read answer (not a blocked one) must win.
+        self.assertIn("get_document", tool_names)
+        self.assertEqual(result.text, "FINAL ANSWER: the capital is Paris")
+
+    def test_read_gate_inert_without_get_document_tool(self) -> None:
+        # No get_document tool available -> existing stagnation behavior is preserved
+        # (stop early with a blocked answer; no read-gate nudge).
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _StagnatingClient()
+
+        with patch.dict("os.environ", {"MAS_SEARCH_STAGNATION_CONSECUTIVE": "1"}, clear=False):
+            result = client.generate(
+                prompt=[{"role": "user", "content": "solve this"}],
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+                tools=[
+                    {
+                        "name": "search.tool",
+                        "description": "Search tool",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                        "handler": lambda args: [
+                            {"docid": "59188", "score": 50.0, "snippet": f"same-doc-for-{args['query']}"}
+                        ],
+                    }
+                ],
+                max_tool_iterations=8,
+            )
+
+        self.assertEqual(result.text, "FINAL ANSWER: insufficient evidence")
+        self.assertIn("search results stagnated", result.metadata.get("tool_loop_stopped_reason", "").lower())
 
     def test_tool_failure_circuit_breaker_stops_failed_search_query_loop(self) -> None:
         client = OpenRouterLLMClient(

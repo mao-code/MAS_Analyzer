@@ -75,6 +75,17 @@ class SelfEvolvedEngine:
             raise ValueError("agent_types must contain at least one entry")
 
         num_agents = min(int(spec.num_agents), int(self.se_config.max_initial_agents))
+        # Retrieval tasks (a get_document tool is present) run a long search+read tool
+        # loop per agent. Extra agents mostly re-search the same corpus and converge on
+        # the same documents, so they multiply runtime/memory without adding quality —
+        # reading depth, not agent breadth, is the lever. Cap the initial breadth so the
+        # run finishes (it otherwise risks being OOM-killed mid-run on this corpus).
+        is_retrieval = any(
+            isinstance(tool, dict) and str(tool.get("name", "")) == "get_document"
+            for tool in (tools or [])
+        )
+        if is_retrieval:
+            num_agents = min(num_agents, 3)
 
         # 1. PLAN — phase 2 replaces this with the LLM Topology Planner.
         plan_started = time.perf_counter()
@@ -164,6 +175,13 @@ class SelfEvolvedEngine:
         context = SharedContextController(topo_spec)
         executor = TurnExecutor(self._stage, context)
         max_turns = int(self.se_config.max_turns)
+        # On retrieval tasks the repair turn re-runs every agent over large
+        # search+read contexts and can spawn extra agents, doubling runtime/memory and
+        # getting the run OOM-killed before it finalizes (= 0 success). Reading in the
+        # first turn is the quality lever here, so cap retrieval to a single turn to
+        # guarantee completion. Repair stays enabled for the other benchmarks.
+        if is_retrieval:
+            max_turns = 1
         turn_results: list[TurnResult] = []
         decision: TerminationDecision = {}
 

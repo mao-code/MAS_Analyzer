@@ -50,6 +50,49 @@ APPEND_STATE_KEYS = frozenset(
 
 TASK_PACKET_KINDS = {"task_package", "orchestrator_feedback"}
 
+# Self-evolved retrieval directive. When a run exposes a get_document tool
+# (retrieval benchmarks such as browsecomp), search results are only pointers;
+# the dominant failure mode is agents that search repeatedly but never open a
+# document and then give up with an "insufficient evidence" answer. Every
+# self-evolved agent stage is told to read before concluding. Inert for runs
+# without get_document (plancraft / workbench / stabletoolbench / mock mode).
+_READ_FIRST_DIRECTIVE = (
+    " This task provides a get_document tool. Search returns only short snippets, which "
+    "are NOT sufficient to answer — you MUST call get_document to read the full text of "
+    "the most relevant documents. As soon as a search returns a relevant docid, "
+    "immediately call get_document on the top 1-3 docids; do NOT run more than two rounds "
+    "of search before opening a document. Answer only from documents you have opened with "
+    "get_document — never answer from snippets alone, and never return an 'insufficient "
+    "evidence' or blocked answer without having opened at least one document."
+)
+
+
+# Self-evolved tool-chaining directive for domain-tool tasks (stabletoolbench,
+# workbench) that expose API tools but no get_document. Failure mode observed: an
+# agent runs one entity "search", the backend returns a cache miss for a non-canonical
+# argument (e.g. name="Messi"), the search circuit breaker trips, and the agent answers
+# from incomplete data. The fix is behavioral: use canonical arguments and chain the
+# follow-up tools to gather the specific facts the question asks for.
+_TOOL_CHAIN_DIRECTIVE = (
+    " Use full, official, canonical names and identifiers in tool arguments (e.g. "
+    "'Lionel Messi', not 'Messi'); a non-canonical argument often returns nothing. One "
+    "lookup rarely answers the question: after locating the relevant entity, chain the "
+    "follow-up tools (details / profile / related lookups) to gather the specific facts "
+    "the question asks for before answering. If a tool returns no result, retry once with "
+    "a more canonical argument instead of abandoning the tool."
+)
+
+
+def _run_has_get_document(state: dict[str, Any]) -> bool:
+    return any(
+        isinstance(tool, dict) and str(tool.get("name", "")) == "get_document"
+        for tool in (state.get("tools") or [])
+    )
+
+
+def _run_has_tools(state: dict[str, Any]) -> bool:
+    return bool(state.get("tools"))
+
 
 def apply_updates(state: dict[str, Any], updates: dict[str, Any]) -> None:
     """Merge stage-node updates into the plain-dict state."""
@@ -419,14 +462,33 @@ class TurnExecutor:
         directive: str,
         visible_messages: list[Any],
     ) -> ArtifactRecord | None:
-        updates = self._engine._execute_agent_stage(
-            state,
-            agent_id=agent_id,
-            node_name=node_name,
-            stage_role=stage_role,
-            directive=directive,
-            visible_messages=visible_messages,
-        )
+        if _run_has_get_document(state):
+            directive = f"{directive}{_READ_FIRST_DIRECTIVE}"
+        elif _run_has_tools(state):
+            directive = f"{directive}{_TOOL_CHAIN_DIRECTIVE}"
+        try:
+            updates = self._engine._execute_agent_stage(
+                state,
+                agent_id=agent_id,
+                node_name=node_name,
+                stage_role=stage_role,
+                directive=directive,
+                visible_messages=visible_messages,
+            )
+        except RuntimeError as exc:
+            # A flaky tool tripped the per-agent circuit breaker (the shared stage
+            # raises fatal_tool_failure). Static topologies finalize from their other
+            # agents; the dynamic orchestrator must not let one agent's tool flakiness
+            # kill the whole task. Skip this agent's contribution and continue — the
+            # remaining agents / finalize synthesis still produce an answer.
+            if "fatal_tool_failure" not in str(exc):
+                raise
+            print(
+                f"[self_evolved] RECOVERED node={node_name} agent_id={agent_id} "
+                f"reason=fatal_tool_failure recovery=skip_agent_continue: {exc}",
+                flush=True,
+            )
+            return None
         artifacts = updates.get("artifacts") or []
         apply_updates(state, updates)
         artifact = artifacts[0] if artifacts else None

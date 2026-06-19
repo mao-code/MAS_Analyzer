@@ -50,6 +50,23 @@ SYSTEM_ARG_ENV_BY_LABEL: dict[str, str] = {
     "self_evolved": "SELF_EVOLVED_ARGS",
 }
 
+
+def selected_systems() -> list[tuple[str, str, int, int, int, int]]:
+    """SYSTEMS, optionally filtered to a comma-separated allowlist of system labels
+    via the ONLY_SYSTEMS env var (e.g. ONLY_SYSTEMS=self_evolved). Default: all."""
+    only = os.getenv("ONLY_SYSTEMS", "").strip()
+    if not only:
+        return SYSTEMS
+    wanted = {s.strip() for s in only.split(",") if s.strip()}
+    filtered = [row for row in SYSTEMS if row[0] in wanted]
+    if not filtered:
+        raise ValueError(
+            f"ONLY_SYSTEMS={only!r} matched no systems; valid: "
+            f"{', '.join(row[0] for row in SYSTEMS)}"
+        )
+    return filtered
+
+
 DEFAULT_CONFIG_DIR = ROOT / "config" / "benchmarks"
 SERVICES_ROOT = ROOT / ".cache" / "services"
 EXTERNAL_ROOT = ROOT / ".cache" / "external"
@@ -1215,7 +1232,7 @@ def batch_run(options: BatchOptions) -> int:
                                 rounds,
                                 discussion_rounds,
                                 communication_budget,
-                            ) in SYSTEMS:
+                            ) in selected_systems():
                                 system_root = experiment_root / benchmark_name / system_label
                                 summary_json = system_root / "summary.json"
                                 summary_csv = system_root / "summary.csv"

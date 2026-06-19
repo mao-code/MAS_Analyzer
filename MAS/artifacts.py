@@ -117,13 +117,12 @@ def build_artifact(
     parsed = payload is not None
 
     answer = _bounded_text(
-        payload.get("answer_artifact") if parsed else None
-        or payload.get("answer") if parsed else None
+        ((payload.get("answer_artifact") or payload.get("answer")) if parsed else None)
         or text,
         max_chars=6000,
     )
     summary = _bounded_text(
-        payload.get("summary") if parsed else None or answer,
+        (payload.get("summary") if parsed else None) or answer,
         max_chars=400,
     )
     critique = _bounded_text(payload.get("critique") if parsed else None, max_chars=1200)
@@ -395,8 +394,18 @@ def average_confidence(artifacts: list[ArtifactRecord]) -> float:
 
 
 def latest_artifact_by_agent(artifacts: list[ArtifactRecord]) -> dict[str, ArtifactRecord]:
+    """Return each agent's most recent artifact.
+
+    Recency is ordered by (round_index, discussion_index, dispatch_id) and then by
+    append order (list position) as the final tie-break. Append order is a robust
+    chronological signal for sequential stages; it replaces a previous lexical
+    node_name tie-break that only tracked recency by alphabetical accident and could
+    in principle select a stale artifact over a newer one.
+    """
+
     latest: dict[str, ArtifactRecord] = {}
-    for artifact in artifacts:
+    latest_key: dict[str, tuple[int, int, int, int]] = {}
+    for index, artifact in enumerate(artifacts):
         agent_id = str(artifact.get("agent_id", ""))
         if not agent_id:
             continue
@@ -404,20 +413,11 @@ def latest_artifact_by_agent(artifacts: list[ArtifactRecord]) -> dict[str, Artif
             int(artifact.get("round_index", 0)),
             int(artifact.get("discussion_index", 0)),
             int(artifact.get("dispatch_id", -1)),
-            str(artifact.get("node_name", "")),
+            index,
         )
-        current = latest.get(agent_id)
-        if current is None:
+        if agent_id not in latest_key or key >= latest_key[agent_id]:
             latest[agent_id] = artifact
-            continue
-        current_key = (
-            int(current.get("round_index", 0)),
-            int(current.get("discussion_index", 0)),
-            int(current.get("dispatch_id", -1)),
-            str(current.get("node_name", "")),
-        )
-        if key >= current_key:
-            latest[agent_id] = artifact
+            latest_key[agent_id] = key
     return latest
 
 

@@ -653,13 +653,16 @@ class TopologyMutation:
                 stage_role=stage_role,
             )
         )
+        # A singleton group must keep exactly one member; adding a second agent
+        # promotes it to a star with the original member as the hub/leader.
+        promote_singleton = target.pattern == "singleton"
         updated = [
             GroupSpec(
                 group_id=group.group_id,
-                pattern=group.pattern,
+                pattern="star" if promote_singleton else group.pattern,
                 member_ids=group.member_ids + (agent_id,),
                 parent_agent_id=group.parent_agent_id,
-                leader_id=group.leader_id,
+                leader_id=group.member_ids[0] if promote_singleton else group.leader_id,
             )
             if group.group_id == group_id
             else group

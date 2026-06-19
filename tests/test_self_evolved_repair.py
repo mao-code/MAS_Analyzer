@@ -310,6 +310,22 @@ class TestMutationOps(unittest.TestCase):
         self.assertEqual(new_agent.stage_role, "critic")
         self.assertIn("agent_3", mutated.group("g_root").member_ids)
 
+    def test_add_agent_promotes_singleton_root_to_star(self) -> None:
+        spec = spec_from_layout(build_layout(topology="sas", num_agents=1))
+        root = spec.group("g_root")
+        self.assertEqual(root.pattern, "singleton")
+        original_member = root.member_ids[0]
+        mutation = TopologyMutation(
+            rationale="add capacity",
+            target_failure_modes=("premature_consensus",),
+            ops=(MutationOp(op="add_agent", args={"group_id": "g_root"}),),
+        )
+        mutated = mutation.apply(spec, max_agents=10)  # must not raise
+        promoted = mutated.group("g_root")
+        self.assertEqual(promoted.pattern, "star")
+        self.assertEqual(promoted.leader_id, original_member)
+        self.assertEqual(len(promoted.member_ids), 2)
+
     def test_edge_ops_round_trip(self) -> None:
         spec = self._star_spec()
         add = TopologyMutation(

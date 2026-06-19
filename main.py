@@ -1912,7 +1912,13 @@ def run_command(args: argparse.Namespace) -> int:
     output_paths.benchmark_root.mkdir(parents=True, exist_ok=True)
     output_paths.run_root.mkdir(parents=True, exist_ok=True)
 
-    tasks = list(benchmark.load_tasks(task_limit=task_limit))
+    task_offset = max(int(getattr(args, "task_offset", 0) or 0), 0)
+    # Load offset+limit tasks in deterministic order, then drop the leading offset so
+    # this shard covers exactly tasks[offset : offset+limit] (parallel sharding).
+    load_limit = (task_limit + task_offset) if task_limit is not None else None
+    tasks = list(benchmark.load_tasks(task_limit=load_limit))
+    if task_offset:
+        tasks = tasks[task_offset:]
     if not tasks:
         raise RuntimeError(f"No tasks loaded for benchmark '{benchmark_name}'")
     _log_progress(
@@ -2519,6 +2525,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Benchmark adapter to run",
     )
     run_parser.add_argument("--task-limit", type=int, default=None)
+    run_parser.add_argument(
+        "--task-offset",
+        type=int,
+        default=0,
+        help="Skip the first N tasks (in deterministic load order). Enables sharding a task "
+        "set across parallel runs: shard i uses --task-offset i*L --task-limit L.",
+    )
     run_parser.add_argument("--runs-per-task", type=int, default=None)
     run_parser.add_argument("--seed", type=int, default=None)
     run_parser.add_argument("--output-dir", default=None)
