@@ -252,12 +252,17 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     env_api_key = os.getenv("OPENROUTER_API_KEY")
     api_key = env_api_key if env_api_key else _opt_str(openrouter_raw.get("api_key"))
 
+    # Per-LLM-call wall-clock timeout. Optional MAS_OPENROUTER_TIMEOUT_S env override
+    # (opt-in; default behavior unchanged when unset) lets a run fail a slow provider
+    # call fast so the retry loop re-routes to a faster provider, instead of blocking
+    # up to the 600s ceiling on a transient slow upstream.
+    env_timeout_s = os.getenv("MAS_OPENROUTER_TIMEOUT_S")
     openrouter = OpenRouterConfig(
         api_key=api_key,
         base_url=_opt_str(openrouter_raw.get("base_url")) or "https://openrouter.ai/api/v1",
         http_referer=_opt_str(openrouter_raw.get("http_referer")),
         x_title=_opt_str(openrouter_raw.get("x_title")),
-        timeout_s=float(openrouter_raw.get("timeout_s", 600.0)),
+        timeout_s=float(env_timeout_s) if env_timeout_s else float(openrouter_raw.get("timeout_s", 600.0)),
     )
 
     agents_per_level = mas_raw.get("agents_per_level")

@@ -75,16 +75,18 @@ class SelfEvolvedEngine:
             raise ValueError("agent_types must contain at least one entry")
 
         num_agents = min(int(spec.num_agents), int(self.se_config.max_initial_agents))
-        # Retrieval tasks (a get_document tool is present) run a long search+read tool
-        # loop per agent. Extra agents mostly re-search the same corpus and converge on
-        # the same documents, so they multiply runtime/memory without adding quality —
-        # reading depth, not agent breadth, is the lever. Cap the initial breadth so the
-        # run finishes (it otherwise risks being OOM-killed mid-run on this corpus).
+        # Tool-bearing tasks run a multi-iteration tool loop per agent. Extra agents
+        # mostly re-issue the same calls (same search corpus / same API) and converge on
+        # the same evidence, so they multiply runtime/memory without adding quality —
+        # depth (reading / tool-chaining), not agent breadth, is the lever. On a
+        # memory-tight host the wide fan-out also gets the run OOM-killed (SIGTERM)
+        # before it finalizes. Cap the initial breadth so the run completes; repair (a
+        # second turn) stays enabled below for non-retrieval tool tasks to keep quality.
         is_retrieval = any(
             isinstance(tool, dict) and str(tool.get("name", "")) == "get_document"
             for tool in (tools or [])
         )
-        if is_retrieval:
+        if tools:
             num_agents = min(num_agents, 3)
 
         # 1. PLAN — phase 2 replaces this with the LLM Topology Planner.
