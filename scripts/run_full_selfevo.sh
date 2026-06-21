@@ -196,7 +196,7 @@ for bench in ${LIGHT_BENCHMARKS[@]+"${LIGHT_BENCHMARKS[@]}"}; do
     run_unit "$bench" "$off" &                 # dispatch async
   done
 done
-wait                                           # drain all in-flight light units
+while (( $(running_units) > 0 )); do sleep 1; done   # drain task units only (NOT the STB server)
 
 # ---------------------------------------------------------------------------
 # 8. PHASE 2 — HEAVY benchmark(s), run LAST and SEQUENTIALLY (one task at a time) so
