@@ -53,7 +53,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-artifacts/full_experiment}"
 SAMPLES="${SAMPLES:-30}"                 # tasks/benchmark (reference baseline = 30)
 RUNS_PER_TASK="${RUNS_PER_TASK:-3}"      # runs/task (matches reference; enables pass@k)
 PARALLEL_LIGHT="${PARALLEL_LIGHT:-3}"    # concurrent UNITS in the light phase (lower if RAM tight)
-PER_TASK_TIMEOUT_S="${PER_TASK_TIMEOUT_S:-1800}"  # kill a hung task after 30 min (!= OOM)
+PER_TASK_TIMEOUT_S="${PER_TASK_TIMEOUT_S:-10800}"  # kill a hung task after 3h (!= OOM); 6x the old 30min — self_evolved runs ~3x the calls of static x 3 runs/task
 HEAVY_PAUSE_S="${HEAVY_PAUSE_S:-0}"      # optional pause before the heavy phase (close apps / free RAM)
 SERVER_PORT="${SERVER_PORT:-8080}"       # StableToolBench virtual server
 CACHE_ROOT="${CACHE_ROOT:-$ROOT/benchmark/stabletoolbench/tool_response_cache}"
