@@ -43,17 +43,13 @@ CORE_DOMAINS = [
     "customer_relationship_manager",
 ]
 
-QUERY_FILES = {
-    "analytics": "data/processed/queries_and_answers/analytics_queries_and_answers.csv",
-    "calendar": "data/processed/queries_and_answers/calendar_queries_and_answers.csv",
-    "customer_relationship_manager": (
-        "data/processed/queries_and_answers/customer_relationship_manager_queries_and_answers.csv"
-    ),
-    "email": "data/processed/queries_and_answers/email_queries_and_answers.csv",
-    "multi_domain": "data/processed/queries_and_answers/multi_domain_queries_and_answers.csv",
-    "project_management": (
-        "data/processed/queries_and_answers/project_management_queries_and_answers.csv"
-    ),
+QUERY_FILE_NAMES = {
+    "analytics": "analytics_tasks_and_outcomes.csv",
+    "calendar": "calendar_tasks_and_outcomes.csv",
+    "customer_relationship_manager": "customer_relationship_manager_tasks_and_outcomes.csv",
+    "email": "email_tasks_and_outcomes.csv",
+    "multi_domain": "multi_domain_tasks_and_outcomes.csv",
+    "project_management": "project_management_tasks_and_outcomes.csv",
 }
 
 DATA_FILES = [
@@ -63,7 +59,6 @@ DATA_FILES = [
     "data/processed/emails.csv",
     "data/processed/project_tasks.csv",
     "data/raw/email_addresses.csv",
-    *QUERY_FILES.values(),
 ]
 
 SIDE_EFFECT_TOOLS = {
@@ -988,11 +983,19 @@ class WorkBenchBenchmark:
         self.domain: str = str(cfg.get("domain", "multi_domain"))
         self.tool_selection: str = str(cfg.get("tool_selection", "domains"))
         self.max_tool_iterations: int = int(cfg.get("max_tool_iterations", 20))
+        self.tasks_version: str = str(cfg.get("tasks_version", "v1")).strip()
         self.data_dir = Path(str(cfg.get("data_dir", ".cache/workbench"))).expanduser()
         self._ensure_data_exists()
 
+    def _query_files(self) -> dict[str, str]:
+        version_part = "" if self.tasks_version in {"", "current", "v2"} else f"{self.tasks_version}/"
+        return {
+            domain: f"data/processed/tasks_and_outcomes/{version_part}{filename}"
+            for domain, filename in QUERY_FILE_NAMES.items()
+        }
+
     def _ensure_data_exists(self) -> None:
-        for rel_path in DATA_FILES:
+        for rel_path in [*DATA_FILES, *self._query_files().values()]:
             target = self.data_dir / rel_path
             if target.exists():
                 continue
@@ -1003,22 +1006,25 @@ class WorkBenchBenchmark:
                 target.write_bytes(response.read())
 
     def load_tasks(self, task_limit: int | None = None) -> Sequence[BenchmarkTask]:
-        if self.domain not in QUERY_FILES:
+        query_files = self._query_files()
+        if self.domain not in query_files:
             raise ValueError(f"Unknown WorkBench domain '{self.domain}'")
-        query_path = self.data_dir / QUERY_FILES[self.domain]
+        query_path = self.data_dir / query_files[self.domain]
         tasks: list[BenchmarkTask] = []
         with query_path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
             for idx, row in enumerate(reader):
-                answer = ast.literal_eval(row["answer"])
+                query = str(row.get("query") or row.get("task") or "")
+                answer_raw = row.get("answer") or row.get("outcome") or "[]"
+                answer = ast.literal_eval(answer_raw)
                 domains = ast.literal_eval(row["domains"])
                 tasks.append(
                     BenchmarkTask(
                         task_id=f"{self.domain}_{idx}",
-                        prompt=row["query"],
+                        prompt=query,
                         reference_answer="",
                         metadata={
-                            "query": row["query"],
+                            "query": query,
                             "answer": answer,
                             "domains": domains,
                             "base_template": row.get("base_template", ""),
