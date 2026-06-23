@@ -1252,6 +1252,8 @@ def _save_vs_sas_tradeoff_chart(
     benchmark: str,
     out_dir: Path,
 ) -> str | None:
+    if frame.empty or "benchmark" not in frame.columns:
+        return None
     subset = frame[frame["benchmark"] == benchmark].copy()
     if subset.empty:
         return None
@@ -1463,7 +1465,11 @@ def write_report(
                 f"stability `{sas_row['avg_stability']:.3f}`, mean tokens "
                 f"`{sas_row['avg_tokens_total']:.1f}`."
             )
-        benchmark_vs_sas = vs_sas_df[vs_sas_df["benchmark"] == benchmark]
+        benchmark_vs_sas = (
+            vs_sas_df[vs_sas_df["benchmark"] == benchmark]
+            if "benchmark" in vs_sas_df.columns
+            else pd.DataFrame()
+        )
         if not benchmark_vs_sas.empty:
             leader = benchmark_vs_sas.sort_values(
                 by=["mean_success_rate_delta_vs_sas", "mean_stability_delta_vs_sas", "system_label"],
