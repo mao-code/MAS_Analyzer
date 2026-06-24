@@ -196,6 +196,22 @@ class TestPlaybookPersistence(unittest.TestCase):
         self.assertEqual(entries[1]["key"], "finance_agent::tools::long")
         self.assertEqual(len(entries), 2)
 
+    def test_lookup_transfers_same_shape_across_benchmarks(self) -> None:
+        # A lesson learned on one benchmark must transfer to a same-shape task on a
+        # benchmark the playbook has never seen (the skill-like behavior).
+        playbook = TopologyPlaybook("unused.json")
+        playbook.entries.extend(
+            [
+                _entry("workbench::tools::medium", benchmark="workbench"),
+                _entry("browsecomp::no_tools::long", benchmark="browsecomp"),
+            ]
+        )
+        entries = playbook.lookup("stabletoolbench", "stabletoolbench::tools::medium")
+        keys = [e["key"] for e in entries]
+        # Same shape (tools::medium) transfers; the different-shape entry does not.
+        self.assertIn("workbench::tools::medium", keys)
+        self.assertNotIn("browsecomp::no_tools::long", keys)
+
     def test_planner_view_is_bounded(self) -> None:
         entry = _entry()
         entry["notes"] = "n" * 500
@@ -298,7 +314,7 @@ class TestEnginePlaybookIntegration(unittest.TestCase):
 
             self.assertEqual(len(client.planner_prompts), 1)
             prompt = client.planner_prompts[0]
-            self.assertIn("Playbook priors", prompt)
+            self.assertIn("Historical experience", prompt)
             self.assertIn("finance_agent::no_tools::short", prompt)
             self.assertIn("3/4 successful", prompt)
 
@@ -314,7 +330,7 @@ class TestEnginePlaybookIntegration(unittest.TestCase):
             path = self._seeded_playbook(tmp)
             result, client = _run_engine(path, playbook_read=False)
 
-            self.assertNotIn("Playbook priors", client.planner_prompts[0])
+            self.assertNotIn("Historical experience", client.planner_prompts[0])
             planner_events = [
                 event for event in result.trace_events if event.actor == "topology_planner"
             ]

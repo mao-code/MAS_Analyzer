@@ -13,6 +13,7 @@ termination judge).
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any
@@ -190,6 +191,91 @@ class TraceAuditorAgent:
                 }
             )
 
+        # Tool-call signals for this turn (retrieval coverage + duplicate writes).
+        turn_calls = [
+            record
+            for record in state.get("tool_records_log", [])
+            if int(record.get("round_index", -1)) == turn_index
+        ]
+        run_tools = state.get("tools") or []
+        has_search_tool = any(
+            isinstance(tool, dict) and str(tool.get("name", "")) == "search" for tool in run_tools
+        )
+        has_get_document = any(
+            isinstance(tool, dict) and str(tool.get("name", "")) == "get_document"
+            for tool in run_tools
+        )
+
+        # insufficient_search_coverage: a retrieval/search run that under-gathered —
+        # searched from snippets but never opened a document, or had too few agents
+        # searching for a broad-coverage question. This is the dominant browsecomp
+        # failure (a single searcher / a non-searching verifier instead of breadth).
+        if has_search_tool or has_get_document:
+            searchers = {
+                str(record.get("agent_id", ""))
+                for record in turn_calls
+                if str(record.get("tool_name", "")) == "search"
+            }
+            search_calls = sum(
+                1 for record in turn_calls if str(record.get("tool_name", "")) == "search"
+            )
+            reads = sum(
+                1 for record in turn_calls if str(record.get("tool_name", "")) == "get_document"
+            )
+            coverage_problem: tuple[str, str] | None = None
+            if has_get_document and search_calls > 0 and reads == 0:
+                coverage_problem = (
+                    "high",
+                    "Search ran but no document was opened with get_document; "
+                    "answers from snippets alone are unreliable.",
+                )
+            elif search_calls > 0 and len(searchers) < 2:
+                coverage_problem = (
+                    "medium",
+                    f"Only {len(searchers)} agent(s) searched; broad retrieval needs "
+                    "several searchers covering different facets.",
+                )
+            if coverage_problem is not None:
+                modes.append(
+                    {
+                        "mode": "insufficient_search_coverage",
+                        "severity": coverage_problem[0],
+                        "agent_ids": sorted(searchers),
+                        "detail": coverage_problem[1],
+                    }
+                )
+
+        # duplicate_state_mutation: the same non-read tool call (tool + arguments) was
+        # issued by >= 2 agents this turn. For side-effecting tools (calendar/email/etc.)
+        # this double-applies and corrupts the evaluated state (the dominant workbench
+        # failure). The executor's per-run dedup net collapses the recorded call; this
+        # flags the structural cause so a repair can serialize the write next turn.
+        sig_agents: dict[str, set[str]] = {}
+        for record in turn_calls:
+            name = str(record.get("tool_name", "")).strip()
+            if not name or name in {"search", "get_document", "inter_agent_send"}:
+                continue
+            arguments = record.get("arguments")
+            try:
+                arg_sig = json.dumps(arguments, sort_keys=True, default=str)
+            except Exception:
+                arg_sig = str(arguments)
+            sig_agents.setdefault(f"{name}({arg_sig})", set()).add(str(record.get("agent_id", "")))
+        duplicated = {sig: agents for sig, agents in sig_agents.items() if len(agents) >= 2}
+        if duplicated:
+            offenders = sorted({agent for agents in duplicated.values() for agent in agents})
+            modes.append(
+                {
+                    "mode": "duplicate_state_mutation",
+                    "severity": "high",
+                    "agent_ids": offenders,
+                    "detail": (
+                        f"{len(duplicated)} tool call(s) were issued identically by "
+                        "multiple agents; a state-changing call must execute once."
+                    ),
+                }
+            )
+
         # missing_validator: low-confidence answers with no critic downstream.
         has_validator = any(node.stage_role == "critic" for node in spec.agents) or any(
             group.pattern == "debate" for group in spec.groups
@@ -241,6 +327,14 @@ class TraceAuditorAgent:
             ),
             "message_compaction_loss": "raise packet bounds for the affected senders",
             "missing_validator": "add a verifier critic or a debate subgroup before synthesis",
+            "insufficient_search_coverage": (
+                "add searcher workers (parallel, each on a different facet) and open "
+                "documents before answering"
+            ),
+            "duplicate_state_mutation": (
+                "serialize the state-changing tool through exactly one executor; collapse "
+                "the parallel workers into a chain or singleton"
+            ),
         }
         parts = [
             f"{mode['mode']}: {hints.get(str(mode['mode']), 'consider a topology repair')}"

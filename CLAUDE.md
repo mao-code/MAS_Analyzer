@@ -83,13 +83,22 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   executes) and `MAS/README.md` (prompt contract) before changing runtime behavior.
 
 - **`MAS/self_evolved/`** — query-conditioned **dynamic topology** system (`topology = "self_evolved"`).
-  An LLM Topology Planner (`planner.py`) proposes a per-task `TopologySpec` (`spec.py`); deterministic
-  orchestrator code (`engine.py`) spawns and runs it via `TurnExecutor` (`executor.py`), a Trace Auditor
-  (`auditor.py`) flags process failure modes, and **at most one** trace-backed repair mutation runs before
-  finalize. Visibility is pure code (`context.py`); learning lives in `config/topology_playbook.json`,
-  read at plan time and written **only** post-hoc by `scripts/update_topology_playbook.py`. The
-  orchestration is deterministic (agents never decide termination); `benchmark.evaluate(...).success`
-  stays the sole correctness authority. See the "Self-evolved topology system" section + diagram in `README.md`.
+  An LLM Topology Planner (`planner.py`) *analyzes the task* (type / attributes / failure risks) and
+  proposes a per-task `TopologySpec` (`spec.py`) using general, task-characteristic topology guidance
+  (no benchmark names); deterministic orchestrator code (`engine.py`) spawns and runs it via `TurnExecutor`
+  (`executor.py`), a Trace Auditor (`auditor.py`) flags process failure modes (incl.
+  `insufficient_search_coverage` and `duplicate_state_mutation`), and **at most one** trace-backed repair
+  mutation runs before finalize. Three correctness nets live in code, not the prompt: `TurnExecutor` dedups
+  identical `(tool, args)` calls per run so a write replays once; retrieval keeps the full agent budget
+  (single turn) for search breadth; and a finalize **read-net** opens the top surfaced docids and feeds full
+  text to the synthesizer when a retrieval run answered without reading. Visibility is pure code
+  (`context.py`); learning lives in `config/topology_playbook.json` as a **retrievable skill**: benchmark-agnostic
+  `principles` (always injected) plus success-learned per-key `entries` (distilled `best/avoid` notes).
+  `TopologyPlaybook.lookup` returns experience in three tiers — exact key, same benchmark, then **same task
+  shape (`tools::size`) across other benchmarks** so lessons transfer. Read at plan time; written **only**
+  post-hoc by `scripts/update_topology_playbook.py`. The orchestration is deterministic (agents never decide
+  termination); `benchmark.evaluate(...).success` stays the sole correctness authority. See the
+  "Self-evolved topology system" section + diagram in `README.md`.
 
 - **`descriptor/`** — trace schema (`descriptor/schema.py`), run-level metrics, and task-level
   aggregation (`descriptor/experiment.py::analyze_task_runs`), plus comparison tooling in

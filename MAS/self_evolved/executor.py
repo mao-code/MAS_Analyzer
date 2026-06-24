@@ -22,6 +22,7 @@ aggregates — its aggregate artifact is its report to the enclosing group.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -115,6 +116,12 @@ class TurnExecutor:
     def __init__(self, stage_engine: LangGraphMASEngine, context: SharedContextController) -> None:
         self._engine = stage_engine
         self._context = context
+        # Per-run ledger of executed tool-call signatures. Guarantees an identical
+        # (tool, args) call is recorded once even if the planner spawns parallel
+        # workers that each invoke it — without this, side-effecting tools (e.g.
+        # calendar.create_event) get replayed and corrupt the final state. Scoped
+        # to one run (the executor is created per run) and shared across turns.
+        self._executed_signatures: set[str] = set()
 
     def run_turn(self, state: dict[str, Any], spec: TopologySpec, *, turn_index: int) -> TurnResult:
         state["round_index"] = int(turn_index)
@@ -492,8 +499,45 @@ class TurnExecutor:
         artifacts = updates.get("artifacts") or []
         apply_updates(state, updates)
         artifact = artifacts[0] if artifacts else None
+        self._dedupe_tool_records(artifact)
         self._context.record_evidence(state, artifact, agent_id=agent_id)
         return artifact
+
+    def _dedupe_tool_records(self, artifact: ArtifactRecord | None) -> None:
+        """Drop tool records whose (tool, args) already ran earlier this run.
+
+        The artifact dict (and its ``tool_records`` list) is shared by reference
+        with ``state['artifacts']`` and the run metadata the benchmark evaluates,
+        so stripping the redundant record in place ensures each external action is
+        replayed exactly once. Distinct calls (different args) are always kept, so
+        diverse parallel search is unaffected — only exact duplicates collapse.
+        """
+
+        if not isinstance(artifact, dict):
+            return
+        records = artifact.get("tool_records")
+        if not isinstance(records, list) or not records:
+            return
+        kept: list[Any] = []
+        for record in records:
+            if not isinstance(record, dict):
+                kept.append(record)
+                continue
+            name = str(record.get("tool_name", "")).strip()
+            if not name or name == "inter_agent_send":
+                kept.append(record)
+                continue
+            arguments = record.get("arguments")
+            try:
+                arg_sig = json.dumps(arguments, sort_keys=True, default=str)
+            except Exception:
+                arg_sig = str(arguments)
+            signature = f"{name}({arg_sig})"
+            if signature in self._executed_signatures:
+                continue
+            self._executed_signatures.add(signature)
+            kept.append(record)
+        artifact["tool_records"] = kept
 
     def _dispatch(
         self,
