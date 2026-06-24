@@ -1912,13 +1912,31 @@ def run_command(args: argparse.Namespace) -> int:
     output_paths.benchmark_root.mkdir(parents=True, exist_ok=True)
     output_paths.run_root.mkdir(parents=True, exist_ok=True)
 
-    task_offset = max(int(getattr(args, "task_offset", 0) or 0), 0)
-    # Load offset+limit tasks in deterministic order, then drop the leading offset so
-    # this shard covers exactly tasks[offset : offset+limit] (parallel sharding).
-    load_limit = (task_limit + task_offset) if task_limit is not None else None
-    tasks = list(benchmark.load_tasks(task_limit=load_limit))
-    if task_offset:
-        tasks = tasks[task_offset:]
+    task_id_filter = [
+        tid.strip()
+        for tid in str(getattr(args, "task_ids", "") or "").split(",")
+        if tid.strip()
+    ]
+    if task_id_filter:
+        # Explicit id selection: load everything, keep only the requested ids in load
+        # order. Overrides offset/limit so a fixed hard-example set reruns identically.
+        wanted = set(task_id_filter)
+        tasks = [
+            task for task in benchmark.load_tasks(task_limit=None) if str(task.task_id) in wanted
+        ]
+        missing = wanted - {str(task.task_id) for task in tasks}
+        if missing:
+            raise RuntimeError(
+                f"--task-ids not found for benchmark '{benchmark_name}': {sorted(missing)}"
+            )
+    else:
+        task_offset = max(int(getattr(args, "task_offset", 0) or 0), 0)
+        # Load offset+limit tasks in deterministic order, then drop the leading offset so
+        # this shard covers exactly tasks[offset : offset+limit] (parallel sharding).
+        load_limit = (task_limit + task_offset) if task_limit is not None else None
+        tasks = list(benchmark.load_tasks(task_limit=load_limit))
+        if task_offset:
+            tasks = tasks[task_offset:]
     if not tasks:
         raise RuntimeError(f"No tasks loaded for benchmark '{benchmark_name}'")
     _log_progress(
@@ -2531,6 +2549,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help="Skip the first N tasks (in deterministic load order). Enables sharding a task "
         "set across parallel runs: shard i uses --task-offset i*L --task-limit L.",
+    )
+    run_parser.add_argument(
+        "--task-ids",
+        default=None,
+        help="Comma-separated task ids to run (e.g. '791,796'). Overrides --task-offset/"
+        "--task-limit: loads all tasks and keeps only the listed ids, in load order. "
+        "Useful for re-running specific hard/failed examples.",
     )
     run_parser.add_argument("--runs-per-task", type=int, default=None)
     run_parser.add_argument("--seed", type=int, default=None)

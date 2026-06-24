@@ -509,7 +509,7 @@ remains the only correctness authority — the in-run auditor never sees ground 
 ```mermaid
 flowchart TD
     Start([Run start]) --> Plan
-    PB[("Long-term playbook<br/>config/topology_playbook.json")]
+    PB[("Long-term memory<br/>topology_skill.md (agent-maintained)<br/>+ JSON playbook fallback")]
     PB -. read .-> Plan
 
     Plan["<b>Plan</b><br/>Topology Planner proposes<br/>TopologySpec v0<br/>(deterministic fallback)"]
@@ -536,10 +536,25 @@ flowchart TD
 
 Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns = 2`):
 
-1. **Plan** — look up the playbook, then the LLM **Topology Planner** proposes a
-   per-task `TopologySpec` (nested agents/groups + per-agent context policy). If the
-   LLM is mocked, unparseable, or errors, it falls back to a deterministic spec
-   (`sas` for one agent, else `orchestrator_no_discussion`) and flags `used_fallback`.
+1. **Plan** — load the long-term skill (`config/topology_skill.md`, or the JSON playbook
+   fallback), then the LLM **Topology Planner** proposes a per-task `TopologySpec` (nested
+   agents/groups + per-agent context policy). The
+   planner prompt is an *analyze → choose → justify* scaffold: it first analyzes the
+   task along three axes — **task type** (retrieval/search, reasoning, coding, tool use,
+   state mutation, verification, planning, comparison, summarization…), **attributes**
+   (ambiguity, need for parallelism/debate/verification, hallucination risk, whether
+   external state is mutated, whether outputs aggregate), and **failure risks**
+   (duplicated writes, thin search coverage, premature consensus, weak verification,
+   poor decomposition) — then picks the topology that analysis implies and says what
+   each agent does. The prompt carries **general, task-characteristic** topology
+   guidance (no benchmark names): broad retrieval → several parallel searchers on
+   different facets; dependent clue-chains → chain/debate (shared context); factuality
+   risk → a verifier that re-checks evidence; **external state mutation → exactly one
+   executor (singleton/chain), never a parallel write**; ambiguity → debate/voting;
+   multi-part → star or tree. The planner's `task_analysis` is folded into the plan
+   rationale so it is visible in the trace and the playbook candidate. If the LLM is
+   mocked, unparseable, or errors, it falls back to a deterministic spec (`sas` for one
+   agent, else `orchestrator_no_discussion`) and flags `used_fallback`.
 2. **Spawn** — project the spec to a real layout, assign domain personas, init state.
 3. **Execute** — the **Turn Executor** walks the graph depth-first and runs each group
    by its pattern (`singleton` / `star` / `chain` / `debate` / `voting`). All agent
@@ -548,14 +563,22 @@ Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns 
 4. **Audit** — the **Trace Auditor** scans the turn's artifacts and tool records for
    process-observable failure modes: `tool_error_cascade`, `branch_collapse`,
    `evidence_lost_before_synthesis`, `premature_consensus`, `message_compaction_loss`,
-   `missing_validator`. (`audit_mode = "llm_judge"` adds an LLM refinement pass.)
+   `missing_validator`, plus two coverage/side-effect modes —
+   **`insufficient_search_coverage`** (a retrieval run that searched but opened no
+   document, or had fewer than two agents searching a broad question) and
+   **`duplicate_state_mutation`** (the same `(tool, arguments)` issued by ≥2 agents this
+   turn, i.e. a double-applied write). (`audit_mode = "llm_judge"` adds an LLM
+   refinement pass.) Each mode carries an actionable recommendation (e.g. "add searcher
+   workers on different facets", "serialize the write through one executor").
 5. **Control** — deterministic ordered checks decide stop vs. continue. The *only*
    continue path is: the audit recommends a repair, no mutation has been used yet, and
    a turn remains. Otherwise the run finalizes.
 6. **Mutate** (continue path only) — the planner proposes one `TopologyMutation`
-   (e.g. expand a leaf into a star or debate group, change a group pattern, add an
-   agent/edge). It is applied once, visibility is revalidated, and the new spec runs
-   one more turn. Hard caps: `max_total_agents` and one mutation.
+   (e.g. expand a leaf into a star or debate group, change a group pattern, add a
+   searcher, collapse parallel workers into a chain to serialize a write). The mutation
+   prompt includes a symptom→op cheatsheet so the audit verdict maps to a concrete op.
+   It is applied once, visibility is revalidated, and the new spec runs one more turn.
+   Hard caps: `max_total_agents` and one mutation.
 7. **Finalize** — vote over the final candidates (deterministic or judge). Evidence-grounded
    re-synthesis runs not only when the pick is empty/planning/blocked but also on a **weak pick**
    (an unbroken vote tie, winner confidence `< 0.5`, or open unresolved issues), and is skipped
@@ -567,14 +590,51 @@ with meta-agent tokens/cost on their own events so `C*` includes meta-control ov
 
 ### Playbook (two timescales)
 
-- **Short-term** — an in-memory playbook updated after each audited turn; it can inform
-  the single in-run repair.
-- **Long-term** — a persistent JSON file (default `config/topology_playbook.json`),
-  keyed by benchmark + coarse task features, that the planner *reads* at plan time. Runs
-  never write it. Instead each run records an update candidate, and
-  `python scripts/update_topology_playbook.py --experiment-root <dir>` merges those
-  candidates **conditioned on `eval.json` success** post-hoc. This keeps runs independent,
-  avoids write races under parallel experiments, and ties learning to real correctness.
+- **Short-term** — an in-memory playbook updated after each audited turn from process
+  signals (detected modes, repair recommendation, termination reason). It is read only by
+  the single in-run repair planner, giving it fresh turn-level context for the mutation.
+- **Long-term — an agent-maintained markdown skill.** The long-term playbook is a
+  long-form `SKILL.md` (default `config/topology_skill.md`) that the planner loads **in
+  full** at plan time, the way an agent consults a skill. It has three sections:
+  - **Standing principles** — benchmark-agnostic laws always in force.
+  - **How to choose a topology** — the task-type → topology heuristics.
+  - **Lessons from experience** — concrete, evidence-cited rules grown from real runs
+    (e.g. *"tool-using broad retrieval: chain/3 succeeded 2/2 where chain/2 failed 0/1 —
+    breadth and document reading both matter"*).
+
+  **Writer = an LLM reflection agent.** `python scripts/reflect_topology_skill.py
+  --experiment-root <dir> --config <toml>` gives the model the current skill plus per-run
+  outcomes **labelled with ground-truth `eval.json` success**, and it rewrites the
+  *Lessons* section (the Standing principles / How-to-choose sections are protected — a
+  guardrail rejects any revision that drops them, and a mocked/unusable reflection leaves
+  the skill unchanged). Runs never write the file themselves, so parallel experiments stay
+  independent; reflection happens post-hoc. The reflection is grounded in verified success,
+  but an LLM authors the prose — the tradeoff accepted for a genuinely agent-maintained,
+  human-readable skill.
+
+  *Deterministic fallback.* When no skill file exists, the planner falls back to the legacy
+  structured JSON playbook (`config/topology_playbook.json`): benchmark-agnostic
+  `principles[]` plus per-`benchmark::tools|size`-key `entries[]` whose `notes` distil a
+  `best/avoid` rule, retrieved in three tiers (exact key → same benchmark → **same task
+  shape across other benchmarks**, the transfer tier). It is written by
+  `scripts/update_topology_playbook.py`, which merges run candidates **conditioned on
+  `eval.json` success** (deterministic, no LLM). Both writers tie learning to real
+  correctness; the markdown skill is the primary memory, the JSON is the fallback/record.
+
+### Correctness nets and provisioning (deterministic code)
+
+Two failure modes a 31B-class planner will not reliably avoid on its own are handled in
+code, independent of the prompt:
+
+- **Duplicate side-effects** — `TurnExecutor` keeps a per-run ledger of executed
+  `(tool, arguments)` signatures and drops a tool record whose signature already ran, so an
+  identical state-changing call (e.g. `calendar.create_event`) is recorded — and therefore
+  replayed by the evaluator — **exactly once** even if parallel workers each issue it.
+  Distinct arguments are always kept, so diverse parallel search is unaffected.
+- **Retrieval breadth** — retrieval runs (those exposing `get_document`) run a single turn
+  (no repair doubling) and keep the full configured agent budget instead of the 3-agent cap
+  used for other tool tasks, because broad multi-hop search needs several searchers covering
+  different facets; a near-single searcher is the dominant retrieval failure.
 
 ### Config and backend
 
@@ -595,6 +655,54 @@ mock mode preserved for offline tests) or `"claude_agent_sdk"` (needs
 `pip install -e ".[claude]"` and `ANTHROPIC_API_KEY`). `C*` cost metrics are not directly
 comparable across backends — the Claude Agent SDK runs its own internal agent loop, so its
 per-stage token/latency totals are cumulative — so treat the backend as an experiment dimension.
+
+### Verification on hard, previously-failed examples
+
+The optimization above was verified on the hardest examples where the original self-evolved
+system lost to the static MAS baseline
+(`artifacts/full_experiment/20260427T134706Z__google_gemma_4_31b_it_nitro`), model
+`google/gemma-4-31b-it:nitro`, **1 run per task**:
+
+| benchmark | task | failure mode | SAS | best static | old self-evolved | **optimized self-evolved** |
+|---|---|---|----:|----:|----:|:--|
+| workbench  | multi_domain_25 | duplicate write | 3/3 | 3/3 | 1/3 | **✅ pass** (chain, 1 write) |
+| workbench  | multi_domain_28 | duplicate write | 3/3 | 3/3 | 1/3 | **✅ pass** |
+| workbench  | multi_domain_29 | duplicate write | 3/3 | 3/3 | 1/3 | ❌ fail¹ |
+| browsecomp | 791             | under-search + no read | 0/3 | 3/3 | 0/3 | **✅ pass** → `JadaL` |
+| browsecomp | 796             | under-search + no read | 0/3 | 3/3 | 0/3 | **✅ pass** → `Odeal` |
+| browsecomp | 773             | multi-hop, deep gold | 0/3 | 1/3 | 0/3 | ❌ fail² |
+
+On these six previously-lost tasks the optimized system goes from **0/6 → 4/6**, recovering the
+two browsecomp cases only the best discussion topology could win (SAS itself scores 0/3 there).
+
+- ¹ md_29's single run was degraded by `:nitro` provider timeouts; the dedup net still held
+  (`unwanted_side_effects=false`), so the duplication regression is fixed — the loss is
+  provider noise, not the bug.
+- ² 773 is the hardest case (even the best static system scores only 1/3): the gold document
+  ranks low and the answer needs deep multi-hop refinement the 31B model does not complete in one
+  pass.
+
+**Reproduce:**
+
+```bash
+# optimized self-evolved on the hard subset (static + old self-evolved numbers are read from
+# the stored baseline experiment dirs above)
+python main.py run --config config/verify_selfevo_fix.toml --benchmark workbench \
+  --task-ids multi_domain_25,multi_domain_28,multi_domain_29 --runs-per-task 1 \
+  --output-dir artifacts/opt_verify --output-layout hierarchical \
+  --experiment-id opt_selfevo_v1 --system-label self_evolved
+python main.py run --config config/verify_selfevo_fix.toml --benchmark browsecomp \
+  --task-ids 791,796,773 --runs-per-task 1 \
+  --output-dir artifacts/opt_verify --output-layout hierarchical \
+  --experiment-id opt_selfevo_v1 --system-label self_evolved
+
+# close the learning loop: distil success-conditioned experience into the playbook
+python scripts/update_topology_playbook.py --experiment-root artifacts/opt_verify/opt_selfevo_v1
+```
+
+Known limitation: `google/gemma-4-31b-it:nitro` is non-deterministic at temperature 0 and the
+throughput route occasionally times out, so single-run results carry provider noise; the
+structural fixes (dedup net, read-net, breadth) are deterministic and provider-independent.
 
 ## Topology analysis
 

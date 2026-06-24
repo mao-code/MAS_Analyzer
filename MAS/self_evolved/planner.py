@@ -41,6 +41,16 @@ from .spec import (
 logger = logging.getLogger(__name__)
 
 
+def _principles_section(principles: list[str] | None) -> str:
+    """Render benchmark-agnostic playbook principles for a planner prompt."""
+
+    items = [str(p).strip() for p in (principles or []) if str(p).strip()]
+    if not items:
+        return ""
+    lines = "\n".join(f"  - {item}" for item in items)
+    return "## Standing principles (always apply)\n" + lines + "\n\n"
+
+
 @dataclass(frozen=True)
 class MutationProposal:
     mutation: TopologyMutation | None
@@ -98,6 +108,8 @@ class TopologyPlannerAgent:
         benchmark_name: str,
         num_agents: int,
         playbook_entries: list[dict[str, Any]] | None = None,
+        principles: list[str] | None = None,
+        skill_text: str | None = None,
     ) -> PlannerProposal:
         max_agents = max(1, int(num_agents))
         prompt_messages = self._build_initial_prompt(
@@ -105,6 +117,8 @@ class TopologyPlannerAgent:
             benchmark_name=benchmark_name,
             max_agents=max_agents,
             playbook_entries=playbook_entries or [],
+            principles=principles or [],
+            skill_text=skill_text or "",
         )
         response_text = ""
         llm_payload: dict[str, Any] = {}
@@ -173,6 +187,7 @@ class TopologyPlannerAgent:
         spec: TopologySpec,
         audit_report: dict[str, Any],
         playbook_entries: list[dict[str, Any]] | None = None,
+        principles: list[str] | None = None,
     ) -> MutationProposal:
         """Ask the planner LLM for one topology mutation addressing the audit
         findings. There is no deterministic fallback mutation: an unusable
@@ -183,6 +198,7 @@ class TopologyPlannerAgent:
             spec=spec,
             audit_report=audit_report,
             playbook_entries=playbook_entries or [],
+            principles=principles or [],
         )
         response_text = ""
         llm_payload: dict[str, Any] = {}
@@ -239,6 +255,7 @@ class TopologyPlannerAgent:
         spec: TopologySpec,
         audit_report: dict[str, Any],
         playbook_entries: list[dict[str, Any]],
+        principles: list[str] | None = None,
     ) -> list[dict[str, str]]:
         groups_summary = "\n".join(
             f"  - {group.group_id}: pattern={group.pattern}, "
@@ -271,17 +288,21 @@ class TopologyPlannerAgent:
             )
 
         budget_left = int(self.se_config.max_total_agents) - len(spec.agents)
+        principles_section = _principles_section(principles)
         system_msg = (
             "You are a topology planner performing the single trace-backed repair of "
             "a multi-agent system. Given the current topology and audit findings, "
             "propose ONE small mutation that addresses the strongest failure signal. "
             "You return only a compact JSON mutation; deterministic code applies and "
-            'validates it. If no mutation is clearly useful, return {"ops": []}.'
+            'validates it. If no mutation is clearly useful, return {"ops": []}. '
+            "Weigh the standing principles and playbook memories below as accumulated "
+            "experience when choosing the repair."
         )
         user_msg = (
             f"## Current topology (version {spec.version})\n{groups_summary}\n\n"
             f"## Audit findings\n{findings}\n"
             f"Auditor recommendation: {audit_report.get('recommendation', '')}\n\n"
+            f"{principles_section}"
             f"{playbook_section}"
             f"## Available ops (at most 3 per mutation)\n"
             f'- expand_agent_to_group: {{"op": "expand_agent_to_group", '
@@ -295,6 +316,15 @@ class TopologyPlannerAgent:
             f'"dst": "agent_2"}}\n'
             f'- set_context_policy: {{"op": "set_context_policy", "agent_id": "agent_0", '
             f'"evidence_access": "global"}}\n\n'
+            f"## Common repairs (symptom -> op)\n"
+            f"- insufficient search coverage: add_agent (worker) to the root group, or "
+            f"set_group_pattern root -> voting, so more searchers cover different facets.\n"
+            f"- duplicate state-changing tool calls: set_group_pattern root -> chain so "
+            f"exactly one agent executes the write (never parallelize a write tool).\n"
+            f"- unverified / low-confidence answer: add_agent (structural_role verifier, "
+            f"stage_role critic), or set_group_pattern root -> debate.\n"
+            f"- blocked / failing branch: expand_agent_to_group on the stuck agent with "
+            f"focused subtasks.\n\n"
             f"## Constraints\n"
             f"- At most {budget_left} new agents may be added in total.\n"
             f"- Keep the mutation minimal: target the audited failure, nothing else.\n\n"
@@ -350,6 +380,8 @@ class TopologyPlannerAgent:
         benchmark_name: str,
         max_agents: int,
         playbook_entries: list[dict[str, Any]],
+        principles: list[str] | None = None,
+        skill_text: str = "",
     ) -> list[dict[str, str]]:
         task_preview = str(getattr(task, "prompt", "") or "")[:800]
 
@@ -363,26 +395,81 @@ class TopologyPlannerAgent:
                     f"support={entry.get('support', '')} notes={entry.get('notes', '')}"
                 )
             playbook_section = (
-                "## Playbook priors (patterns that worked or failed on similar tasks)\n"
+                "## Historical experience (reuse like a skill)\n"
+                "Topologies that worked or failed on tasks like this in prior runs. "
+                "An entry whose key names a different benchmark is transferred by task "
+                "shape (same tool availability + size); weight it by its support.\n"
                 + "\n".join(lines)
                 + "\n\n"
             )
 
+        principles_section = _principles_section(principles)
+
+        # The agent-maintained markdown skill, when present, is the planner's primary
+        # long-term memory: it already carries the standing principles, the how-to-choose
+        # guidance, and lessons from prior runs, so it replaces the inline guidance and the
+        # JSON priors. Without it, fall back to the JSON principles + entries plus the
+        # built-in guidance block (keeps offline/fresh setups and tests working).
+        guidance_block = (
+            "## How to choose the topology (match it to your analysis)\n"
+            "  - Broad retrieval / search (gather facts from many sources): provision "
+            "several searcher workers (a star with workers, or voting) that each search "
+            "a DIFFERENT facet or query; do not rely on a single searcher. If the clues "
+            "form a dependent chain (each step needs the previous answer), use chain or "
+            "debate so the reasoning assembles in shared context instead of fragmenting.\n"
+            "  - Factuality / high hallucination risk: include a verifier or critic — "
+            "but only one that re-checks evidence (a debate, or a critic that re-derives "
+            "the answer), never a passive agent that just waits.\n"
+            "  - External state mutation (create / update / delete / send / schedule / "
+            "pay): exactly ONE agent may execute the mutating tool. Prefer singleton or "
+            "chain; never put the same write tool behind parallel workers, debate, or "
+            "voting — it double-applies and corrupts state. Reading and planning may "
+            "still parallelize.\n"
+            "  - Ambiguous reasoning with several defensible answers: debate or voting "
+            "to surface and resolve disagreement.\n"
+            "  - Complex, multi-part tasks: a star (coordinator + workers), or "
+            "expansions (tree) when sub-parts themselves decompose.\n"
+            "  - Simple single-step lookup or transform: a singleton.\n\n"
+        )
+        if skill_text and skill_text.strip():
+            experience_block = (
+                "## Topology planning skill (accumulated experience — consult before choosing)\n"
+                + skill_text.strip()
+                + "\n\n"
+            )
+            guidance_block = ""
+        else:
+            experience_block = f"{principles_section}{playbook_section}"
+
         system_msg = (
-            "You are a topology planner for a multi-agent system. Given one task, "
-            "you choose a small query-conditioned topology for specialized expert "
-            "agents. You return only a compact JSON plan; deterministic code expands "
-            "and validates it. Prefer the smallest topology that fits the task: "
-            "single agent for simple lookups, a star (coordinator + workers) for "
-            "decomposable tasks, debate for tasks where independent verification "
-            "matters, voting for short answers with high variance, chain for strictly "
-            "sequential pipelines."
+            "You are an expert topology planner (architect) for a multi-agent system. "
+            "Given one task, you design a small, query-conditioned topology of "
+            "specialized agents. Work in three steps: (1) ANALYZE the task, "
+            "(2) choose the topology its analysis implies, (3) justify the choice and "
+            "say what each agent does. You return only a compact JSON plan; "
+            "deterministic code expands and validates it.\n"
+            "Analyze along three axes:\n"
+            "  - task type: retrieval/search, multi-step reasoning, coding, external "
+            "tool use, state mutation, verification, planning, comparison, "
+            "summarization, etc.;\n"
+            "  - attributes: ambiguity, need for breadth/parallelism, need for debate, "
+            "need for verification, hallucination risk, whether external state is "
+            "mutated, whether tools are required, whether outputs must be aggregated;\n"
+            "  - failure risks: duplicated writes, thin search coverage, premature "
+            "consensus, weak verification, poor decomposition.\n"
+            "Prefer the smallest topology that covers the work — extra agents cost "
+            "tokens and can conflict — but DO provision enough agents to cover the task "
+            "(for example, several searchers for broad retrieval). Consult the topology "
+            "planning skill / accumulated experience below (standing principles, "
+            "how-to-choose guidance, and lessons from prior runs); follow it unless this "
+            "task clearly calls for otherwise."
         )
         user_msg = (
             f"Plan the topology for one task from the **{benchmark_name or 'unknown'}** "
             f"benchmark.\n\n"
             f"## Task preview\n{task_preview or '(no task prompt)'}\n\n"
-            f"{playbook_section}"
+            f"{experience_block}"
+            f"{guidance_block}"
             f"## Constraints\n"
             f"- Total agents (root group plus all subgroup members) must be <= {max_agents}.\n"
             f"- Root patterns: singleton | star | chain | debate | voting.\n"
@@ -395,8 +482,10 @@ class TopologyPlannerAgent:
             f"verifies instead of producing parallel work.\n\n"
             f"## Output format\n"
             f"Return ONLY one JSON object, no markdown fences, of the form:\n"
-            f'{{"rationale": "...", "pattern": "star", "num_agents": 3, '
-            f'"verifier": false, "expansions": []}}'
+            f'{{"task_analysis": {{"task_type": "...", "attributes": ["..."], '
+            f'"failure_risks": ["..."]}}, "rationale": "why this topology fits and what '
+            f'each agent does", "pattern": "star", "num_agents": 3, "verifier": false, '
+            f'"expansions": []}}'
         )
         return [
             {"role": "system", "content": system_msg},
@@ -415,7 +504,28 @@ class TopologyPlannerAgent:
         if pattern not in GROUP_PATTERNS:
             return None, ""
 
-        rationale = str(payload.get("rationale", "")).strip()[:600]
+        rationale = str(payload.get("rationale", "")).strip()
+        # Surface the planner's own task analysis in the rationale so it is visible in
+        # the plan trace and the long-term playbook candidate (the model reasons first,
+        # then chooses — the analysis is the chain-of-thought behind the topology).
+        analysis = payload.get("task_analysis")
+        if isinstance(analysis, dict):
+            ttype = str(analysis.get("task_type", "")).strip()
+            risks = analysis.get("failure_risks", [])
+            risks_text = (
+                ", ".join(str(r) for r in risks) if isinstance(risks, list) else str(risks)
+            ).strip()
+            prefix = "; ".join(
+                part
+                for part in (
+                    f"type={ttype}" if ttype else "",
+                    f"risks={risks_text}" if risks_text else "",
+                )
+                if part
+            )
+            if prefix:
+                rationale = f"{prefix} | {rationale}" if rationale else prefix
+        rationale = rationale[:600]
         try:
             requested = int(payload.get("num_agents", 1))
         except Exception:

@@ -77,6 +77,13 @@ class TopologyPlaybook:
         self.entries: list[dict[str, Any]] = [
             dict(entry) for entry in entries if isinstance(entry, dict)
         ]
+        # Benchmark-agnostic priors always surfaced to the planner (cross-cutting
+        # laws like "state-mutating tasks use a single executor"). Unlike entries,
+        # these are not keyed and transfer to benchmarks the playbook has never seen.
+        principles = payload.get("principles", [])
+        self.principles: list[str] = [
+            str(item).strip() for item in principles if isinstance(item, str) and str(item).strip()
+        ]
 
     @classmethod
     def load(cls, path: str | Path) -> TopologyPlaybook:
@@ -93,7 +100,11 @@ class TopologyPlaybook:
             return cls(path)
 
     def save(self) -> None:
-        payload = {"version": self.version, "entries": self.entries[:_MAX_ENTRIES]}
+        payload = {
+            "version": self.version,
+            "principles": self.principles,
+            "entries": self.entries[:_MAX_ENTRIES],
+        }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = self.path.with_suffix(self.path.suffix + ".tmp")
         tmp_path.write_text(
@@ -104,16 +115,40 @@ class TopologyPlaybook:
 
     # -- read side (used by the planner during runs) --------------------------
 
-    def lookup(self, benchmark_name: str, key: str, *, limit: int = 5) -> list[dict[str, Any]]:
-        """Entries for the exact key first, then other entries for the benchmark."""
+    def global_principles(self, *, limit: int = 6) -> list[str]:
+        """Benchmark-agnostic priors injected into every planner prompt."""
 
+        return list(self.principles[:limit])
+
+    def lookup(self, benchmark_name: str, key: str, *, limit: int = 5) -> list[dict[str, Any]]:
+        """Retrieve historical experience for a task, most specific first.
+
+        Three tiers, so a lesson learned anywhere transfers by task *shape* — this is
+        what makes the long-term playbook act like a reusable skill rather than a
+        per-benchmark table:
+        1. exact key (this benchmark + tool availability + prompt size);
+        2. other keys from the same benchmark;
+        3. the same task shape (``tools::size`` suffix) learned on *other* benchmarks.
+
+        Tier 3 is the transfer channel: a topology that worked for tool-using medium
+        tasks on one benchmark is offered as experience for a tool-using medium task the
+        playbook has never seen on its own benchmark.
+        """
+
+        suffix = key.split("::", 1)[1] if "::" in key else key
         exact = [entry for entry in self.entries if entry.get("key") == key]
         same_benchmark = [
             entry
             for entry in self.entries
             if entry.get("benchmark") == benchmark_name and entry.get("key") != key
         ]
-        return (exact + same_benchmark)[:limit]
+        same_shape = [
+            entry
+            for entry in self.entries
+            if entry.get("benchmark") != benchmark_name
+            and str(entry.get("key", "")).split("::", 1)[-1] == suffix
+        ]
+        return (exact + same_benchmark + same_shape)[:limit]
 
     @staticmethod
     def planner_view(entry: dict[str, Any]) -> dict[str, Any]:
@@ -164,6 +199,47 @@ class TopologyPlaybook:
         support = entry.setdefault("support", {"runs": 0, "successes": 0})
         support["runs"] = int(support.get("runs", 0)) + 1
         support["successes"] = int(support.get("successes", 0)) + int(bool(success))
+
+        # Learn the winning topology per key instead of freezing the first-seen
+        # pattern: tally success by the pattern that actually ran (post-repair) and
+        # recommend the best-performing one (highest success rate, ties broken by
+        # support). This is what lets the planner improve from prior experiments.
+        ran_pattern = candidate.get("final_pattern") or candidate.get("initial_pattern") or {}
+        if ran_pattern:
+            stats = entry.setdefault("pattern_stats", {})
+            pat_key = json.dumps(ran_pattern, sort_keys=True)
+            stat = stats.setdefault(
+                pat_key, {"pattern": dict(ran_pattern), "runs": 0, "successes": 0}
+            )
+            stat["runs"] = int(stat.get("runs", 0)) + 1
+            stat["successes"] = int(stat.get("successes", 0)) + int(bool(success))
+            ranked = sorted(
+                stats.values(),
+                key=lambda s: (
+                    int(s.get("successes", 0)) / max(int(s.get("runs", 0)), 1),
+                    int(s.get("runs", 0)),
+                ),
+                reverse=True,
+            )
+            best = ranked[0]
+            entry["pattern"] = dict(best["pattern"])
+
+            # Distill a concise, reusable rule from the accumulated stats so the planner
+            # reads an actionable learned insight (which pattern to use, which to avoid)
+            # rather than a bare pattern. This is the long-term "experience" channel.
+            def _sketch(stat: dict[str, Any]) -> str:
+                pat = stat.get("pattern", {})
+                return f"{pat.get('pattern', '?')}/{pat.get('num_agents', '?')}"
+
+            note = f"best: {_sketch(best)} ({best.get('successes', 0)}/{best.get('runs', 0)})"
+            worst = ranked[-1]
+            if (
+                worst is not best
+                and int(worst.get("successes", 0)) == 0
+                and int(worst.get("runs", 0)) > 0
+            ):
+                note += f"; avoid: {_sketch(worst)} (0/{worst.get('runs', 0)})"
+            entry["notes"] = note
 
         mutation = candidate.get("mutation_summary")
         if mutation:

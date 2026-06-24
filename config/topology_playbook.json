@@ -1,55 +1,86 @@
 {
-  "version": 1,
   "entries": [
     {
-      "key": "browsecomp::tools::long",
-      "benchmark": "browsecomp",
-      "pattern": {
-        "pattern": "star",
-        "num_agents": 4,
-        "expansions": []
-      },
-      "support": {"runs": 0, "successes": 0},
-      "notes": "Long multi-hop retrieval: coordinator splits query facets across workers; keep a verifier critic so retrieved evidence is checked before synthesis.",
-      "failure_memories": []
-    },
-    {
-      "key": "finance_agent::tools::short",
-      "benchmark": "finance_agent",
-      "pattern": {
-        "pattern": "star",
-        "num_agents": 3,
-        "expansions": []
-      },
-      "support": {"runs": 0, "successes": 0},
-      "notes": "Short quantitative retrieval: one retrieval worker plus one verification worker under a coordinator is usually enough; larger topologies add cost without lift.",
-      "failure_memories": []
-    },
-    {
-      "key": "workbench::tools::medium",
-      "benchmark": "workbench",
-      "pattern": {
-        "pattern": "star",
-        "num_agents": 4,
-        "expansions": [
-          {"parent_agent_id": "agent_1", "pattern": "star", "num_subagents": 2}
-        ]
-      },
-      "support": {"runs": 0, "successes": 0},
-      "notes": "Multi-domain tool tasks: expand the branch owning the most tool domains into a subgroup so tool selection is split per domain.",
-      "failure_memories": []
-    },
-    {
-      "key": "unknown::no_tools::short",
       "benchmark": "unknown",
-      "pattern": {
-        "pattern": "singleton",
-        "num_agents": 1,
-        "expansions": []
-      },
-      "support": {"runs": 0, "successes": 0},
+      "failure_memories": [],
+      "key": "unknown::no_tools::short",
       "notes": "Short tasks without tools rarely benefit from coordination; start single-agent and rely on the repair path if the answer collapses.",
-      "failure_memories": []
+      "pattern": {
+        "expansions": [],
+        "num_agents": 1,
+        "pattern": "singleton"
+      },
+      "support": {
+        "runs": 0,
+        "successes": 0
+      }
+    },
+    {
+      "benchmark": "browsecomp",
+      "failure_memories": [],
+      "key": "browsecomp::tools::medium",
+      "notes": "best: chain/3 (2/2); avoid: chain/2 (0/1)",
+      "pattern": {
+        "expansions": [],
+        "num_agents": 3,
+        "pattern": "chain"
+      },
+      "pattern_stats": {
+        "{\"expansions\": [], \"num_agents\": 2, \"pattern\": \"chain\"}": {
+          "pattern": {
+            "expansions": [],
+            "num_agents": 2,
+            "pattern": "chain"
+          },
+          "runs": 1,
+          "successes": 0
+        },
+        "{\"expansions\": [], \"num_agents\": 3, \"pattern\": \"chain\"}": {
+          "pattern": {
+            "expansions": [],
+            "num_agents": 3,
+            "pattern": "chain"
+          },
+          "runs": 2,
+          "successes": 2
+        }
+      },
+      "support": {
+        "runs": 3,
+        "successes": 2
+      }
+    },
+    {
+      "benchmark": "workbench",
+      "failure_memories": [],
+      "key": "workbench::tools::medium",
+      "notes": "best: chain/2 (2/3)",
+      "pattern": {
+        "expansions": [],
+        "num_agents": 2,
+        "pattern": "chain"
+      },
+      "pattern_stats": {
+        "{\"expansions\": [], \"num_agents\": 2, \"pattern\": \"chain\"}": {
+          "pattern": {
+            "expansions": [],
+            "num_agents": 2,
+            "pattern": "chain"
+          },
+          "runs": 3,
+          "successes": 2
+        }
+      },
+      "support": {
+        "runs": 3,
+        "successes": 2
+      }
     }
-  ]
+  ],
+  "principles": [
+    "Concentrate state-changing actions (writes, sends, schedules, deletions, payments) in a single executor: repeating the same action across agents wastes effort and can double-apply it, corrupting the result. Reading, planning, and genuinely independent sub-actions can still run in parallel.",
+    "Match the topology to the question's shape. Parallel workers suit independent facets (breadth); a chain of clues where each step depends on resolving the previous is better served by shared context (chain or debate) so the reasoning assembles instead of fragmenting across agents that each see only a piece. Add an agent only when it does work the task needs — a verifier earns its slot only if it also gathers or checks evidence, not if it merely waits.",
+    "Distinguish a premature give-up from honest uncertainty. If the gathered evidence supports or points toward an answer (including by inference from partial clues), commit the best-supported one rather than stalling ('let me search more') or returning a non-answer. Only when the evidence genuinely supports no answer should you say so and note what is missing — do not fabricate. Convey degree of belief with a confidence value, not reflexive refusal."
+  ],
+  "version": 1
 }

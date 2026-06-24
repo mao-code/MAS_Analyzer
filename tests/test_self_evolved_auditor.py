@@ -143,6 +143,98 @@ class TestTraceAuditorHeuristics(unittest.TestCase):
         report = _auditor().audit(state, _spec(), turn_index=0)
         self.assertIn("missing_validator", self._modes(report))
 
+    def test_duplicate_state_mutation_across_agents(self) -> None:
+        # Two workers issue the identical side-effecting call -> double-apply risk.
+        state = _base_state(
+            artifacts=[_artifact("agent_1"), _artifact("agent_2")],
+            tools=[{"name": "calendar.create_event"}],
+            tool_records_log=[
+                {
+                    "agent_id": "agent_1",
+                    "round_index": 0,
+                    "tool_name": "calendar.create_event",
+                    "arguments": {"name": "Standup", "date": "2026-06-25"},
+                    "status": "ok",
+                },
+                {
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "tool_name": "calendar.create_event",
+                    "arguments": {"name": "Standup", "date": "2026-06-25"},
+                    "status": "ok",
+                },
+            ],
+        )
+        report = _auditor().audit(state, _spec(), turn_index=0)
+        self.assertIn("duplicate_state_mutation", self._modes(report))
+        self.assertTrue(report["repair_recommended"])
+        mode = next(m for m in report["detected_modes"] if m["mode"] == "duplicate_state_mutation")
+        self.assertEqual(mode["severity"], "high")
+        self.assertEqual(mode["agent_ids"], ["agent_1", "agent_2"])
+
+    def test_distinct_tool_args_do_not_flag_duplicate(self) -> None:
+        # Different arguments = legitimately distinct calls; must not flag.
+        state = _base_state(
+            artifacts=[_artifact("agent_1"), _artifact("agent_2")],
+            tools=[{"name": "search"}],
+            tool_records_log=[
+                {
+                    "agent_id": "agent_1",
+                    "round_index": 0,
+                    "tool_name": "search",
+                    "arguments": {"query": "a"},
+                    "status": "ok",
+                },
+                {
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "tool_name": "search",
+                    "arguments": {"query": "b"},
+                    "status": "ok",
+                },
+            ],
+        )
+        report = _auditor().audit(state, _spec(), turn_index=0)
+        self.assertNotIn("duplicate_state_mutation", self._modes(report))
+
+    def test_insufficient_search_coverage_no_document_opened(self) -> None:
+        # Retrieval run searched but never opened a document -> high severity.
+        state = _base_state(
+            artifacts=[_artifact("agent_1", evidence=["snippet"])],
+            tools=[{"name": "search"}, {"name": "get_document"}],
+            tool_records_log=[
+                {
+                    "agent_id": "agent_1",
+                    "round_index": 0,
+                    "tool_name": "search",
+                    "arguments": {"query": "a"},
+                    "status": "ok",
+                },
+            ],
+        )
+        report = _auditor().audit(state, _spec(), turn_index=0)
+        self.assertIn("insufficient_search_coverage", self._modes(report))
+        mode = next(
+            m for m in report["detected_modes"] if m["mode"] == "insufficient_search_coverage"
+        )
+        self.assertEqual(mode["severity"], "high")
+
+    def test_search_coverage_ok_with_multiple_searchers_and_read(self) -> None:
+        state = _base_state(
+            artifacts=[_artifact("agent_1", evidence=["doc"]), _artifact("agent_2", evidence=["doc"])],
+            tools=[{"name": "search"}, {"name": "get_document"}],
+            tool_records_log=[
+                {"agent_id": "agent_1", "round_index": 0, "tool_name": "search",
+                 "arguments": {"query": "a"}, "status": "ok"},
+                {"agent_id": "agent_2", "round_index": 0, "tool_name": "search",
+                 "arguments": {"query": "b"}, "status": "ok"},
+                {"agent_id": "agent_1", "round_index": 0, "tool_name": "get_document",
+                 "arguments": {"docid": "d1"}, "status": "ok"},
+            ],
+        )
+        report = _auditor().audit(state, _spec(), turn_index=0)
+        self.assertNotIn("insufficient_search_coverage", self._modes(report))
+
     def test_clean_turn_recommends_no_repair(self) -> None:
         state = _base_state(
             artifacts=[

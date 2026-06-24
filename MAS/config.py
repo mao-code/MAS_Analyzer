@@ -171,6 +171,10 @@ class SelfEvolvedConfig:
     max_turns: int = 2
     audit_mode: str = "heuristic"
     playbook_path: str = "config/topology_playbook.json"
+    # Agent-maintained markdown skill (the long-term playbook as a SKILL.md). When this
+    # file exists it is the planner's primary long-term memory (loaded in full at plan
+    # time); the JSON playbook above is the deterministic fallback when it is absent.
+    skill_path: str = "config/topology_skill.md"
     playbook_read: bool = True
     default_packet_max_chars: int = 0  # 0 = full fidelity; optional generous structural budget
 
@@ -320,6 +324,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         max_turns=int(self_evolved_raw.get("max_turns", 2)),
         audit_mode=str(self_evolved_raw.get("audit_mode", "heuristic")),
         playbook_path=str(self_evolved_raw.get("playbook_path", "config/topology_playbook.json")),
+        skill_path=str(self_evolved_raw.get("skill_path", "config/topology_skill.md")),
         playbook_read=bool(self_evolved_raw.get("playbook_read", True)),
         default_packet_max_chars=int(self_evolved_raw.get("default_packet_max_chars", 0)),
     )

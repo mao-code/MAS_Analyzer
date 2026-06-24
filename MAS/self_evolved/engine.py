@@ -16,6 +16,7 @@ Agents never decide loop termination; the controller logic here does.
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -57,6 +58,8 @@ class SelfEvolvedEngine:
         self.auditor = TraceAuditorAgent(harness, se_config)
         self._playbook: TopologyPlaybook | None = None
         self._playbook_loaded = False
+        self._skill_cache: str | None = None
+        self._skill_loaded = False
 
     def run(
         self,
@@ -87,7 +90,17 @@ class SelfEvolvedEngine:
             for tool in (tools or [])
         )
         if tools:
-            num_agents = min(num_agents, 3)
+            if is_retrieval:
+                # Retrieval runs a single turn (no repair doubling, see max_turns below),
+                # so the OOM risk is bounded. Broad multi-hop search needs several
+                # searchers covering different facets — static systems use the full agent
+                # budget here and succeed where a 3-agent cap under-provisions search and
+                # leaves a near-single searcher. Keep the configured initial breadth.
+                num_agents = min(num_agents, int(self.se_config.max_initial_agents))
+            else:
+                # Non-retrieval tool tasks get a repair turn; cap breadth so the second
+                # turn cannot OOM and to limit duplicate side-effecting tool calls.
+                num_agents = min(num_agents, 3)
 
         # 1. PLAN — phase 2 replaces this with the LLM Topology Planner.
         plan_started = time.perf_counter()
@@ -331,8 +344,32 @@ class SelfEvolvedEngine:
             benchmark_name=benchmark_name,
             num_agents=num_agents,
             playbook_entries=self._playbook_entries(task, benchmark_name, tools_available),
+            principles=self._playbook_principles(),
+            skill_text=self._skill_text(),
         )
         return proposal.spec, proposal.to_payload()
+
+    def _skill_text(self) -> str:
+        """The agent-maintained markdown skill (primary long-term memory), if present."""
+
+        if not self.se_config.playbook_read:
+            return ""
+        if not self._skill_loaded:
+            self._skill_loaded = True
+            from .skill import TopologySkill
+
+            self._skill_cache = TopologySkill.load(self.se_config.skill_path).prompt_section()
+        return self._skill_cache or ""
+
+    def _playbook_principles(self) -> list[str]:
+        """Benchmark-agnostic priors injected into every planner prompt."""
+
+        if not self.se_config.playbook_read:
+            return []
+        playbook = self._load_playbook()
+        if playbook is None:
+            return []
+        return playbook.global_principles()
 
     def _playbook_entries(
         self, task: Any, benchmark_name: str, tools_available: bool
@@ -402,6 +439,7 @@ class SelfEvolvedEngine:
             spec=topo_spec,
             audit_report=audit_report or {},
             playbook_entries=playbook_entries,
+            principles=self._playbook_principles(),
         )
         mutation = proposal.mutation
         if mutation is None:
@@ -698,7 +736,12 @@ class SelfEvolvedEngine:
     ) -> ArtifactRecord | None:
         if not self._needs_final_synthesis(final_answer, vote_result=vote_result, state=state):
             return None
-        evidence = self._collect_tool_evidence_for_synthesis(state)
+        # Read-net: open the top surfaced documents (full text) before synthesis, then
+        # add the deduped search snippets. The agents' answer used only their top-3
+        # snippets per search, so a correct-but-low-ranked document is invisible to them;
+        # opening the broader set lets synthesis recover it. Inert without get_document.
+        evidence = self._read_documents_for_synthesis(state)
+        evidence += self._collect_tool_evidence_for_synthesis(state)
         if not evidence:
             return None
 
@@ -710,8 +753,14 @@ class SelfEvolvedEngine:
                     "Use only the task and retrieved evidence below. Do not call tools. "
                     "Do not say you need to search more. Return exactly one JSON object "
                     "with keys: answer_artifact, summary, critique, revision_request, "
-                    "confidence, unresolved_issues, evidence_summary. answer_artifact "
-                    "must be only the final answer string when the evidence identifies one."
+                    "confidence, unresolved_issues, evidence_summary. "
+                    "Make a serious attempt to infer the answer from the evidence and "
+                    "clues: if the evidence supports or points toward an answer, set "
+                    "answer_artifact to the best-supported answer string and use a low "
+                    "confidence when support is thin — do not stall or give up "
+                    "prematurely. Only if the evidence genuinely supports no answer at "
+                    "all, set answer_artifact to null and note in unresolved_issues what "
+                    "is missing; do not fabricate a specific answer."
                 ),
             },
             {
@@ -860,6 +909,25 @@ class SelfEvolvedEngine:
         text = str(final_answer or "").strip()
         if not text:
             return True
+
+        # Retrieval runs whose agents never opened documents answered from truncated
+        # top-3 snippets and are unreliable however confident they look — re-derive from
+        # the full text of the top surfaced documents (the read-net). Gated on the run
+        # exposing get_document and the agents having read < 2 documents, so runs that
+        # did read, and all non-retrieval runs, are untouched.
+        run_tools = state.get("tools") or []
+        if any(
+            isinstance(tool, dict) and str(tool.get("name", "")) == "get_document"
+            for tool in run_tools
+        ):
+            reads = sum(
+                1
+                for record in state.get("tool_records_log", [])
+                if str(record.get("tool_name", "")) == "get_document"
+            )
+            if reads < 2:
+                return True
+
         lowered = text.lower()
         planning_markers = (
             "let me search",
@@ -894,6 +962,67 @@ class SelfEvolvedEngine:
                 if selected.get("unresolved_issues"):
                     return True
         return False
+
+    def _read_documents_for_synthesis(
+        self, state: dict[str, Any], *, max_docs: int = 20, max_chars: int = 1500
+    ) -> list[str]:
+        """Deterministically open the top surfaced search documents for synthesis.
+
+        Weak models often search broadly but never call ``get_document``, then answer
+        from the top-3 truncated snippets per search — so a correct-but-low-ranked
+        document is never read (e.g. the gold doc ranked 23rd by BM25). This opens the
+        highest-scoring surfaced docids (deduped across all searches) via the run's own
+        ``get_document`` handler and returns their full text, so synthesis can recover the
+        answer the agents missed. Inert for runs without a ``get_document`` tool.
+        """
+
+        get_document = None
+        for tool in state.get("tools") or []:
+            if (
+                isinstance(tool, dict)
+                and str(tool.get("name", "")) == "get_document"
+                and callable(tool.get("handler"))
+            ):
+                get_document = tool["handler"]
+                break
+        if get_document is None:
+            return []
+
+        best_score: dict[str, float] = {}
+        for record in state.get("tool_records_log", []):
+            if str(record.get("tool_name", "")) != "search":
+                continue
+            output = record.get("output")
+            if not isinstance(output, list):
+                continue
+            for row in output:
+                if not isinstance(row, dict):
+                    continue
+                docid = str(row.get("docid", "")).strip()
+                if not docid:
+                    continue
+                try:
+                    score = float(row.get("score", 0.0))
+                except Exception:
+                    score = 0.0
+                best_score[docid] = max(best_score.get(docid, 0.0), score)
+        if not best_score:
+            return []
+
+        ranked = sorted(best_score, key=lambda docid: best_score[docid], reverse=True)
+        documents: list[str] = []
+        for docid in ranked[:max_docs]:
+            try:
+                doc = get_document({"docid": docid})
+            except Exception:
+                continue
+            if not isinstance(doc, dict):
+                continue
+            text = doc.get("text") or doc.get("snippet") or ""
+            text = re.sub(r"\s+", " ", str(text)).strip()[:max_chars]
+            if text:
+                documents.append(f"- docid={docid}: {text}")
+        return documents
 
     def _collect_tool_evidence_for_synthesis(self, state: dict[str, Any]) -> list[str]:
         evidence: list[str] = []

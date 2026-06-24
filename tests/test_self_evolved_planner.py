@@ -90,6 +90,46 @@ class TestTopologyPlanner(unittest.TestCase):
         self.assertEqual(spec.agent("agent_2").stage_role, "critic")
         self.assertEqual(spec.agent("agent_2").structural_role, "verifier")
 
+    def test_task_analysis_folded_into_rationale(self) -> None:
+        plan = json.dumps(
+            {
+                "task_analysis": {
+                    "task_type": "state mutation",
+                    "attributes": ["mutates external state"],
+                    "failure_risks": ["duplicated writes"],
+                },
+                "rationale": "single executor avoids a double create",
+                "pattern": "singleton",
+                "num_agents": 1,
+                "verifier": False,
+                "expansions": [],
+            }
+        )
+        proposal = _planner(plan).propose_initial(
+            task=_Task(task_id="t", prompt="Create a calendar event"),
+            benchmark_name="workbench",
+            num_agents=3,
+        )
+        self.assertFalse(proposal.used_fallback)
+        self.assertEqual(proposal.spec.group(proposal.spec.root_group_id).pattern, "singleton")
+        # The planner's own analysis is surfaced in the rationale (and thus the trace).
+        self.assertIn("type=state mutation", proposal.rationale)
+        self.assertIn("risks=duplicated writes", proposal.rationale)
+
+    def test_initial_prompt_carries_topology_guidance(self) -> None:
+        planner = _planner(_VALID_PLAN)
+        messages = planner._build_initial_prompt(
+            task=_Task(task_id="t", prompt="q"),
+            benchmark_name="workbench",
+            max_agents=3,
+            playbook_entries=[],
+            principles=[],
+        )
+        blob = messages[0]["content"] + messages[1]["content"]
+        self.assertIn("ANALYZE", blob)
+        self.assertIn("External state mutation", blob)
+        self.assertIn("task_analysis", blob)
+
     def test_malformed_response_falls_back(self) -> None:
         planner = _planner("I think a star topology would be nice.")
         proposal = planner.propose_initial(
@@ -154,7 +194,7 @@ class TestTopologyPlanner(unittest.TestCase):
         self.assertEqual(proposal.playbook_keys, ["finance_agent::retrieval"])
         prompt_text = json.dumps(proposal.prompt_messages)
         self.assertIn("finance_agent::retrieval", prompt_text)
-        self.assertIn("Playbook priors", prompt_text)
+        self.assertIn("Historical experience", prompt_text)
 
 
 class TestPlannerEngineIntegration(unittest.TestCase):
