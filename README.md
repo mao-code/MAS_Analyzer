@@ -509,7 +509,7 @@ remains the only correctness authority — the in-run auditor never sees ground 
 ```mermaid
 flowchart TD
     Start([Run start]) --> Plan
-    PB[("Long-term playbook<br/>config/topology_playbook.json")]
+    PB[("Long-term memory<br/>topology_skill.md (agent-maintained)<br/>+ JSON playbook fallback")]
     PB -. read .-> Plan
 
     Plan["<b>Plan</b><br/>Topology Planner proposes<br/>TopologySpec v0<br/>(deterministic fallback)"]
@@ -536,8 +536,9 @@ flowchart TD
 
 Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns = 2`):
 
-1. **Plan** — look up the playbook, then the LLM **Topology Planner** proposes a
-   per-task `TopologySpec` (nested agents/groups + per-agent context policy). The
+1. **Plan** — load the long-term skill (`config/topology_skill.md`, or the JSON playbook
+   fallback), then the LLM **Topology Planner** proposes a per-task `TopologySpec` (nested
+   agents/groups + per-agent context policy). The
    planner prompt is an *analyze → choose → justify* scaffold: it first analyzes the
    task along three axes — **task type** (retrieval/search, reasoning, coding, tool use,
    state mutation, verification, planning, comparison, summarization…), **attributes**
@@ -592,28 +593,33 @@ with meta-agent tokens/cost on their own events so `C*` includes meta-control ov
 - **Short-term** — an in-memory playbook updated after each audited turn from process
   signals (detected modes, repair recommendation, termination reason). It is read only by
   the single in-run repair planner, giving it fresh turn-level context for the mutation.
-- **Long-term — a retrievable skill of historical experience.** A persistent JSON file
-  (default `config/topology_playbook.json`) the planner consults at plan time, with two
-  channels:
-  - **`principles`** — a small set of benchmark-agnostic, always-injected laws (e.g.
-    *"concentrate state-changing actions in a single executor"*; *"match the topology to
-    the question's shape"*; *"distinguish a premature give-up from honest uncertainty"*).
-    These transfer to benchmarks the playbook has never seen.
-  - **`entries`** — per `benchmark::tools|no_tools::short|medium|long` key. Each entry
-    records a `pattern_stats` tally and distills a concise, reusable rule into `notes`
-    (e.g. `best: chain/3 (2/2); avoid: chain/2 (0/1)`), so the planner learns which
-    topology to use and which to avoid per task class.
-  Retrieval (`TopologyPlaybook.lookup`) returns experience in three tiers — exact key,
-  then same benchmark, then **the same task *shape* (`tools::size`) learned on other
-  benchmarks**. That third tier is what makes the playbook behave like a *skill* rather
-  than a per-benchmark table: a topology proven on tool-using medium tasks transfers to a
-  tool-using medium task on a benchmark the playbook has never run. Entries are weighted by
-  their support, and the prompt labels them as historical experience to reuse.
-  Runs never write the file. Instead each run records an update candidate, and
-  `python scripts/update_topology_playbook.py --experiment-root <dir>` merges those
-  candidates **conditioned on `eval.json` success** post-hoc — picking the
-  highest-success pattern per key (not the first seen). This keeps runs independent,
-  avoids write races under parallel experiments, and ties learning to real correctness.
+- **Long-term — an agent-maintained markdown skill.** The long-term playbook is a
+  long-form `SKILL.md` (default `config/topology_skill.md`) that the planner loads **in
+  full** at plan time, the way an agent consults a skill. It has three sections:
+  - **Standing principles** — benchmark-agnostic laws always in force.
+  - **How to choose a topology** — the task-type → topology heuristics.
+  - **Lessons from experience** — concrete, evidence-cited rules grown from real runs
+    (e.g. *"tool-using broad retrieval: chain/3 succeeded 2/2 where chain/2 failed 0/1 —
+    breadth and document reading both matter"*).
+
+  **Writer = an LLM reflection agent.** `python scripts/reflect_topology_skill.py
+  --experiment-root <dir> --config <toml>` gives the model the current skill plus per-run
+  outcomes **labelled with ground-truth `eval.json` success**, and it rewrites the
+  *Lessons* section (the Standing principles / How-to-choose sections are protected — a
+  guardrail rejects any revision that drops them, and a mocked/unusable reflection leaves
+  the skill unchanged). Runs never write the file themselves, so parallel experiments stay
+  independent; reflection happens post-hoc. The reflection is grounded in verified success,
+  but an LLM authors the prose — the tradeoff accepted for a genuinely agent-maintained,
+  human-readable skill.
+
+  *Deterministic fallback.* When no skill file exists, the planner falls back to the legacy
+  structured JSON playbook (`config/topology_playbook.json`): benchmark-agnostic
+  `principles[]` plus per-`benchmark::tools|size`-key `entries[]` whose `notes` distil a
+  `best/avoid` rule, retrieved in three tiers (exact key → same benchmark → **same task
+  shape across other benchmarks**, the transfer tier). It is written by
+  `scripts/update_topology_playbook.py`, which merges run candidates **conditioned on
+  `eval.json` success** (deterministic, no LLM). Both writers tie learning to real
+  correctness; the markdown skill is the primary memory, the JSON is the fallback/record.
 
 ### Correctness nets and provisioning (deterministic code)
 

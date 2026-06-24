@@ -109,6 +109,7 @@ class TopologyPlannerAgent:
         num_agents: int,
         playbook_entries: list[dict[str, Any]] | None = None,
         principles: list[str] | None = None,
+        skill_text: str | None = None,
     ) -> PlannerProposal:
         max_agents = max(1, int(num_agents))
         prompt_messages = self._build_initial_prompt(
@@ -117,6 +118,7 @@ class TopologyPlannerAgent:
             max_agents=max_agents,
             playbook_entries=playbook_entries or [],
             principles=principles or [],
+            skill_text=skill_text or "",
         )
         response_text = ""
         llm_payload: dict[str, Any] = {}
@@ -379,6 +381,7 @@ class TopologyPlannerAgent:
         max_agents: int,
         playbook_entries: list[dict[str, Any]],
         principles: list[str] | None = None,
+        skill_text: str = "",
     ) -> list[dict[str, str]]:
         task_preview = str(getattr(task, "prompt", "") or "")[:800]
 
@@ -401,6 +404,43 @@ class TopologyPlannerAgent:
             )
 
         principles_section = _principles_section(principles)
+
+        # The agent-maintained markdown skill, when present, is the planner's primary
+        # long-term memory: it already carries the standing principles, the how-to-choose
+        # guidance, and lessons from prior runs, so it replaces the inline guidance and the
+        # JSON priors. Without it, fall back to the JSON principles + entries plus the
+        # built-in guidance block (keeps offline/fresh setups and tests working).
+        guidance_block = (
+            "## How to choose the topology (match it to your analysis)\n"
+            "  - Broad retrieval / search (gather facts from many sources): provision "
+            "several searcher workers (a star with workers, or voting) that each search "
+            "a DIFFERENT facet or query; do not rely on a single searcher. If the clues "
+            "form a dependent chain (each step needs the previous answer), use chain or "
+            "debate so the reasoning assembles in shared context instead of fragmenting.\n"
+            "  - Factuality / high hallucination risk: include a verifier or critic — "
+            "but only one that re-checks evidence (a debate, or a critic that re-derives "
+            "the answer), never a passive agent that just waits.\n"
+            "  - External state mutation (create / update / delete / send / schedule / "
+            "pay): exactly ONE agent may execute the mutating tool. Prefer singleton or "
+            "chain; never put the same write tool behind parallel workers, debate, or "
+            "voting — it double-applies and corrupts state. Reading and planning may "
+            "still parallelize.\n"
+            "  - Ambiguous reasoning with several defensible answers: debate or voting "
+            "to surface and resolve disagreement.\n"
+            "  - Complex, multi-part tasks: a star (coordinator + workers), or "
+            "expansions (tree) when sub-parts themselves decompose.\n"
+            "  - Simple single-step lookup or transform: a singleton.\n\n"
+        )
+        if skill_text and skill_text.strip():
+            experience_block = (
+                "## Topology planning skill (accumulated experience — consult before choosing)\n"
+                + skill_text.strip()
+                + "\n\n"
+            )
+            guidance_block = ""
+        else:
+            experience_block = f"{principles_section}{playbook_section}"
+
         system_msg = (
             "You are an expert topology planner (architect) for a multi-agent system. "
             "Given one task, you design a small, query-conditioned topology of "
@@ -419,37 +459,17 @@ class TopologyPlannerAgent:
             "consensus, weak verification, poor decomposition.\n"
             "Prefer the smallest topology that covers the work — extra agents cost "
             "tokens and can conflict — but DO provision enough agents to cover the task "
-            "(for example, several searchers for broad retrieval). Treat the standing "
-            "principles and playbook priors below as accumulated experience from prior "
-            "runs; follow them unless this task clearly calls for otherwise."
+            "(for example, several searchers for broad retrieval). Consult the topology "
+            "planning skill / accumulated experience below (standing principles, "
+            "how-to-choose guidance, and lessons from prior runs); follow it unless this "
+            "task clearly calls for otherwise."
         )
         user_msg = (
             f"Plan the topology for one task from the **{benchmark_name or 'unknown'}** "
             f"benchmark.\n\n"
             f"## Task preview\n{task_preview or '(no task prompt)'}\n\n"
-            f"{principles_section}"
-            f"{playbook_section}"
-            f"## How to choose the topology (match it to your analysis)\n"
-            f"  - Broad retrieval / search (gather facts from many sources): provision "
-            f"several searcher workers (a star with workers, or voting) that each search "
-            f"a DIFFERENT facet or query; do not rely on a single searcher. If the clues "
-            f"form a dependent chain (each step needs the previous answer), use chain or "
-            f"debate so the reasoning assembles in shared context instead of fragmenting.\n"
-            f"  - Factuality / high hallucination risk: include a verifier or critic — "
-            f"but only one that re-checks evidence (a debate, or a critic that re-derives "
-            f"the answer), never a passive agent that just waits.\n"
-            f"  - External state mutation (create / update / delete / send / schedule / "
-            f"pay): exactly ONE agent may execute the mutating tool. Prefer singleton or "
-            f"chain; never put the same write tool behind parallel workers, debate, or "
-            f"voting — it double-applies and corrupts state. Reading and planning may "
-            f"still parallelize.\n"
-            f"  - Ambiguous reasoning with several defensible answers: debate or voting "
-            f"to surface and resolve disagreement.\n"
-            f"  - Complex, multi-part tasks: a star (coordinator + workers), or "
-            f"expansions (tree) when sub-parts themselves decompose.\n"
-            f"  - Specialized subtasks needing central control: a star coordinator with "
-            f"role-specialized workers.\n"
-            f"  - Simple single-step lookup or transform: a singleton.\n\n"
+            f"{experience_block}"
+            f"{guidance_block}"
             f"## Constraints\n"
             f"- Total agents (root group plus all subgroup members) must be <= {max_agents}.\n"
             f"- Root patterns: singleton | star | chain | debate | voting.\n"

@@ -107,7 +107,13 @@ def _run_engine(playbook_path: Path, *, playbook_read: bool = True) -> tuple[Any
     client = _CapturingLLM()
     engine = SelfEvolvedEngine(
         client,
-        SelfEvolvedConfig(playbook_path=str(playbook_path), playbook_read=playbook_read),
+        SelfEvolvedConfig(
+            playbook_path=str(playbook_path),
+            # No skill file -> exercise the JSON-playbook fallback path here; the
+            # skill-primary path is covered in test_self_evolved_skill.py.
+            skill_path=str(playbook_path.parent / "absent_skill.md"),
+            playbook_read=playbook_read,
+        ),
     )
     spec = ExperimentSpec(
         topology="self_evolved",

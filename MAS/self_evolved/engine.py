@@ -58,6 +58,8 @@ class SelfEvolvedEngine:
         self.auditor = TraceAuditorAgent(harness, se_config)
         self._playbook: TopologyPlaybook | None = None
         self._playbook_loaded = False
+        self._skill_cache: str | None = None
+        self._skill_loaded = False
 
     def run(
         self,
@@ -343,8 +345,21 @@ class SelfEvolvedEngine:
             num_agents=num_agents,
             playbook_entries=self._playbook_entries(task, benchmark_name, tools_available),
             principles=self._playbook_principles(),
+            skill_text=self._skill_text(),
         )
         return proposal.spec, proposal.to_payload()
+
+    def _skill_text(self) -> str:
+        """The agent-maintained markdown skill (primary long-term memory), if present."""
+
+        if not self.se_config.playbook_read:
+            return ""
+        if not self._skill_loaded:
+            self._skill_loaded = True
+            from .skill import TopologySkill
+
+            self._skill_cache = TopologySkill.load(self.se_config.skill_path).prompt_section()
+        return self._skill_cache or ""
 
     def _playbook_principles(self) -> list[str]:
         """Benchmark-agnostic priors injected into every planner prompt."""

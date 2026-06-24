@@ -92,13 +92,15 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   identical `(tool, args)` calls per run so a write replays once; retrieval keeps the full agent budget
   (single turn) for search breadth; and a finalize **read-net** opens the top surfaced docids and feeds full
   text to the synthesizer when a retrieval run answered without reading. Visibility is pure code
-  (`context.py`); learning lives in `config/topology_playbook.json` as a **retrievable skill**: benchmark-agnostic
-  `principles` (always injected) plus success-learned per-key `entries` (distilled `best/avoid` notes).
-  `TopologyPlaybook.lookup` returns experience in three tiers — exact key, same benchmark, then **same task
-  shape (`tools::size`) across other benchmarks** so lessons transfer. Read at plan time; written **only**
-  post-hoc by `scripts/update_topology_playbook.py`. The orchestration is deterministic (agents never decide
-  termination); `benchmark.evaluate(...).success` stays the sole correctness authority. See the
-  "Self-evolved topology system" section + diagram in `README.md`.
+  (`context.py`). The long-term playbook is an **agent-maintained markdown skill** (`config/topology_skill.md`,
+  `skill.py`): the planner loads it in full at plan time; an LLM **reflection agent**
+  (`scripts/reflect_topology_skill.py`) rewrites its *Lessons from experience* section post-hoc from run
+  outcomes labelled with ground-truth `eval.json` success (Standing-principles / How-to-choose sections are
+  guardrail-protected). The legacy structured JSON playbook (`topology_playbook.json`, `playbook.py`,
+  `update_topology_playbook.py`) is the deterministic fallback when no skill file exists; its `lookup` transfers
+  entries by task shape (`tools::size`) across benchmarks. Runs never write either file (parallel-safe). The
+  orchestration is deterministic (agents never decide termination); `benchmark.evaluate(...).success` stays the
+  sole correctness authority. See the "Self-evolved topology system" section + diagram in `README.md`.
 
 - **`descriptor/`** — trace schema (`descriptor/schema.py`), run-level metrics, and task-level
   aggregation (`descriptor/experiment.py::analyze_task_runs`), plus comparison tooling in
