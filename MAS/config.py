@@ -176,6 +176,13 @@ class SelfEvolvedConfig:
     # time); the JSON playbook above is the deterministic fallback when it is absent.
     skill_path: str = "config/topology_skill.md"
     playbook_read: bool = True
+    # Online (in-experiment) skill learning, in runs-per-update. Default 8: a single
+    # `run` command pauses every 8 freshly executed runs, reflects those success-labelled
+    # outcomes into the skill, and reloads it for the rest of the experiment — true online
+    # self-evolution. Because this writes the shared skill file mid-experiment, run ONE
+    # sequential process; set 0 for parallel experiments (post-hoc reflection only, via
+    # scripts/reflect_topology_skill.py).
+    skill_update_batch_size: int = 8
     default_packet_max_chars: int = 0  # 0 = full fidelity; optional generous structural budget
 
     def validate(self) -> None:
@@ -195,6 +202,8 @@ class SelfEvolvedConfig:
             )
         if self.audit_mode not in {"heuristic", "llm_judge"}:
             raise ValueError("self_evolved.audit_mode must be one of: heuristic, llm_judge")
+        if self.skill_update_batch_size < 0:
+            raise ValueError("self_evolved.skill_update_batch_size must be >= 0")
         if self.default_packet_max_chars < 0:
             raise ValueError("self_evolved.default_packet_max_chars must be >= 0")
 
@@ -326,6 +335,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         playbook_path=str(self_evolved_raw.get("playbook_path", "config/topology_playbook.json")),
         skill_path=str(self_evolved_raw.get("skill_path", "config/topology_skill.md")),
         playbook_read=bool(self_evolved_raw.get("playbook_read", True)),
+        skill_update_batch_size=int(self_evolved_raw.get("skill_update_batch_size", 8)),
         default_packet_max_chars=int(self_evolved_raw.get("default_packet_max_chars", 0)),
     )
 

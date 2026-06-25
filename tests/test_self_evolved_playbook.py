@@ -37,7 +37,7 @@ def _entry(
         "key": key,
         "benchmark": benchmark,
         "pattern": {"pattern": "star", "num_agents": 3, "expansions": []},
-        "support": {"runs": 4, "successes": 3},
+        "support": {"runs": 4, "clean": 3},
         "notes": "Star-3 reliably covers short finance lookups.",
         "failure_memories": [],
     }
@@ -230,7 +230,7 @@ class TestPlaybookPersistence(unittest.TestCase):
         ]
         view = TopologyPlaybook.planner_view(entry)
         self.assertEqual(view["scope"], "long_term")
-        self.assertEqual(view["support"], "3/4 successful")
+        self.assertEqual(view["support"], "3/4 ran clean")
         self.assertEqual(len(view["notes"]), 200)
         self.assertIn("branch_collapse->expand_agent_to_group:star(success)", view["mutation"])
 
@@ -271,14 +271,14 @@ class TestShortTermPlaybook(unittest.TestCase):
 
 
 class TestMergeCandidate(unittest.TestCase):
-    def test_support_is_success_conditioned(self) -> None:
+    def test_support_is_process_conditioned(self) -> None:
         playbook = TopologyPlaybook("unused.json")
-        playbook.merge_candidate(_candidate(), success=True)
-        playbook.merge_candidate(_candidate(), success=False)
+        playbook.merge_candidate(_candidate())  # clean (no modes + consensus)
+        playbook.merge_candidate(_candidate(audit_modes=["branch_collapse"]))  # flagged
 
         self.assertEqual(len(playbook.entries), 1)
         entry = playbook.entries[0]
-        self.assertEqual(entry["support"], {"runs": 2, "successes": 1})
+        self.assertEqual(entry["support"], {"runs": 2, "clean": 1})
         self.assertEqual(entry["pattern"], {"pattern": "star", "num_agents": 3, "expansions": []})
         # No mutation -> no failure memories recorded.
         self.assertEqual(entry["failure_memories"], [])
@@ -290,18 +290,18 @@ class TestMergeCandidate(unittest.TestCase):
                 _candidate(
                     mutation_summary=f"expand_agent_to_group:star#{index}",
                     audit_modes=["branch_collapse"],
-                ),
-                success=index % 2 == 0,
+                )
             )
         memories = playbook.entries[0]["failure_memories"]
         self.assertEqual(len(memories), 8)  # trimmed to the most recent
         self.assertEqual(memories[-1]["mutation"], "expand_agent_to_group:star#9")
         self.assertEqual(memories[-1]["mode"], "branch_collapse")
-        self.assertEqual(memories[-1]["outcome"], "failure")
+        # audit_modes present -> flagged by the process proxy (no ground truth).
+        self.assertEqual(memories[-1]["outcome"], "flagged")
 
     def test_candidate_without_key_is_ignored(self) -> None:
         playbook = TopologyPlaybook("unused.json")
-        playbook.merge_candidate({"benchmark": "finance_agent"}, success=True)
+        playbook.merge_candidate({"benchmark": "finance_agent"})
         self.assertEqual(playbook.entries, [])
 
 
@@ -322,7 +322,7 @@ class TestEnginePlaybookIntegration(unittest.TestCase):
             prompt = client.planner_prompts[0]
             self.assertIn("Historical experience", prompt)
             self.assertIn("finance_agent::no_tools::short", prompt)
-            self.assertIn("3/4 successful", prompt)
+            self.assertIn("3/4 ran clean", prompt)
 
             planner_events = [
                 event for event in result.trace_events if event.actor == "topology_planner"
@@ -393,23 +393,17 @@ class TestUpdaterScript(unittest.TestCase):
         task_id: str,
         run_name: str,
         candidate: dict[str, Any],
-        *,
-        success: bool,
     ) -> None:
+        # No eval.json is written: the updater is process-only and must not read it.
         run_dir = root / benchmark / "self_evolved" / task_id
         run_dir.mkdir(parents=True, exist_ok=True)
         raw = {"run_metadata": {"self_evolved": {"playbook_update_candidate": candidate}}}
         (run_dir / f"{run_name}.raw.json").write_text(json.dumps(raw), encoding="utf-8")
-        (run_dir / f"{run_name}.eval.json").write_text(
-            json.dumps({"success": success}), encoding="utf-8"
-        )
 
-    def test_merges_experiment_runs_success_conditioned(self) -> None:
+    def test_merges_experiment_runs_process_conditioned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "experiment"
-            self._fabricate_run(
-                root, "finance_agent", "task_0", "run_0", _candidate(), success=True
-            )
+            self._fabricate_run(root, "finance_agent", "task_0", "run_0", _candidate())  # clean
             self._fabricate_run(
                 root,
                 "finance_agent",
@@ -419,17 +413,7 @@ class TestUpdaterScript(unittest.TestCase):
                     mutation_summary="expand_agent_to_group:star",
                     audit_modes=["branch_collapse"],
                 ),
-                success=False,
-            )
-            # Run without an eval verdict must be skipped.
-            no_eval_dir = root / "finance_agent" / "self_evolved" / "task_1"
-            no_eval_dir.mkdir(parents=True)
-            (no_eval_dir / "run_0.raw.json").write_text(
-                json.dumps(
-                    {"run_metadata": {"self_evolved": {"playbook_update_candidate": _candidate()}}}
-                ),
-                encoding="utf-8",
-            )
+            )  # flagged
 
             playbook_path = Path(tmp) / "playbook.json"
             exit_code = update_playbook_main(
@@ -440,16 +424,14 @@ class TestUpdaterScript(unittest.TestCase):
             playbook = TopologyPlaybook.load(playbook_path)
             self.assertEqual(len(playbook.entries), 1)
             entry = playbook.entries[0]
-            self.assertEqual(entry["support"], {"runs": 2, "successes": 1})
+            self.assertEqual(entry["support"], {"runs": 2, "clean": 1})
             self.assertEqual(len(entry["failure_memories"]), 1)
-            self.assertEqual(entry["failure_memories"][0]["outcome"], "failure")
+            self.assertEqual(entry["failure_memories"][0]["outcome"], "flagged")
 
     def test_dry_run_does_not_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "experiment"
-            self._fabricate_run(
-                root, "finance_agent", "task_0", "run_0", _candidate(), success=True
-            )
+            self._fabricate_run(root, "finance_agent", "task_0", "run_0", _candidate())
             playbook_path = Path(tmp) / "playbook.json"
             exit_code = update_playbook_main(
                 [
@@ -466,16 +448,13 @@ class TestUpdaterScript(unittest.TestCase):
     def test_benchmark_filter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "experiment"
-            self._fabricate_run(
-                root, "finance_agent", "task_0", "run_0", _candidate(), success=True
-            )
+            self._fabricate_run(root, "finance_agent", "task_0", "run_0", _candidate())
             self._fabricate_run(
                 root,
                 "browsecomp",
                 "task_0",
                 "run_0",
                 _candidate("browsecomp::tools::long"),
-                success=True,
             )
             playbook_path = Path(tmp) / "playbook.json"
             update_playbook_main(

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Agent-maintained topology skill: LLM reflection over run outcomes.
+"""Agent-maintained topology skill: offline LLM reflection over run outcomes.
 
 The long-term playbook is a markdown skill (``config/topology_skill.md``) the planner
-reads at plan time. This script is its writer: an LLM **reflection agent** reads the
-current skill plus per-run outcomes labelled with ground-truth
-``benchmark.evaluate(...).success`` (from ``run_*.eval.json``) and rewrites the skill's
-"Lessons from experience" section. Runs never write the skill themselves, so parallel
-experiments stay independent; reflection happens here, post-hoc.
+reads at plan time. The default writer is the *online* updater (every N runs, in
+``main.py``); this script is the offline equivalent for re-reflecting over a finished
+experiment. An LLM **reflection agent** reads the current skill plus per-run outcomes
+labelled by PROCESS SIGNALS ONLY (``is_process_clean`` — auditor findings + decision-grade
+consensus, never ``run_*.eval.json``) and rewrites the skill's "Lessons from experience"
+section. Keeping the benchmark verdict out of the skill avoids biasing the study.
 
 Usage:
     python scripts/reflect_topology_skill.py \
@@ -26,28 +27,24 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from MAS import OpenRouterLLMClient, load_experiment_config  # noqa: E402
-from MAS.self_evolved.skill import SkillReflector, TopologySkill  # noqa: E402
+from MAS.self_evolved.skill import (  # noqa: E402
+    SkillReflector,
+    TopologySkill,
+    summary_from_candidate,
+)
 from scripts.update_topology_playbook import collect_candidates  # noqa: E402
 
 
 def build_run_summaries(experiment_root: Path, *, benchmark: str | None = None) -> list[dict]:
-    """(candidate, success) pairs -> compact, success-labelled run summaries."""
+    """Candidates -> compact, process-only run summaries.
 
-    summaries: list[dict] = []
-    for candidate, success in collect_candidates(experiment_root, benchmark=benchmark):
-        final = candidate.get("final_pattern") or candidate.get("initial_pattern") or {}
-        pattern = f"{final.get('pattern', '?')}/{final.get('num_agents', '?')}"
-        summaries.append(
-            {
-                "key": str(candidate.get("key", "")),
-                "benchmark": str(candidate.get("benchmark", "")),
-                "pattern": pattern,
-                "success": bool(success),
-                "audit_modes": list(candidate.get("audit_modes", []) or []),
-                "termination_reason": str(candidate.get("termination_reason", "")),
-            }
-        )
-    return summaries
+    Shares ``summary_from_candidate`` with the online updater so offline and
+    in-experiment reflection feed the reflector identical (ground-truth-free) rows."""
+
+    return [
+        summary_from_candidate(candidate)
+        for candidate in collect_candidates(experiment_root, benchmark=benchmark)
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -74,8 +71,8 @@ def main(argv: list[str] | None = None) -> int:
     skill = TopologySkill.load(args.skill)
     reflector = SkillReflector(llm_client, config.self_evolved)
 
-    successes = sum(1 for s in summaries if s["success"])
-    print(f"Reflecting over {len(summaries)} run(s) ({successes} successful)...")
+    clean = sum(1 for s in summaries if s["process_outcome"] == "clean")
+    print(f"Reflecting over {len(summaries)} run(s) ({clean} ran clean, process signals only)...")
     result = reflector.reflect(current_skill=skill.text, run_summaries=summaries)
     print(f"Reflection outcome: changed={result.changed} reason={result.reason}")
     if not result.changed:

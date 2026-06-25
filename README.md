@@ -506,31 +506,79 @@ remains the only correctness authority — the in-run auditor never sees ground 
 
 ### Workflow diagram
 
+Node fill marks the kind of component: **blue = LLM agent**, **green = deterministic
+code**, **orange = state store**. **Solid arrows** are control flow / writes; **dashed
+arrows** are reads. So you can read off *who writes each store and who reads it*.
+
 ```mermaid
 flowchart TD
+    classDef agent fill:#dae8fc,stroke:#6c8ebf,color:#111;
+    classDef code fill:#d5e8d4,stroke:#82b366,color:#111;
+    classDef store fill:#ffe6cc,stroke:#d79b00,color:#111;
+
     Start([Run start]) --> Plan
-    PB[("Long-term memory<br/>topology_skill.md (agent-maintained)<br/>+ JSON playbook fallback")]
-    PB -. read .-> Plan
 
-    Plan["<b>Plan</b><br/>Topology Planner proposes<br/>TopologySpec v0<br/>(deterministic fallback)"]
-    Spawn["<b>Spawn</b><br/>layout + personas + state"]
-    Execute["<b>Execute turn</b><br/>Turn Executor walks the graph<br/>singleton / star / chain / debate / voting"]
-    Audit["<b>Audit</b><br/>Trace Auditor scans<br/>process failure modes"]
-    Control{"<b>Control</b> (deterministic)<br/>repair recommended?<br/>mutation unused?<br/>turn remaining?"}
-    Mutate["<b>Mutate</b><br/>apply one TopologyMutation<br/>revalidate visibility → spec v1"]
-    Finalize["<b>Finalize</b><br/>vote / synthesize final answer"]
-    Record["<b>Record</b><br/>playbook update candidate<br/>→ run_metadata"]
+    Plan["Topology Planner — LLM<br/>analyze → choose → justify → TopologySpec v0"]
+    Spawn["Orchestrator — code<br/>spawn agents + context policies + init state"]
+    Roles["Role Assigner — LLM<br/>domain persona per agent"]
+    Execute["Target-MAS agents — LLM<br/>Turn Executor walks the graph<br/>singleton / star / chain / debate / voting"]
+    Audit["Trace Auditor — code (+LLM if audit_mode=llm_judge)<br/>scan trace → process failure modes"]
+    Control{"Control — code<br/>repair recommended? mutation unused? turn left?"}
+    Mutate["Topology Planner — LLM<br/>propose ONE TopologyMutation → spec v1"]
+    Finalize["Finalize — code<br/>vote over candidates"]
+    Synth["Final Synthesizer — LLM<br/>evidence-grounded answer"]
+    Maint["Playbook Maintainer — code<br/>build process-only update candidate"]
+    Updater["Online Skill Updater — code<br/>buffer N runs → trigger reflection"]
+    Reflect["Skill Reflection agent — LLM<br/>rewrite '## Lessons from experience'<br/>process signals only — NO ground truth"]
     Done([Trace + descriptor])
-    ST[("Short-term playbook<br/>in-memory")]
 
-    Plan --> Spawn --> Execute --> Audit
-    Audit --> ST
-    Audit --> Control
-    Control -- "continue (≤ 1 repair)" --> Mutate
-    Mutate --> Execute
-    Control -- stop --> Finalize --> Record --> Done
-    Record -. "post-hoc, success-conditioned" .-> PB
+    RunState[("Run state<br/>artifacts · messages · tool records · evidence ledger")]
+    ST[("Short-term playbook<br/>in-memory, this run")]
+    Skill[("Long-term SKILL.md<br/>primary, agent-maintained")]
+    JSONP[("JSON playbook<br/>deterministic fallback")]
+
+    %% control flow (solid)
+    Plan --> Spawn --> Execute --> Audit --> Control
+    Control -- "continue (≤1 repair)" --> Mutate --> Execute
+    Control -- stop --> Finalize --> Synth --> Maint --> Done
+
+    %% reads (dashed)
+    Skill -. read .-> Plan
+    JSONP -. "read (fallback)" .-> Plan
+    Skill -. read .-> Mutate
+    ST -. read .-> Mutate
+    Roles -. personas .-> Spawn
+    RunState -. read .-> Audit
+    RunState -. read .-> Synth
+
+    %% writes (thick)
+    Execute ==> RunState
+    Audit ==>|"turn signal (via Playbook Maintainer)"| ST
+    Maint ==> Updater
+    Updater ==> Reflect
+    Reflect ==>|"every N runs"| Skill
+
+    class Plan,Roles,Execute,Mutate,Synth,Reflect agent;
+    class Spawn,Control,Finalize,Maint,Updater,Audit code;
+    class RunState,ST,Skill,JSONP store;
 ```
+
+Reading the stores off the diagram:
+
+- **Run state** — written by the **Target-MAS agents** (and the synthesizer); read by the
+  **Auditor** and **Synthesizer**.
+- **Short-term playbook** — written each turn by the **Playbook Maintainer** (code) from the
+  auditor's findings; read only by the **Planner** when it proposes the in-run mutation.
+- **Long-term SKILL.md** — written by the **Skill Reflection agent** (LLM) every N runs from
+  **process signals only**; read by the **Planner** for *both* the initial plan and the
+  mutation. (The **JSON playbook** is the deterministic fallback when no skill file exists,
+  written offline by `update_topology_playbook.py` — also process-only.)
+
+The only LLM agents are the **Planner** (plan + mutate), the **Role Assigner**, the
+**Target-MAS agents**, the **Final Synthesizer**, the **Skill Reflection agent**, and the
+**Auditor** *only* under `audit_mode = "llm_judge"`. Everything else — orchestration,
+control, the maintainer, the updater, visibility — is deterministic code. No agent ever
+sees the benchmark verdict.
 
 ### Turn lifecycle
 
@@ -576,50 +624,126 @@ Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns 
 6. **Mutate** (continue path only) — the planner proposes one `TopologyMutation`
    (e.g. expand a leaf into a star or debate group, change a group pattern, add a
    searcher, collapse parallel workers into a chain to serialize a write). The mutation
-   prompt includes a symptom→op cheatsheet so the audit verdict maps to a concrete op.
-   It is applied once, visibility is revalidated, and the new spec runs one more turn.
-   Hard caps: `max_total_agents` and one mutation.
+   prompt carries the same long-term **skill** as the initial plan (so accumulated
+   lessons shape the repair, not just the first design), the **short-term** turn memory,
+   and a symptom→op cheatsheet so the audit verdict maps to a concrete op. It is applied
+   once, visibility is revalidated, and the new spec runs one more turn. **Mutations are
+   agent-additive** — agents are only ever added (`add_agent`, `expand_agent_to_group`),
+   never deleted — but the graph is otherwise editable in place: `set_group_pattern`
+   rewires a group's collaboration mode, `add_edge`/`remove_edge` adjust peer visibility,
+   and `set_context_policy` retunes an agent's evidence access. Hard caps:
+   `max_total_agents` and one mutation per run.
 7. **Finalize** — vote over the final candidates (deterministic or judge). Evidence-grounded
    re-synthesis runs not only when the pick is empty/planning/blocked but also on a **weak pick**
    (an unbroken vote tie, winner confidence `< 0.5`, or open unresolved issues), and is skipped
    when no tool evidence exists — so confident, agreed answers are never disturbed. Then record a
-   post-hoc playbook update candidate into `run_metadata`.
+   **process-only** playbook update candidate (topology shape, auditor modes, termination signals —
+   never the eval verdict) into `run_metadata`.
 
 The resulting trace reads `plan → spawn → turn 0 → audit → (revise) → turn 1 → finalize`,
 with meta-agent tokens/cost on their own events so `C*` includes meta-control overhead.
 
 ### Playbook (two timescales)
 
-- **Short-term** — an in-memory playbook updated after each audited turn from process
-  signals (detected modes, repair recommendation, termination reason). It is read only by
-  the single in-run repair planner, giving it fresh turn-level context for the mutation.
+- **Short-term** — an in-memory playbook, scoped to the **current run only** and never
+  persisted. After each audited turn the Playbook Maintainer records the turn's process
+  signals (detected modes, repair recommendation, termination reason) into it; the single
+  in-run repair planner reads it back, giving the mutation fresh turn-level context. It is
+  born and dies with the run — it is *experience within a task*, not across tasks.
 - **Long-term — an agent-maintained markdown skill.** The long-term playbook is a
   long-form `SKILL.md` (default `config/topology_skill.md`) that the planner loads **in
-  full** at plan time, the way an agent consults a skill. It has three sections:
+  full** — at both plan time and repair-mutation time — the way an agent consults a skill.
+  It is *experience across tasks and runs*. It has three sections:
   - **Standing principles** — benchmark-agnostic laws always in force.
   - **How to choose a topology** — the task-type → topology heuristics.
   - **Lessons from experience** — concrete, evidence-cited rules grown from real runs
-    (e.g. *"tool-using broad retrieval: chain/3 succeeded 2/2 where chain/2 failed 0/1 —
-    breadth and document reading both matter"*).
+    (e.g. *"tool-using broad retrieval: chain/3 ran clean 2/2 where star/3 flagged
+    insufficient_search_coverage 3× — breadth and document reading both matter"*).
 
-  **Writer = an LLM reflection agent.** `python scripts/reflect_topology_skill.py
-  --experiment-root <dir> --config <toml>` gives the model the current skill plus per-run
-  outcomes **labelled with ground-truth `eval.json` success**, and it rewrites the
-  *Lessons* section (the Standing principles / How-to-choose sections are protected — a
-  guardrail rejects any revision that drops them, and a mocked/unusable reflection leaves
-  the skill unchanged). Runs never write the file themselves, so parallel experiments stay
-  independent; reflection happens post-hoc. The reflection is grounded in verified success,
-  but an LLM authors the prose — the tradeoff accepted for a genuinely agent-maintained,
-  human-readable skill.
+  **No ground truth in the playbook — this is a research-validity requirement.** Ranking
+  the long-term memory by `benchmark.evaluate(...).success` would leak the held-out label
+  into the system under study, so the planner would effectively be reading the answer key.
+  Instead every run contributes a **process-only proxy** — `is_process_clean`: the run is
+  "clean" when the auditor flagged no failure modes *and* it reached decision-grade
+  consensus. `benchmark.evaluate(...).success` stays the sole authority for *scoring*, but
+  it never enters the planner's memory.
+
+  **Writer = an LLM reflection agent.** Reflection gives the model the current skill plus
+  recent runs summarized by **process signals only** (each run's `playbook_update_candidate`
+  → clean/flagged + the auditor's flagged modes; `summary_from_candidate`) and asks it to
+  rewrite the *Lessons* section in terms of which topologies run cleanly / avoid process
+  failures — never "correctness". The Standing-principles / How-to-choose sections are
+  protected (a guardrail rejects any revision that drops them; a mocked, too-short, or
+  non-markdown reflection leaves the skill unchanged).
+
+  - **Online (in-experiment) — the default, and the intended mental model.**
+    `skill_update_batch_size = N` (default **8**) under `[self_evolved]`. A single `run`
+    command accumulates each freshly executed run's process-signal candidate and, **every N
+    runs, pauses, reflects that batch into the skill, saves it, and reloads it**
+    (`SelfEvolvedEngine.reload_skill`) so every subsequent run plans (and mutates) against
+    the updated skill. Because the run loop is single-threaded, "pause → update → resume" is
+    exactly what happens — the system genuinely self-evolves *during* the experiment. ⚠️ It
+    writes a shared file mid-experiment, so run **one sequential process** — concurrent
+    writers (e.g. parallel benchmarks in `scripts/full_experiment.sh`) would race; set
+    `skill_update_batch_size = 0` for those. A trailing partial batch (< N) is picked up by
+    the offline pass.
+  - **Offline (opt-out / re-reflection).** Set `skill_update_batch_size = 0` to disable
+    online writes (parallel-safe), then re-reflect over a finished experiment with
+    `python scripts/reflect_topology_skill.py --experiment-root <dir> --config <toml>`. It
+    reads the same process-signal candidates from disk — **not** `eval.json` — so it stays
+    ground-truth-free too.
 
   *Deterministic fallback.* When no skill file exists, the planner falls back to the legacy
   structured JSON playbook (`config/topology_playbook.json`): benchmark-agnostic
   `principles[]` plus per-`benchmark::tools|size`-key `entries[]` whose `notes` distil a
-  `best/avoid` rule, retrieved in three tiers (exact key → same benchmark → **same task
-  shape across other benchmarks**, the transfer tier). It is written by
-  `scripts/update_topology_playbook.py`, which merges run candidates **conditioned on
-  `eval.json` success** (deterministic, no LLM). Both writers tie learning to real
-  correctness; the markdown skill is the primary memory, the JSON is the fallback/record.
+  `best (cleanest)/avoid` rule, retrieved in three tiers (exact key → same benchmark → **same
+  task shape across other benchmarks**, the transfer tier). It is written offline by
+  `scripts/update_topology_playbook.py`, which merges run candidates **ranked by the same
+  process proxy** (deterministic, no LLM, no `eval.json`). The markdown skill is the primary
+  memory; the JSON is the fallback/record. Both keep the benchmark verdict out of the loop.
+
+### Design notes: roles, mutation, and state
+
+**Does the planner assign agent roles?** Two layers, only one of them the planner's:
+
+- **Structural roles** (`coordinator` / `worker` / `debater` / `voter` / `verifier`) — the
+  planner sets these *implicitly*. It picks a group **pattern** and an optional `verifier`
+  flag; deterministic code (`planner._build_spec`, `_apply_*` for mutations) expands that
+  shape into concrete per-agent structural and stage roles. The planner chooses the
+  topology; code derives the roles.
+- **Domain personas** (e.g. *"flights API specialist"*) — **not** the planner. A separate
+  **Role Assigner** (`MAS/role_assigner.py`, an independent LLM call in
+  `engine._assign_personas`, with a deterministic fallback) attaches a benchmark-specific
+  persona to each agent. Agents added by a mutation get deterministic personas with no extra
+  LLM round-trip. Per the prompt-priority invariant, personas never override stage behavior.
+
+**Is the mutation add-only?** **Agents are add-only** — there is no remove-agent op, so the
+agent set grows monotonically and is bounded by `max_total_agents`. The rest of the graph is
+**editable in place**: `set_group_pattern` changes a group's collaboration mode (e.g.
+parallel → chain to serialize a write), `add_edge`/`remove_edge` adjust peer visibility, and
+`set_context_policy` retunes an agent's evidence access. So: additive in agents, mutable in
+structure, at most one mutation per run.
+
+**How does the orchestration manage state across a mutation?** The run owns **one mutable
+`state` dict** for its whole life; a mutation never resets it.
+
+- **Nothing accumulated is discarded.** `messages`, `artifacts`, `tool_records_log`, and the
+  append-only **evidence ledger** carry across the mutation, so turn-2 agents (including
+  newly spawned ones) see turn-1 work.
+- **The mutation only swaps the graph.** Code installs the new `TopologySpec`, refreshes
+  `layout`, and calls `context.set_spec(new_spec)`; visibility reads are **lazy**, so they
+  simply recompute against the new topology — no migration step. New agent ids get budget +
+  persona bookkeeping (`_register_new_agents`); existing agents keep their counters.
+- **Visibility is code, never prompts.** `SharedContextController` + each agent's
+  `ContextPolicy` apply recipient/kind/round filtering, latest-per-sender selection, sender
+  share-scope, and optional summary-only/packet bounds.
+- **Everything is logged for replay.** Every `TopologySpec` lands in
+  `topology_spec_versions`; a `context_state_versions` snapshot is appended on spawn and on
+  each mutation; meta-agent (planner/auditor/synthesizer) tokens ride their own trace events
+  so `C*` includes meta-control overhead. Agents never decide termination — the controller
+  does — and `benchmark.evaluate(...).success` stays the sole correctness authority **for
+  scoring**; it is deliberately kept out of the planner's playbook (which learns from process
+  signals only), so the self-evolved system never trains on the verdict it is measured by.
 
 ### Correctness nets and provisioning (deterministic code)
 
@@ -646,7 +770,10 @@ max_total_agents = 10            # hard cap after the repair mutation
 max_turns = 2                    # one initial turn plus at most one repair
 audit_mode = "heuristic"         # or "llm_judge"
 playbook_path = "config/topology_playbook.json"
-playbook_read = true
+skill_path = "config/topology_skill.md"   # the long-term agent-maintained skill
+playbook_read = true             # planner reads the skill (used in BOTH plan and mutation)
+skill_update_batch_size = 8      # default 8: reflect into the skill online every N runs (use one
+                                 # sequential process). 0 = off (offline only, parallel-safe)
 default_packet_max_chars = 0     # 0 = full fidelity; a positive value is a generous structural-compaction budget
 ```
 
@@ -696,7 +823,9 @@ python main.py run --config config/verify_selfevo_fix.toml --benchmark browsecom
   --output-dir artifacts/opt_verify --output-layout hierarchical \
   --experiment-id opt_selfevo_v1 --system-label self_evolved
 
-# close the learning loop: distil success-conditioned experience into the playbook
+# With skill_update_batch_size > 0 (default 8) the skill self-evolves online during the run
+# above — no extra step. To instead re-distil process-only experience offline (e.g. for the
+# JSON fallback, or after a parallel run with online updates disabled):
 python scripts/update_topology_playbook.py --experiment-root artifacts/opt_verify/opt_selfevo_v1
 ```
 

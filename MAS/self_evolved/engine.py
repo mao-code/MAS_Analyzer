@@ -361,6 +361,16 @@ class SelfEvolvedEngine:
             self._skill_cache = TopologySkill.load(self.se_config.skill_path).prompt_section()
         return self._skill_cache or ""
 
+    def reload_skill(self) -> None:
+        """Drop the cached skill so the next plan re-reads it from disk.
+
+        Called after the online skill updater rewrites the skill file mid-experiment
+        so subsequent runs plan against the revised skill (the engine instance is
+        reused across all runs in a `run` command)."""
+
+        self._skill_loaded = False
+        self._skill_cache = None
+
     def _playbook_principles(self) -> list[str]:
         """Benchmark-agnostic priors injected into every planner prompt."""
 
@@ -440,6 +450,7 @@ class SelfEvolvedEngine:
             audit_report=audit_report or {},
             playbook_entries=playbook_entries,
             principles=self._playbook_principles(),
+            skill_text=self._skill_text(),
         )
         mutation = proposal.mutation
         if mutation is None:

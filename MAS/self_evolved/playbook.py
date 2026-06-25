@@ -7,14 +7,15 @@ There are two memory horizons:
 
 - short-term, turn-level memory lives only inside one run and is updated after
   each audited turn from process signals;
-- long-term, session-level memory is persisted post-hoc by
-  ``scripts/update_topology_playbook.py`` after joining run candidates with
-  ``run_*.eval.json`` (``benchmark.evaluate(...).success`` remains the only
-  correctness authority).
+- long-term, cross-run memory keyed by task shape, updated every N runs (online)
+  by the skill reflection agent, or offline by ``scripts/update_topology_playbook.py``.
 
-Runs never write the persistent playbook file. This keeps parallel experiments
-independent while still giving the online repair planner access to fresh
-turn-level topology/context signals.
+**Both horizons use process signals only — never the benchmark verdict.** Ranking the
+long-term playbook by ``benchmark.evaluate(...).success`` would leak the held-out label
+into the system under study, so the playbook ranks topologies by a *process proxy*
+(``is_process_clean``: the auditor flagged no failure modes and the run reached
+decision-grade consensus). ``benchmark.evaluate(...).success`` remains the sole authority
+for scoring/metrics, but it is kept out of the planner's memory.
 """
 
 from __future__ import annotations
@@ -44,6 +45,20 @@ def task_key(benchmark_name: str, task: Any, *, tools_available: bool) -> str:
         size = "long"
     tools = "tools" if tools_available else "no_tools"
     return f"{benchmark_name or 'unknown'}::{tools}::{size}"
+
+
+def is_process_clean(candidate: dict[str, Any]) -> bool:
+    """Process-only quality proxy (NO ground truth).
+
+    A run is "clean" when the Trace Auditor flagged no failure modes and the run
+    reached decision-grade consensus. This is what the long-term playbook ranks
+    topologies by, so the self-evolved system never learns from the held-out
+    ``benchmark.evaluate(...).success`` verdict it is being measured on.
+    """
+
+    audit_modes = candidate.get("audit_modes") or []
+    reason = str(candidate.get("termination_reason", ""))
+    return not audit_modes and reason == "consensus_reached"
 
 
 def pattern_sketch(spec_payload: dict[str, Any]) -> dict[str, Any]:
@@ -157,11 +172,12 @@ class TopologyPlaybook:
         scope = str(entry.get("scope", "long_term"))
         support = entry.get("support", {})
         runs = int(support.get("runs", 0))
-        successes = int(support.get("successes", 0))
+        # Process proxy, not ground truth; tolerate legacy "successes"-keyed entries.
+        clean = int(support.get("clean", support.get("successes", 0)))
         if scope == "short_term":
             support_text = "turn-level process memory"
         else:
-            support_text = f"{successes}/{runs} successful"
+            support_text = f"{clean}/{runs} ran clean"
         memories = entry.get("failure_memories", [])
         mutation_notes = "; ".join(
             f"{memory.get('mode')}->{memory.get('mutation')}({memory.get('outcome')})"
@@ -178,45 +194,47 @@ class TopologyPlaybook:
             "mutation": mutation_notes,
         }
 
-    # -- write side (post-hoc updater only) ------------------------------------
+    # -- write side (deterministic merge; process signals only, no ground truth) ----
 
-    def merge_candidate(self, candidate: dict[str, Any], *, success: bool) -> None:
+    def merge_candidate(self, candidate: dict[str, Any]) -> None:
         key = str(candidate.get("key", "")).strip()
         if not key:
             return
+        clean = is_process_clean(candidate)
         entry = next((item for item in self.entries if item.get("key") == key), None)
         if entry is None:
             entry = {
                 "key": key,
                 "benchmark": str(candidate.get("benchmark", "")),
                 "pattern": dict(candidate.get("initial_pattern", {})),
-                "support": {"runs": 0, "successes": 0},
+                "support": {"runs": 0, "clean": 0},
                 "notes": "",
                 "failure_memories": [],
             }
             self.entries.append(entry)
 
-        support = entry.setdefault("support", {"runs": 0, "successes": 0})
+        support = entry.setdefault("support", {"runs": 0, "clean": 0})
         support["runs"] = int(support.get("runs", 0)) + 1
-        support["successes"] = int(support.get("successes", 0)) + int(bool(success))
+        support["clean"] = int(support.get("clean", support.get("successes", 0))) + int(clean)
 
-        # Learn the winning topology per key instead of freezing the first-seen
-        # pattern: tally success by the pattern that actually ran (post-repair) and
-        # recommend the best-performing one (highest success rate, ties broken by
-        # support). This is what lets the planner improve from prior experiments.
+        # Learn the winning topology per key instead of freezing the first-seen pattern:
+        # tally the PROCESS proxy (clean runs) by the pattern that actually ran
+        # (post-repair) and recommend the cleanest one (highest clean rate, ties broken by
+        # support). This lets the planner improve from prior experiments without ever
+        # seeing the held-out benchmark verdict.
         ran_pattern = candidate.get("final_pattern") or candidate.get("initial_pattern") or {}
         if ran_pattern:
             stats = entry.setdefault("pattern_stats", {})
             pat_key = json.dumps(ran_pattern, sort_keys=True)
             stat = stats.setdefault(
-                pat_key, {"pattern": dict(ran_pattern), "runs": 0, "successes": 0}
+                pat_key, {"pattern": dict(ran_pattern), "runs": 0, "clean": 0}
             )
             stat["runs"] = int(stat.get("runs", 0)) + 1
-            stat["successes"] = int(stat.get("successes", 0)) + int(bool(success))
+            stat["clean"] = int(stat.get("clean", 0)) + int(clean)
             ranked = sorted(
                 stats.values(),
                 key=lambda s: (
-                    int(s.get("successes", 0)) / max(int(s.get("runs", 0)), 1),
+                    int(s.get("clean", 0)) / max(int(s.get("runs", 0)), 1),
                     int(s.get("runs", 0)),
                 ),
                 reverse=True,
@@ -225,20 +243,20 @@ class TopologyPlaybook:
             entry["pattern"] = dict(best["pattern"])
 
             # Distill a concise, reusable rule from the accumulated stats so the planner
-            # reads an actionable learned insight (which pattern to use, which to avoid)
-            # rather than a bare pattern. This is the long-term "experience" channel.
+            # reads an actionable learned insight (which pattern runs cleanest, which to
+            # avoid) rather than a bare pattern. This is the long-term "experience" channel.
             def _sketch(stat: dict[str, Any]) -> str:
                 pat = stat.get("pattern", {})
                 return f"{pat.get('pattern', '?')}/{pat.get('num_agents', '?')}"
 
-            note = f"best: {_sketch(best)} ({best.get('successes', 0)}/{best.get('runs', 0)})"
+            note = f"best (cleanest): {_sketch(best)} ({best.get('clean', 0)}/{best.get('runs', 0)} clean)"
             worst = ranked[-1]
             if (
                 worst is not best
-                and int(worst.get("successes", 0)) == 0
+                and int(worst.get("clean", 0)) == 0
                 and int(worst.get("runs", 0)) > 0
             ):
-                note += f"; avoid: {_sketch(worst)} (0/{worst.get('runs', 0)})"
+                note += f"; avoid: {_sketch(worst)} (0/{worst.get('runs', 0)} clean)"
             entry["notes"] = note
 
         mutation = candidate.get("mutation_summary")
@@ -248,7 +266,7 @@ class TopologyPlaybook:
                 {
                     "mode": ",".join(candidate.get("audit_modes", [])) or "unknown",
                     "mutation": str(mutation),
-                    "outcome": "success" if success else "failure",
+                    "outcome": "clean" if clean else "flagged",
                     "termination_reason": str(candidate.get("termination_reason", "")),
                 }
             )
@@ -346,7 +364,7 @@ class ShortTermTopologyPlaybook:
             "turn_index": int(turn_index),
             "spec_version": int(spec_payload.get("version", 0)),
             "pattern": pattern_sketch(spec_payload),
-            "support": {"kind": "process_signal", "runs": 1, "successes": 0},
+            "support": {"kind": "process_signal", "runs": 1, "clean": 0},
             "notes": "; ".join(notes_parts)[:400],
             "repair_recommended": repair_recommended,
             "termination_reason": reason,

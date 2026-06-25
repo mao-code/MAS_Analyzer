@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Post-hoc, success-conditioned topology playbook updates.
+"""Offline, process-only topology playbook updates.
 
 Runs of the self-evolved system record a process-signal update candidate in
-``run_metadata.self_evolved.playbook_update_candidate`` but never write the
-playbook file themselves. This script joins those candidates with the
-benchmark verdicts in ``run_*.eval.json`` (``benchmark.evaluate(...).success``
-is the only correctness authority) and merges them into the playbook via a
-deterministic merge.
+``run_metadata.self_evolved.playbook_update_candidate``. The default learning path is
+online (the skill reflection agent, every N runs); this script is the offline equivalent
+for the JSON playbook. It merges those candidates via a deterministic merge ranked by the
+PROCESS proxy (``is_process_clean``) — it deliberately does NOT read ``run_*.eval.json``,
+so the benchmark verdict never leaks into the planner's long-term memory.
 
 Usage:
     python scripts/update_topology_playbook.py \
@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from MAS.self_evolved.playbook import TopologyPlaybook  # noqa: E402
+from MAS.self_evolved.playbook import TopologyPlaybook, is_process_clean  # noqa: E402
 
 SYSTEM_DIR_NAME = "self_evolved"
 
@@ -38,12 +38,14 @@ def _load_json(path: Path) -> dict | None:
         return None
 
 
-def collect_candidates(
-    experiment_root: Path, *, benchmark: str | None = None
-) -> list[tuple[dict, bool]]:
-    """Yield (candidate, success) pairs from every self_evolved run dir."""
+def collect_candidates(experiment_root: Path, *, benchmark: str | None = None) -> list[dict]:
+    """Collect process-signal update candidates from every self_evolved run dir.
 
-    pairs: list[tuple[dict, bool]] = []
+    Reads only ``run_metadata.self_evolved.playbook_update_candidate`` — never the
+    eval verdict — so the planner's long-term memory stays free of ground truth.
+    """
+
+    candidates: list[dict] = []
     for raw_path in sorted(experiment_root.glob(f"*/{SYSTEM_DIR_NAME}/*/run_*.raw.json")):
         benchmark_name = raw_path.parts[-4]
         if benchmark is not None and benchmark_name != benchmark:
@@ -58,13 +60,8 @@ def collect_candidates(
         )
         if not isinstance(candidate, dict) or not candidate.get("key"):
             continue
-
-        eval_path = raw_path.with_name(raw_path.name.replace(".raw.json", ".eval.json"))
-        eval_payload = _load_json(eval_path)
-        if eval_payload is None or "success" not in eval_payload:
-            continue
-        pairs.append((candidate, bool(eval_payload.get("success"))))
-    return pairs
+        candidates.append(candidate)
+    return candidates
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -80,18 +77,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: experiment root not found: {experiment_root}", file=sys.stderr)
         return 2
 
-    pairs = collect_candidates(experiment_root, benchmark=args.benchmark)
-    if not pairs:
+    candidates = collect_candidates(experiment_root, benchmark=args.benchmark)
+    if not candidates:
         print("No self_evolved playbook candidates found; nothing to do.")
         return 0
 
     playbook = TopologyPlaybook.load(args.playbook)
-    for candidate, success in pairs:
-        playbook.merge_candidate(candidate, success=success)
+    for candidate in candidates:
+        playbook.merge_candidate(candidate)
 
-    successes = sum(1 for _, success in pairs if success)
+    clean = sum(1 for candidate in candidates if is_process_clean(candidate))
     print(
-        f"Merged {len(pairs)} run candidate(s) ({successes} successful) "
+        f"Merged {len(candidates)} run candidate(s) ({clean} ran clean, process signals only) "
         f"into {args.playbook} ({len(playbook.entries)} entries)."
     )
     if args.dry_run:

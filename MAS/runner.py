@@ -127,3 +127,12 @@ class MASRunner:
                 self.config.self_evolved,
             )
         return self._self_evolved_engine
+
+    def reload_self_evolved_skill(self) -> None:
+        """Invalidate the self-evolved engine's cached skill (no-op if unbuilt).
+
+        Lets the online skill updater force the planner to re-read the skill file
+        after it has been rewritten mid-experiment."""
+
+        if self._self_evolved_engine is not None:
+            self._self_evolved_engine.reload_skill()

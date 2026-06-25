@@ -188,6 +188,7 @@ class TopologyPlannerAgent:
         audit_report: dict[str, Any],
         playbook_entries: list[dict[str, Any]] | None = None,
         principles: list[str] | None = None,
+        skill_text: str | None = None,
     ) -> MutationProposal:
         """Ask the planner LLM for one topology mutation addressing the audit
         findings. There is no deterministic fallback mutation: an unusable
@@ -199,6 +200,7 @@ class TopologyPlannerAgent:
             audit_report=audit_report,
             playbook_entries=playbook_entries or [],
             principles=principles or [],
+            skill_text=skill_text or "",
         )
         response_text = ""
         llm_payload: dict[str, Any] = {}
@@ -256,6 +258,7 @@ class TopologyPlannerAgent:
         audit_report: dict[str, Any],
         playbook_entries: list[dict[str, Any]],
         principles: list[str] | None = None,
+        skill_text: str = "",
     ) -> list[dict[str, str]]:
         groups_summary = "\n".join(
             f"  - {group.group_id}: pattern={group.pattern}, "
@@ -289,21 +292,33 @@ class TopologyPlannerAgent:
 
         budget_left = int(self.se_config.max_total_agents) - len(spec.agents)
         principles_section = _principles_section(principles)
+        # The agent-maintained skill is the planner's primary long-term memory; when
+        # present it carries the standing principles and lessons, so it replaces the
+        # JSON principles fallback. The playbook section (short-term turn memories from
+        # this run plus any long-term entries) is fresh repair context and is kept.
+        if skill_text and skill_text.strip():
+            experience_block = (
+                "## Topology planning skill (accumulated experience — consult before mutating)\n"
+                + skill_text.strip()
+                + "\n\n"
+                + playbook_section
+            )
+        else:
+            experience_block = f"{principles_section}{playbook_section}"
         system_msg = (
             "You are a topology planner performing the single trace-backed repair of "
             "a multi-agent system. Given the current topology and audit findings, "
             "propose ONE small mutation that addresses the strongest failure signal. "
             "You return only a compact JSON mutation; deterministic code applies and "
             'validates it. If no mutation is clearly useful, return {"ops": []}. '
-            "Weigh the standing principles and playbook memories below as accumulated "
-            "experience when choosing the repair."
+            "Weigh the topology planning skill and playbook memories below as "
+            "accumulated experience when choosing the repair."
         )
         user_msg = (
             f"## Current topology (version {spec.version})\n{groups_summary}\n\n"
             f"## Audit findings\n{findings}\n"
             f"Auditor recommendation: {audit_report.get('recommendation', '')}\n\n"
-            f"{principles_section}"
-            f"{playbook_section}"
+            f"{experience_block}"
             f"## Available ops (at most 3 per mutation)\n"
             f'- expand_agent_to_group: {{"op": "expand_agent_to_group", '
             f'"agent_id": "agent_1", "pattern": "star|chain|debate|voting", '

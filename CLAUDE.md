@@ -93,14 +93,22 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   (single turn) for search breadth; and a finalize **read-net** opens the top surfaced docids and feeds full
   text to the synthesizer when a retrieval run answered without reading. Visibility is pure code
   (`context.py`). The long-term playbook is an **agent-maintained markdown skill** (`config/topology_skill.md`,
-  `skill.py`): the planner loads it in full at plan time; an LLM **reflection agent**
-  (`scripts/reflect_topology_skill.py`) rewrites its *Lessons from experience* section post-hoc from run
-  outcomes labelled with ground-truth `eval.json` success (Standing-principles / How-to-choose sections are
-  guardrail-protected). The legacy structured JSON playbook (`topology_playbook.json`, `playbook.py`,
-  `update_topology_playbook.py`) is the deterministic fallback when no skill file exists; its `lookup` transfers
-  entries by task shape (`tools::size`) across benchmarks. Runs never write either file (parallel-safe). The
-  orchestration is deterministic (agents never decide termination); `benchmark.evaluate(...).success` stays the
-  sole correctness authority. See the "Self-evolved topology system" section + diagram in `README.md`.
+  `skill.py`): the planner loads it in full and applies it in **both** the initial plan and the repair-mutation
+  prompt. An LLM **reflection agent** rewrites its *Lessons from experience* section from run outcomes labelled by
+  **process signals only** — `is_process_clean` (`playbook.py`): auditor flagged no modes + decision-grade
+  consensus. **Ground truth (`benchmark.evaluate(...).success`) is deliberately NOT used to build the playbook**
+  — feeding the held-out verdict back into the planner's memory would bias the study; the verdict stays the
+  authority for *scoring* only. Standing-principles / How-to-choose sections are guardrail-protected. Default
+  writer is **online**: when `self_evolved.skill_update_batch_size > 0` (default **8**), `OnlineSkillUpdater`
+  (`skill.py`, driven from `main.py::run_command`) pauses every N freshly executed runs, reflects them into the
+  skill, and reloads it (`SelfEvolvedEngine.reload_skill`) for the rest of the experiment. `scripts/reflect_topology_skill.py`
+  is the offline equivalent; both share `summary_from_candidate` and read process signals only (never `eval.json`).
+  The legacy structured JSON playbook (`topology_playbook.json`, `playbook.py`, `update_topology_playbook.py`) is
+  the deterministic fallback when no skill file exists; its `lookup` transfers entries by task shape
+  (`tools::size`) across benchmarks, ranked by the same process proxy. **Online updates are ON by default, so a
+  `run` rewrites the skill mid-experiment — use a single sequential process; set `skill_update_batch_size = 0` for
+  parallel experiments.** The orchestration is deterministic (agents never decide termination). See the
+  "Self-evolved topology system" section + diagram in `README.md`.
 
 - **`descriptor/`** — trace schema (`descriptor/schema.py`), run-level metrics, and task-level
   aggregation (`descriptor/experiment.py::analyze_task_runs`), plus comparison tooling in
@@ -110,7 +118,7 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   consumed by `scripts/analyze_experiment.py`.
 
 - **`scripts/`** — `full_experiment.py`/`.sh` (batch wrapper), `analyze_experiment.py`,
-  `generate_mas_failure_analysis_report.py`, `update_topology_playbook.py` (post-hoc playbook merge),
+  `generate_mas_failure_analysis_report.py`, `update_topology_playbook.py` (offline process-only playbook merge),
   and the StableToolBench virtual server.
 
 - **`main.py`** — single CLI entrypoint (subcommands: `run`, `list-benchmarks`, `benchmark-info`,

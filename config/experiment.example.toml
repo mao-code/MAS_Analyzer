@@ -51,9 +51,18 @@ peer_artifact_max_chars = 320             # Max chars copied from one agent arti
 # max_turns = 2                       # 1 initial turn + at most 1 repair turn
 # audit_mode = "heuristic"            # "heuristic" or "llm_judge"
 # playbook_path = "config/topology_playbook.json"
-# playbook_read = true                # Planner reads long-term playbook priors
-# Runs update a short-term in-memory playbook every turn; persistent playbook
-# writes stay post-hoc via scripts/update_topology_playbook.py.
+# playbook_read = true                # Planner reads the long-term skill (and applies it
+#                                     # in both the initial plan and the repair mutation)
+# Runs always update a short-term in-memory playbook every turn. The long-term skill
+# (config/topology_skill.md) updates either:
+#   - online, mid-experiment (DEFAULT): skill_update_batch_size = 8 below (true self-evolution);
+#   - or offline: set skill_update_batch_size = 0 and run scripts/reflect_topology_skill.py.
+# Either way the skill is reflected from PROCESS SIGNALS ONLY (auditor findings + consensus),
+# never the benchmark verdict, so the self-evolved system is not biased by ground truth.
+# skill_update_batch_size = 8         # DEFAULT 8: a single `run` command pauses every N freshly
+#                                     # executed runs to reflect them into the skill, then resumes.
+#                                     # Use ONE sequential process (concurrent writers race);
+#                                     # set 0 for parallel experiments (offline reflection only).
 # default_packet_max_chars = 320      # Packet bound when mas.peer_artifact_max_chars = 0
 
 # ============================================================================

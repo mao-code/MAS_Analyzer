@@ -21,6 +21,7 @@ from descriptor.metrics import RunOutcome, compute_run_metrics, resolve_run_outc
 from descriptor.schema import TraceEvent
 from MAS import MASRunner, OpenRouterLLMClient, load_experiment_config
 from MAS.langgraph_engine import ExperimentSpec, LangGraphMASEngine
+from MAS.relay import TOPOLOGY_SELF_EVOLVED
 
 try:
     from datetime import UTC
@@ -1883,6 +1884,31 @@ def _load_completed_task_resume(
     return task_summary, row
 
 
+def _build_skill_updater(config: Any, runner: MASRunner) -> Any | None:
+    """Online (in-experiment) skill updater for self_evolved runs, or None.
+
+    Returns None unless the topology is self_evolved and
+    `self_evolved.skill_update_batch_size > 0` (the default is 8). When enabled, every
+    N freshly executed runs are reflected into the skill (ground-truth success-labelled)
+    and the engine reloads it. Set the batch size to 0 for parallel experiments."""
+
+    se = config.self_evolved
+    if (
+        config.mas.resolved_topology() != TOPOLOGY_SELF_EVOLVED
+        or int(se.skill_update_batch_size) <= 0
+    ):
+        return None
+    from MAS.self_evolved.skill import OnlineSkillUpdater, SkillReflector
+
+    return OnlineSkillUpdater(
+        reflector=SkillReflector(runner.openrouter_client, se),
+        skill_path=se.skill_path,
+        batch_size=int(se.skill_update_batch_size),
+        on_update=runner.reload_self_evolved_skill,
+        log=_log_progress,
+    )
+
+
 def run_command(args: argparse.Namespace) -> int:
     # 1) Load runtime knobs (OpenRouter, MAS topology, model routing, benchmark settings).
     config = load_experiment_config(args.config)
@@ -1896,6 +1922,13 @@ def run_command(args: argparse.Namespace) -> int:
 
     llm_client = OpenRouterLLMClient(config.openrouter, config.models)
     runner = MASRunner(config, llm_client)
+    skill_updater = _build_skill_updater(config, runner)
+    if skill_updater is not None:
+        _log_progress(
+            "SKILL_ONLINE_UPDATE enabled "
+            f"batch_size={config.self_evolved.skill_update_batch_size} "
+            f"skill_path={config.self_evolved.skill_path}"
+        )
 
     task_limit = args.task_limit if args.task_limit is not None else config.experiment.task_limit
     runs_per_task = (
@@ -2201,6 +2234,16 @@ def run_command(args: argparse.Namespace) -> int:
                 f"RUN_ARTIFACTS_WRITTEN task_id={task.task_id} run_index={run_index} "
                 f"metadata_path={artifact_paths['metadata_path']} eval_path={eval_path}"
             )
+
+            # Online skill learning: feed this freshly executed run's playbook candidate
+            # (PROCESS SIGNALS ONLY — never the eval verdict, to avoid biasing the study)
+            # to the updater; it pauses to reflect into the skill every N runs. No-op
+            # unless self_evolved + skill_update_batch_size > 0.
+            if skill_updater is not None:
+                candidate = (run_metadata.get("self_evolved") or {}).get(
+                    "playbook_update_candidate"
+                )
+                skill_updater.record(candidate)
 
         # 5) Convert trace+eval into descriptor artifacts and analysis outputs.
         _log_progress(f"TASK_ANALYZE_START task_id={task.task_id}")

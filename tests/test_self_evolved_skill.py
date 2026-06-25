@@ -6,7 +6,21 @@ from typing import Any
 from MAS.config import SelfEvolvedConfig
 from MAS.llm import LLMResult, OpenRouterLLMClient
 from MAS.self_evolved.planner import TopologyPlannerAgent
-from MAS.self_evolved.skill import SkillReflector, TopologySkill
+from MAS.self_evolved.skill import (
+    OnlineSkillUpdater,
+    SkillReflector,
+    TopologySkill,
+    summary_from_candidate,
+)
+
+VALID_REVISION = (
+    "# Topology Planning Skill\n\n"
+    "## Standing principles\n1. one executor for writes.\n\n"
+    "## How to choose a topology\n- retrieval -> searchers.\n\n"
+    "## Lessons from experience\n"
+    "- chain/2 ran clean 1/1 on workbench tool-using medium state-mutation tasks.\n"
+    + ("More detail to clear the length guardrail. " * 5)
+)
 
 SEED_SKILL = (
     "# Topology Planning Skill\n\n"
@@ -87,6 +101,38 @@ class TestSkillInPlannerPrompt(unittest.TestCase):
         self.assertIn("How to choose the topology (match it to your analysis)", blob)
         self.assertIn("fallback principle", blob)
 
+    def test_skill_injected_into_mutation_prompt(self) -> None:
+        planner = self._planner()
+        spec = planner.fallback_initial_spec(2)
+        messages = planner._build_mutation_prompt(
+            task=_Task(),
+            spec=spec,
+            audit_report={"detected_modes": [], "recommendation": ""},
+            playbook_entries=[],
+            principles=["fallback principle"],
+            skill_text=SEED_SKILL,
+        )
+        blob = messages[0]["content"] + messages[1]["content"]
+        self.assertIn("Topology planning skill", blob)
+        # The operational ops cheatsheet always stays; the skill replaces the JSON priors.
+        self.assertIn("Available ops", blob)
+        self.assertNotIn("fallback principle", blob)
+
+    def test_mutation_prompt_without_skill_keeps_principles(self) -> None:
+        planner = self._planner()
+        spec = planner.fallback_initial_spec(2)
+        messages = planner._build_mutation_prompt(
+            task=_Task(),
+            spec=spec,
+            audit_report={"detected_modes": [], "recommendation": ""},
+            playbook_entries=[],
+            principles=["fallback principle"],
+            skill_text="",
+        )
+        blob = messages[0]["content"] + messages[1]["content"]
+        self.assertNotIn("Topology planning skill", blob)
+        self.assertIn("fallback principle", blob)
+
 
 class TestSkillReflector(unittest.TestCase):
     SUMMARIES = [
@@ -94,7 +140,7 @@ class TestSkillReflector(unittest.TestCase):
             "key": "workbench::tools::medium",
             "benchmark": "workbench",
             "pattern": "chain/2",
-            "success": True,
+            "process_outcome": "clean",
             "audit_modes": [],
             "termination_reason": "consensus_reached",
         },
@@ -102,7 +148,7 @@ class TestSkillReflector(unittest.TestCase):
             "key": "browsecomp::tools::medium",
             "benchmark": "browsecomp",
             "pattern": "chain/2",
-            "success": False,
+            "process_outcome": "flagged",
             "audit_modes": ["insufficient_search_coverage"],
             "termination_reason": "max_rounds_reached",
         },
@@ -141,7 +187,7 @@ class TestSkillReflector(unittest.TestCase):
             "## Standing principles\n1. one executor for writes.\n\n"
             "## How to choose a topology\n- retrieval -> searchers.\n\n"
             "## Lessons from experience\n"
-            "- chain/2 succeeded 1/1 on workbench tool-using medium state-mutation tasks.\n"
+            "- chain/2 ran clean 1/1 on workbench tool-using medium state-mutation tasks.\n"
             + ("More detail to clear the length guardrail. " * 5)
         )
         result = self._reflector(good).reflect(
@@ -149,7 +195,114 @@ class TestSkillReflector(unittest.TestCase):
         )
         self.assertTrue(result.changed)
         self.assertEqual(result.reason, "updated")
-        self.assertIn("chain/2 succeeded", result.skill_markdown)
+        self.assertIn("chain/2 ran clean", result.skill_markdown)
+
+
+class TestOnlineSkillUpdater(unittest.TestCase):
+    @staticmethod
+    def _candidate(key: str = "workbench::tools::medium") -> dict:
+        # Process-clean by default (no audit modes + decision-grade consensus); no eval.
+        return {
+            "key": key,
+            "benchmark": "workbench",
+            "final_pattern": {"pattern": "chain", "num_agents": 2},
+            "audit_modes": [],
+            "termination_reason": "consensus_reached",
+        }
+
+    def test_disabled_batch_is_noop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "skill.md"
+            TopologySkill(path).save(SEED_SKILL)
+            updater = OnlineSkillUpdater(
+                reflector=SkillReflector(_StubLLM(VALID_REVISION), SelfEvolvedConfig()),
+                skill_path=path,
+                batch_size=0,
+            )
+            self.assertFalse(updater.enabled)
+            for _ in range(5):
+                updater.record(self._candidate())
+            self.assertEqual(updater.updates_applied, 0)
+            self.assertIn("(none yet)", TopologySkill.load(path).text)
+
+    def test_flushes_every_n_runs_and_reloads(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "skill.md"
+            TopologySkill(path).save(SEED_SKILL)
+            reloaded: list[bool] = []
+            updater = OnlineSkillUpdater(
+                reflector=SkillReflector(_StubLLM(VALID_REVISION), SelfEvolvedConfig()),
+                skill_path=path,
+                batch_size=3,
+                on_update=lambda: reloaded.append(True),
+            )
+            updater.record(self._candidate())
+            updater.record(self._candidate())
+            self.assertEqual(updater.updates_applied, 0)  # batch not full yet
+            self.assertEqual(reloaded, [])
+
+            updater.record(self._candidate())  # 3rd run -> flush
+            self.assertEqual(updater.updates_applied, 1)
+            self.assertEqual(reloaded, [True])  # engine cache invalidated
+            self.assertIn("chain/2 ran clean", TopologySkill.load(path).text)
+
+    def test_none_candidate_does_not_advance_batch(self) -> None:
+        # Runs surfacing no playbook candidate must not consume a batch slot.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "skill.md"
+            TopologySkill(path).save(SEED_SKILL)
+            updater = OnlineSkillUpdater(
+                reflector=SkillReflector(_StubLLM(VALID_REVISION), SelfEvolvedConfig()),
+                skill_path=path,
+                batch_size=2,
+            )
+            for _ in range(5):
+                updater.record(None)
+            self.assertEqual(updater.updates_applied, 0)
+            updater.record(self._candidate())
+            updater.record(self._candidate())
+            self.assertEqual(updater.updates_applied, 1)
+
+    def test_mock_reflection_keeps_skill_but_clears_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "skill.md"
+            TopologySkill(path).save(SEED_SKILL)
+            reloaded: list[bool] = []
+            updater = OnlineSkillUpdater(
+                reflector=SkillReflector(_StubLLM("x", mock_used=True), SelfEvolvedConfig()),
+                skill_path=path,
+                batch_size=2,
+                on_update=lambda: reloaded.append(True),
+            )
+            updater.record(self._candidate())
+            updater.record(self._candidate())
+            # Mock reflection leaves the skill unchanged; no update, no reload.
+            self.assertEqual(updater.updates_applied, 0)
+            self.assertEqual(reloaded, [])
+            self.assertIn("(none yet)", TopologySkill.load(path).text)
+
+
+class TestSummaryFromCandidate(unittest.TestCase):
+    def test_falls_back_to_initial_pattern_and_is_process_only(self) -> None:
+        # No audit modes but not consensus-terminated -> flagged (process proxy).
+        row = summary_from_candidate(
+            {"key": "k", "benchmark": "b", "initial_pattern": {"pattern": "star", "num_agents": 4}}
+        )
+        self.assertEqual(row["pattern"], "star/4")
+        self.assertEqual(row["process_outcome"], "flagged")
+        self.assertNotIn("success", row)  # ground truth never enters the summary
+
+    def test_clean_when_no_modes_and_consensus(self) -> None:
+        row = summary_from_candidate(
+            {
+                "key": "k",
+                "benchmark": "b",
+                "final_pattern": {"pattern": "chain", "num_agents": 2},
+                "audit_modes": [],
+                "termination_reason": "consensus_reached",
+            }
+        )
+        self.assertEqual(row["process_outcome"], "clean")
 
 
 if __name__ == "__main__":
