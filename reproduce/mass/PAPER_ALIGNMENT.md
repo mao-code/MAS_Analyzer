@@ -29,6 +29,13 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - debate: `2 predictors + 1 debator`
   - execute: `1 predictor + 1 executor + 1 reflector`
 - Stage 3 now returns the workflow-level prompt-optimized candidate by default, matching Algorithm 1.
+- Adds a standalone paper-baseline runner for the manually specified App. B.2 baselines:
+  - CoT
+  - Self-Consistency SC@9 with temperature 0.8 and majority vote
+  - Self-Refine with 5 reflection rounds
+  - Multi-Agent Debate with 3 agents, 3 rounds, and 1 judge
+- The paper-baseline runner defaults to `google/gemma-4-31b-it` and avoids the production `MAS/`
+  runtime; it only uses repo benchmark loading and evaluation.
 
 ## Approximate
 
@@ -43,7 +50,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 - No exact author prompts or discovered best prompts.
 - No exact MIPRO candidate proposal/evaluation loop.
 - No validation repeated 3 or 5 times for ADAS/AFlow-style baselines.
-- No paper baseline reproduction for CoT, SC@9, Self-Refine, Debate, ADAS, AFlow, or GPTSwarm.
+- No ADAS or AFlow optimizer reproduction in this MASS branch; those are separate framework
+  reproductions because they introduce their own search procedures.
 - No exact paper datasets/splits unless separately configured.
 - No real code execution tool integration for coding tasks; the `execute` block currently calls the model callback unless replaced.
 - No task-family default search-space mapping for arbitrary custom benchmarks.

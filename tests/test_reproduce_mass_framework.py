@@ -10,6 +10,13 @@ from reproduce.mass import (
 )
 from reproduce.mass.interfaces import BenchmarkExample
 from reproduce.mass.models import CandidateEvaluation
+from reproduce.mass.paper_baselines import (
+    BASELINE_SPECS,
+    DEFAULT_BASELINES,
+    DEFAULT_MODEL,
+    StandaloneOpenRouterClient,
+    _majority_vote,
+)
 
 
 class DummyBenchmark:
@@ -158,3 +165,31 @@ def test_template_adapter_executes_candidate_with_observable_turns() -> None:
     ][0]
     assert execution_details["turn_count"] >= 2
     assert execution_details["metadata"]["candidate_answer_count"] >= 1
+
+
+def test_paper_baseline_defaults_match_mass_paper_specs() -> None:
+    assert DEFAULT_MODEL == "google/gemma-4-31b-it"
+    assert DEFAULT_BASELINES == ("cot", "self_consistency", "self_refine", "debate")
+    assert BASELINE_SPECS["self_consistency"].calls_worst_case == 9
+    assert BASELINE_SPECS["self_refine"].calls_worst_case == 11
+    assert BASELINE_SPECS["debate"].calls_worst_case == 10
+
+
+def test_paper_baseline_client_has_local_mock_without_mas_runtime(monkeypatch) -> None:
+    monkeypatch.setenv("MAS_DISABLE_LIVE_LLM", "1")
+    client = StandaloneOpenRouterClient(model=DEFAULT_MODEL, api_key="")
+
+    result = client.generate(
+        messages=[{"role": "user", "content": "Please think step by step and solve 1+1."}],
+        task_id="task-1",
+        agent_id="cot",
+        temperature=0.7,
+    )
+
+    assert result.mock_used is True
+    assert result.model == DEFAULT_MODEL
+    assert "MOCK(cot)" in result.text
+
+
+def test_paper_baseline_majority_vote_normalizes_answers() -> None:
+    assert _majority_vote(["Answer: Blue.", "blue", "red"]) == "Answer: Blue."
