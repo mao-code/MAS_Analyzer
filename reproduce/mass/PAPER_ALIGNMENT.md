@@ -34,6 +34,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - Self-Consistency SC@9 with temperature 0.8 and majority vote
   - Self-Refine with 5 reflection rounds
   - Multi-Agent Debate with 3 agents, 3 rounds, and 1 judge
+  - ADAS with 30 search rounds and 3 validation evaluations per round
+  - AFlow with 20 rounds, 5 validation runs per round, and k=3
 - The paper-baseline runner defaults to `google/gemma-4-31b-it` and avoids the production `MAS/`
   runtime; it only uses repo benchmark loading and evaluation.
 
@@ -50,8 +52,9 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 - No exact author prompts or discovered best prompts.
 - No exact MIPRO candidate proposal/evaluation loop.
 - No validation repeated 3 or 5 times for ADAS/AFlow-style baselines.
-- No ADAS or AFlow optimizer reproduction in this MASS branch; those are separate framework
-  reproductions because they introduce their own search procedures.
+- ADAS and AFlow are safe standalone reproductions. They preserve the paper's search budgets and
+  conditioning pattern, but search fixed workflow families instead of executing arbitrary
+  LLM-generated code.
 - No exact paper datasets/splits unless separately configured.
 - No real code execution tool integration for coding tasks; the `execute` block currently calls the model callback unless replaced.
 - No task-family default search-space mapping for arbitrary custom benchmarks.

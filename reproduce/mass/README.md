@@ -86,7 +86,12 @@ Implemented baseline specs from App. B.2:
 - `self_consistency`: SC@9, temperature 0.8, rule-based majority vote.
 - `self_refine`: one predictor plus reflector/refiner loop, up to 5 reflection rounds.
 - `debate`: 3 agents for 3 debate rounds plus one judging aggregator.
+- `adas`: 30 rounds, 3 validation evaluations per round, conditioned on former baseline/workflow evaluations.
+- `aflow`: 20 rounds, 5 validation runs per round, `k=3`, over predefined workflow operators.
 
 The runner imports repo code only for `benchmark.get_benchmark()`, `load_tasks()`, and
 `evaluate()`. It uses its own minimal OpenRouter HTTP client and defaults to
 `google/gemma-4-31b-it`.
+
+For ADAS and AFlow, this runner uses a safe standalone reproduction: it searches among fixed
+workflow families instead of executing arbitrary LLM-generated Python code.
