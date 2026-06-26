@@ -16,6 +16,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 - Converts influence scores into softmax selection probabilities.
 - Uses rejection-style pruning with `u < p_ai`.
 - Samples workflow candidates under an agent budget.
+- Tracks and rejects duplicate sampled workflows so Stage 2 searches distinct topologies when the
+  pruned search space is large enough, matching the paper's "10 different topologies" setup.
 - Builds workflows with the paper's fixed construction order: `[summarize, reflect, debate, aggregate]`.
 - Uses paper search dimensions by default:
   - `summarize`: `{0, 1, 2, 3, 4}`

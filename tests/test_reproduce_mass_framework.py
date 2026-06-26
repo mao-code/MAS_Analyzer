@@ -125,6 +125,32 @@ def test_stage1_records_block_influence_scores() -> None:
     assert set(influence_scores) == {"aggregate", "reflect", "debate"}
 
 
+def test_topology_stage_records_unique_sampled_topologies() -> None:
+    framework = MASSFramework(
+        config=MASSConfig(
+            task_name="dummy",
+            search_space=SearchSpace(
+                enabled_blocks=("aggregate", "reflect", "debate"),
+                aggregate=(1, 3, 5, 7, 9),
+                reflect=(0, 1, 2, 3, 4),
+                debate=(0, 1, 2, 3, 4),
+                max_agent_budget=12,
+            ),
+            candidates_per_stage=8,
+            random_seed=23,
+        ),
+        benchmark=DummyBenchmark(),
+    )
+
+    results = framework.run()
+    sampled = results["stage2_topology"].metadata["sampled_candidates"]
+    topology_keys = [tuple(candidate["topology_key"]) for candidate in sampled]
+
+    assert len(topology_keys) == len(set(topology_keys))
+    assert results["stage2_topology"].metadata["unique_topology_count"] == len(sampled)
+    assert results["stage2_topology"].metadata["topology_sampling_exhausted"] is False
+
+
 def test_mipro_like_optimizer_adds_exemplars_and_metadata() -> None:
     framework = MASSFramework(
         config=MASSConfig(

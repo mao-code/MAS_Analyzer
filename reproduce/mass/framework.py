@@ -11,6 +11,7 @@ from .models import (
     MASSConfig,
     SearchSpace,
     StageResult,
+    WorkflowSpec,
 )
 from .optimizer import MIPROLikePromptOptimizer
 from .topology import build_block_workflow, build_initial_workflow
@@ -135,9 +136,25 @@ class MASSFramework:
         best_score = float(stage1.metadata["base_score"])
         explored = 0
         sampled_payloads: list[dict[str, object]] = []
+        seen_topologies: set[tuple[object, ...]] = set()
+        duplicate_rejections = 0
+        sampling_attempts = 0
+        max_sampling_attempts = max(
+            self.config.max_topology_sampling_attempts,
+            max(1, self.config.candidates_per_stage) * self.config.max_topology_sampling_attempts,
+        )
 
-        while explored < max(1, self.config.candidates_per_stage):
+        while (
+            explored < max(1, self.config.candidates_per_stage)
+            and sampling_attempts < max_sampling_attempts
+        ):
+            sampling_attempts += 1
             workflow, kept_blocks = self._sample_pruned_workflow(selection_probabilities)
+            topology_key = self._workflow_key(workflow)
+            if topology_key in seen_topologies:
+                duplicate_rejections += 1
+                continue
+            seen_topologies.add(topology_key)
             candidate = MASSCandidate(
                 workflow=workflow,
                 prompts=self._compose_candidate_prompts(
@@ -155,6 +172,7 @@ class MASSFramework:
             sampled_payloads.append(
                 {
                     "workflow": workflow.to_payload(),
+                    "topology_key": list(topology_key),
                     "kept_blocks": list(kept_blocks),
                     "score": float(evaluation.score),
                 }
@@ -171,6 +189,10 @@ class MASSFramework:
             metadata={
                 "sampled_candidates": sampled_payloads,
                 "selection_probabilities": selection_probabilities,
+                "unique_topology_count": len(seen_topologies),
+                "duplicate_topology_rejections": duplicate_rejections,
+                "sampling_attempts": sampling_attempts,
+                "topology_sampling_exhausted": explored < max(1, self.config.candidates_per_stage),
             },
         )
 
@@ -245,9 +267,9 @@ class MASSFramework:
 
     def _sample_pruned_workflow(
         self, selection_probabilities: dict[str, float]
-    ) -> tuple[object, list[str]]:
+    ) -> tuple[WorkflowSpec, list[str]]:
         attempts = max(1, self.config.max_topology_sampling_attempts)
-        fallback: tuple[object, list[str]] | None = None
+        fallback: tuple[WorkflowSpec, list[str]] | None = None
         for _ in range(attempts):
             kept_blocks: list[str] = []
             for block_name in self._search_blocks():
@@ -261,7 +283,7 @@ class MASSFramework:
         assert fallback is not None
         return fallback
 
-    def _workflow_from_kept_blocks(self, kept_blocks: list[str]):
+    def _workflow_from_kept_blocks(self, kept_blocks: list[str]) -> WorkflowSpec:
         search_space = self.config.search_space
         workflow = build_initial_workflow(search_space)
         if "summarize" in kept_blocks:
@@ -305,6 +327,16 @@ class MASSFramework:
                 reflect_rounds=max(workflow.reflect_rounds, search_space.reflect_minimum_rounds),
             )
         return replace(workflow, order=search_space.topology_order)
+
+    def _workflow_key(self, workflow: WorkflowSpec) -> tuple[object, ...]:
+        return (
+            workflow.summarize_rounds,
+            workflow.aggregate_width,
+            workflow.reflect_rounds,
+            workflow.debate_rounds,
+            workflow.execute_enabled,
+            workflow.order,
+        )
 
     def _compose_candidate_prompts(
         self,
