@@ -19,7 +19,7 @@ from benchmark import get_benchmark, list_benchmarks
 
 DEFAULT_MODEL = "google/gemma-4-31b-it"
 DEFAULT_EXCLUDED_BENCHMARKS = {"finance_agent"}
-DEFAULT_BASELINES = ("cot", "self_consistency", "self_refine", "debate", "adas", "aflow")
+DEFAULT_BASELINES = ("cot", "self_consistency", "self_refine", "debate")
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,6 @@ class BaselineSpec:
     paper_name: str
     description: str
     calls_worst_case: int
-    implementation_note: str = ""
 
 
 BASELINE_SPECS = {
@@ -56,35 +55,7 @@ BASELINE_SPECS = {
         description="Three debating agents for 3 rounds, followed by one judging aggregator.",
         calls_worst_case=10,
     ),
-    "adas": BaselineSpec(
-        name="adas",
-        paper_name="ADAS",
-        description=(
-            "LLM meta-agent proposes agentic designs conditioned on former baseline evaluations; "
-            "paper setup uses 30 rounds with 3 validation evaluations per round."
-        ),
-        calls_worst_case=-1,
-        implementation_note=(
-            "Safe standalone reproduction: the optimizer chooses among fixed workflow families instead "
-            "of executing arbitrary generated Python code."
-        ),
-    ),
-    "aflow": BaselineSpec(
-        name="aflow",
-        paper_name="AFlow",
-        description=(
-            "Automatic workflow design over predefined operators; paper setup uses 20 rounds, "
-            "5 validation runs per round, and k=3."
-        ),
-        calls_worst_case=-1,
-        implementation_note=(
-            "Safe standalone reproduction: MCTS-style search is approximated over fixed operator "
-            "workflows and does not execute generated scripts."
-        ),
-    ),
 }
-
-WORKFLOW_VARIANTS = ("cot", "review", "self_refine_once", "debate_once", "ensemble3", "test_review")
 
 
 @dataclass
@@ -267,8 +238,6 @@ def _run_benchmark(
             prediction, trace = _run_baseline(
                 baseline_name=baseline_name,
                 client=client,
-                benchmark=benchmark,
-                task=task,
                 benchmark_name=benchmark_name,
                 task_id=str(task.task_id),
                 prompt=task.prompt,
@@ -311,8 +280,6 @@ def _run_baseline(
     *,
     baseline_name: str,
     client: StandaloneOpenRouterClient,
-    benchmark: Any,
-    task: Any,
     benchmark_name: str,
     task_id: str,
     prompt: Any,
@@ -335,31 +302,6 @@ def _run_baseline(
             args.temperature,
             args.debate_agents,
             args.debate_rounds,
-        )
-    if baseline_name == "adas":
-        return _run_adas(
-            client=client,
-            benchmark=benchmark,
-            task=task,
-            benchmark_name=benchmark_name,
-            task_id=task_id,
-            prompt=prompt,
-            temperature=args.temperature,
-            rounds=args.adas_rounds,
-            validation_repeats=args.adas_validation_repeats,
-        )
-    if baseline_name == "aflow":
-        return _run_aflow(
-            client=client,
-            benchmark=benchmark,
-            task=task,
-            benchmark_name=benchmark_name,
-            task_id=task_id,
-            prompt=prompt,
-            temperature=args.temperature,
-            rounds=args.aflow_rounds,
-            validation_runs=args.aflow_validation_runs,
-            k=args.aflow_k,
         )
     raise ValueError(f"Unsupported baseline: {baseline_name}")
 
@@ -501,298 +443,6 @@ def _run_debate(
     return judge.text, {"agents": agents, "rounds": rounds, "calls": calls}
 
 
-def _run_adas(
-    *,
-    client: StandaloneOpenRouterClient,
-    benchmark: Any,
-    task: Any,
-    benchmark_name: str,
-    task_id: str,
-    prompt: Any,
-    temperature: float,
-    rounds: int,
-    validation_repeats: int,
-) -> tuple[str, dict[str, Any]]:
-    """ADAS-style meta-agent search without executing generated code."""
-
-    search_trace = []
-    leaderboard: list[dict[str, Any]] = []
-    best_prediction = ""
-    best_score = float("-inf")
-    former_summary = "No former evaluations yet."
-
-    for round_index in range(rounds):
-        proposal = _chat(
-            client,
-            task_id=f"{benchmark_name}:{task_id}:adas:proposal:{round_index}",
-            agent_id="adas_meta_agent",
-            system=(
-                "You are an ADAS-style meta-agent. Select a safe workflow family for this task. "
-                f"Allowed workflow families: {', '.join(WORKFLOW_VARIANTS)}."
-            ),
-            user=(
-                f"Task:\n{prompt}\n\nFormer baseline/workflow evaluations:\n{former_summary}\n\n"
-                "Return the best workflow family name and a short rationale."
-            ),
-            temperature=temperature,
-        )
-        variant = _choose_variant(proposal.text, fallback_index=round_index)
-        repeat_scores = []
-        repeat_payloads = []
-        prediction = ""
-        calls = [_call_payload(f"adas_meta_agent_{round_index}", proposal)]
-        for repeat_index in range(validation_repeats):
-            prediction, workflow_trace = _execute_workflow_variant(
-                client=client,
-                variant=variant,
-                benchmark_name=benchmark_name,
-                task_id=f"{task_id}:adas:{round_index}:{repeat_index}",
-                prompt=prompt,
-                temperature=temperature,
-            )
-            calls.extend(workflow_trace["calls"])
-            score = _score_prediction(
-                benchmark=benchmark,
-                task=task,
-                prediction=prediction,
-                metadata={
-                    "mass_paper_baseline": "adas_validation",
-                    "variant": variant,
-                    "round": round_index,
-                    "repeat": repeat_index,
-                },
-            )
-            repeat_scores.append(score)
-            repeat_payloads.append(
-                {"repeat": repeat_index, "score": score, "prediction": prediction}
-            )
-
-        avg_score = sum(repeat_scores) / len(repeat_scores) if repeat_scores else 0.0
-        candidate_payload = {
-            "round": round_index,
-            "variant": variant,
-            "proposal_text": proposal.text,
-            "average_score": avg_score,
-            "repeats": repeat_payloads,
-            "calls": calls,
-        }
-        leaderboard.append(candidate_payload)
-        search_trace.append(candidate_payload)
-        if avg_score > best_score:
-            best_score = avg_score
-            best_prediction = prediction
-        former_summary = _leaderboard_summary(leaderboard)
-
-    return best_prediction, {
-        "rounds": rounds,
-        "validation_repeats": validation_repeats,
-        "best_score_on_task_validation": best_score,
-        "leaderboard": leaderboard,
-        "search_trace": search_trace,
-    }
-
-
-def _run_aflow(
-    *,
-    client: StandaloneOpenRouterClient,
-    benchmark: Any,
-    task: Any,
-    benchmark_name: str,
-    task_id: str,
-    prompt: Any,
-    temperature: float,
-    rounds: int,
-    validation_runs: int,
-    k: int,
-) -> tuple[str, dict[str, Any]]:
-    """AFlow-style operator workflow search over a safe predefined workflow set."""
-
-    candidates = list(WORKFLOW_VARIANTS)
-    leaderboard: list[dict[str, Any]] = []
-    best_prediction = ""
-    best_score = float("-inf")
-    search_trace = []
-
-    for round_index in range(rounds):
-        ranked = sorted(leaderboard, key=lambda item: float(item["average_score"]), reverse=True)
-        active = [item["variant"] for item in ranked[:k]]
-        for variant in candidates:
-            if variant not in active:
-                active.append(variant)
-            if len(active) >= max(1, k):
-                break
-
-        expansion = _chat(
-            client,
-            task_id=f"{benchmark_name}:{task_id}:aflow:expand:{round_index}",
-            agent_id="aflow_optimizer",
-            system=(
-                "You are an AFlow-style optimizer over predefined operators. "
-                f"Allowed workflow families: {', '.join(WORKFLOW_VARIANTS)}."
-            ),
-            user=(
-                f"Task:\n{prompt}\n\nCurrent leaderboard:\n{_leaderboard_summary(leaderboard)}\n\n"
-                "Select or refine the next workflow family to evaluate."
-            ),
-            temperature=temperature,
-        )
-        proposed = _choose_variant(expansion.text, fallback_index=round_index)
-        if proposed not in active:
-            active[-1] = proposed
-
-        round_payload = {
-            "round": round_index,
-            "active_variants": active,
-            "calls": [_call_payload("aflow_optimizer", expansion)],
-            "evaluations": [],
-        }
-        for variant in active:
-            repeat_scores = []
-            repeat_payloads = []
-            prediction = ""
-            calls = []
-            for repeat_index in range(validation_runs):
-                prediction, workflow_trace = _execute_workflow_variant(
-                    client=client,
-                    variant=variant,
-                    benchmark_name=benchmark_name,
-                    task_id=f"{task_id}:aflow:{round_index}:{variant}:{repeat_index}",
-                    prompt=prompt,
-                    temperature=temperature,
-                )
-                calls.extend(workflow_trace["calls"])
-                score = _score_prediction(
-                    benchmark=benchmark,
-                    task=task,
-                    prediction=prediction,
-                    metadata={
-                        "mass_paper_baseline": "aflow_validation",
-                        "variant": variant,
-                        "round": round_index,
-                        "repeat": repeat_index,
-                    },
-                )
-                repeat_scores.append(score)
-                repeat_payloads.append(
-                    {"repeat": repeat_index, "score": score, "prediction": prediction}
-                )
-
-            avg_score = sum(repeat_scores) / len(repeat_scores) if repeat_scores else 0.0
-            candidate_payload = {
-                "round": round_index,
-                "variant": variant,
-                "average_score": avg_score,
-                "repeats": repeat_payloads,
-                "calls": calls,
-            }
-            leaderboard.append(candidate_payload)
-            round_payload["evaluations"].append(candidate_payload)
-            if avg_score > best_score:
-                best_score = avg_score
-                best_prediction = prediction
-        search_trace.append(round_payload)
-
-    return best_prediction, {
-        "rounds": rounds,
-        "validation_runs": validation_runs,
-        "k": k,
-        "best_score_on_task_validation": best_score,
-        "leaderboard": sorted(
-            leaderboard, key=lambda item: float(item["average_score"]), reverse=True
-        ),
-        "search_trace": search_trace,
-    }
-
-
-def _execute_workflow_variant(
-    *,
-    client: StandaloneOpenRouterClient,
-    variant: str,
-    benchmark_name: str,
-    task_id: str,
-    prompt: Any,
-    temperature: float,
-) -> tuple[str, dict[str, Any]]:
-    if variant == "cot":
-        return _run_cot(client, benchmark_name, task_id, prompt, temperature)
-    if variant == "self_refine_once":
-        return _run_self_refine(client, benchmark_name, task_id, prompt, temperature, rounds=1)
-    if variant == "debate_once":
-        return _run_debate(client, benchmark_name, task_id, prompt, temperature, agents=2, rounds=1)
-    if variant == "ensemble3":
-        return _run_ensemble(client, benchmark_name, task_id, prompt, temperature, samples=3)
-    if variant == "review":
-        draft, draft_trace = _run_cot(client, benchmark_name, task_id, prompt, temperature)
-        review = _chat(
-            client,
-            task_id=f"{benchmark_name}:{task_id}:review",
-            agent_id="reviewer",
-            system="You are a reviewer. Improve the draft and return the final answer.",
-            user=f"Task:\n{prompt}\n\nDraft answer:\n{draft}\n\nReturn the improved final answer.",
-            temperature=temperature,
-        )
-        return review.text, {"calls": draft_trace["calls"] + [_call_payload("reviewer", review)]}
-    if variant == "test_review":
-        draft, draft_trace = _run_cot(client, benchmark_name, task_id, prompt, temperature)
-        tester = _chat(
-            client,
-            task_id=f"{benchmark_name}:{task_id}:test",
-            agent_id="tester",
-            system="You are a tester. Identify likely errors in the draft answer.",
-            user=f"Task:\n{prompt}\n\nDraft answer:\n{draft}\n\nGive concise test feedback.",
-            temperature=temperature,
-        )
-        reviewer = _chat(
-            client,
-            task_id=f"{benchmark_name}:{task_id}:test_review",
-            agent_id="test_reviewer",
-            system="You revise answers using test feedback.",
-            user=(
-                f"Task:\n{prompt}\n\nDraft answer:\n{draft}\n\n"
-                f"Test feedback:\n{tester.text}\n\nReturn the final answer."
-            ),
-            temperature=temperature,
-        )
-        return reviewer.text, {
-            "calls": draft_trace["calls"]
-            + [_call_payload("tester", tester), _call_payload("test_reviewer", reviewer)]
-        }
-    raise ValueError(f"Unknown workflow variant: {variant}")
-
-
-def _run_ensemble(
-    client: StandaloneOpenRouterClient,
-    benchmark_name: str,
-    task_id: str,
-    prompt: Any,
-    temperature: float,
-    samples: int,
-) -> tuple[str, dict[str, Any]]:
-    calls = []
-    answers = []
-    for index in range(samples):
-        result = _chat(
-            client,
-            task_id=f"{benchmark_name}:{task_id}:ensemble:{index}",
-            agent_id=f"ensemble_{index}",
-            system="You are one independent solver in an ensemble.",
-            user=f"Please think step by step and then solve the task.\n\nTask:\n{prompt}",
-            temperature=temperature,
-        )
-        answers.append(_extract_answer(result.text))
-        calls.append(_call_payload(f"ensemble_{index}", result))
-    judge = _chat(
-        client,
-        task_id=f"{benchmark_name}:{task_id}:ensemble:judge",
-        agent_id="ensemble_judge",
-        system="You aggregate ensemble answers into one final prediction.",
-        user=f"Task:\n{prompt}\n\nCandidate answers:\n{_format_candidates(answers)}\n\nReturn the final answer.",
-        temperature=temperature,
-    )
-    calls.append(_call_payload("ensemble_judge", judge))
-    return judge.text, {"samples": samples, "answers": answers, "calls": calls}
-
-
 def _chat(
     client: StandaloneOpenRouterClient,
     *,
@@ -851,43 +501,6 @@ def _normalize_answer(answer: str) -> str:
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"[^a-z0-9\u4e00-\u9fff.:%/$ -]", "", text)
     return text[:500]
-
-
-def _score_prediction(
-    *, benchmark: Any, task: Any, prediction: str, metadata: dict[str, Any]
-) -> float:
-    evaluation = benchmark.evaluate(task, prediction, run_metadata=metadata)
-    return float(evaluation.score)
-
-
-def _choose_variant(text: str, fallback_index: int) -> str:
-    normalized = text.lower()
-    aliases = {
-        "self_refine_once": ("self_refine_once", "self-refine", "self refine", "reflect"),
-        "debate_once": ("debate_once", "debate"),
-        "ensemble3": ("ensemble3", "ensemble", "self-consistency", "self consistency"),
-        "test_review": ("test_review", "test review", "test"),
-        "review": ("review", "revise"),
-        "cot": ("cot", "chain-of-thought", "chain of thought"),
-    }
-    for variant in WORKFLOW_VARIANTS:
-        if any(alias in normalized for alias in aliases[variant]):
-            return variant
-    return WORKFLOW_VARIANTS[fallback_index % len(WORKFLOW_VARIANTS)]
-
-
-def _leaderboard_summary(leaderboard: list[dict[str, Any]], limit: int = 8) -> str:
-    if not leaderboard:
-        return "(empty)"
-    ranked = sorted(leaderboard, key=lambda item: float(item["average_score"]), reverse=True)
-    return "\n".join(
-        f"{idx + 1}. {item['variant']} score={float(item['average_score']):.4f}"
-        for idx, item in enumerate(ranked[:limit])
-    )
-
-
-def _format_candidates(answers: list[str]) -> str:
-    return "\n\n".join(f"[{idx}] {answer}" for idx, answer in enumerate(answers)) or "(none)"
 
 
 def _is_correct_signal(text: str) -> bool:
@@ -976,11 +589,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--self-refine-rounds", type=int, default=5)
     parser.add_argument("--debate-agents", type=int, default=3)
     parser.add_argument("--debate-rounds", type=int, default=3)
-    parser.add_argument("--adas-rounds", type=int, default=30)
-    parser.add_argument("--adas-validation-repeats", type=int, default=3)
-    parser.add_argument("--aflow-rounds", type=int, default=20)
-    parser.add_argument("--aflow-validation-runs", type=int, default=5)
-    parser.add_argument("--aflow-k", type=int, default=3)
     parser.add_argument("--keep-going", action="store_true")
     args = parser.parse_args()
     if not args.baseline:

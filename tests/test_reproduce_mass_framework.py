@@ -169,19 +169,10 @@ def test_template_adapter_executes_candidate_with_observable_turns() -> None:
 
 def test_paper_baseline_defaults_match_mass_paper_specs() -> None:
     assert DEFAULT_MODEL == "google/gemma-4-31b-it"
-    assert DEFAULT_BASELINES == (
-        "cot",
-        "self_consistency",
-        "self_refine",
-        "debate",
-        "adas",
-        "aflow",
-    )
+    assert DEFAULT_BASELINES == ("cot", "self_consistency", "self_refine", "debate")
     assert BASELINE_SPECS["self_consistency"].calls_worst_case == 9
     assert BASELINE_SPECS["self_refine"].calls_worst_case == 11
     assert BASELINE_SPECS["debate"].calls_worst_case == 10
-    assert "30 rounds" in BASELINE_SPECS["adas"].description
-    assert "20 rounds" in BASELINE_SPECS["aflow"].description
 
 
 def test_paper_baseline_client_has_local_mock_without_mas_runtime(monkeypatch) -> None:
