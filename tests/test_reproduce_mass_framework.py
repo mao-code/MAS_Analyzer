@@ -23,6 +23,7 @@ from reproduce.mass.paper_baselines import (
     _majority_vote,
 )
 from reproduce.mass.run_existing_benchmarks import (
+    DEFAULT_FINAL_EVALUATION_REPEATS,
     DEFAULT_MODEL_TEMPERATURE,
     DEFAULT_TOPOLOGY_CANDIDATES,
     DEFAULT_TOPOLOGY_TEMPERATURE,
@@ -381,6 +382,7 @@ def test_mass_runner_defaults_match_paper_setup(monkeypatch) -> None:
     assert args.temperature == DEFAULT_MODEL_TEMPERATURE == 0.7
     assert args.candidates_per_stage == DEFAULT_TOPOLOGY_CANDIDATES == 10
     assert args.validation_repeats == DEFAULT_VALIDATION_REPEATS == 3
+    assert args.final_evaluation_repeats == DEFAULT_FINAL_EVALUATION_REPEATS == 3
     assert args.topology_temperature == DEFAULT_TOPOLOGY_TEMPERATURE == 0.05
     assert args.max_tokens == 4096
 

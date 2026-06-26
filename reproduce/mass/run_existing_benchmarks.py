@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
 DEFAULT_EXCLUDED_BENCHMARKS = {"finance_agent"}
 DEFAULT_MODEL = "google/gemma-4-31b-it"
 DEFAULT_VALIDATION_REPEATS = 3
+DEFAULT_FINAL_EVALUATION_REPEATS = 3
 DEFAULT_TOPOLOGY_CANDIDATES = 10
 DEFAULT_TOPOLOGY_TEMPERATURE = 0.05
 DEFAULT_MODEL_TEMPERATURE = 0.7
@@ -55,6 +56,7 @@ def main() -> None:
             "candidates_per_stage": args.candidates_per_stage,
             "max_validation_examples": args.max_validation_examples,
             "validation_repeats": args.validation_repeats,
+            "final_evaluation_repeats": args.final_evaluation_repeats,
             "topology_temperature": args.topology_temperature,
             "max_agent_budget": args.max_agent_budget,
             "run_global_prompt_stage": not args.no_global_prompt_stage,
@@ -139,11 +141,45 @@ def _run_one_benchmark(
     )
     results = framework.run()
     payload = _results_payload(results)
+    final_evaluation = _evaluate_final_candidate(
+        benchmark=benchmark,
+        tasks=tasks,
+        model_callback=model_callback,
+        best_candidate=results[payload["final_stage_name"]].best_candidate,
+        repeats=int(args.final_evaluation_repeats),
+        benchmark_name=benchmark_name,
+    )
     payload["task_count"] = len(tasks)
     payload["tasks"] = [str(task.task_id) for task in tasks]
     payload["best_score"] = payload["final_stage"]["best_score"]
+    payload["final_evaluation"] = final_evaluation
     _write_json(output_dir / "mass_results.json", payload)
     return payload
+
+
+def _evaluate_final_candidate(
+    *,
+    benchmark: Any,
+    tasks: list[Any],
+    model_callback: Any,
+    best_candidate: Any,
+    repeats: int,
+    benchmark_name: str,
+) -> dict[str, Any]:
+    adapter = ExistingBenchmarkMASSAdapter(
+        benchmark=benchmark,
+        tasks=tasks,
+        executor=MASSCandidateExecutor(model_callback=model_callback),
+        validation_repeats=max(1, repeats),
+        metadata={"benchmark_name": benchmark_name, "phase": "final_evaluation"},
+    )
+    evaluation = adapter.evaluate_candidate(best_candidate, adapter.validation_examples())
+    return {
+        "score": float(evaluation.score),
+        "repeats": max(1, repeats),
+        "example_count": len(tasks),
+        "details": _jsonable(evaluation.details),
+    }
 
 
 def _make_openrouter_callback(
@@ -313,6 +349,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--max-agent-budget", type=int, default=12)
     parser.add_argument("--topology-temperature", type=float, default=DEFAULT_TOPOLOGY_TEMPERATURE)
     parser.add_argument("--validation-repeats", type=int, default=DEFAULT_VALIDATION_REPEATS)
+    parser.add_argument(
+        "--final-evaluation-repeats",
+        type=int,
+        default=DEFAULT_FINAL_EVALUATION_REPEATS,
+        help="Paper-style repeated final evaluation runs for the optimized workflow.",
+    )
     parser.add_argument("--enabled-block", action="append", default=[])
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--temperature", type=float, default=DEFAULT_MODEL_TEMPERATURE)

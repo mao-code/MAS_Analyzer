@@ -92,10 +92,13 @@ Defaults are set to match the paper setup where applicable:
 - `--max-tokens 4096`
 - `--candidates-per-stage 10`
 - `--validation-repeats 3`
+- `--final-evaluation-repeats 3`
 - `--topology-temperature 0.05`
 
 The runner maps repo benchmarks onto Table 2-style task families to choose enabled blocks.
-Override with repeated `--enabled-block` flags when needed.
+After search, it re-evaluates the optimized workflow for `--final-evaluation-repeats` runs and
+writes the result under `final_evaluation`. Override with repeated `--enabled-block` flags when
+needed.
 
 ## Paper Baselines
 

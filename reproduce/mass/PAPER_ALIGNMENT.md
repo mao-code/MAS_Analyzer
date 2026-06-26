@@ -48,6 +48,7 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - topology candidates: `10`
   - topology softmax temperature: `0.05`
   - validation repeats: `3`
+  - final evaluation repeats for the optimized workflow: `3`
 - MIPRO-like optimizer exposes the paper's public prompt-search settings:
   - bootstrapped demos: `3`
   - instruction candidates: `10`
@@ -79,6 +80,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   message formatting, and stopping rules are not guaranteed to match the authors' hidden implementation.
 - Table 2 mapping is adapted to this repo's benchmark names, not the paper's original exact datasets.
 - Existing repo benchmarks are not the paper's original benchmark suite, so reported scores are not comparable to the paper tables.
+- The existing-benchmark runner uses the loaded task set for final evaluation unless the
+  benchmark/config supplies an explicit held-out split.
 
 ## Not Aligned Yet
 
