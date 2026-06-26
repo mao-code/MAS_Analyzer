@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from benchmark import get_benchmark, list_benchmarks
-from MAS import OpenRouterLLMClient, load_experiment_config
 
 from .executor import MASSCandidateExecutor
 from .existing_benchmarks import ExistingBenchmarkMASSAdapter
 from .framework import MASSFramework
 from .models import MASSConfig, SearchSpace, StageResult
+from .paper_baselines import StandaloneOpenRouterClient, _load_env_file
 
 try:
     from datetime import UTC
@@ -21,19 +22,29 @@ except ImportError:  # pragma: no cover
 
 
 DEFAULT_EXCLUDED_BENCHMARKS = {"finance_agent"}
-DEFAULT_ENABLED_BLOCKS = ("aggregate", "reflect", "debate", "execute")
+DEFAULT_MODEL = "google/gemma-4-31b-it"
+DEFAULT_VALIDATION_REPEATS = 3
+DEFAULT_TOPOLOGY_CANDIDATES = 10
+DEFAULT_TOPOLOGY_TEMPERATURE = 0.05
+DEFAULT_MODEL_TEMPERATURE = 0.7
+DEFAULT_MAX_TOKENS = 4096
 
 
 def main() -> None:
     args = _parse_args()
-    config = load_experiment_config(args.config)
+    _load_env_file(args.env_file)
     benchmarks = _resolve_benchmarks(args)
     output_root = Path(args.output_dir).expanduser().resolve()
     run_id = args.run_id or _now_stamp()
     experiment_root = output_root / run_id
     experiment_root.mkdir(parents=True, exist_ok=True)
 
-    llm_client = OpenRouterLLMClient(config.openrouter, config.models)
+    llm_client = StandaloneOpenRouterClient(
+        model=args.model,
+        base_url=args.openrouter_base_url,
+        timeout_s=args.timeout_s,
+        max_tokens=args.max_tokens,
+    )
     summary: dict[str, Any] = {
         "run_id": run_id,
         "config_path": str(Path(args.config).expanduser().resolve()),
@@ -43,10 +54,13 @@ def main() -> None:
             "task_limit": args.task_limit,
             "candidates_per_stage": args.candidates_per_stage,
             "max_validation_examples": args.max_validation_examples,
+            "validation_repeats": args.validation_repeats,
             "topology_temperature": args.topology_temperature,
             "max_agent_budget": args.max_agent_budget,
             "run_global_prompt_stage": not args.no_global_prompt_stage,
             "model_agent_type": args.model_agent_type,
+            "model": args.model,
+            "max_tokens": args.max_tokens,
         },
     }
 
@@ -58,7 +72,6 @@ def main() -> None:
             result_payload = _run_one_benchmark(
                 benchmark_name=benchmark_name,
                 args=args,
-                config=config,
                 llm_client=llm_client,
                 output_dir=benchmark_dir,
             )
@@ -88,11 +101,10 @@ def _run_one_benchmark(
     *,
     benchmark_name: str,
     args: argparse.Namespace,
-    config: Any,
-    llm_client: OpenRouterLLMClient,
+    llm_client: StandaloneOpenRouterClient,
     output_dir: Path,
 ) -> dict[str, Any]:
-    benchmark_cfg = _benchmark_section_config(config, benchmark_name)
+    benchmark_cfg = _benchmark_section_config(args.config, benchmark_name)
     benchmark = get_benchmark(benchmark_name, config=benchmark_cfg)
     tasks = list(benchmark.load_tasks(task_limit=args.task_limit))
     if not tasks:
@@ -108,12 +120,10 @@ def _run_one_benchmark(
         benchmark=benchmark,
         tasks=tasks,
         executor=MASSCandidateExecutor(model_callback=model_callback),
+        validation_repeats=args.validation_repeats,
         metadata={"benchmark_name": benchmark_name},
     )
-    search_space = SearchSpace(
-        enabled_blocks=tuple(args.enabled_block),
-        max_agent_budget=int(args.max_agent_budget),
-    )
+    search_space = _resolve_search_space(benchmark_name, args)
     framework = MASSFramework(
         config=MASSConfig(
             task_name=benchmark_name,
@@ -138,11 +148,13 @@ def _run_one_benchmark(
 
 def _make_openrouter_callback(
     *,
-    llm_client: OpenRouterLLMClient,
+    llm_client: StandaloneOpenRouterClient,
     benchmark_name: str,
     model_agent_type: str,
     temperature: float,
 ):
+    del model_agent_type
+
     def callback(role: str, prompt_text: str, example: Any, context: dict[str, Any]) -> str:
         task_id = f"{benchmark_name}:{example.example_id}:{role}"
         messages = [
@@ -163,10 +175,8 @@ def _make_openrouter_callback(
             },
         ]
         result = llm_client.generate(
-            prompt=messages,
-            agent_type=model_agent_type,
+            messages=messages,
             task_id=task_id,
-            run_index=0,
             agent_id=role,
             temperature=temperature,
         )
@@ -223,14 +233,50 @@ def _jsonable(value: Any) -> Any:
 
 
 def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any]:
-    cfg = dict(getattr(config, benchmark_name, {}) or {})
-    if "openrouter" not in cfg:
-        cfg["openrouter"] = {}
-    if config.openrouter.api_key and "api_key" not in cfg["openrouter"]:
-        cfg["openrouter"]["api_key"] = config.openrouter.api_key
-    if config.openrouter.base_url and "base_url" not in cfg["openrouter"]:
-        cfg["openrouter"]["base_url"] = config.openrouter.base_url
-    return cfg
+    path = Path(config).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    cfg = data.get(benchmark_name) or {}
+    if not isinstance(cfg, dict):
+        raise ValueError(f"[{benchmark_name}] config section must be a table when present.")
+    return dict(cfg)
+
+
+def _resolve_search_space(benchmark_name: str, args: argparse.Namespace) -> SearchSpace:
+    if args.enabled_block:
+        return SearchSpace(
+            enabled_blocks=tuple(args.enabled_block),
+            max_agent_budget=int(args.max_agent_budget),
+        )
+    family = _benchmark_family(benchmark_name)
+    enabled_by_family = {
+        "math_reasoning": ("aggregate", "reflect", "debate"),
+        "discrete_reasoning": ("aggregate", "reflect", "debate"),
+        "long_context": ("summarize", "aggregate", "reflect", "debate"),
+        "coding": ("aggregate", "reflect", "debate", "execute"),
+        "tool_or_web": ("aggregate", "reflect", "debate", "execute"),
+        "general": ("aggregate", "reflect", "debate"),
+    }
+    return SearchSpace(
+        enabled_blocks=enabled_by_family[family],
+        max_agent_budget=int(args.max_agent_budget),
+    )
+
+
+def _benchmark_family(benchmark_name: str) -> str:
+    normalized = benchmark_name.lower()
+    if normalized in {"math", "math500", "gsm8k"}:
+        return "math_reasoning"
+    if normalized in {"drop"}:
+        return "discrete_reasoning"
+    if normalized in {"hotpotqa", "musique", "2wikimqa", "2wiki", "browsecomp"}:
+        return "long_context"
+    if normalized in {"mbpp", "humaneval", "livecodebench", "lcb", "scicode", "workbench"}:
+        return "coding"
+    if normalized in {"stabletoolbench", "webshop", "agentbench"}:
+        return "tool_or_web"
+    return "general"
 
 
 def _resolve_benchmarks(args: argparse.Namespace) -> list[str]:
@@ -256,18 +302,24 @@ def _parse_args() -> argparse.Namespace:
         description="Run the standalone MASS reproduction framework on existing benchmarks."
     )
     parser.add_argument("--config", default="config/experiment.example.toml")
+    parser.add_argument("--env-file", default=".env")
     parser.add_argument("--output-dir", default="outputs_mass_reproduce")
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--benchmark", action="append", default=[])
     parser.add_argument("--exclude-benchmark", action="append", default=[])
     parser.add_argument("--task-limit", type=int, default=None)
     parser.add_argument("--max-validation-examples", type=int, default=None)
-    parser.add_argument("--candidates-per-stage", type=int, default=8)
+    parser.add_argument("--candidates-per-stage", type=int, default=DEFAULT_TOPOLOGY_CANDIDATES)
     parser.add_argument("--max-agent-budget", type=int, default=12)
-    parser.add_argument("--topology-temperature", type=float, default=1.0)
-    parser.add_argument("--enabled-block", action="append", default=list(DEFAULT_ENABLED_BLOCKS))
+    parser.add_argument("--topology-temperature", type=float, default=DEFAULT_TOPOLOGY_TEMPERATURE)
+    parser.add_argument("--validation-repeats", type=int, default=DEFAULT_VALIDATION_REPEATS)
+    parser.add_argument("--enabled-block", action="append", default=[])
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--temperature", type=float, default=DEFAULT_MODEL_TEMPERATURE)
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--openrouter-base-url", default="https://openrouter.ai/api/v1")
+    parser.add_argument("--timeout-s", type=float, default=600.0)
+    parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     parser.add_argument("--model-agent-type", default="default")
     parser.add_argument("--no-global-prompt-stage", action="store_true")
     parser.add_argument("--keep-best-after-global-prompt-stage", action="store_true")

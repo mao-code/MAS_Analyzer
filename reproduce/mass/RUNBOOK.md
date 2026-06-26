@@ -13,6 +13,7 @@ Run existing repository benchmarks with the MASS reproduction framework:
 ```
 
 `finance_agent` is excluded by default.
+The default model is `google/gemma-4-31b-it`.
 
 ## Overnight Run Command
 
@@ -23,7 +24,8 @@ The command below runs one task per supported benchmark, with paper-like three-s
   --config config/experiment.example.toml \
   --task-limit 1 \
   --max-validation-examples 1 \
-  --candidates-per-stage 2 \
+  --candidates-per-stage 10 \
+  --validation-repeats 3 \
   --run-id overnight_non_finance_mass \
   --keep-going
 ```

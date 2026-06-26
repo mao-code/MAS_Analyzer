@@ -17,6 +17,7 @@ Use it when:
 - `topology.py`: MASS-style workflow enumeration
 - `optimizer.py`: MIPRO-like instruction+exemplar optimizer, identity fallback, and optional DSPy adapter shell
 - `framework.py`: 3-stage MASS-style search loop with paper-like block warm-up, influence scoring, and pruned topology sampling
+- `run_existing_benchmarks.py`: paper-default MASS runner for this repo's benchmarks
 - `paper_baselines.py`: standalone paper baseline suite using only repo benchmark loading/evaluation
 
 ## Expected benchmark adapter
@@ -67,6 +68,30 @@ results = framework.run()
 - The topology stage now follows the paper more closely: block influence is measured in Stage 1, converted into softmax probabilities, and used for rejection-style pruning before workflow sampling.
 - A true DSPy/MIPRO backend is still optional; the included optimizer is a dependency-light approximation.
 - The executor skeleton makes topology blocks observable in execution, but you should still replace the model callback and scorer for real experiments.
+
+## Existing Benchmark Runner
+
+Run MASS core on repo benchmarks with paper-like defaults:
+
+```bash
+.venv/bin/python -m reproduce.mass.run_existing_benchmarks \
+  --config config/experiment.example.toml \
+  --benchmark stabletoolbench \
+  --task-limit 1 \
+  --keep-going
+```
+
+Defaults are set to match the paper setup where applicable:
+
+- `--model google/gemma-4-31b-it`
+- `--temperature 0.7`
+- `--max-tokens 4096`
+- `--candidates-per-stage 10`
+- `--validation-repeats 3`
+- `--topology-temperature 0.05`
+
+The runner maps repo benchmarks onto Table 2-style task families to choose enabled blocks.
+Override with repeated `--enabled-block` flags when needed.
 
 ## Paper Baselines
 

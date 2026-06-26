@@ -17,6 +17,15 @@ from reproduce.mass.paper_baselines import (
     StandaloneOpenRouterClient,
     _majority_vote,
 )
+from reproduce.mass.run_existing_benchmarks import (
+    DEFAULT_MODEL_TEMPERATURE,
+    DEFAULT_TOPOLOGY_CANDIDATES,
+    DEFAULT_TOPOLOGY_TEMPERATURE,
+    DEFAULT_VALIDATION_REPEATS,
+    _benchmark_family,
+    _parse_args,
+    _resolve_search_space,
+)
 
 
 class DummyBenchmark:
@@ -193,3 +202,35 @@ def test_paper_baseline_client_has_local_mock_without_mas_runtime(monkeypatch) -
 
 def test_paper_baseline_majority_vote_normalizes_answers() -> None:
     assert _majority_vote(["Answer: Blue.", "blue", "red"]) == "Answer: Blue."
+
+
+def test_mass_runner_defaults_match_paper_setup(monkeypatch) -> None:
+    monkeypatch.setattr("sys.argv", ["run_existing_benchmarks.py"])
+    args = _parse_args()
+
+    assert args.model == "google/gemma-4-31b-it"
+    assert args.temperature == DEFAULT_MODEL_TEMPERATURE == 0.7
+    assert args.candidates_per_stage == DEFAULT_TOPOLOGY_CANDIDATES == 10
+    assert args.validation_repeats == DEFAULT_VALIDATION_REPEATS == 3
+    assert args.topology_temperature == DEFAULT_TOPOLOGY_TEMPERATURE == 0.05
+    assert args.max_tokens == 4096
+
+
+def test_mass_runner_uses_task_family_search_spaces(monkeypatch) -> None:
+    monkeypatch.setattr("sys.argv", ["run_existing_benchmarks.py"])
+    args = _parse_args()
+
+    assert _benchmark_family("browsecomp") == "long_context"
+    assert _resolve_search_space("browsecomp", args).enabled_blocks == (
+        "summarize",
+        "aggregate",
+        "reflect",
+        "debate",
+    )
+    assert _benchmark_family("scicode") == "coding"
+    assert _resolve_search_space("scicode", args).enabled_blocks == (
+        "aggregate",
+        "reflect",
+        "debate",
+        "execute",
+    )

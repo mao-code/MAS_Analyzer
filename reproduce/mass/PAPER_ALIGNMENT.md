@@ -29,6 +29,19 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - debate: `2 predictors + 1 debator`
   - execute: `1 predictor + 1 executor + 1 reflector`
 - Stage 3 now returns the workflow-level prompt-optimized candidate by default, matching Algorithm 1.
+- Core benchmark runner defaults to the paper setup:
+  - model: `google/gemma-4-31b-it`
+  - model temperature: `0.7`
+  - max output tokens: `4096`
+  - topology candidates: `10`
+  - topology softmax temperature: `0.05`
+  - validation repeats: `3`
+- Existing-benchmark runner applies Table 2-style task-family search spaces:
+  - math/discrete reasoning: `{Aggregate, Reflect, Debate}`
+  - long-context: `{Summarize, Aggregate, Reflect, Debate}`
+  - coding/tool/web: `{Aggregate, Reflect, Debate, Execute}`
+- The core runner now uses a reproduction-local OpenRouter client and uses the repo only for
+  benchmark loading/evaluation.
 - Adds a standalone paper-baseline runner for the manually specified App. B.2 baselines:
   - CoT
   - Self-Consistency SC@9 with temperature 0.8 and majority vote
@@ -43,18 +56,17 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 - Prompt templates are generic approximations unless task-specific templates are supplied through `MASSConfig.prompt_templates`.
 - Agent execution semantics are encoded in a lightweight standalone executor, not in the authors' runtime.
 - The executor preserves observable block behavior, but internal prompting and message passing are not guaranteed to match the authors' hidden implementation.
+- Table 2 mapping is adapted to this repo's benchmark names, not the paper's original exact datasets.
 - Existing repo benchmarks are not the paper's original benchmark suite, so reported scores are not comparable to the paper tables.
 
 ## Not Aligned Yet
 
 - No exact author prompts or discovered best prompts.
 - No exact MIPRO candidate proposal/evaluation loop.
-- No validation repeated 3 or 5 times for ADAS/AFlow-style baselines.
 - No ADAS or AFlow optimizer reproduction in this MASS branch; those are separate framework
   reproductions because they introduce their own search procedures.
 - No exact paper datasets/splits unless separately configured.
 - No real code execution tool integration for coding tasks; the `execute` block currently calls the model callback unless replaced.
-- No task-family default search-space mapping for arbitrary custom benchmarks.
 
 ## Practical Conclusion
 
