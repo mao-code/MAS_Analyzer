@@ -12,7 +12,7 @@ Use it when:
 
 - `models.py`: search-space, workflow, candidate, and result dataclasses
 - `interfaces.py`: benchmark adapter and prompt optimizer interfaces
-- `executor.py`: standalone MASS-style candidate execution skeleton
+- `executor.py`: standalone MASS-style candidate executor with optional external execution feedback
 - `adapters.py`: benchmark adapter template for custom tasks
 - `topology.py`: MASS-style workflow enumeration
 - `optimizer.py`: MIPRO-like instruction+exemplar candidate search, identity fallback, and optional DSPy adapter shell
@@ -69,7 +69,9 @@ results = framework.run()
 - The topology stage now follows the paper more closely: block influence is measured in Stage 1, converted into softmax probabilities, and used for rejection-style pruning before workflow sampling.
 - A true DSPy/MIPRO backend is still optional; the included optimizer is a dependency-light
   approximation with deterministic candidate scoring.
-- The executor skeleton makes topology blocks observable in execution, but you should still replace the model callback and scorer for real experiments.
+- The executor makes topology blocks observable and lets coding/tool tasks provide an
+  `execution_callback`; if none is supplied, it surfaces public-test/tool metadata when available
+  before falling back to a model-generated execute response.
 
 ## Existing Benchmark Runner
 

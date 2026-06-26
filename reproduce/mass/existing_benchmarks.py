@@ -7,7 +7,7 @@ from typing import Any
 from benchmark.base import BenchmarkTask
 
 from .adapters import ScoreCallback, TemplateBenchmarkAdapter
-from .executor import MASSCandidateExecutor, ModelCallback
+from .executor import ExecutionCallback, MASSCandidateExecutor, ModelCallback
 from .interfaces import BenchmarkExample
 from .models import CandidateEvaluation, ExampleExecution, MASSCandidate
 
@@ -26,6 +26,7 @@ class ExistingBenchmarkMASSAdapter(TemplateBenchmarkAdapter):
         tasks: Sequence[BenchmarkTask],
         executor: MASSCandidateExecutor | None = None,
         model_callback: ModelCallback | None = None,
+        execution_callback: ExecutionCallback | None = None,
         score_callback: ScoreCallback | None = None,
         validation_repeats: int = 1,
         metadata: dict[str, Any] | None = None,
@@ -35,7 +36,8 @@ class ExistingBenchmarkMASSAdapter(TemplateBenchmarkAdapter):
         self._task_by_id = {str(task.task_id): task for task in self.tasks}
         self.validation_repeats = max(1, int(validation_repeats))
         resolved_executor = executor or MASSCandidateExecutor(
-            model_callback=model_callback or MASSCandidateExecutor().model_callback
+            model_callback=model_callback or MASSCandidateExecutor().model_callback,
+            execution_callback=execution_callback,
         )
         super().__init__(
             examples=[self._task_to_example(task) for task in self.tasks],

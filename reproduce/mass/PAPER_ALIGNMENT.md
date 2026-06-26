@@ -37,6 +37,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - debate uses at least two predictor answers and one debator pass per agent
   - reflect uses reflector feedback followed by predictor/refiner updates
   - execute produces execution feedback before reflector/refiner updates
+  - execute can consume an external execution callback or benchmark public-test/tool metadata
+    before falling back to a model-generated execute response
   - aggregate is only called when multiple candidate answers must be combined
 - Stage 3 now returns the workflow-level prompt-optimized candidate by default, matching Algorithm 1.
 - Core benchmark runner defaults to the paper setup:
@@ -85,7 +87,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 - No ADAS or AFlow optimizer reproduction in this MASS branch; those are separate framework
   reproductions because they introduce their own search procedures.
 - No exact paper datasets/splits unless separately configured.
-- No real code execution tool integration for coding tasks; the `execute` block currently calls the model callback unless replaced.
+- No built-in sandbox runner for arbitrary generated code; coding tasks can provide an
+  `execution_callback`, and SciCode-style public-test metadata is surfaced as execution feedback.
 
 ## Practical Conclusion
 

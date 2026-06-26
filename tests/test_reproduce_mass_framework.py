@@ -291,6 +291,60 @@ def test_executor_execute_feedback_flows_into_refinement() -> None:
     assert "with execution feedback" in execution.turns[2].content
 
 
+def test_executor_uses_scicode_metadata_for_execute_feedback() -> None:
+    candidate = MASSCandidate(
+        workflow=WorkflowSpec(reflect_rounds=1, execute_enabled=True),
+        prompts={"predictor": _prompt(), "execute": _prompt(), "reflect": _prompt()},
+        stage="test",
+    )
+    example = BenchmarkExample(
+        example_id="scicode-1",
+        prompt="",
+        metadata={
+            "required_dependencies": "import numpy as np",
+            "sub_steps": [
+                {
+                    "function_header": "def solve(x):",
+                    "test_cases": ["assert solve(1) == 1", "assert solve(2) == 2"],
+                }
+            ],
+        },
+    )
+
+    execution = MASSCandidateExecutor().run_candidate(candidate, example)
+
+    assert execution.turns[1].metadata["execution_source"] == "example_metadata"
+    assert "SciCode public tests" in execution.turns[1].content
+    assert "public_test_cases=2" in execution.turns[1].content
+    assert execution.metadata["execution_feedback_source"] == "example_metadata"
+
+
+def test_executor_prefers_custom_execution_callback() -> None:
+    candidate = MASSCandidate(
+        workflow=WorkflowSpec(reflect_rounds=1, execute_enabled=True),
+        prompts={"predictor": _prompt(), "execute": _prompt(), "reflect": _prompt()},
+        stage="test",
+    )
+    executor = MASSCandidateExecutor(
+        execution_callback=lambda answer, example, context: (
+            f"tool feedback for {example.example_id}: {answer[:20]}"
+        )
+    )
+
+    execution = executor.run_candidate(
+        candidate,
+        BenchmarkExample(
+            example_id="with-tests",
+            prompt="task",
+            metadata={"test_cases": ["assert answer"]},
+        ),
+    )
+
+    assert execution.turns[1].metadata["execution_source"] == "execution_callback"
+    assert execution.turns[1].content.startswith("tool feedback for with-tests")
+    assert execution.metadata["execution_feedback_source"] == "execution_callback"
+
+
 def test_paper_baseline_defaults_match_mass_paper_specs() -> None:
     assert DEFAULT_MODEL == "google/gemma-4-31b-it"
     assert DEFAULT_BASELINES == ("cot", "self_consistency", "self_refine", "debate")
