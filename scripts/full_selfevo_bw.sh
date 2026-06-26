@@ -26,9 +26,21 @@
 #   artifacts/full_experiment/20260427T134706Z__google_gemma_4_31b_it_nitro/
 # so the two are directly comparable (same tasks, same 3 runs, same model).
 #
+# Long-term playbook (skill) ONLINE learning:
+#   The skill (config/topology_skill.md) self-evolves DURING the run — every
+#   SKILL_UPDATE_BATCH_SIZE freshly executed runs it is reflected (from process signals
+#   only, never the eval verdict) and reloaded. Default 8. Because each benchmark job
+#   rewrites that one shared file, online learning REQUIRES the jobs to run sequentially,
+#   so this wrapper forces MAX_PARALLEL=1 whenever learning is on. The skill carries across
+#   benchmarks (browsecomp's runs see lessons learned on workbench and vice-versa).
+#   Set SKILL_UPDATE_BATCH_SIZE=0 to turn online learning OFF (then jobs may run in
+#   parallel again — set MAX_PARALLEL yourself).
+#
 # Usage:
 #   bash scripts/full_selfevo_bw.sh                              # full: 30 tasks x 3 runs
 #   TASK_LIMIT=2 RUNS_PER_TASK=1 bash scripts/full_selfevo_bw.sh # quick smoke
+#   SKILL_UPDATE_BATCH_SIZE=4 bash scripts/full_selfevo_bw.sh    # reflect every 4 runs
+#   SKILL_UPDATE_BATCH_SIZE=0 bash scripts/full_selfevo_bw.sh    # disable online learning
 #   SKIP_SETUP=1 bash scripts/full_selfevo_bw.sh                 # skip benchmark data setup
 #   BENCHMARKS=browsecomp bash scripts/full_selfevo_bw.sh        # one benchmark
 #   EXPERIMENT_ID=my_rerun bash scripts/full_selfevo_bw.sh       # custom id
@@ -59,7 +71,22 @@ export TASK_LIMIT="${TASK_LIMIT:-30}"                    # same task count
 export RUNS_PER_TASK="${RUNS_PER_TASK:-3}"               # same repeats per task
 export EXPERIMENT_ID="${EXPERIMENT_ID:-full_selfevo_bw}" # -> full_selfevo_bw__google_gemma_4_31b_it_nitro
 
+# --- long-term playbook (skill) online learning ---
+export SKILL_UPDATE_BATCH_SIZE="${SKILL_UPDATE_BATCH_SIZE:-8}"   # reflect skill every N runs; 0 = off
+# Pass the batch size into every self_evolved `main.py run` via the per-system arg channel
+# (scripts/full_experiment.py reads SELF_EVOLVED_ARGS for the self_evolved job).
+export SELF_EVOLVED_ARGS="${SELF_EVOLVED_ARGS:-} --skill-update-batch-size ${SKILL_UPDATE_BATCH_SIZE}"
+if [[ "${SKILL_UPDATE_BATCH_SIZE}" != "0" ]]; then
+  # Online learning writes the shared skill file mid-run -> benchmark jobs must be sequential.
+  export MAX_PARALLEL="${MAX_PARALLEL:-1}"
+  if [[ "${MAX_PARALLEL}" != "1" ]]; then
+    echo "[full_selfevo_bw] WARNING: online skill learning is ON but MAX_PARALLEL=${MAX_PARALLEL} (>1);" >&2
+    echo "[full_selfevo_bw]          parallel benchmark jobs will RACE on config/topology_skill.md. Use MAX_PARALLEL=1." >&2
+  fi
+fi
+
 echo "[full_selfevo_bw] python=$(command -v python3) ($(python3 -c 'import sys;print(sys.version.split()[0])'))" >&2
 echo "[full_selfevo_bw] ONLY_SYSTEMS=${ONLY_SYSTEMS} MODELS=${MODELS} BENCHMARKS=${BENCHMARKS} TASK_LIMIT=${TASK_LIMIT} RUNS_PER_TASK=${RUNS_PER_TASK} EXPERIMENT_ID=${EXPERIMENT_ID}" >&2
+echo "[full_selfevo_bw] SKILL_UPDATE_BATCH_SIZE=${SKILL_UPDATE_BATCH_SIZE} MAX_PARALLEL=${MAX_PARALLEL:-<full_experiment default>} SELF_EVOLVED_ARGS='${SELF_EVOLVED_ARGS}'" >&2
 
 exec bash "${REPO_ROOT}/scripts/full_experiment.sh" "$@"

@@ -247,6 +247,8 @@ def _apply_mas_overrides(config: Any, args: argparse.Namespace) -> None:
         mas_cfg.agent_types = list(agent_types)
     if getattr(args, "no_dynamic_roles", False):
         mas_cfg.enable_dynamic_roles = False
+    if getattr(args, "skill_update_batch_size", None) is not None:
+        config.self_evolved.skill_update_batch_size = max(0, int(args.skill_update_batch_size))
 
     config.validate()
 
@@ -2643,6 +2645,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Disable LLM-based dynamic role assignment and use only structural roles.",
+    )
+    run_parser.add_argument(
+        "--skill-update-batch-size",
+        type=int,
+        default=None,
+        help=(
+            "Self-evolved only: reflect the long-term skill online every N freshly executed "
+            "runs (default from config = 8). 0 disables online updates (offline reflection "
+            "only). Online updates rewrite a shared file mid-experiment, so the enclosing "
+            "experiment must be a single sequential process."
+        ),
     )
     run_parser.set_defaults(func=run_command)
 

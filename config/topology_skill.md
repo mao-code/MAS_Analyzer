@@ -4,7 +4,7 @@ Accumulated experience for the self-evolved MAS Topology Planner: how to turn a 
 a small multi-agent topology that succeeds. The planner reads this skill at plan time and
 follows it unless a task clearly calls for something else. It is maintained by a post-hoc
 LLM reflection agent (`scripts/reflect_topology_skill.py`) that revises the "Lessons from
-experience" section from real run outcomes (labelled with ground-truth success). The
+experience" section from real run outcomes (labelled with process signals). The
 "Standing principles" and "How to choose a topology" sections are preserved across
 revisions; lessons grow over time.
 
@@ -46,8 +46,8 @@ the analysis to a topology:
   that re-checks evidence (a debate, or a critic that re-derives the answer), never a
   passive agent that merely waits.
 - **External state mutation** (create / update / delete / send / schedule / pay) — exactly
-  one agent executes the mutating tool. Prefer a singleton or chain; never put the same
-  write tool behind parallel workers, debate, or voting. Reading and planning may still
+  one agent executes the mutating tool. Prefer a singleton; avoid chains or parallel
+  workers to minimize the risk of duplicate execution. Reading and planning may still
   parallelize.
 - **Ambiguous reasoning** with several defensible answers — debate or voting to surface and
   resolve disagreement.
@@ -66,16 +66,10 @@ broad retrieval).
 Concrete patterns learned from prior runs, with the evidence behind them. The reflection
 agent grows and prunes this list.
 
-- **Tool-using state-mutation tasks: use a short chain (≈2 agents), not parallel workers.**
-  A `chain/2` (one executor downstream of one fact-finder) succeeded on workbench
-  tool-using medium tasks where parallel workers had double-applied the write and failed.
-  Evidence: `workbench::tools::medium` — chain/2 succeeded 2/3 (the loss was provider
-  timeout, not duplication).
-- **Tool-using broad-retrieval tasks: provision multiple searchers and read documents.**
-  A near-single searcher that answers from snippets gives up or guesses wrong; several
-  searchers covering different facets, plus actually opening the top documents, recovers
-  the answer. Evidence: `browsecomp::tools::medium` — chain/3 succeeded 2/2 where a
-  2-agent variant failed (0/1); the documents that hold the answer often rank low, so
-  breadth and reading both matter.
+- **Tool-using state-mutation tasks: avoid chains to prevent duplication, but note that singletons also struggle to run clean.** While avoiding multi-agent chains prevents `duplicate_state_mutation` (evidence: `workbench::tools::medium` `chain/2` flagged 2x), switching to a singleton does not guarantee a clean run (evidence: `workbench::tools::medium` `singleton/1` ran clean 0/3). These tasks are high-risk for process failures regardless of topology.
+- **Tool-using broad-retrieval tasks: balance search breadth with topology simplicity.**
+  While multiple searchers are needed for coverage, increasing agent count or complexity can be counterproductive. Evidence: `browsecomp::tools::medium` — `chain/3` ran clean 0/1 and `star/4` ran clean 0/2. Large topologies on retrieval tasks risk triggering process failures without necessarily solving `insufficient_search_coverage`.
 - **A verifier that does not search is wasted on retrieval.** On broad retrieval, spend the
   agent budget on searchers, not on a passive verifier that adds no evidence.
+- **Limit topology depth and turn-count to prevent context decay.** 
+  Overly complex topologies or long interaction chains frequently trigger `message_compaction_loss` (flagged 3x). Keep the path from evidence gathering to final answer as direct as possible to avoid losing critical information.
