@@ -15,7 +15,7 @@ Use it when:
 - `executor.py`: standalone MASS-style candidate execution skeleton
 - `adapters.py`: benchmark adapter template for custom tasks
 - `topology.py`: MASS-style workflow enumeration
-- `optimizer.py`: MIPRO-like instruction+exemplar optimizer, identity fallback, and optional DSPy adapter shell
+- `optimizer.py`: MIPRO-like instruction+exemplar candidate search, identity fallback, and optional DSPy adapter shell
 - `framework.py`: 3-stage MASS-style search loop with paper-like block warm-up, influence scoring, and pruned topology sampling
 - `run_existing_benchmarks.py`: paper-default MASS runner for this repo's benchmarks
 - `paper_baselines.py`: standalone paper baseline suite using only repo benchmark loading/evaluation
@@ -62,11 +62,13 @@ results = framework.run()
 
 ## Notes
 
-- The default prompt optimizer is `MIPROLikePromptOptimizer`, which rewrites both instructions and exemplars.
+- The default prompt optimizer is `MIPROLikePromptOptimizer`, which proposes 10 instruction
+  candidates, records a 10-round candidate search trace, and bootstraps up to 3 exemplars.
 - This is a research scaffold, not a claim of exact author code parity.
 - Exact paper-faithful reproduction still depends on your evaluator, prompts, and search budget.
 - The topology stage now follows the paper more closely: block influence is measured in Stage 1, converted into softmax probabilities, and used for rejection-style pruning before workflow sampling.
-- A true DSPy/MIPRO backend is still optional; the included optimizer is a dependency-light approximation.
+- A true DSPy/MIPRO backend is still optional; the included optimizer is a dependency-light
+  approximation with deterministic candidate scoring.
 - The executor skeleton makes topology blocks observable in execution, but you should still replace the model callback and scorer for real experiments.
 
 ## Existing Benchmark Runner

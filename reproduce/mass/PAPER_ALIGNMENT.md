@@ -50,6 +50,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - bootstrapped demos: `3`
   - instruction candidates: `10`
   - rounds per agent: `10`
+- MIPRO-like optimizer now proposes and scores instruction candidates with a recorded
+  per-round search trace instead of doing a single prompt rewrite.
 - Existing-benchmark runner applies Table 2-style task-family search spaces:
   - math/discrete reasoning: `{Aggregate, Reflect, Debate}`
   - long-context: `{Summarize, Aggregate, Reflect, Debate}`
@@ -66,8 +68,9 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 
 ## Approximate
 
-- `MIPROLikePromptOptimizer` uses the paper's public MIPRO settings, but approximates the
-  optimizer loop heuristically instead of running DSPy's real MIPRO candidate search.
+- `MIPROLikePromptOptimizer` uses the paper's public MIPRO settings and records a candidate
+  search loop, but its candidate scorer is a deterministic heuristic rather than DSPy's real
+  model/evaluator-driven MIPRO objective.
 - Prompt templates are generic approximations unless task-specific templates are supplied through `MASSConfig.prompt_templates`.
 - Agent execution semantics are encoded in a lightweight standalone executor, not in the authors' runtime.
 - The executor now matches the paper's public block composition more closely, but internal prompting,
@@ -78,7 +81,7 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 ## Not Aligned Yet
 
 - No exact author prompts or discovered best prompts.
-- No exact MIPRO candidate proposal/evaluation loop.
+- No exact DSPy MIPRO candidate proposal/evaluation loop.
 - No ADAS or AFlow optimizer reproduction in this MASS branch; those are separate framework
   reproductions because they introduce their own search procedures.
 - No exact paper datasets/splits unless separately configured.

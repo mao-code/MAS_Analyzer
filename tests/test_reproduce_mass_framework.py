@@ -177,6 +177,9 @@ def test_mipro_like_optimizer_adds_exemplars_and_metadata() -> None:
     assert predictor_prompt.metadata["max_bootstrapped_demos"] == 3
     assert predictor_prompt.metadata["instruction_candidates"] == 10
     assert predictor_prompt.metadata["rounds_per_agent"] == 10
+    assert predictor_prompt.metadata["proposed_instruction_count"] == 10
+    assert len(predictor_prompt.metadata["candidate_search_trace"]) == 10
+    assert "Candidate strategy" in predictor_prompt.system_instruction
     assert predictor_prompt.exemplar
 
 
