@@ -28,6 +28,14 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - reflect: `1 predictor + 1 reflector`
   - debate: `2 predictors + 1 debator`
   - execute: `1 predictor + 1 executor + 1 reflector`
+- Executes the initial `a0` workflow as a single predictor without a spurious
+  aggregator call.
+- Expands MASS blocks into observable role-level calls:
+  - repeated summarizer rounds pass summary context into later agents
+  - debate uses at least two predictor answers and one debator pass per agent
+  - reflect uses reflector feedback followed by predictor/refiner updates
+  - execute produces execution feedback before reflector/refiner updates
+  - aggregate is only called when multiple candidate answers must be combined
 - Stage 3 now returns the workflow-level prompt-optimized candidate by default, matching Algorithm 1.
 - Core benchmark runner defaults to the paper setup:
   - model: `google/gemma-4-31b-it`
@@ -36,6 +44,10 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
   - topology candidates: `10`
   - topology softmax temperature: `0.05`
   - validation repeats: `3`
+- MIPRO-like optimizer exposes the paper's public prompt-search settings:
+  - bootstrapped demos: `3`
+  - instruction candidates: `10`
+  - rounds per agent: `10`
 - Existing-benchmark runner applies Table 2-style task-family search spaces:
   - math/discrete reasoning: `{Aggregate, Reflect, Debate}`
   - long-context: `{Summarize, Aggregate, Reflect, Debate}`
@@ -52,10 +64,12 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 
 ## Approximate
 
-- `MIPROLikePromptOptimizer` approximates MIPRO's instruction + exemplar optimization, but it is not DSPy's real MIPRO optimizer.
+- `MIPROLikePromptOptimizer` uses the paper's public MIPRO settings, but approximates the
+  optimizer loop heuristically instead of running DSPy's real MIPRO candidate search.
 - Prompt templates are generic approximations unless task-specific templates are supplied through `MASSConfig.prompt_templates`.
 - Agent execution semantics are encoded in a lightweight standalone executor, not in the authors' runtime.
-- The executor preserves observable block behavior, but internal prompting and message passing are not guaranteed to match the authors' hidden implementation.
+- The executor now matches the paper's public block composition more closely, but internal prompting,
+  message formatting, and stopping rules are not guaranteed to match the authors' hidden implementation.
 - Table 2 mapping is adapted to this repo's benchmark names, not the paper's original exact datasets.
 - Existing repo benchmarks are not the paper's original benchmark suite, so reported scores are not comparable to the paper tables.
 

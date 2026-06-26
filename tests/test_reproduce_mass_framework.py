@@ -9,7 +9,12 @@ from reproduce.mass import (
     TemplateBenchmarkAdapter,
 )
 from reproduce.mass.interfaces import BenchmarkExample
-from reproduce.mass.models import CandidateEvaluation
+from reproduce.mass.models import (
+    AgentPromptBundle,
+    CandidateEvaluation,
+    MASSCandidate,
+    WorkflowSpec,
+)
 from reproduce.mass.paper_baselines import (
     BASELINE_SPECS,
     DEFAULT_BASELINES,
@@ -143,6 +148,9 @@ def test_mipro_like_optimizer_adds_exemplars_and_metadata() -> None:
     )
 
     assert predictor_prompt.metadata["optimizer"] == "mipro_like"
+    assert predictor_prompt.metadata["max_bootstrapped_demos"] == 3
+    assert predictor_prompt.metadata["instruction_candidates"] == 10
+    assert predictor_prompt.metadata["rounds_per_agent"] == 10
     assert predictor_prompt.exemplar
 
 
@@ -174,6 +182,84 @@ def test_template_adapter_executes_candidate_with_observable_turns() -> None:
     ][0]
     assert execution_details["turn_count"] >= 2
     assert execution_details["metadata"]["candidate_answer_count"] >= 1
+
+
+def _prompt() -> AgentPromptBundle:
+    return AgentPromptBundle(system_instruction="Solve the task.")
+
+
+def test_executor_keeps_initial_workflow_single_agent() -> None:
+    candidate = MASSCandidate(
+        workflow=WorkflowSpec(),
+        prompts={"predictor": _prompt()},
+        stage="test",
+    )
+
+    execution = MASSCandidateExecutor().run_candidate(
+        candidate,
+        BenchmarkExample(example_id="ex-single", prompt="task"),
+    )
+
+    assert [turn.step for turn in execution.turns] == ["predict"]
+    assert execution.metadata["aggregate_used"] is False
+    assert execution.metadata["active_blocks"] == ["predictor"]
+
+
+def test_executor_debate_uses_two_predictors_and_agent_turns() -> None:
+    candidate = MASSCandidate(
+        workflow=WorkflowSpec(aggregate_width=1, debate_rounds=1),
+        prompts={"predictor": _prompt(), "debate": _prompt()},
+        stage="test",
+    )
+
+    execution = MASSCandidateExecutor().run_candidate(
+        candidate,
+        BenchmarkExample(example_id="ex-debate", prompt="task"),
+    )
+
+    assert [turn.step for turn in execution.turns].count("predict") == 2
+    assert [turn.step for turn in execution.turns].count("debate") == 2
+    assert execution.metadata["debate_round_count"] == 1
+    assert execution.metadata["aggregate_used"] is True
+
+
+def test_executor_reflects_then_refines_answer() -> None:
+    candidate = MASSCandidate(
+        workflow=WorkflowSpec(reflect_rounds=1),
+        prompts={"predictor": _prompt(), "reflect": _prompt()},
+        stage="test",
+    )
+
+    execution = MASSCandidateExecutor().run_candidate(
+        candidate,
+        BenchmarkExample(example_id="ex-reflect", prompt="task"),
+    )
+
+    assert [turn.step for turn in execution.turns] == ["predict", "reflect", "refine"]
+    assert execution.metadata["reflection_count"] == 1
+    assert execution.final_answer.startswith("refine_0 response")
+
+
+def test_executor_execute_feedback_flows_into_refinement() -> None:
+    candidate = MASSCandidate(
+        workflow=WorkflowSpec(reflect_rounds=1, execute_enabled=True),
+        prompts={"predictor": _prompt(), "execute": _prompt(), "reflect": _prompt()},
+        stage="test",
+    )
+
+    execution = MASSCandidateExecutor().run_candidate(
+        candidate,
+        BenchmarkExample(example_id="ex-execute", prompt="task"),
+    )
+
+    assert [turn.step for turn in execution.turns] == [
+        "predict",
+        "execute",
+        "reflect",
+        "refine",
+    ]
+    assert execution.metadata["execution_feedback_count"] == 1
+    assert "with execution feedback" in execution.turns[2].content
 
 
 def test_paper_baseline_defaults_match_mass_paper_specs() -> None:

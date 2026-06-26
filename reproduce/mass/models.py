@@ -33,7 +33,8 @@ class WorkflowSpec:
             blocks.append("reflect")
         if self.debate_rounds > 0:
             blocks.append("debate")
-        blocks.append("aggregate")
+        if self.aggregate_width > 1:
+            blocks.append("aggregate")
         if self.execute_enabled:
             blocks.append("execute")
         return blocks

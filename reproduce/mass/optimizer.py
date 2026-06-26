@@ -12,7 +12,9 @@ from .models import AgentPromptBundle, WorkflowSpec
 class MIPROLikeConfig:
     """Lightweight approximation of MIPRO-style prompt optimization."""
 
-    max_bootstrapped_demos: int = 1
+    max_bootstrapped_demos: int = 3
+    instruction_candidates: int = 10
+    rounds_per_agent: int = 10
     include_example_ids: bool = True
     include_reference_answers_when_available: bool = True
     include_block_context: bool = True
@@ -95,6 +97,9 @@ class MIPROLikePromptOptimizer(OptimizerProtocol):
                 "block_name": block_name,
                 "conditioned_on": sorted(base_prompts.keys()),
                 "demo_count": min(len(examples), self.config.max_bootstrapped_demos),
+                "max_bootstrapped_demos": self.config.max_bootstrapped_demos,
+                "instruction_candidates": self.config.instruction_candidates,
+                "rounds_per_agent": self.config.rounds_per_agent,
             },
         )
 
@@ -124,6 +129,9 @@ class MIPROLikePromptOptimizer(OptimizerProtocol):
                     "optimizer": "mipro_like",
                     "scope": "workflow",
                     "demo_count": min(len(examples), self.config.max_bootstrapped_demos),
+                    "max_bootstrapped_demos": self.config.max_bootstrapped_demos,
+                    "instruction_candidates": self.config.instruction_candidates,
+                    "rounds_per_agent": self.config.rounds_per_agent,
                 },
             )
             for key, value in prompts.items()
