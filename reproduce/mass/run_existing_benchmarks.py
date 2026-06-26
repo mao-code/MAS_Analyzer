@@ -53,6 +53,9 @@ def main() -> None:
         "excluded_benchmarks": sorted(DEFAULT_EXCLUDED_BENCHMARKS | set(args.exclude_benchmark)),
         "settings": {
             "task_limit": args.task_limit,
+            "validation_task_limit": args.validation_task_limit,
+            "final_task_limit": args.final_task_limit,
+            "final_task_offset": args.final_task_offset,
             "candidates_per_stage": args.candidates_per_stage,
             "max_validation_examples": args.max_validation_examples,
             "validation_repeats": args.validation_repeats,
@@ -111,6 +114,7 @@ def _run_one_benchmark(
     tasks = list(benchmark.load_tasks(task_limit=args.task_limit))
     if not tasks:
         raise RuntimeError(f"No tasks loaded for benchmark '{benchmark_name}'")
+    validation_tasks, final_tasks, split_payload = _split_tasks_for_mass(args=args, tasks=tasks)
 
     model_callback = _make_openrouter_callback(
         llm_client=llm_client,
@@ -120,10 +124,10 @@ def _run_one_benchmark(
     )
     adapter = ExistingBenchmarkMASSAdapter(
         benchmark=benchmark,
-        tasks=tasks,
+        tasks=validation_tasks,
         executor=MASSCandidateExecutor(model_callback=model_callback),
         validation_repeats=args.validation_repeats,
-        metadata={"benchmark_name": benchmark_name},
+        metadata={"benchmark_name": benchmark_name, "phase": "validation_search"},
     )
     search_space = _resolve_search_space(benchmark_name, args)
     framework = MASSFramework(
@@ -143,7 +147,7 @@ def _run_one_benchmark(
     payload = _results_payload(results)
     final_evaluation = _evaluate_final_candidate(
         benchmark=benchmark,
-        tasks=tasks,
+        tasks=final_tasks,
         model_callback=model_callback,
         best_candidate=results[payload["final_stage_name"]].best_candidate,
         repeats=int(args.final_evaluation_repeats),
@@ -151,10 +155,64 @@ def _run_one_benchmark(
     )
     payload["task_count"] = len(tasks)
     payload["tasks"] = [str(task.task_id) for task in tasks]
+    payload["validation_tasks"] = [str(task.task_id) for task in validation_tasks]
+    payload["final_tasks"] = [str(task.task_id) for task in final_tasks]
+    payload["task_split"] = split_payload
     payload["best_score"] = payload["final_stage"]["best_score"]
     payload["final_evaluation"] = final_evaluation
     _write_json(output_dir / "mass_results.json", payload)
     return payload
+
+
+def _split_tasks_for_mass(
+    *,
+    args: argparse.Namespace,
+    tasks: list[Any],
+) -> tuple[list[Any], list[Any], dict[str, Any]]:
+    validation_limit = args.validation_task_limit
+    final_limit = args.final_task_limit
+    if validation_limit is None and final_limit is None and args.final_task_offset is None:
+        task_ids = [str(task.task_id) for task in tasks]
+        return (
+            list(tasks),
+            list(tasks),
+            {
+                "mode": "shared_loaded_tasks",
+                "held_out": False,
+                "validation_task_ids": task_ids,
+                "final_task_ids": task_ids,
+            },
+        )
+
+    validation_count = len(tasks) if validation_limit is None else max(1, int(validation_limit))
+    validation_tasks = list(tasks[:validation_count])
+    offset = args.final_task_offset
+    if offset is None:
+        offset = validation_count
+    final_start = max(0, int(offset))
+    if final_limit is None:
+        final_tasks = list(tasks[final_start:])
+    else:
+        final_tasks = list(tasks[final_start : final_start + max(1, int(final_limit))])
+    held_out = bool(final_tasks) and not {
+        str(task.task_id) for task in validation_tasks
+    }.intersection(str(task.task_id) for task in final_tasks)
+    if not final_tasks:
+        final_tasks = list(validation_tasks)
+        held_out = False
+    return (
+        validation_tasks,
+        final_tasks,
+        {
+            "mode": "deterministic_contiguous_split",
+            "held_out": held_out,
+            "validation_task_limit": validation_limit,
+            "final_task_limit": final_limit,
+            "final_task_offset": offset,
+            "validation_task_ids": [str(task.task_id) for task in validation_tasks],
+            "final_task_ids": [str(task.task_id) for task in final_tasks],
+        },
+    )
 
 
 def _evaluate_final_candidate(
@@ -344,6 +402,24 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmark", action="append", default=[])
     parser.add_argument("--exclude-benchmark", action="append", default=[])
     parser.add_argument("--task-limit", type=int, default=None)
+    parser.add_argument(
+        "--validation-task-limit",
+        type=int,
+        default=None,
+        help="Use only the first N loaded tasks for MASS search/validation.",
+    )
+    parser.add_argument(
+        "--final-task-limit",
+        type=int,
+        default=None,
+        help="Use only N tasks for final evaluation after --final-task-offset.",
+    )
+    parser.add_argument(
+        "--final-task-offset",
+        type=int,
+        default=None,
+        help="Start final evaluation at this loaded-task offset; defaults after validation tasks.",
+    )
     parser.add_argument("--max-validation-examples", type=int, default=None)
     parser.add_argument("--candidates-per-stage", type=int, default=DEFAULT_TOPOLOGY_CANDIDATES)
     parser.add_argument("--max-agent-budget", type=int, default=12)

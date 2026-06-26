@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from reproduce.mass import (
     MASSCandidateExecutor,
     MASSConfig,
@@ -31,6 +33,7 @@ from reproduce.mass.run_existing_benchmarks import (
     _benchmark_family,
     _parse_args,
     _resolve_search_space,
+    _split_tasks_for_mass,
 )
 
 
@@ -385,6 +388,50 @@ def test_mass_runner_defaults_match_paper_setup(monkeypatch) -> None:
     assert args.final_evaluation_repeats == DEFAULT_FINAL_EVALUATION_REPEATS == 3
     assert args.topology_temperature == DEFAULT_TOPOLOGY_TEMPERATURE == 0.05
     assert args.max_tokens == 4096
+    assert args.validation_task_limit is None
+    assert args.final_task_limit is None
+    assert args.final_task_offset is None
+
+
+def test_mass_runner_can_split_validation_and_final_tasks(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_existing_benchmarks.py",
+            "--validation-task-limit",
+            "2",
+            "--final-task-limit",
+            "2",
+        ],
+    )
+    args = _parse_args()
+    tasks = [SimpleNamespace(task_id=f"task-{index}") for index in range(5)]
+
+    validation_tasks, final_tasks, split_payload = _split_tasks_for_mass(args=args, tasks=tasks)
+
+    assert [task.task_id for task in validation_tasks] == ["task-0", "task-1"]
+    assert [task.task_id for task in final_tasks] == ["task-2", "task-3"]
+    assert split_payload["held_out"] is True
+
+
+def test_mass_runner_split_falls_back_when_no_final_tasks(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_existing_benchmarks.py",
+            "--validation-task-limit",
+            "2",
+            "--final-task-offset",
+            "9",
+        ],
+    )
+    args = _parse_args()
+    tasks = [SimpleNamespace(task_id=f"task-{index}") for index in range(2)]
+
+    validation_tasks, final_tasks, split_payload = _split_tasks_for_mass(args=args, tasks=tasks)
+
+    assert [task.task_id for task in final_tasks] == [task.task_id for task in validation_tasks]
+    assert split_payload["held_out"] is False
 
 
 def test_mass_runner_uses_task_family_search_spaces(monkeypatch) -> None:

@@ -100,6 +100,19 @@ After search, it re-evaluates the optimized workflow for `--final-evaluation-rep
 writes the result under `final_evaluation`. Override with repeated `--enabled-block` flags when
 needed.
 
+For paper-style held-out reporting, load enough tasks with `--task-limit`, then split them:
+
+```bash
+.venv/bin/python -m reproduce.mass.run_existing_benchmarks \
+  --benchmark scicode \
+  --task-limit 150 \
+  --validation-task-limit 50 \
+  --final-task-limit 100
+```
+
+When no split flags are provided, validation search and final evaluation share the loaded tasks for
+backward compatibility.
+
 ## Paper Baselines
 
 Run the paper's manually specified baselines without using the production `MAS/` runtime:

@@ -82,6 +82,8 @@ This implementation is a paper-faithful reproduction scaffold, not the authors' 
 - Existing repo benchmarks are not the paper's original benchmark suite, so reported scores are not comparable to the paper tables.
 - The existing-benchmark runner uses the loaded task set for final evaluation unless the
   benchmark/config supplies an explicit held-out split.
+- Existing-benchmark runner supports deterministic validation/final task splits via
+  `--validation-task-limit`, `--final-task-offset`, and `--final-task-limit`.
 
 ## Not Aligned Yet
 
