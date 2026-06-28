@@ -184,6 +184,9 @@ done
 if [[ -n "${TASK_LIMIT}" ]]; then
   args+=(--task-limit "${TASK_LIMIT}")
 fi
+if [[ -n "${TASK_IDS:-}" ]]; then
+  args+=(--task-ids "${TASK_IDS}")
+fi
 if [[ -n "${RUNS_PER_TASK}" ]]; then
   args+=(--runs-per-task "${RUNS_PER_TASK}")
 fi

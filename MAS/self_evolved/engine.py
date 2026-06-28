@@ -31,6 +31,7 @@ from ..artifacts import (
 )
 from ..config import SelfEvolvedConfig
 from ..langgraph_engine import (
+    UNSUPPORTED_FINAL_ANSWER,
     ExperimentSpec,
     LangGraphMASEngine,
     LangGraphRunResult,
@@ -919,6 +920,14 @@ class SelfEvolvedEngine:
     ) -> bool:
         text = str(final_answer or "").strip()
         if not text:
+            return True
+
+        # The finalize fallback emits a fixed "unsupported answer" sentinel when no
+        # admissible candidate exists. It reads as a full sentence, so
+        # has_substantive_answer() treats it as a real answer and the checks below
+        # would skip the read-net — even on retrieval runs that already surfaced the
+        # gold document. Treat the sentinel as "no answer" and always re-synthesize.
+        if text == UNSUPPORTED_FINAL_ANSWER.strip():
             return True
 
         # Retrieval runs whose agents never opened documents answered from truncated

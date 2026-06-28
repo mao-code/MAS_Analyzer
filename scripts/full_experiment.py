@@ -98,6 +98,7 @@ class BatchOptions:
     config_dir: Path
     benchmarks: list[str] | None
     task_limit: int | None
+    task_ids: str | None
     runs_per_task: int | None
     retry_failures: int
     max_parallel: int
@@ -384,6 +385,14 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         help="List discovered benchmark configs and exit.",
     )
     parser.add_argument("--task-limit", type=int, default=None)
+    parser.add_argument(
+        "--task-ids",
+        default=None,
+        help=(
+            "Comma-separated explicit task ids to run (forwarded to `main.py run --task-ids`). "
+            "Use to re-run a specific subset, e.g. only previously-failed tasks."
+        ),
+    )
     parser.add_argument("--runs-per-task", type=int, default=None)
     parser.add_argument(
         "--retry-failures",
@@ -448,6 +457,7 @@ def parse_batch_args(argv: list[str]) -> BatchOptions:
         config_dir=Path(args.config_dir).expanduser().resolve(),
         benchmarks=selected or None,
         task_limit=args.task_limit,
+        task_ids=(str(args.task_ids).strip() or None) if args.task_ids is not None else None,
         runs_per_task=args.runs_per_task,
         retry_failures=max(int(args.retry_failures), 0),
         max_parallel=max(int(args.max_parallel), 1),
@@ -1275,6 +1285,8 @@ def batch_run(options: BatchOptions) -> int:
                                 cmd.extend(system_extra_args(system_label, model=model))
                                 if options.task_limit is not None:
                                     cmd.extend(["--task-limit", str(options.task_limit)])
+                                if options.task_ids:
+                                    cmd.extend(["--task-ids", str(options.task_ids)])
                                 if options.runs_per_task is not None:
                                     cmd.extend(["--runs-per-task", str(options.runs_per_task)])
                                 if options.final_vote_mode is not None:
