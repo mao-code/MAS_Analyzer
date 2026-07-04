@@ -142,6 +142,23 @@ class TestWorkBenchBenchmark(unittest.TestCase):
             self.assertIn("company_directory.find_email_address", tool_names)
             self.assertNotIn("email.send_email", tool_names)
 
+    def test_build_tools_resolves_crm_domain_alias(self) -> None:
+        # Multi-domain tasks label the CRM domain as "crm"; the tool specs use
+        # "customer_relationship_manager". Without alias resolution, no CRM tools
+        # are exposed and the agent cannot look up who a customer is assigned to.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = self._build_fixture(Path(tmpdir))
+            benchmark = WorkBenchBenchmark({"domain": "multi_domain", "data_dir": str(data_dir)})
+
+            tools = benchmark._build_tools(benchmark_module_sandbox(data_dir), ["crm", "calendar"])
+            tool_names = {tool["name"] for tool in tools}
+
+            self.assertIn("customer_relationship_manager.search_customers", tool_names)
+            self.assertIn("customer_relationship_manager.update_customer", tool_names)
+            self.assertIn("calendar.create_event", tool_names)
+            self.assertIn("company_directory.find_email_address", tool_names)
+            self.assertNotIn("email.send_email", tool_names)
+
     def test_evaluate_marks_correct_state_change(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             data_dir = self._build_fixture(Path(tmpdir))

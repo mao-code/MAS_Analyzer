@@ -43,6 +43,12 @@ CORE_DOMAINS = [
     "customer_relationship_manager",
 ]
 
+# Upstream multi-domain tasks label the CRM domain as "crm", while the
+# single-domain files, TOOL_SPECS, and SIDE_EFFECT_TOOLS use the full
+# "customer_relationship_manager" name. Normalize the shorthand so
+# tool_selection="domains" still exposes the CRM tools those tasks need.
+DOMAIN_ALIASES = {"crm": "customer_relationship_manager"}
+
 QUERY_FILE_NAMES = {
     "analytics": "analytics_tasks_and_outcomes.csv",
     "calendar": "calendar_tasks_and_outcomes.csv",
@@ -1039,7 +1045,8 @@ class WorkBenchBenchmark:
     def _build_tools(
         self, sandbox: WorkBenchSandbox, task_domains: list[str]
     ) -> list[dict[str, Any]]:
-        active_domains = set(CORE_DOMAINS if self.tool_selection == "all" else task_domains)
+        resolved_domains = [DOMAIN_ALIASES.get(domain, domain) for domain in task_domains]
+        active_domains = set(CORE_DOMAINS if self.tool_selection == "all" else resolved_domains)
         active_domains.add("company_directory")
         tools: list[dict[str, Any]] = []
         for spec in TOOL_SPECS:
