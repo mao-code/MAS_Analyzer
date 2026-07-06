@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ class OfficialAFlowBenchmarkOptimizer:
         test_task_limit: int,
         test_offset: int,
         runs_per_task: int,
+        workers: int,
         retries: int,
         max_rounds: int,
         sample: int,
@@ -56,6 +58,7 @@ class OfficialAFlowBenchmarkOptimizer:
         self.test_task_limit = test_task_limit
         self.test_offset = test_offset
         self.runs_per_task = runs_per_task
+        self.workers = max(1, int(workers))
         self.retries = retries
         self.max_rounds = max_rounds
         self.sample = sample
@@ -156,6 +159,7 @@ class OfficialAFlowBenchmarkOptimizer:
                 "test_task_limit": self.test_task_limit,
                 "test_offset": self.test_offset,
                 "runs_per_task": self.runs_per_task,
+                "workers": self.workers,
                 "retries": self.retries,
                 "max_rounds": self.max_rounds,
                 "sample": self.sample,
@@ -183,6 +187,7 @@ class OfficialAFlowBenchmarkOptimizer:
         for task_index, task in enumerate(eval_tasks):
             run_payloads: list[dict[str, Any]] = []
             run_metrics: list[dict[str, Any]] = []
+            missing_runs: list[tuple[int, int]] = []
             for run_index in range(max(1, self.runs_per_task)):
                 run_payload = self._load_run_artifact(artifact_dir, str(task.task_id), run_index)
                 if run_payload is not None:
@@ -197,35 +202,28 @@ class OfficialAFlowBenchmarkOptimizer:
                         flush=True,
                     )
                     continue
-                run_seed = int(self.seed) + task_index * 1000 + run_index
-                result, prediction, run_metadata, evaluation, metrics = self._run_with_retries(
+                missing_runs.append((run_index, int(self.seed) + task_index * 1000 + run_index))
+
+            if missing_runs:
+                completed = self._execute_missing_runs(
                     benchmark=benchmark,
                     task=task,
                     artifact_dir=artifact_dir,
                     workflow_class=workflow_class,
                     prompt_module=prompt_module,
-                    run_index=run_index,
-                    run_seed=run_seed,
+                    missing_runs=missing_runs,
                 )
-                total_cost += float(metrics.get("C3_cost_total", 0.0) or 0.0)
-                run_payload = {
-                    "round": round_number,
-                    "task_id": str(task.task_id),
-                    "run_index": run_index,
-                    "seed": run_seed,
-                    "prediction": prediction,
-                    "score": float(evaluation.score),
-                    "success": bool(evaluation.success),
-                    "metrics": metrics,
-                    "trace": [event.to_dict() for event in result.trace_events],
-                    "run_metadata": run_metadata,
-                    "evaluation_details": evaluation.details,
-                }
-                self._write_run_artifact(artifact_dir, str(task.task_id), run_index, run_payload)
-                self._mark_checkpoint_completed(artifact_dir, str(task.task_id), run_index)
-                self._append_log(artifact_dir, run_payload)
-                run_payloads.append(run_payload)
-                run_metrics.append(metrics)
+                for run_payload in completed:
+                    metrics = dict(run_payload["metrics"])
+                    total_cost += float(metrics.get("C3_cost_total", 0.0) or 0.0)
+                    run_payloads.append(run_payload)
+                    run_metrics.append(metrics)
+            run_payloads.sort(key=lambda item: int(item.get("run_index", 0)))
+            if not run_payloads:
+                raise RuntimeError(
+                    f"No run payloads produced for benchmark={self.benchmark_name} "
+                    f"task_id={task.task_id} split={split} round={round_number}"
+                )
             task_metrics = compute_task_metrics(run_metrics)
             task_payloads.append(
                 {
@@ -258,6 +256,93 @@ class OfficialAFlowBenchmarkOptimizer:
             flush=True,
         )
         return round_summary
+
+    def _execute_missing_runs(
+        self,
+        *,
+        benchmark: Any,
+        task: Any,
+        artifact_dir: Path,
+        workflow_class: Any,
+        prompt_module: Any,
+        missing_runs: list[tuple[int, int]],
+    ) -> list[dict[str, Any]]:
+        if self.workers <= 1 or len(missing_runs) == 1:
+            return [
+                self._execute_one_run(
+                    benchmark=benchmark,
+                    task=task,
+                    artifact_dir=artifact_dir,
+                    workflow_class=workflow_class,
+                    prompt_module=prompt_module,
+                    run_index=run_index,
+                    run_seed=run_seed,
+                )
+                for run_index, run_seed in missing_runs
+            ]
+
+        print(
+            f"[{_now_stamp()}] AFLOW_OFFICIAL_RUN_WORKERS benchmark={self.benchmark_name} "
+            f"task_id={task.task_id} workers={min(self.workers, len(missing_runs))} "
+            f"runs={len(missing_runs)}",
+            flush=True,
+        )
+        completed: list[dict[str, Any]] = []
+        with ThreadPoolExecutor(max_workers=min(self.workers, len(missing_runs))) as executor:
+            futures = [
+                executor.submit(
+                    self._execute_one_run,
+                    benchmark=benchmark,
+                    task=task,
+                    artifact_dir=artifact_dir,
+                    workflow_class=workflow_class,
+                    prompt_module=prompt_module,
+                    run_index=run_index,
+                    run_seed=run_seed,
+                )
+                for run_index, run_seed in missing_runs
+            ]
+            for future in as_completed(futures):
+                completed.append(future.result())
+        return sorted(completed, key=lambda item: int(item.get("run_index", 0)))
+
+    def _execute_one_run(
+        self,
+        *,
+        benchmark: Any,
+        task: Any,
+        artifact_dir: Path,
+        workflow_class: Any,
+        prompt_module: Any,
+        run_index: int,
+        run_seed: int,
+    ) -> dict[str, Any]:
+        result, prediction, run_metadata, evaluation, metrics = self._run_with_retries(
+            benchmark=benchmark,
+            task=task,
+            artifact_dir=artifact_dir,
+            workflow_class=workflow_class,
+            prompt_module=prompt_module,
+            run_index=run_index,
+            run_seed=run_seed,
+        )
+        run_payload = {
+            "round": _round_from_artifact_dir(artifact_dir),
+            "task_id": str(task.task_id),
+            "run_index": run_index,
+            "seed": run_seed,
+            "prediction": prediction,
+            "score": float(evaluation.score),
+            "success": bool(evaluation.success),
+            "metrics": metrics,
+            "trace": [event.to_dict() for event in result.trace_events],
+            "run_metadata": run_metadata,
+            "evaluation_details": evaluation.details,
+        }
+        self._write_run_artifact(artifact_dir, str(task.task_id), run_index, run_payload)
+        self._mark_checkpoint_completed(artifact_dir, str(task.task_id), run_index)
+        self._append_log(artifact_dir, run_payload)
+        return run_payload
 
     def _run_with_retries(
         self,
@@ -637,6 +722,11 @@ def _extract_workflow_class(graph_text: str) -> str:
 def _safe(value: str) -> str:
     safe = "".join(ch if ch.isalnum() or ch in "_.-" else "_" for ch in str(value).strip())
     return safe or "task"
+
+
+def _round_from_artifact_dir(artifact_dir: Path) -> int:
+    match = re.search(r"round_(\d+)$", artifact_dir.name)
+    return int(match.group(1)) if match else 0
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

@@ -99,7 +99,8 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
         validation_rounds=1,
         test_task_limit=2,
         test_offset=1,
-        runs_per_task=1,
+        runs_per_task=2,
+        workers=2,
         retries=1,
         max_rounds=2,
         sample=1,
@@ -119,6 +120,7 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
     assert (tmp_path / "workflows/round_2/prompt.py").exists()
     assert (tmp_path / "workflows/round_2/experience.json").exists()
     assert (tmp_path / "best_workflow/graph.py").exists()
+    assert (tmp_path / "workflows/round_1/runs/task_0/run_1.json").exists()
 
     results = json.loads((tmp_path / "workflows/results.json").read_text(encoding="utf-8"))
     assert [row["round"] for row in results] == [1, 2]
