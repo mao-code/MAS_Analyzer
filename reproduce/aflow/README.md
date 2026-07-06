@@ -36,6 +36,8 @@ and receive this repo's benchmark tools when the benchmark exposes tools.
   --benchmark workbench \
   --task-limit 30 \
   --validation-rounds 10 \
+  --test-task-limit 30 \
+  --test-offset 10 \
   --runs-per-task 3 \
   --max-rounds 5 \
   --sample 4 \
@@ -46,6 +48,9 @@ and receive this repo's benchmark tools when the benchmark exposes tools.
 
 `--max-rounds` is optimizer rounds. `--sample` is the top-round candidate pool
 used when selecting a parent workflow for the next optimization round.
+`--validation-rounds` controls workflow-search tasks. The best workflow is then
+run on held-out test tasks selected by `--test-offset` and `--test-task-limit`.
+With the command above, tasks 0-9 are validation and tasks 10-39 are test.
 
 `finance_agent` is excluded by default. Add benchmarks with repeated
 `--benchmark` flags, or omit `--benchmark` to run all non-finance benchmarks.
@@ -58,6 +63,8 @@ MAS_DISABLE_LIVE_LLM=1 .venv/bin/python -m reproduce.aflow.run_existing_benchmar
   --benchmark workbench \
   --task-limit 1 \
   --validation-rounds 1 \
+  --test-task-limit 1 \
+  --test-offset 1 \
   --runs-per-task 1 \
   --max-rounds 2 \
   --sample 1 \

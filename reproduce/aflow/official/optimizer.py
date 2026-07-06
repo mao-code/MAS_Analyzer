@@ -35,6 +35,8 @@ class OfficialAFlowBenchmarkOptimizer:
         output_dir: Path,
         task_limit: int,
         validation_rounds: int,
+        test_task_limit: int,
+        test_offset: int,
         runs_per_task: int,
         max_rounds: int,
         sample: int,
@@ -50,6 +52,8 @@ class OfficialAFlowBenchmarkOptimizer:
         self.output_dir = output_dir
         self.task_limit = task_limit
         self.validation_rounds = validation_rounds
+        self.test_task_limit = test_task_limit
+        self.test_offset = test_offset
         self.runs_per_task = runs_per_task
         self.max_rounds = max_rounds
         self.sample = sample
@@ -78,7 +82,7 @@ class OfficialAFlowBenchmarkOptimizer:
                 f"[{_now_stamp()}] AFLOW_OFFICIAL_EVAL_INITIAL benchmark={self.benchmark_name}",
                 flush=True,
             )
-            results.append(self._evaluate_round(1, initial=True))
+            results.append(self._evaluate_round(1, initial=True, split="validation"))
             self._save_results(results)
 
         for current_round in range(1, max(1, self.max_rounds)):
@@ -112,7 +116,7 @@ class OfficialAFlowBenchmarkOptimizer:
                 "succeed": None,
             }
             try:
-                row = self._evaluate_round(next_round, initial=False)
+                row = self._evaluate_round(next_round, initial=False, split="validation")
             except Exception as exc:
                 row = {
                     "round": next_round,
@@ -133,17 +137,22 @@ class OfficialAFlowBenchmarkOptimizer:
         best = max(results, key=lambda item: float(item.get("score", 0.0)))
         best_round = int(best["round"])
         best_payload = self._materialize_best_round(best_round)
+        test_payload = self._evaluate_best_on_test(best_round)
         payload = {
             "method": "aflow_official_adapter",
             "benchmark": self.benchmark_name,
             "best_round": best_round,
             "best_score": float(best.get("score", 0.0)),
+            "test_score": test_payload["score"],
             "best": best,
             "results": results,
             "best_workflow": best_payload,
+            "test": test_payload,
             "settings": {
                 "task_limit": self.task_limit,
                 "validation_rounds": self.validation_rounds,
+                "test_task_limit": self.test_task_limit,
+                "test_offset": self.test_offset,
                 "runs_per_task": self.runs_per_task,
                 "max_rounds": self.max_rounds,
                 "sample": self.sample,
@@ -156,22 +165,23 @@ class OfficialAFlowBenchmarkOptimizer:
         _write_json(self.output_dir / "aflow_results.json", payload)
         return payload
 
-    def _evaluate_round(self, round_number: int, *, initial: bool) -> dict[str, Any]:
+    def _evaluate_round(self, round_number: int, *, initial: bool, split: str) -> dict[str, Any]:
         round_dir = self.workflows_dir / f"round_{round_number}"
         workflow_class = load_workflow_class(round_dir)
         prompt_module = load_prompt_module(round_dir)
         benchmark = get_benchmark(self.benchmark_name, config=self.benchmark_config)
-        tasks = list(benchmark.load_tasks(task_limit=self.task_limit))
-        if not tasks:
+        all_tasks = list(benchmark.load_tasks(task_limit=self._load_task_limit()))
+        eval_tasks = self._select_tasks(all_tasks, split=split)
+        if not eval_tasks:
             raise RuntimeError(f"No tasks loaded for benchmark '{self.benchmark_name}'")
-        eval_tasks = tasks[: max(1, self.validation_rounds)]
+        artifact_dir = self._artifact_dir(round_number, split)
         task_payloads: list[dict[str, Any]] = []
         total_cost = 0.0
         for task_index, task in enumerate(eval_tasks):
             run_payloads: list[dict[str, Any]] = []
             run_metrics: list[dict[str, Any]] = []
             for run_index in range(max(1, self.runs_per_task)):
-                run_payload = self._load_run_artifact(round_number, str(task.task_id), run_index)
+                run_payload = self._load_run_artifact(artifact_dir, str(task.task_id), run_index)
                 if run_payload is not None:
                     run_payloads.append(run_payload)
                     run_metrics.append(dict(run_payload["metrics"]))
@@ -180,7 +190,7 @@ class OfficialAFlowBenchmarkOptimizer:
                     )
                     print(
                         f"[{_now_stamp()}] AFLOW_OFFICIAL_RUN_RESUME benchmark={self.benchmark_name} "
-                        f"round={round_number} task_id={task.task_id} run_index={run_index}",
+                        f"split={split} round={round_number} task_id={task.task_id} run_index={run_index}",
                         flush=True,
                     )
                     continue
@@ -218,8 +228,8 @@ class OfficialAFlowBenchmarkOptimizer:
                     "run_metadata": run_metadata,
                     "evaluation_details": evaluation.details,
                 }
-                self._write_run_artifact(round_number, str(task.task_id), run_index, run_payload)
-                self._append_log(round_number, run_payload)
+                self._write_run_artifact(artifact_dir, str(task.task_id), run_index, run_payload)
+                self._append_log(artifact_dir, run_payload)
                 run_payloads.append(run_payload)
                 run_metrics.append(metrics)
             task_metrics = compute_task_metrics(run_metrics)
@@ -242,16 +252,26 @@ class OfficialAFlowBenchmarkOptimizer:
             "total_cost": total_cost,
             "time": _now_stamp(),
             "initial": initial,
+            "split": split,
             "task_count": len(task_payloads),
+            "task_ids": [item["task_id"] for item in task_payloads],
         }
-        _write_json(round_dir / "summary.json", {"round": round_summary, "tasks": task_payloads})
-        self._write_summary_csv(round_dir / "summary.csv", task_payloads)
+        _write_json(artifact_dir / "summary.json", {"round": round_summary, "tasks": task_payloads})
+        self._write_summary_csv(artifact_dir / "summary.csv", task_payloads)
         print(
             f"[{_now_stamp()}] AFLOW_OFFICIAL_EVAL_DONE benchmark={self.benchmark_name} "
-            f"round={round_number} score={score}",
+            f"split={split} round={round_number} score={score}",
             flush=True,
         )
         return round_summary
+
+    def _evaluate_best_on_test(self, best_round: int) -> dict[str, Any]:
+        print(
+            f"[{_now_stamp()}] AFLOW_OFFICIAL_TEST_START benchmark={self.benchmark_name} "
+            f"round={best_round}",
+            flush=True,
+        )
+        return self._evaluate_round(best_round, initial=False, split="test")
 
     def _propose_graph(self, selected: dict[str, Any]) -> dict[str, str]:
         father_round = int(selected["round"])
@@ -339,13 +359,40 @@ class OfficialAFlowBenchmarkOptimizer:
         self.workflows_dir.mkdir(parents=True, exist_ok=True)
         self.results_path.write_text(json.dumps(results, indent=2, default=str), encoding="utf-8")
 
-    def _run_dir(self, round_number: int, task_id: str) -> Path:
-        return self.workflows_dir / f"round_{round_number}" / "runs" / _safe(task_id)
+    def _load_task_limit(self) -> int:
+        return max(
+            max(1, self.validation_rounds),
+            max(0, self.test_offset) + max(1, self.test_task_limit),
+            max(1, self.task_limit),
+        )
+
+    def _select_tasks(self, tasks: list[Any], *, split: str) -> list[Any]:
+        if split == "validation":
+            return tasks[: max(1, self.validation_rounds)]
+        if split == "test":
+            start = max(0, int(self.test_offset))
+            end = start + max(1, int(self.test_task_limit))
+            selected = tasks[start:end]
+            if len(selected) < max(1, int(self.test_task_limit)):
+                raise RuntimeError(
+                    f"Not enough test tasks for benchmark '{self.benchmark_name}': "
+                    f"requested offset={start} limit={self.test_task_limit}, loaded={len(tasks)}"
+                )
+            return selected
+        raise ValueError(f"Unknown AFlow split: {split}")
+
+    def _artifact_dir(self, round_number: int, split: str) -> Path:
+        if split == "validation":
+            return self.workflows_dir / f"round_{round_number}"
+        return self.output_dir / "test" / f"round_{round_number}"
+
+    def _run_dir(self, artifact_dir: Path, task_id: str) -> Path:
+        return artifact_dir / "runs" / _safe(task_id)
 
     def _load_run_artifact(
-        self, round_number: int, task_id: str, run_index: int
+        self, artifact_dir: Path, task_id: str, run_index: int
     ) -> dict[str, Any] | None:
-        path = self._run_dir(round_number, task_id) / f"run_{run_index}.json"
+        path = self._run_dir(artifact_dir, task_id) / f"run_{run_index}.json"
         if not path.exists():
             return None
         try:
@@ -357,9 +404,9 @@ class OfficialAFlowBenchmarkOptimizer:
         return payload
 
     def _write_run_artifact(
-        self, round_number: int, task_id: str, run_index: int, payload: dict[str, Any]
+        self, artifact_dir: Path, task_id: str, run_index: int, payload: dict[str, Any]
     ) -> None:
-        run_dir = self._run_dir(round_number, task_id)
+        run_dir = self._run_dir(artifact_dir, task_id)
         run_dir.mkdir(parents=True, exist_ok=True)
         path = run_dir / f"run_{run_index}.json"
         trace_path = run_dir / f"run_{run_index}.trace.json"
@@ -370,8 +417,8 @@ class OfficialAFlowBenchmarkOptimizer:
         )
         path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
-    def _append_log(self, round_number: int, payload: dict[str, Any]) -> None:
-        path = self.workflows_dir / f"round_{round_number}" / "log.json"
+    def _append_log(self, artifact_dir: Path, payload: dict[str, Any]) -> None:
+        path = artifact_dir / "log.json"
         existing: list[Any] = []
         if path.exists():
             try:

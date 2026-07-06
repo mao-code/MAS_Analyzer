@@ -50,14 +50,17 @@ class FakeBenchmark:
         self.config = config or {}
 
     def load_tasks(self, task_limit: int | None = None) -> list[BenchmarkTask]:
-        return [
-            BenchmarkTask(
-                task_id="task_0",
-                prompt="Return the correct answer.",
-                reference_answer="correct answer",
-                metadata={},
+        tasks = []
+        for index in range(4):
+            tasks.append(
+                BenchmarkTask(
+                    task_id=f"task_{index}",
+                    prompt=f"Return the correct answer for task {index}.",
+                    reference_answer="correct answer",
+                    metadata={},
+                )
             )
-        ][:task_limit]
+        return tasks[:task_limit]
 
     def run(
         self,
@@ -92,8 +95,10 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
         benchmark_config={},
         llm_client=FakeLLMClient(),
         output_dir=tmp_path,
-        task_limit=1,
+        task_limit=2,
         validation_rounds=1,
+        test_task_limit=2,
+        test_offset=1,
         runs_per_task=1,
         max_rounds=2,
         sample=1,
@@ -107,6 +112,7 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
 
     assert payload["method"] == "aflow_official_adapter"
     assert payload["best_score"] == 1.0
+    assert payload["test_score"] == 1.0
     assert (tmp_path / "workflows/round_1/graph.py").exists()
     assert (tmp_path / "workflows/round_2/graph.py").exists()
     assert (tmp_path / "workflows/round_2/prompt.py").exists()
@@ -126,3 +132,15 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
     trace = json.loads(trace_path.read_text(encoding="utf-8"))["trace"]
     assert trace[0]["event_type"] == "act"
     assert trace[0]["payload"]["node"] == "aflow_official:AnswerGenerate"
+
+    validation_summary = json.loads(
+        (tmp_path / "workflows/round_2/summary.json").read_text(encoding="utf-8")
+    )
+    test_summary = json.loads(
+        (tmp_path / f"test/round_{payload['best_round']}/summary.json").read_text(encoding="utf-8")
+    )
+    assert validation_summary["round"]["task_ids"] == ["task_0"]
+    assert test_summary["round"]["task_ids"] == ["task_1", "task_2"]
+    assert not set(validation_summary["round"]["task_ids"]).intersection(
+        test_summary["round"]["task_ids"]
+    )

@@ -94,6 +94,10 @@ def _run_benchmark(
         output_dir=output_dir,
         task_limit=max(1, int(args.task_limit)),
         validation_rounds=max(1, int(args.validation_rounds)),
+        test_task_limit=max(1, int(args.test_task_limit or args.task_limit)),
+        test_offset=max(
+            0, int(args.test_offset if args.test_offset is not None else args.validation_rounds)
+        ),
         runs_per_task=max(1, int(args.runs_per_task)),
         max_rounds=max(1, int(args.max_rounds)),
         sample=max(1, int(args.sample)),
@@ -196,6 +200,18 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmark", action="append", default=[])
     parser.add_argument("--exclude-benchmark", action="append", default=[])
     parser.add_argument("--task-limit", type=int, default=1)
+    parser.add_argument(
+        "--test-task-limit",
+        type=int,
+        default=None,
+        help="Number of held-out tasks to run with the best workflow. Defaults to --task-limit.",
+    )
+    parser.add_argument(
+        "--test-offset",
+        type=int,
+        default=None,
+        help="Offset for held-out test tasks. Defaults to --validation-rounds to avoid overlap.",
+    )
     parser.add_argument("--sample", type=int, default=2)
     parser.add_argument("--max-rounds", type=int, default=1)
     parser.add_argument("--validation-rounds", type=int, default=1)
