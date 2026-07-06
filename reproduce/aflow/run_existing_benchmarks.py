@@ -99,6 +99,7 @@ def _run_benchmark(
             0, int(args.test_offset if args.test_offset is not None else args.validation_rounds)
         ),
         runs_per_task=max(1, int(args.runs_per_task)),
+        retries=max(0, int(args.retries)),
         max_rounds=max(1, int(args.max_rounds)),
         sample=max(1, int(args.sample)),
         seed=int(args.seed),
@@ -218,6 +219,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--model-agent-type", default="default")
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--runs-per-task", type=int, default=1)
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=2,
+        help="Per task/run retry count after the first attempt.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--env-file", default=None)
     parser.add_argument(

@@ -38,6 +38,7 @@ class AFlowExecutionContext:
     tools: list[dict[str, Any]] = field(default_factory=list)
     max_tool_iterations: int = 8
     allow_mock: bool = False
+    checkpoint_path: Path | None = None
     records: list[AFlowCallRecord] = field(default_factory=list)
     seq: int = 0
 
@@ -90,6 +91,7 @@ class OfficialLLM:
                 latency_ms=max((time.perf_counter() - started_perf) * 1000.0, 1.0),
             )
         )
+        write_execution_checkpoint(self.context)
         return result.text
 
     async def call_xml(self, prompt: str, fields: list[str], *, operator: str) -> dict[str, str]:
@@ -298,6 +300,7 @@ class OfficialAFlowRunnerAdapter:
         agent_type: str,
         temperature: float,
         allow_mock: bool,
+        checkpoint_path: Path | None = None,
     ) -> None:
         self.workflow_class = workflow_class
         self.prompt_module = prompt_module
@@ -306,6 +309,7 @@ class OfficialAFlowRunnerAdapter:
         self.agent_type = agent_type
         self.temperature = temperature
         self.allow_mock = allow_mock
+        self.checkpoint_path = checkpoint_path
 
     def run_task(
         self,
@@ -327,6 +331,7 @@ class OfficialAFlowRunnerAdapter:
             tools=list(tools or []),
             max_tool_iterations=max_tool_iterations,
             allow_mock=self.allow_mock,
+            checkpoint_path=self.checkpoint_path,
         )
         llm = OfficialLLM(context)
         workflow = self.workflow_class(
@@ -420,6 +425,42 @@ def trace_events_from_context(context: AFlowExecutionContext) -> list[TraceEvent
                 )
             )
     return events
+
+
+def write_execution_checkpoint(context: AFlowExecutionContext) -> None:
+    if context.checkpoint_path is None:
+        return
+    checkpoint_path = context.checkpoint_path
+    trace_path = checkpoint_path.with_suffix(".trace.json")
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    trace_events = [event.to_dict() for event in trace_events_from_context(context)]
+    payload = {
+        "status": "running",
+        "task_id": context.task_id,
+        "run_index": context.run_index,
+        "operator_calls_completed": len(context.records),
+        "trace_path": str(trace_path.resolve()),
+        "run_metadata": run_metadata_from_context(context),
+        "calls": [
+            {
+                "operator": record.operator,
+                "text": record.result.text,
+                "model": record.result.model,
+                "token_in": record.result.token_in,
+                "token_out": record.result.token_out,
+                "cost_usd": record.result.cost_usd,
+                "mock_used": record.result.mock_used,
+                "llm_metadata": dict(record.result.metadata),
+                "tool_calls": list(record.result.tool_calls),
+                "latency_ms": record.latency_ms,
+            }
+            for record in context.records
+        ],
+    }
+    trace_path.write_text(
+        json.dumps({"trace": trace_events}, indent=2, default=str), encoding="utf-8"
+    )
+    checkpoint_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
 
 def run_metadata_from_context(context: AFlowExecutionContext) -> dict[str, Any]:

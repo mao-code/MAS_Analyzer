@@ -39,6 +39,7 @@ and receive this repo's benchmark tools when the benchmark exposes tools.
   --test-task-limit 30 \
   --test-offset 10 \
   --runs-per-task 3 \
+  --retries 2 \
   --max-rounds 5 \
   --sample 4 \
   --temperature 1 \
@@ -51,6 +52,10 @@ used when selecting a parent workflow for the next optimization round.
 `--validation-rounds` controls workflow-search tasks. The best workflow is then
 run on held-out test tasks selected by `--test-offset` and `--test-task-limit`.
 With the command above, tasks 0-9 are validation and tasks 10-39 are test.
+Each task/run writes an operator-level checkpoint under
+`runs/<task_id>/checkpoints/` after every completed LLM operator call. If a run
+fails, retry error records are written next to the run artifacts. Re-running the
+same `--run-id` resumes completed `run_<n>.json` artifacts.
 
 `finance_agent` is excluded by default. Add benchmarks with repeated
 `--benchmark` flags, or omit `--benchmark` to run all non-finance benchmarks.
@@ -66,6 +71,7 @@ MAS_DISABLE_LIVE_LLM=1 .venv/bin/python -m reproduce.aflow.run_existing_benchmar
   --test-task-limit 1 \
   --test-offset 1 \
   --runs-per-task 1 \
+  --retries 0 \
   --max-rounds 2 \
   --sample 1 \
   --run-id smoke_official_aflow_workbench \

@@ -100,6 +100,7 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
         test_task_limit=2,
         test_offset=1,
         runs_per_task=1,
+        retries=1,
         max_rounds=2,
         sample=1,
         seed=42,
@@ -132,6 +133,10 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
     trace = json.loads(trace_path.read_text(encoding="utf-8"))["trace"]
     assert trace[0]["event_type"] == "act"
     assert trace[0]["payload"]["node"] == "aflow_official:AnswerGenerate"
+    checkpoint_path = tmp_path / "workflows/round_2/runs/task_0/checkpoints/run_0.attempt_0.json"
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert checkpoint["status"] == "completed"
+    assert checkpoint["operator_calls_completed"] == 1
 
     validation_summary = json.loads(
         (tmp_path / "workflows/round_2/summary.json").read_text(encoding="utf-8")

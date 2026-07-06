@@ -38,6 +38,7 @@ class OfficialAFlowBenchmarkOptimizer:
         test_task_limit: int,
         test_offset: int,
         runs_per_task: int,
+        retries: int,
         max_rounds: int,
         sample: int,
         seed: int,
@@ -55,6 +56,7 @@ class OfficialAFlowBenchmarkOptimizer:
         self.test_task_limit = test_task_limit
         self.test_offset = test_offset
         self.runs_per_task = runs_per_task
+        self.retries = retries
         self.max_rounds = max_rounds
         self.sample = sample
         self.seed = seed
@@ -154,6 +156,7 @@ class OfficialAFlowBenchmarkOptimizer:
                 "test_task_limit": self.test_task_limit,
                 "test_offset": self.test_offset,
                 "runs_per_task": self.runs_per_task,
+                "retries": self.retries,
                 "max_rounds": self.max_rounds,
                 "sample": self.sample,
                 "seed": self.seed,
@@ -194,25 +197,15 @@ class OfficialAFlowBenchmarkOptimizer:
                         flush=True,
                     )
                     continue
-                runner = OfficialAFlowRunnerAdapter(
+                run_seed = int(self.seed) + task_index * 1000 + run_index
+                result, prediction, run_metadata, evaluation, metrics = self._run_with_retries(
+                    benchmark=benchmark,
+                    task=task,
+                    artifact_dir=artifact_dir,
                     workflow_class=workflow_class,
                     prompt_module=prompt_module,
-                    llm_client=self.llm_client,
-                    benchmark_name=self.benchmark_name,
-                    agent_type=self.model_agent_type,
-                    temperature=self.temperature,
-                    allow_mock=self.allow_mock,
-                )
-                run_seed = int(self.seed) + task_index * 1000 + run_index
-                result = benchmark.run(task=task, runner=runner, run_index=run_index, seed=run_seed)
-                prediction = str(result.final_answer or "")
-                run_metadata = dict(result.run_metadata)
-                evaluation = benchmark.evaluate(task, prediction, run_metadata=run_metadata)
-                metrics = compute_run_metrics(
-                    list(result.trace_events),
-                    evaluation=evaluation,
-                    final_answer=prediction,
-                    run_metadata=run_metadata,
+                    run_index=run_index,
+                    run_seed=run_seed,
                 )
                 total_cost += float(metrics.get("C3_cost_total", 0.0) or 0.0)
                 run_payload = {
@@ -229,6 +222,7 @@ class OfficialAFlowBenchmarkOptimizer:
                     "evaluation_details": evaluation.details,
                 }
                 self._write_run_artifact(artifact_dir, str(task.task_id), run_index, run_payload)
+                self._mark_checkpoint_completed(artifact_dir, str(task.task_id), run_index)
                 self._append_log(artifact_dir, run_payload)
                 run_payloads.append(run_payload)
                 run_metrics.append(metrics)
@@ -265,6 +259,71 @@ class OfficialAFlowBenchmarkOptimizer:
         )
         return round_summary
 
+    def _run_with_retries(
+        self,
+        *,
+        benchmark: Any,
+        task: Any,
+        artifact_dir: Path,
+        workflow_class: Any,
+        prompt_module: Any,
+        run_index: int,
+        run_seed: int,
+    ) -> tuple[Any, str, dict[str, Any], Any, dict[str, Any]]:
+        max_attempts = max(1, int(self.retries) + 1)
+        last_exc: Exception | None = None
+        for attempt_index in range(max_attempts):
+            checkpoint_path = self._checkpoint_path(
+                artifact_dir, str(task.task_id), run_index, attempt_index
+            )
+            runner = OfficialAFlowRunnerAdapter(
+                workflow_class=workflow_class,
+                prompt_module=prompt_module,
+                llm_client=self.llm_client,
+                benchmark_name=self.benchmark_name,
+                agent_type=self.model_agent_type,
+                temperature=self.temperature,
+                allow_mock=self.allow_mock,
+                checkpoint_path=checkpoint_path,
+            )
+            try:
+                result = benchmark.run(
+                    task=task, runner=runner, run_index=run_index, seed=run_seed + attempt_index
+                )
+                prediction = str(result.final_answer or "")
+                run_metadata = {
+                    **dict(result.run_metadata),
+                    "attempt_index": attempt_index,
+                    "attempts_used": attempt_index + 1,
+                    "checkpoint_path": str(checkpoint_path.resolve()),
+                }
+                evaluation = benchmark.evaluate(task, prediction, run_metadata=run_metadata)
+                metrics = compute_run_metrics(
+                    list(result.trace_events),
+                    evaluation=evaluation,
+                    final_answer=prediction,
+                    run_metadata=run_metadata,
+                )
+                return result, prediction, run_metadata, evaluation, metrics
+            except Exception as exc:
+                last_exc = exc
+                self._write_attempt_error(
+                    artifact_dir=artifact_dir,
+                    task_id=str(task.task_id),
+                    run_index=run_index,
+                    attempt_index=attempt_index,
+                    exc=exc,
+                    checkpoint_path=checkpoint_path,
+                )
+                print(
+                    f"[{_now_stamp()}] AFLOW_OFFICIAL_RUN_RETRY benchmark={self.benchmark_name} "
+                    f"task_id={task.task_id} run_index={run_index} attempt={attempt_index + 1}/{max_attempts} "
+                    f"error={type(exc).__name__}:{exc}",
+                    flush=True,
+                )
+        assert last_exc is not None
+        raise last_exc
+
     def _evaluate_best_on_test(self, best_round: int) -> dict[str, Any]:
         print(
             f"[{_now_stamp()}] AFLOW_OFFICIAL_TEST_START benchmark={self.benchmark_name} "
@@ -294,16 +353,7 @@ class OfficialAFlowBenchmarkOptimizer:
             + prompts.WORKFLOW_OPTIMIZE_PROMPT.format(type="tool-use benchmark")
             + prompts.XML_RESPONSE_INSTRUCTION
         )
-        result = self.llm_client.generate(
-            prompt=[{"role": "user", "content": optimize_prompt}],
-            agent_type=self.model_agent_type,
-            task_id=f"{self.benchmark_name}:aflow_optimizer",
-            run_index=father_round,
-            agent_id="aflow_optimizer",
-            tools=[],
-            max_tool_iterations=1,
-            temperature=self.temperature,
-        )
+        result = self._call_optimizer_with_retries(optimize_prompt, father_round)
         if result.mock_used and not self.allow_mock:
             raise RuntimeError(
                 "Live OpenRouter AFlow optimizer expected, but mock fallback was used."
@@ -331,6 +381,43 @@ class OfficialAFlowBenchmarkOptimizer:
             },
         )
         return fields
+
+    def _call_optimizer_with_retries(self, optimize_prompt: str, father_round: int) -> Any:
+        max_attempts = max(1, int(self.retries) + 1)
+        last_exc: Exception | None = None
+        for attempt_index in range(max_attempts):
+            try:
+                return self.llm_client.generate(
+                    prompt=[{"role": "user", "content": optimize_prompt}],
+                    agent_type=self.model_agent_type,
+                    task_id=f"{self.benchmark_name}:aflow_optimizer",
+                    run_index=father_round,
+                    agent_id="aflow_optimizer",
+                    tools=[],
+                    max_tool_iterations=1,
+                    temperature=self.temperature,
+                )
+            except Exception as exc:
+                last_exc = exc
+                _write_json(
+                    self.output_dir
+                    / "optimizer_calls"
+                    / f"round_{father_round}.attempt_{attempt_index}.error.json",
+                    {
+                        "father_round": father_round,
+                        "attempt_index": attempt_index,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "time": _now_stamp(),
+                    },
+                )
+                print(
+                    f"[{_now_stamp()}] AFLOW_OFFICIAL_OPTIMIZER_RETRY "
+                    f"benchmark={self.benchmark_name} round={father_round + 1} "
+                    f"attempt={attempt_index + 1}/{max_attempts} error={type(exc).__name__}:{exc}",
+                    flush=True,
+                )
+        assert last_exc is not None
+        raise last_exc
 
     def _materialize_best_round(self, best_round: int) -> dict[str, Any]:
         round_dir = self.workflows_dir / f"round_{best_round}"
@@ -389,6 +476,15 @@ class OfficialAFlowBenchmarkOptimizer:
     def _run_dir(self, artifact_dir: Path, task_id: str) -> Path:
         return artifact_dir / "runs" / _safe(task_id)
 
+    def _checkpoint_path(
+        self, artifact_dir: Path, task_id: str, run_index: int, attempt_index: int
+    ) -> Path:
+        return (
+            self._run_dir(artifact_dir, task_id)
+            / "checkpoints"
+            / f"run_{run_index}.attempt_{attempt_index}.json"
+        )
+
     def _load_run_artifact(
         self, artifact_dir: Path, task_id: str, run_index: int
     ) -> dict[str, Any] | None:
@@ -402,6 +498,44 @@ class OfficialAFlowBenchmarkOptimizer:
         if not isinstance(payload, dict) or "metrics" not in payload:
             return None
         return payload
+
+    def _write_attempt_error(
+        self,
+        *,
+        artifact_dir: Path,
+        task_id: str,
+        run_index: int,
+        attempt_index: int,
+        exc: Exception,
+        checkpoint_path: Path,
+    ) -> None:
+        run_dir = self._run_dir(artifact_dir, task_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "status": "error",
+            "task_id": task_id,
+            "run_index": run_index,
+            "attempt_index": attempt_index,
+            "checkpoint_path": str(checkpoint_path.resolve()),
+            "error": f"{type(exc).__name__}: {exc}",
+            "time": _now_stamp(),
+        }
+        (run_dir / f"run_{run_index}.attempt_{attempt_index}.error.json").write_text(
+            json.dumps(payload, indent=2, default=str), encoding="utf-8"
+        )
+
+    def _mark_checkpoint_completed(self, artifact_dir: Path, task_id: str, run_index: int) -> None:
+        run_dir = self._run_dir(artifact_dir, task_id)
+        checkpoint_dir = run_dir / "checkpoints"
+        if not checkpoint_dir.exists():
+            return
+        for checkpoint_path in sorted(checkpoint_dir.glob(f"run_{run_index}.attempt_*.json")):
+            try:
+                payload = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            payload["status"] = "completed"
+            checkpoint_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
     def _write_run_artifact(
         self, artifact_dir: Path, task_id: str, run_index: int, payload: dict[str, Any]
