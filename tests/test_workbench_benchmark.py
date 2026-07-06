@@ -111,12 +111,12 @@ class TestWorkBenchBenchmark(unittest.TestCase):
         directory_path.parent.mkdir(parents=True, exist_ok=True)
         directory_path.write_text("alex@company.com\nsam@company.com\n", encoding="utf-8")
         _write_csv(
-            base / "data/processed/queries_and_answers/calendar_queries_and_answers.csv",
-            ["query", "answer", "domains", "base_template", "chosen_template"],
+            base / "data/processed/tasks_and_outcomes/v1/calendar_tasks_and_outcomes.csv",
+            ["task", "outcome", "domains", "base_template", "chosen_template"],
             [
                 {
-                    "query": "Delete the sprint planning meeting.",
-                    "answer": "['calendar.delete_event.func(event_id=\"00000001\")']",
+                    "task": "Delete the sprint planning meeting.",
+                    "outcome": "['calendar.delete_event.func(event_id=\"00000001\")']",
                     "domains": "['calendar']",
                     "base_template": "calendar_base",
                     "chosen_template": "calendar_delete",

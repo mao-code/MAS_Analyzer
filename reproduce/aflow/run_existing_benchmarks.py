@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from benchmark import get_benchmark, list_benchmarks
+from dotenv import load_dotenv
+
+from benchmark import list_benchmarks
 from MAS import OpenRouterLLMClient, load_experiment_config
+from reproduce.aflow.official.optimizer import OfficialAFlowBenchmarkOptimizer
 
 try:
     from datetime import UTC
@@ -17,28 +20,15 @@ except ImportError:  # pragma: no cover
 
 
 DEFAULT_EXCLUDED_BENCHMARKS = {"finance_agent"}
-
-
-@dataclass(frozen=True)
-class WorkflowCandidate:
-    name: str
-    operators: tuple[str, ...]
-
-    def to_payload(self) -> dict[str, Any]:
-        return {"name": self.name, "operators": list(self.operators)}
-
-
-DEFAULT_WORKFLOWS = (
-    WorkflowCandidate("generate", ("Generate",)),
-    WorkflowCandidate("review", ("Generate", "Review")),
-    WorkflowCandidate("test_review", ("Generate", "Test", "Review")),
-    WorkflowCandidate("ensemble", ("Generate", "Generate", "Generate", "Ensemble")),
-)
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def main() -> None:
     args = _parse_args()
+    _load_reproduce_env(args.env_file)
+    _configure_live_mode(args)
     config = load_experiment_config(args.config)
+    _validate_live_config(config, args)
     llm_client = OpenRouterLLMClient(config.openrouter, config.models)
     benchmarks = _resolve_benchmarks(args)
     run_id = args.run_id or _now_stamp()
@@ -47,7 +37,7 @@ def main() -> None:
 
     summary: dict[str, Any] = {
         "run_id": run_id,
-        "method": "aflow_style",
+        "method": "aflow_official_adapter",
         "benchmarks": {},
         "excluded_benchmarks": sorted(DEFAULT_EXCLUDED_BENCHMARKS | set(args.exclude_benchmark)),
         "settings": vars(args),
@@ -95,141 +85,24 @@ def _run_benchmark(
     args: argparse.Namespace,
     output_dir: Path,
 ) -> dict[str, Any]:
-    benchmark = get_benchmark(
-        benchmark_name, config=_benchmark_section_config(config, benchmark_name)
+    benchmark_config = _benchmark_section_config(config, benchmark_name)
+    _prepare_benchmark_environment(benchmark_name, benchmark_config)
+    optimizer = OfficialAFlowBenchmarkOptimizer(
+        benchmark_name=benchmark_name,
+        benchmark_config=benchmark_config,
+        llm_client=llm_client,
+        output_dir=output_dir,
+        task_limit=max(1, int(args.task_limit)),
+        validation_rounds=max(1, int(args.validation_rounds)),
+        runs_per_task=max(1, int(args.runs_per_task)),
+        max_rounds=max(1, int(args.max_rounds)),
+        sample=max(1, int(args.sample)),
+        seed=int(args.seed),
+        model_agent_type=str(args.model_agent_type),
+        temperature=float(args.temperature),
+        allow_mock=bool(args.allow_mock),
     )
-    tasks = list(benchmark.load_tasks(task_limit=args.task_limit))
-    if not tasks:
-        raise RuntimeError(f"No tasks loaded for benchmark '{benchmark_name}'")
-
-    workflows = list(DEFAULT_WORKFLOWS[: max(1, args.sample)])
-    evaluated: list[dict[str, Any]] = []
-    for round_index in range(max(1, args.max_rounds)):
-        for workflow in workflows:
-            scores = []
-            task_payloads = []
-            for task in tasks[: max(1, args.validation_rounds)]:
-                prediction, trace = _execute_workflow(
-                    llm_client=llm_client,
-                    workflow=workflow,
-                    task_prompt=task.prompt,
-                    task_id=f"{benchmark_name}:{task.task_id}:{workflow.name}",
-                    model_agent_type=args.model_agent_type,
-                    temperature=args.temperature,
-                )
-                evaluation = benchmark.evaluate(
-                    task,
-                    prediction,
-                    run_metadata={
-                        "aflow_reproduce": True,
-                        "workflow": workflow.to_payload(),
-                        "trace": trace,
-                    },
-                )
-                scores.append(float(evaluation.score))
-                task_payloads.append(
-                    {
-                        "task_id": str(task.task_id),
-                        "prediction": prediction,
-                        "score": float(evaluation.score),
-                        "success": bool(evaluation.success),
-                        "trace": trace,
-                    }
-                )
-            avg_score = sum(scores) / len(scores) if scores else 0.0
-            evaluated.append(
-                {
-                    "round": round_index + 1,
-                    "workflow": workflow.to_payload(),
-                    "score": avg_score,
-                    "tasks": task_payloads,
-                }
-            )
-
-    best = max(evaluated, key=lambda item: float(item["score"]))
-    payload = {
-        "benchmark": benchmark_name,
-        "task_count": len(tasks),
-        "best_score": float(best["score"]),
-        "best_workflow": best["workflow"],
-        "evaluated": evaluated,
-    }
-    _write_json(output_dir / "aflow_results.json", payload)
-    return payload
-
-
-def _execute_workflow(
-    *,
-    llm_client: OpenRouterLLMClient,
-    workflow: WorkflowCandidate,
-    task_prompt: Any,
-    task_id: str,
-    model_agent_type: str,
-    temperature: float,
-) -> tuple[str, list[dict[str, Any]]]:
-    drafts: list[str] = []
-    feedback = ""
-    trace: list[dict[str, Any]] = []
-    for idx, operator in enumerate(workflow.operators):
-        prompt = _operator_prompt(operator, task_prompt, drafts=drafts, feedback=feedback)
-        result = llm_client.generate(
-            prompt=[
-                {
-                    "role": "system",
-                    "content": "You are executing an AFlow-style workflow operator. Return only the operator output.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            agent_type=model_agent_type,
-            task_id=task_id,
-            run_index=0,
-            agent_id=f"{operator.lower()}_{idx}",
-            temperature=temperature,
-        )
-        trace.append(
-            {
-                "operator": operator,
-                "text": result.text,
-                "model": result.model,
-                "token_in": result.token_in,
-                "token_out": result.token_out,
-                "mock_used": result.mock_used,
-            }
-        )
-        if operator == "Generate":
-            drafts.append(result.text)
-        elif operator == "Review":
-            drafts = [result.text]
-        elif operator == "Test":
-            feedback = result.text
-        elif operator == "Ensemble":
-            drafts = [result.text]
-    return (drafts[-1] if drafts else trace[-1]["text"]), trace
-
-
-def _operator_prompt(operator: str, task_prompt: Any, *, drafts: list[str], feedback: str) -> str:
-    if operator == "Generate":
-        return f"Solve the task.\n\nTask:\n{task_prompt}"
-    if operator == "Review":
-        return (
-            "Review and revise the current draft. Return the final answer.\n\n"
-            f"Task:\n{task_prompt}\n\nDrafts:\n{_join(drafts)}\n\nFeedback:\n{feedback}"
-        )
-    if operator == "Test":
-        return (
-            "Check the draft for correctness and produce concise feedback.\n\n"
-            f"Task:\n{task_prompt}\n\nDrafts:\n{_join(drafts)}"
-        )
-    if operator == "Ensemble":
-        return (
-            "Select or synthesize the best final answer from these candidates.\n\n"
-            f"Task:\n{task_prompt}\n\nCandidates:\n{_join(drafts)}"
-        )
-    return f"{operator}\n\nTask:\n{task_prompt}\n\nDrafts:\n{_join(drafts)}"
-
-
-def _join(items: list[str]) -> str:
-    return "\n\n".join(f"[{idx}] {item}" for idx, item in enumerate(items)) or "(none)"
+    return optimizer.optimize()
 
 
 def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any]:
@@ -242,9 +115,65 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any
     return cfg
 
 
+def _prepare_benchmark_environment(benchmark_name: str, benchmark_config: dict[str, Any]) -> None:
+    if benchmark_name != "stabletoolbench":
+        return
+    from scripts.full_experiment import prepare_stabletoolbench
+
+    prepare_stabletoolbench(dict(benchmark_config))
+
+
+def _load_reproduce_env(env_file: str | None) -> None:
+    candidates: list[Path] = []
+    if env_file:
+        candidates.append(Path(env_file).expanduser())
+    candidates.extend(
+        [
+            ROOT / ".env",
+            ROOT.parent / "MAS_Analyzer" / ".env",
+        ]
+    )
+    for candidate in candidates:
+        if candidate.exists():
+            load_dotenv(candidate, override=False)
+            print(f"[{_now_stamp()}] AFLOW_ENV_LOADED path={candidate}", flush=True)
+            return
+    if env_file:
+        raise FileNotFoundError(f"Requested env file not found: {env_file}")
+
+
+def _configure_live_mode(args: argparse.Namespace) -> None:
+    if args.allow_mock:
+        return
+    if _env_flag("MAS_DISABLE_LIVE_LLM"):
+        raise RuntimeError(
+            "Live OpenRouter reproduce is required, but MAS_DISABLE_LIVE_LLM is set. "
+            "Unset it or pass --allow-mock for plumbing-only smoke tests."
+        )
+    os.environ.setdefault("MAS_REQUIRE_LIVE_LLM", "1")
+
+
+def _validate_live_config(config: Any, args: argparse.Namespace) -> None:
+    if args.allow_mock:
+        return
+    if not getattr(config.openrouter, "api_key", None):
+        raise RuntimeError(
+            "Live OpenRouter reproduce is required, but OPENROUTER_API_KEY is missing. "
+            "Export it, put it in .env, or pass --env-file."
+        )
+
+
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _resolve_benchmarks(args: argparse.Namespace) -> list[str]:
-    excluded = DEFAULT_EXCLUDED_BENCHMARKS | set(args.exclude_benchmark)
-    requested = args.benchmark or list_benchmarks()
+    excluded = set(args.exclude_benchmark)
+    if args.benchmark:
+        requested = args.benchmark
+    else:
+        excluded |= DEFAULT_EXCLUDED_BENCHMARKS
+        requested = list_benchmarks()
     return [name for name in requested if name not in excluded]
 
 
@@ -271,7 +200,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--max-rounds", type=int, default=1)
     parser.add_argument("--validation-rounds", type=int, default=1)
     parser.add_argument("--model-agent-type", default="default")
-    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--runs-per-task", type=int, default=1)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--env-file", default=None)
+    parser.add_argument(
+        "--allow-mock",
+        action="store_true",
+        help="Allow deterministic mock fallback. Use only for plumbing smoke tests.",
+    )
     parser.add_argument("--keep-going", action="store_true")
     return parser.parse_args()
 
