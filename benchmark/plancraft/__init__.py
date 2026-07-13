@@ -141,6 +141,14 @@ class PlancraftBenchmark:
         if example is None:
             raise ValueError(f"PlanCraft example not found for task_id={task.task_id}")
 
+        # PlancraftEnvironment.reset() stores inventory item dicts by reference and
+        # mutates their quantities in place during play. The examples list is cached
+        # (self._examples), so without an isolated copy the first run of a task depletes
+        # the shared inventory and every subsequent run of the same task starts from a
+        # corrupted (partially consumed) world. Deep-copy the example so each run begins
+        # from a pristine inventory and runs stay independent.
+        example = example.model_copy(deep=True)
+
         return PlancraftGymWrapper(
             example=example,
             max_steps=self.max_steps,

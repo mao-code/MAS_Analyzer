@@ -60,6 +60,19 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+# full_experiment.sh probes for a python >=3.11 (conda 'agents' / python3.11 /
+# python3). On this machine the bare python3 is too old, so activate .venv to
+# provide a compatible `python3` that full_experiment.sh will pick up for the
+# static arm. (full_selfevo_bw.sh activates .venv itself for the self-evolved arm.)
+if [[ -f ".venv/bin/activate" ]]; then
+  set +u
+  # shellcheck disable=SC1091
+  source ".venv/bin/activate"
+  set -u
+else
+  echo "[rerun-workbench] WARNING: .venv not found; relying on full_experiment.sh python detection." >&2
+fi
+
 # --- knobs -----------------------------------------------------------------
 MODEL="${MODEL:-google/gemma-4-31b-it:nitro}"
 TASK_LIMIT="${TASK_LIMIT:-30}"
