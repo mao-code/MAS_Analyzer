@@ -27,11 +27,16 @@
 #
 # Notes:
 #   - ONLY_SYSTEMS filters the system list (comma-separated exact labels above).
-#   - MANTA online skill-learning is DISABLED by default here so the tracked
-#     long-term skill (config/topology_skill.md) is never rewritten mid-run and
-#     the runner stays parallel-safe / idempotent. Set SELF_EVOLVED_ARGS=""
-#     (or "--skill-update-batch-size 8") to re-enable online learning — but then
-#     use a single sequential process (ONLY_SYSTEMS=self_evolved, MAX_PARALLEL=1).
+#   - MANTA online long-term skill-learning is ENABLED by default (the general MANTA
+#     default: skill_update_batch_size = 12, ≈4 tasks × 3 runs). Every 12 completed
+#     self_evolved runs are reflected into config/topology_skill.md and reloaded, so
+#     the skill self-evolves DURING the run and that tracked file WILL change — commit
+#     or stash it first if you want a clean learning delta. This is race-free here
+#     because it is a single benchmark: at most one self_evolved process exists at a
+#     time (models run sequentially; one self_evolved job per model). To disable, set
+#     SELF_EVOLVED_ARGS="--skill-update-batch-size 0" (parallel-safe, no drift).
+#     ⚠ If you extend this to MULTIPLE benchmarks at once, several self_evolved jobs
+#     would write the shared skill concurrently — keep learning off or serialize then.
 #   - Any extra flags are passed straight through to full_experiment.sh /
 #     full_experiment.py, e.g.:  bash scripts/exp_math500.sh --max-parallel 2
 # =============================================================================
@@ -48,9 +53,19 @@ export BENCHMARKS="math500"                    # pinned benchmark
 export TASK_LIMIT="${TASK_LIMIT:-30}"          # same as other benchmarks
 export RUNS_PER_TASK="${RUNS_PER_TASK:-3}"     # same as other benchmarks
 
-# Keep the tracked long-term skill clean by default (see header note).
-# full_experiment.sh does NOT export SELF_EVOLVED_ARGS itself, so set+export here.
-export SELF_EVOLVED_ARGS="${SELF_EVOLVED_ARGS:---skill-update-batch-size 0}"
+# STABLE experiment id => RESUMABLE. Without this, full_experiment.py defaults
+# --experiment-id to a fresh UTC timestamp per invocation, so a re-run would land
+# in a new folder and resume nothing. Pinning it means kill + re-run the SAME
+# command continues where it left off: the driver skips already-clean (system)
+# jobs and main.py skips completed tasks/runs inside a partially-done system.
+# Override EXPERIMENT_ID to run a separate, independent experiment.
+export EXPERIMENT_ID="${EXPERIMENT_ID:-math500}"
+
+# Online long-term skill-learning is ON by default (inherits the MANTA config default,
+# skill_update_batch_size = 12). full_experiment.sh does NOT export SELF_EVOLVED_ARGS
+# itself, so set+export here; empty default => no override => config default (12) applies.
+# Set SELF_EVOLVED_ARGS="--skill-update-batch-size 0" to disable (see header note).
+export SELF_EVOLVED_ARGS="${SELF_EVOLVED_ARGS:-}"
 
 # ONLY_SYSTEMS is read by full_experiment.py via the inherited environment.
 if [[ -n "${ONLY_SYSTEMS:-}" ]]; then export ONLY_SYSTEMS; fi

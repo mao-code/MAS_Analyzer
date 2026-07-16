@@ -239,7 +239,7 @@ The stage stops with `consensus_reached` when:
 - `consensus_ratio >= 0.75`
 - the semantic judge marks the majority answer as substantive
 - the agreement is **decision-grade**: average confidence is `>= 0.5` and no agent still
-  lists unresolved issues — *or* no further step (another round / the single repair) is available
+  lists unresolved issues — *or* no further step (another round / a remaining repair) is available
 
 Interpretation:
 
@@ -495,8 +495,9 @@ artifacts/full_experiment/<experiment-id>/<benchmark>/<system>/<task_id>/
 Setting `topology = "self_evolved"` in `[mas]` replaces the fixed layout with one
 the system designs per task (`MAS/self_evolved/`). Instead of running a
 hand-picked topology, each run plans its own agent graph from the query, executes
-it, audits its own trace for failure modes, and is allowed **at most one**
-structural repair before finalizing. It flows through the same CLI, artifact
+it, audits its own trace for failure modes, and is allowed a bounded number of
+structural repairs (`repair_budget`, default 3; each repair consumes a turn, so
+effectively `min(repair_budget, max_turns - 1)`) before finalizing. It flows through the same CLI, artifact
 hierarchy, and `summary.csv` as every other system, so it stays Q/C/D/R/P-comparable
 to SAS and fixed MAS.
 
@@ -647,8 +648,8 @@ with meta-agent tokens/cost on their own events so `C*` includes meta-control ov
 
 - **Short-term** — an in-memory playbook, scoped to the **current run only** and never
   persisted. After each audited turn the Playbook Maintainer records the turn's process
-  signals (detected modes, repair recommendation, termination reason) into it; the single
-  in-run repair planner reads it back, giving the mutation fresh turn-level context. It is
+  signals (detected modes, repair recommendation, termination reason) into it; the
+  in-run repair planner reads it back, giving each mutation fresh turn-level context. It is
   born and dies with the run — it is *experience within a task*, not across tasks.
 - **Long-term — an agent-maintained markdown skill.** The long-term playbook is a
   long-form `SKILL.md` (default `config/topology_skill.md`) that the planner loads **in
@@ -677,7 +678,7 @@ with meta-agent tokens/cost on their own events so `C*` includes meta-control ov
   non-markdown reflection leaves the skill unchanged).
 
   - **Online (in-experiment) — the default, and the intended mental model.**
-    `skill_update_batch_size = N` (default **8**) under `[self_evolved]`. A single `run`
+    `skill_update_batch_size = N` (default **12**, ≈4 tasks × 3 runs) under `[self_evolved]`. A single `run`
     command accumulates each freshly executed run's process-signal candidate and, **every N
     runs, pauses, reflects that batch into the skill, saves it, and reloads it**
     (`SelfEvolvedEngine.reload_skill`) so every subsequent run plans (and mutates) against
@@ -722,7 +723,7 @@ agent set grows monotonically and is bounded by `max_total_agents`. The rest of 
 **editable in place**: `set_group_pattern` changes a group's collaboration mode (e.g.
 parallel → chain to serialize a write), `add_edge`/`remove_edge` adjust peer visibility, and
 `set_context_policy` retunes an agent's evidence access. So: additive in agents, mutable in
-structure, at most one mutation per run.
+structure, one mutation per repair turn, capped by `repair_budget` per run.
 
 **How does the orchestration manage state across a mutation?** The run owns **one mutable
 `state` dict** for its whole life; a mutation never resets it.
@@ -766,14 +767,17 @@ code, independent of the prompt:
 [self_evolved]
 harness_backend = "openrouter"   # or "claude_agent_sdk"
 max_initial_agents = 5
-max_total_agents = 10            # hard cap after the repair mutation
-max_turns = 2                    # one initial turn plus at most one repair
+max_total_agents = 10            # hard cap on topology size after mutations
+max_turns = 3                    # 1 initial turn + up to (max_turns - 1) repair turns; the
+                                 # controller stops early on a decision-grade answer.
+                                 # Retrieval tasks are force-capped to 1 turn (OOM guard).
+repair_budget = 3                # repair mutations per run; effective = min(repair_budget, max_turns - 1)
 audit_mode = "heuristic"         # or "llm_judge"
 playbook_path = "config/topology_playbook.json"
 skill_path = "config/topology_skill.md"   # the long-term agent-maintained skill
 playbook_read = true             # planner reads the skill (used in BOTH plan and mutation)
-skill_update_batch_size = 8      # default 8: reflect into the skill online every N runs (use one
-                                 # sequential process). 0 = off (offline only, parallel-safe)
+skill_update_batch_size = 12     # default 12 (≈4 tasks × 3 runs): reflect into the skill online every N
+                                 # runs (use one sequential process). 0 = off (offline only, parallel-safe)
 default_packet_max_chars = 0     # 0 = full fidelity; a positive value is a generous structural-compaction budget
 ```
 
@@ -823,7 +827,7 @@ python main.py run --config config/verify_selfevo_fix.toml --benchmark browsecom
   --output-dir artifacts/opt_verify --output-layout hierarchical \
   --experiment-id opt_selfevo_v1 --system-label self_evolved
 
-# With skill_update_batch_size > 0 (default 8) the skill self-evolves online during the run
+# With skill_update_batch_size > 0 (default 12) the skill self-evolves online during the run
 # above — no extra step. To instead re-distil process-only experience offline (e.g. for the
 # JSON fallback, or after a parallel run with online updates disabled):
 python scripts/update_topology_playbook.py --experiment-root artifacts/opt_verify/opt_selfevo_v1

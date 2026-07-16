@@ -1892,9 +1892,10 @@ def _build_skill_updater(config: Any, runner: MASRunner) -> Any | None:
     """Online (in-experiment) skill updater for self_evolved runs, or None.
 
     Returns None unless the topology is self_evolved and
-    `self_evolved.skill_update_batch_size > 0` (the default is 8). When enabled, every
-    N freshly executed runs are reflected into the skill (ground-truth success-labelled)
-    and the engine reloads it. Set the batch size to 0 for parallel experiments."""
+    `self_evolved.skill_update_batch_size > 0` (the default is 12). When enabled, every
+    N freshly executed runs are reflected into the skill (labelled by process signals
+    only — auditor findings + consensus — never the eval verdict) and the engine reloads
+    it. Set the batch size to 0 for parallel experiments."""
 
     se = config.self_evolved
     if (
@@ -2654,7 +2655,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Self-evolved only: reflect the long-term skill online every N freshly executed "
-            "runs (default from config = 8). 0 disables online updates (offline reflection "
+            "runs (default from config = 12). 0 disables online updates (offline reflection "
             "only). Online updates rewrite a shared file mid-experiment, so the enclosing "
             "experiment must be a single sequential process."
         ),

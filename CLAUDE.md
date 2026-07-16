@@ -61,7 +61,8 @@ deterministic lexical voting when the judge is mocked or returns unusable JSON.
   and validation live in `MAS/config.py`; `validate()` is the gate for legal values.
 - `[self_evolved]` configures the dynamic topology system (`topology = "self_evolved"`):
   `harness_backend` (`openrouter` / `claude_agent_sdk`), `max_initial_agents`, `max_total_agents`,
-  `max_turns` (1–2), `audit_mode`, `playbook_path` (default `config/topology_playbook.json`).
+  `max_turns` (1–10, default 3), `repair_budget` (default 3; effective repairs =
+  `min(repair_budget, max_turns - 1)`), `audit_mode`, `playbook_path` (default `config/topology_playbook.json`).
   Dataclass `SelfEvolvedConfig` in `MAS/config.py`.
 
 ## Architecture
@@ -87,8 +88,9 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   proposes a per-task `TopologySpec` (`spec.py`) using general, task-characteristic topology guidance
   (no benchmark names); deterministic orchestrator code (`engine.py`) spawns and runs it via `TurnExecutor`
   (`executor.py`), a Trace Auditor (`auditor.py`) flags process failure modes (incl.
-  `insufficient_search_coverage` and `duplicate_state_mutation`), and **at most one** trace-backed repair
-  mutation runs before finalize. Three correctness nets live in code, not the prompt: `TurnExecutor` dedups
+  `insufficient_search_coverage` and `duplicate_state_mutation`), and trace-backed repair mutations run
+  before finalize, bounded by `repair_budget` (default 3) and `max_turns` — effective repairs =
+  `min(repair_budget, max_turns - 1)`, so defaults 3/3 allow up to 2. Three correctness nets live in code, not the prompt: `TurnExecutor` dedups
   identical `(tool, args)` calls per run so a write replays once; retrieval keeps the full agent budget
   (single turn) for search breadth; and a finalize **read-net** opens the top surfaced docids and feeds full
   text to the synthesizer when a retrieval run answered without reading. Visibility is pure code
@@ -99,7 +101,7 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   consensus. **Ground truth (`benchmark.evaluate(...).success`) is deliberately NOT used to build the playbook**
   — feeding the held-out verdict back into the planner's memory would bias the study; the verdict stays the
   authority for *scoring* only. Standing-principles / How-to-choose sections are guardrail-protected. Default
-  writer is **online**: when `self_evolved.skill_update_batch_size > 0` (default **8**), `OnlineSkillUpdater`
+  writer is **online**: when `self_evolved.skill_update_batch_size > 0` (default **12**, ≈4 tasks × 3 runs), `OnlineSkillUpdater`
   (`skill.py`, driven from `main.py::run_command`) pauses every N freshly executed runs, reflects them into the
   skill, and reloads it (`SelfEvolvedEngine.reload_skill`) for the rest of the experiment. `scripts/reflect_topology_skill.py`
   is the offline equivalent; both share `summary_from_candidate` and read process signals only (never `eval.json`).

@@ -1,4 +1,5 @@
 import json
+import re
 import unittest
 from dataclasses import dataclass, field
 from typing import Any
@@ -98,6 +99,79 @@ class _ScriptedLLM(OpenRouterLLMClient):
             model="scripted",
             mock_used=False,
             metadata={},
+        )
+
+
+class _RoundScriptedLLM(_ScriptedLLM):
+    """Workers are blocked (with per-round wording, so turns differ) for every
+    round in ``blocked_rounds``; the leader's aggregate also varies per round so
+    the no_meaningful_change check does not fire before a repair can run."""
+
+    def __init__(self, planner_responses: list[str], *, blocked_rounds: set[int]) -> None:
+        super().__init__(planner_responses, blocked_round0=False)
+        self._blocked_rounds = set(blocked_rounds)
+
+    def generate(
+        self,
+        *,
+        prompt,
+        agent_type,
+        task_id,
+        run_index,
+        agent_id,
+        tools=None,
+        max_tool_iterations=8,
+        temperature=0.0,
+    ) -> LLMResult:
+        prompt_text = (
+            prompt
+            if isinstance(prompt, str)
+            else " ".join(str(m.get("content", "")) for m in prompt)
+        )
+        round_index = None
+        match = re.search(r'"round_index": (\d+)', prompt_text)
+        if match:
+            round_index = int(match.group(1))
+        if agent_id != "topology_planner" and round_index is not None:
+            self.calls.append(agent_id)
+            leader_texts = {
+                0: "Synthesis attempt one: both branches returned nothing usable yet.",
+                1: (
+                    "Second synthesis after restructuring: coverage widened but every "
+                    "branch report is still marked unresolved, so no aggregate exists."
+                ),
+            }
+            blocked_texts = {
+                0: BLOCKED_TEXT,
+                1: (
+                    "Insufficient evidence: the expanded subgroup likewise failed to "
+                    "ground either branch, verification still pending."
+                ),
+            }
+            if agent_id == "agent_0":
+                text = leader_texts.get(round_index, "The final answer is 42.")
+            elif round_index in self._blocked_rounds:
+                text = blocked_texts.get(round_index, BLOCKED_TEXT)
+            else:
+                text = "The answer is 42."
+            return LLMResult(
+                text=text,
+                token_in=10,
+                token_out=5,
+                cost_usd=0.0,
+                model="scripted",
+                mock_used=False,
+                metadata={},
+            )
+        return super().generate(
+            prompt=prompt,
+            agent_type=agent_type,
+            task_id=task_id,
+            run_index=run_index,
+            agent_id=agent_id,
+            tools=tools,
+            max_tool_iterations=max_tool_iterations,
+            temperature=temperature,
         )
 
 
@@ -209,6 +283,54 @@ class TestSingleRepairLoop(unittest.TestCase):
         self.assertEqual(len(skip_events), 1)
         self.assertEqual(skip_events[0].payload.get("reason"), "invalid_or_unparseable_mutation")
 
+    def test_two_repairs_within_default_budget(self) -> None:
+        """max_turns=3 / repair_budget=3 defaults allow a second trace-backed repair."""
+        second_mutation = json.dumps(
+            {
+                "rationale": "Coverage still thin; add a verifier to the root group.",
+                "ops": [
+                    {"op": "add_agent", "group_id": "g_root", "structural_role": "worker"},
+                ],
+            }
+        )
+        engine = SelfEvolvedEngine(
+            _RoundScriptedLLM(
+                [_INITIAL_PLAN, _MUTATION_PLAN, second_mutation], blocked_rounds={0, 1}
+            ),
+            SelfEvolvedConfig(),
+        )
+        result = _run(engine)
+        validate_trace_events(result.trace_events)
+
+        meta = result.run_metadata["self_evolved"]
+        self.assertEqual(len(meta["topology_spec_versions"]), 3)
+        self.assertEqual(result.run_metadata["turns_executed"], 3)
+        revise_events = [
+            event
+            for event in result.trace_events
+            if event.actor == "orchestrator"
+            and event.event_type == "revise"
+            and event.payload.get("node") == "apply_mutation"
+        ]
+        self.assertEqual(len(revise_events), 2)
+        history = result.run_metadata["termination_history"]
+        self.assertFalse(history[0]["should_stop"])
+        self.assertFalse(history[1]["should_stop"])
+        self.assertTrue(history[-1]["should_stop"])
+
+    def test_repair_budget_zero_disables_repair(self) -> None:
+        engine = SelfEvolvedEngine(
+            _ScriptedLLM([_INITIAL_PLAN, _MUTATION_PLAN]),
+            SelfEvolvedConfig(repair_budget=0),
+        )
+        result = _run(engine)
+
+        meta = result.run_metadata["self_evolved"]
+        self.assertEqual(len(meta["topology_spec_versions"]), 1)
+        self.assertIsNone(meta["mutation"])
+        self.assertEqual(result.run_metadata["turns_executed"], 1)
+        self.assertTrue(result.run_metadata["termination_history"][-1]["should_stop"])
+
     def test_audit_events_present(self) -> None:
         engine = SelfEvolvedEngine(
             _ScriptedLLM([_INITIAL_PLAN, _MUTATION_PLAN]), SelfEvolvedConfig()
@@ -220,6 +342,25 @@ class TestSingleRepairLoop(unittest.TestCase):
             audit_events[0].payload["audit"]["repair_recommended"],
         )
         self.assertEqual(len(result.run_metadata["self_evolved"]["audit_reports"]), 2)
+
+
+class TestRepairBudgetConfig(unittest.TestCase):
+    def test_defaults(self) -> None:
+        cfg = SelfEvolvedConfig()
+        self.assertEqual(cfg.max_turns, 3)
+        self.assertEqual(cfg.repair_budget, 3)
+        cfg.validate()
+
+    def test_max_turns_bounds(self) -> None:
+        SelfEvolvedConfig(max_turns=10).validate()
+        with self.assertRaises(ValueError):
+            SelfEvolvedConfig(max_turns=0).validate()
+        with self.assertRaises(ValueError):
+            SelfEvolvedConfig(max_turns=11).validate()
+
+    def test_negative_repair_budget_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            SelfEvolvedConfig(repair_budget=-1).validate()
 
 
 class TestMutationOps(unittest.TestCase):

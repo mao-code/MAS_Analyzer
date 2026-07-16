@@ -42,24 +42,28 @@ peer_artifact_max_chars = 320             # Max chars copied from one agent arti
 
 # --- Self-evolved topology (set mas.topology = "self_evolved" to enable) ---
 # An LLM Topology Planner proposes a per-task topology, a Trace Auditor updates
-# short-term turn memory and can trigger at most one trace-backed repair, then
-# the run finalizes.
+# short-term turn memory and can trigger trace-backed repairs (bounded by
+# repair_budget and max_turns), then the run finalizes.
 # [self_evolved]
 # harness_backend = "openrouter"      # "openrouter" or "claude_agent_sdk" (needs ANTHROPIC_API_KEY)
 # max_initial_agents = 5              # Cap on the planner's initial topology size
-# max_total_agents = 10               # Hard cap after the single mutation
-# max_turns = 2                       # 1 initial turn + at most 1 repair turn
+# max_total_agents = 10               # Hard cap on topology size after mutations
+# max_turns = 3                       # DEFAULT 3: 1 initial turn + up to (max_turns - 1) repair
+#                                     # turns; the controller stops early on a decision-grade
+#                                     # answer. Retrieval tasks are force-capped to 1 turn (OOM).
+# repair_budget = 3                   # DEFAULT 3: trace-backed repair mutations per run;
+#                                     # effective count = min(repair_budget, max_turns - 1)
 # audit_mode = "heuristic"            # "heuristic" or "llm_judge"
 # playbook_path = "config/topology_playbook.json"
 # playbook_read = true                # Planner reads the long-term skill (and applies it
 #                                     # in both the initial plan and the repair mutation)
 # Runs always update a short-term in-memory playbook every turn. The long-term skill
 # (config/topology_skill.md) updates either:
-#   - online, mid-experiment (DEFAULT): skill_update_batch_size = 8 below (true self-evolution);
+#   - online, mid-experiment (DEFAULT): skill_update_batch_size = 12 below (true self-evolution);
 #   - or offline: set skill_update_batch_size = 0 and run scripts/reflect_topology_skill.py.
 # Either way the skill is reflected from PROCESS SIGNALS ONLY (auditor findings + consensus),
 # never the benchmark verdict, so the self-evolved system is not biased by ground truth.
-# skill_update_batch_size = 8         # DEFAULT 8: a single `run` command pauses every N freshly
+# skill_update_batch_size = 12        # DEFAULT 12 (≈4 tasks × 3 runs): a single `run` pauses every N freshly
 #                                     # executed runs to reflect them into the skill, then resumes.
 #                                     # Use ONE sequential process (concurrent writers race);
 #                                     # set 0 for parallel experiments (offline reflection only).

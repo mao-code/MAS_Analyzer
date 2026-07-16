@@ -6,8 +6,9 @@ Meta-loop per run (the dynamic target agent system lives inside step 3):
              and context policies.
 3. EXECUTE   TurnExecutor runs one collaboration turn over the current spec.
 4. AUDIT     Trace Auditor inspects the turn (phase 3).
-5. CONTROL   Ordered code-level checks decide stop vs. one trace-backed repair.
-6. MUTATE    On the single repair path, the Orchestrator applies the planner's
+5. CONTROL   Ordered code-level checks decide stop vs. a trace-backed repair
+             (bounded by self_evolved.repair_budget and max_turns).
+6. MUTATE    On the repair path, the Orchestrator applies the planner's
              topology mutation and re-runs one turn (phase 3).
 7. FINALIZE  Deterministic/judge vote over the final candidates.
 
@@ -191,6 +192,7 @@ class SelfEvolvedEngine:
         context = SharedContextController(topo_spec)
         executor = TurnExecutor(self._stage, context)
         max_turns = int(self.se_config.max_turns)
+        repair_budget = max(0, int(self.se_config.repair_budget))
         # On retrieval tasks the repair turn re-runs every agent over large
         # search+read contexts and can spawn extra agents, doubling runtime/memory and
         # getting the run OOM-killed before it finalizes (= 0 success). Reading in the
@@ -212,7 +214,7 @@ class SelfEvolvedEngine:
 
             mutations_used = len(spec_versions) - 1
             repair_available = (
-                mutations_used < 1
+                mutations_used < repair_budget
                 and turn_index + 1 < max_turns
                 and self._repair_recommended(audit_report)
             )
@@ -245,7 +247,7 @@ class SelfEvolvedEngine:
             if bool(decision.get("should_stop", True)):
                 break
 
-            # Single trace-backed repair.
+            # Trace-backed repair (one mutation per turn, capped by repair_budget).
             mutated = self._apply_mutation(
                 state,
                 topo_spec,
@@ -439,11 +441,14 @@ class SelfEvolvedEngine:
         agent_types: list[str],
         short_term_playbook: ShortTermTopologyPlaybook,
     ) -> tuple[TopologySpec, dict[str, Any]] | None:
-        playbook_entries = self._playbook_entries(
-            task,
-            str(state.get("benchmark_name", "")),
-            bool(state.get("tools")),
-        ) or []
+        playbook_entries = (
+            self._playbook_entries(
+                task,
+                str(state.get("benchmark_name", "")),
+                bool(state.get("tools")),
+            )
+            or []
+        )
         playbook_entries = [*short_term_playbook.planner_entries(), *playbook_entries]
         proposal = self.planner.propose_mutation(
             task=task,
@@ -536,7 +541,7 @@ class SelfEvolvedEngine:
                     personas[agent_id] = {
                         "role_name": info.role_name,
                         "persona": info.persona,
-            }
+                    }
             state["domain_personas"] = personas
 
     def _record_short_term_playbook_turn(
@@ -677,7 +682,7 @@ class SelfEvolvedEngine:
                 **decision,
                 "reason_detail": (
                     "No trace-backed repair was available "
-                    "(audit found no repair or the single mutation budget was spent)."
+                    "(audit found no repair or the repair budget was spent)."
                 ),
             }
         return decision
@@ -780,8 +785,7 @@ class SelfEvolvedEngine:
                 "content": (
                     f"Task:\n{state.get('task_prompt', '')}\n\n"
                     f"Previous final answer was non-final:\n{final_answer}\n\n"
-                    "Retrieved evidence from this run:\n"
-                    + "\n\n".join(evidence)
+                    "Retrieved evidence from this run:\n" + "\n\n".join(evidence)
                 ),
             },
         ]
@@ -1065,9 +1069,7 @@ class SelfEvolvedEngine:
                 if key in seen:
                     continue
                 seen.add(key)
-                evidence.append(
-                    f"- query={query!r}; docid={docid}; snippet={snippet[:900]}"
-                )
+                evidence.append(f"- query={query!r}; docid={docid}; snippet={snippet[:900]}")
                 if len(evidence) >= 12:
                     return evidence
         return evidence
@@ -1272,7 +1274,7 @@ class SelfEvolvedEngine:
                 "audit_turn": "Trace Auditor inspects the turn for failure modes",
                 "meta_termination": "Ordered code-level stop/repair decision",
                 "short_term_playbook_turn": "Playbook Maintainer records turn-level process memory",
-                "apply_mutation": "Orchestrator applies the single planner mutation",
+                "apply_mutation": "Orchestrator applies the planner mutation",
                 "finalize": "Vote over the final candidates",
             },
             edges=[
@@ -1286,7 +1288,7 @@ class SelfEvolvedEngine:
                 "finalize -> END",
             ],
             conditional_edges=[
-                "meta_termination -> apply_mutation (single repair available)",
+                "meta_termination -> apply_mutation (repair available)",
                 "meta_termination -> finalize (stop)",
             ],
             dispatch_logic=(
@@ -1387,9 +1389,7 @@ class SelfEvolvedEngine:
                     "short_term": "updated in memory after each audited turn",
                     "long_term": "persistent file updated post-hoc from eval-joined candidates",
                 },
-                "short_term_playbook_entries": list(
-                    state.get("short_term_playbook_entries", [])
-                ),
+                "short_term_playbook_entries": list(state.get("short_term_playbook_entries", [])),
                 "final_synthesis": list(state.get("self_evolved_final_synthesis", [])),
                 "playbook_update_candidate": playbook_candidate,
             },
