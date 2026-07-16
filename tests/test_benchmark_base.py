@@ -27,6 +27,12 @@ class TestBenchmarkBase(unittest.TestCase):
             "agent_outputs": {"agent_0": "42"},
             "vote_tally": {"42": 3},
             "final_reason": "fully_linked_debate:judge_vote",
+            "self_evolved": {
+                "playbook_update_candidate": {
+                    "key": "plancraft::no_tools::long",
+                    "termination_reason": "consensus_reached",
+                }
+            },
         }
 
         merge_step_run_metadata(
@@ -48,6 +54,10 @@ class TestBenchmarkBase(unittest.TestCase):
         self.assertEqual(aggregate["agent_outputs"]["agent_0"], "42")
         self.assertEqual(aggregate["vote_tally"]["42"], 3)
         self.assertEqual(aggregate["final_reason"], "fully_linked_debate:judge_vote")
+        self.assertEqual(
+            aggregate["self_evolved"]["playbook_update_candidate"]["key"],
+            "plancraft::no_tools::long",
+        )
         self.assertEqual(aggregate["interaction_logs"][0]["outer_step_index"], 4)
         self.assertEqual(aggregate["relay_messages"][0]["outer_step_index"], 4)
         self.assertEqual(aggregate["termination_history"][0]["outer_step_index"], 4)

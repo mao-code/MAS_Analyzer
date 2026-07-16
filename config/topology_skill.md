@@ -31,43 +31,27 @@ Always apply these, on any benchmark, even one never seen before.
 
 ## How to choose a topology
 
-First analyze the task — its **type** (retrieval/search, reasoning, coding, tool use,
-state mutation, verification, planning, comparison, summarization), its **attributes**
-(ambiguity, need for breadth/debate/verification, hallucination risk, whether external
-state is mutated, whether outputs aggregate), and its **failure risks** (duplicate writes,
-thin search coverage, premature consensus, weak verification, poor decomposition). Then map
-the analysis to a topology:
+Analyze the task's dependency structure, evidence needs, action risks, aggregation
+requirements, and resource budget. Choose the smallest topology in which every agent has
+a distinct, necessary contribution.
 
-- **Broad retrieval / search** — provision several searcher workers (a star with workers,
-  or voting) that each search a *different* facet or query; do not rely on a single
-  searcher. If the clues form a dependent chain (each step needs the previous answer), use
-  a chain or debate so the reasoning assembles in shared context.
-- **Factuality / high hallucination risk** — include a verifier or critic, but only one
-  that re-checks evidence (a debate, or a critic that re-derives the answer), never a
-  passive agent that merely waits.
-- **External state mutation** (create / update / delete / send / schedule / pay) — exactly
-  one agent executes the mutating tool. Prefer a singleton; avoid chains or parallel
-  workers to minimize the risk of duplicate execution. Reading and planning may still
-  parallelize.
-- **Ambiguous reasoning** with several defensible answers — debate or voting to surface and
-  resolve disagreement.
-- **Complex, multi-part tasks** — a star (coordinator + workers), or expansions (a tree)
-  when sub-parts themselves decompose.
-- **Specialized subtasks needing central control** — a star coordinator with
-  role-specialized workers.
-- **Simple single-step lookup or transform** — a singleton.
+Treat the following as possibilities, not fixed mappings:
 
-Prefer the smallest topology that covers the work — extra agents cost tokens and can
-conflict — but do provision enough agents to cover the task (e.g. several searchers for
-broad retrieval).
+- Independent subtasks may benefit from parallel workers.
+- Dependent subtasks may benefit from sequential execution or shared context.
+- Material uncertainty may justify an independent evidence-checking critic.
+- Tasks requiring decomposition and aggregation may benefit from a coordinator.
+- A singleton is appropriate when another agent would not contribute distinct work.
+
+For external state mutation, exactly one agent may execute the mutating action; other
+agents may only read, plan, or verify.
+
+Use lessons from prior runs as evidence-weighted suggestions. Consider their relevance,
+sample size, and observed process failures, and depart from them when the current task
+analysis supports another topology. State why the selected topology is preferable to the
+simplest viable alternative.
 
 ## Lessons from experience
 
 Concrete patterns learned from prior runs, with the evidence behind them. The reflection
 agent grows and prunes this list.
-
-- **Medium-complexity tool-use tasks are poorly served by singletons.** Evidence shows that `singleton/1` (0/5 ran clean) consistently triggers process failures on medium tool-use tasks, whereas `chain/2` (2/3 ran clean) is significantly more stable. Avoid singletons for tasks requiring non-trivial tool interaction.
-- **Structural complexity is a primary driver of catastrophic information loss.** Occurrences of `branch_collapse` signals indicate that critical data is stripped or dropped as interaction paths lengthen or branch. Keep agent paths shallow and direct to avoid this process failure.
-- **Active validation is a critical requirement for evidence-heavy tasks.** Frequent `missing_validator` flags indicate that implicit checks are insufficient; without a dedicated agent to audit the evidence chain, runs frequently fail the process audit.
-- **Tool-using state-mutation tasks consistently risk execution cascades.** Recurrent flags for `duplicate_state_mutation` confirm that allowing multiple agents access to state-altering tools leads to process failure. A strict singleton executor is mandatory.
-- **Collaborative topologies are susceptible to ungrounded agreement.** `premature_consensus` signals suggest that agents in multi-agent setups risk agreeing without sufficient grounding. Ensure workers are strictly isolated by query or facet to prevent echoing.

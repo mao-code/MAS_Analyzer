@@ -35,15 +35,6 @@ from pathlib import Path
 DEFAULT_ROOT = Path(
     "artifacts/full_experiment/20260427T134706Z__google_gemma_4_31b_it_nitro/workbench"
 )
-STATIC_SYSTEMS = [
-    "sas",
-    "only_voting",
-    "orchestrator_no_discussion",
-    "orchestrator_with_discussion",
-    "orchestrator_tree_structure",
-    "fully_linked_debate",
-    "group_chat_debate",
-]
 RUN_SUFFIXES = [
     "answer.txt",
     "metadata.json",
@@ -98,12 +89,18 @@ def main() -> int:
         print(f"ERROR: not a directory: {root}", file=sys.stderr)
         return 2
 
+    # Auto-detect the system subdirs present under this workbench root (works for
+    # both the static folder — 7 systems — and the self-evolved folder — self_evolved).
+    systems = sorted(
+        d.name for d in root.iterdir() if d.is_dir() and any(d.glob("multi_domain_*"))
+    )
+
     total_runs = 0
     affected_systems: set[str] = set()
     affected_tasks: set[Path] = set()
     to_delete: list[Path] = []
 
-    for system in STATIC_SYSTEMS:
+    for system in systems:
         sysdir = root / system
         if not sysdir.is_dir():
             continue
@@ -143,23 +140,18 @@ def main() -> int:
     mode = "APPLY (deleting)" if args.apply else "DRY RUN (nothing deleted)"
     print(f"=== redo empty-completion runs — {mode} ===")
     print(f"root: {root}")
-    per_sys: dict[str, int] = {}
-    for system in STATIC_SYSTEMS:
-        n = sum(
-            1
-            for t in affected_tasks
-            if t.parent.name == system
-        )
-        if n:
-            per_sys[system] = n
     print(f"error runs to redo: {total_runs}")
     print(f"affected tasks: {len(affected_tasks)}  affected systems: {len(affected_systems)}")
     print("affected tasks per system:")
-    for system in STATIC_SYSTEMS:
+    for system in systems:
         cnt = sum(1 for t in affected_tasks if t.parent.name == system)
         if cnt:
             print(f"   {system:32s} {cnt} tasks")
     print(f"files to delete: {len(to_delete)}")
+
+    # Which resume target matches this folder (static suite vs self-evolved).
+    target = "selfevo" if "self_evolved" in systems else "static"
+    resume = f"   KEEP_OLD=1 TARGETS={target} bash scripts/rerun_workbench_crm_fix.sh"
 
     if args.apply:
         for p in to_delete:
@@ -168,10 +160,10 @@ def main() -> int:
             except FileNotFoundError:
                 pass
         print("\nDeleted. Now resume (same folder, re-executes only the deleted runs):")
-        print("   KEEP_OLD=1 TARGETS=static bash scripts/rerun_workbench_crm_fix.sh")
+        print(resume)
     else:
         print("\n(dry run) re-run with --apply to delete, then resume with:")
-        print("   KEEP_OLD=1 TARGETS=static bash scripts/rerun_workbench_crm_fix.sh")
+        print(resume)
     return 0
 
 

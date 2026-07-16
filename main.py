@@ -85,6 +85,8 @@ def _benchmark_section_config(config: Any, benchmark_name: str) -> dict[str, Any
         cfg = dict(config.stabletoolbench)
     elif benchmark_name == "plancraft":
         return dict(config.plancraft)
+    elif benchmark_name == "math500":
+        return dict(config.math500)
     elif benchmark_name == "workbench":
         return dict(config.workbench)
     elif benchmark_name == "scicode":

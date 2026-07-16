@@ -90,6 +90,7 @@ def init_run_metadata_aggregate() -> dict[str, Any]:
         "topology_layout": {},
         "workflow_definition": {},
         "final_reason": "",
+        "self_evolved": {},
         "step_runs": [],
     }
 
@@ -189,6 +190,11 @@ def merge_step_run_metadata(
         aggregate["workflow_definition"] = step_metadata.get("workflow_definition", {})
     if step_metadata.get("final_reason"):
         aggregate["final_reason"] = str(step_metadata.get("final_reason", ""))
+    if step_metadata.get("self_evolved"):
+        # Step-based benchmarks execute MAS once per environment action, but the
+        # online skill updater consumes one candidate per completed benchmark run.
+        # Preserve the final step's candidate as the run-level learning signal.
+        aggregate["self_evolved"] = dict(step_metadata.get("self_evolved", {}))
 
     step_runs = list(aggregate.get("step_runs", []))
     step_runs.append(
