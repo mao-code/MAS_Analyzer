@@ -116,11 +116,12 @@ def build_artifact(
     payload = _extract_json_payload(text)
     parsed = payload is not None
 
-    answer = _bounded_text(
-        ((payload.get("answer_artifact") or payload.get("answer")) if parsed else None)
-        or text,
-        max_chars=6000,
+    answer_value = (
+        ((payload.get("answer_artifact") or payload.get("answer")) if parsed else None) or text
     )
+    if isinstance(answer_value, (dict, list)):
+        answer_value = json.dumps(answer_value, ensure_ascii=False, default=str, sort_keys=True)
+    answer = _bounded_text(answer_value, max_chars=6000)
     summary = _bounded_text(
         (payload.get("summary") if parsed else None) or answer,
         max_chars=400,

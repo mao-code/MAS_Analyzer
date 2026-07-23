@@ -4,10 +4,10 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import patch
 
+from answer_utils import extract_substantive_answer
 from MAS import ExperimentSpec, LangGraphMASEngine, build_runtime_config, run_experiment
 from MAS.llm import LLMResult, OpenRouterLLMClient
 from MAS.relay import build_layout
-from answer_utils import extract_substantive_answer
 
 
 class _JudgeLLM(OpenRouterLLMClient):
@@ -1647,14 +1647,16 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertEqual(result["tool_records_log"], [])
         self.assertFalse(result["interaction_logs"][0]["tool_use_retry"])
 
-    def test_execute_agent_stage_retries_once_for_missing_tool_use(self) -> None:
+    def test_execute_agent_stage_retries_structured_future_tool_plan(self) -> None:
         llm = _SequencedLLM(
             [
                 LLMResult(
                     text=(
-                        '{"answer_artifact":"The task is currently blocked because no evidence has been retrieved.",'
-                        '"summary":"Blocked","critique":"","revision_request":"","confidence":0.0,'
-                        '"unresolved_issues":[],"evidence_summary":["No evidence has been retrieved."]}'
+                        '{"answer_artifact":"I need to fetch the quote and driver photo using the '
+                        'provided IDs.","summary":"I have identified the necessary tools.",'
+                        '"critique":"","revision_request":"",'
+                        '"confidence":0.5,"unresolved_issues":["Evidence is pending."],'
+                        '"evidence_summary":[]}'
                     ),
                     token_in=11,
                     token_out=7,
@@ -1727,6 +1729,10 @@ class TestLangGraphTopologies(unittest.TestCase):
         self.assertTrue(result["interaction_logs"][0]["tool_use_retry"])
         self.assertEqual(len(artifact.get("tool_records", [])), 1)
         self.assertEqual(artifact["tool_records"][0]["tool_name"], "search")
+        retry_prompt = " ".join(
+            str(message.get("content", "")) for message in llm.calls[1]["prompt"]
+        )
+        self.assertIn("list, catalog, search, schedule", retry_prompt)
 
     def test_execute_agent_stage_retries_for_progress_status_without_tools(self) -> None:
         llm = _SequencedLLM(

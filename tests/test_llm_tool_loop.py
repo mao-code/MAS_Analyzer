@@ -276,6 +276,36 @@ class _MidToolTimeoutClient:
 
 
 class TestLLMToolLoop(unittest.TestCase):
+    def test_repairs_provider_quoted_argument_keys(self) -> None:
+        self.assertEqual(
+            OpenRouterLLMClient._normalize_tool_arguments(
+                {'"queries"': ["first", "second"], "query": "preferred"}
+            ),
+            {"queries": ["first", "second"], "query": "preferred"},
+        )
+
+    def test_repairs_provider_quoted_identifier_values_only(self) -> None:
+        self.assertEqual(
+            OpenRouterLLMClient._normalize_tool_arguments(
+                {"docid": '"59188"', "query": '"quoted phrase"'}
+            ),
+            {"docid": "59188", "query": '"quoted phrase"'},
+        )
+
+    def test_resolves_provider_tool_name_with_trailing_punctuation(self) -> None:
+        handler = lambda args: args
+
+        self.assertEqual(
+            OpenRouterLLMClient._resolve_emitted_tool_name(
+                "constraint_search(", {"constraint_search": handler}
+            ),
+            "constraint_search",
+        )
+        self.assertEqual(
+            OpenRouterLLMClient._resolve_emitted_tool_name("unknown(", {}),
+            "unknown(",
+        )
+
     def test_disable_live_override_forces_mock_even_with_api_key(self) -> None:
         with patch.dict("os.environ", {"MAS_DISABLE_LIVE_LLM": "1"}, clear=False):
             client = OpenRouterLLMClient(

@@ -84,6 +84,8 @@ class TestSkillInPlannerPrompt(unittest.TestCase):
         blob = messages[0]["content"] + messages[1]["content"]
         self.assertIn("Topology planning skill", blob)
         self.assertIn("## Standing principles", blob)
+        self.assertIn("Count independent evidence sources", blob)
+        self.assertIn("exactly one retriever", blob)
         # The skill replaces the built-in guidance block and the JSON principles fallback.
         self.assertNotIn("How to choose the topology (match it to your analysis)", blob)
         self.assertNotIn("fallback principle", blob)
@@ -114,6 +116,8 @@ class TestSkillInPlannerPrompt(unittest.TestCase):
         )
         blob = messages[0]["content"] + messages[1]["content"]
         self.assertIn("Topology planning skill", blob)
+        self.assertIn("counterfactual information gain", blob)
+        self.assertIn("cannot repair data that the source did not return", blob)
         # The operational ops cheatsheet always stays; the skill replaces the JSON priors.
         self.assertIn("Available ops", blob)
         self.assertNotIn("fallback principle", blob)

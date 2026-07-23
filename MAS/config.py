@@ -172,11 +172,14 @@ class SelfEvolvedConfig:
     # execution of the planned topology plus up to (max_turns - 1) repair re-executions.
     # The controller stops early on a decision-grade answer / stall, so this is a ceiling,
     # not a target. Retrieval tasks are force-capped to 1 turn in the engine (OOM guard).
-    max_turns: int = 3
+    max_turns: int = 5
     # Trace-backed repair mutations allowed per run. Each repair also consumes a turn,
     # so the effective count is min(repair_budget, max_turns - 1). 0 disables repair.
-    repair_budget: int = 3
-    audit_mode: str = "heuristic"
+    repair_budget: int = 4
+    # Hybrid keeps deterministic failure checks as a safety floor and adds a
+    # trace-grounded open-set model observer. ``llm_judge`` is retained for
+    # experiments that intentionally allow the model to veto heuristic repairs.
+    audit_mode: str = "hybrid"
     playbook_path: str = "config/topology_playbook.json"
     # Agent-maintained markdown skill (the long-term playbook as a SKILL.md). When this
     # file exists it is the planner's primary long-term memory (loaded in full at plan
@@ -211,8 +214,8 @@ class SelfEvolvedConfig:
             )
         if self.repair_budget < 0:
             raise ValueError("self_evolved.repair_budget must be >= 0")
-        if self.audit_mode not in {"heuristic", "llm_judge"}:
-            raise ValueError("self_evolved.audit_mode must be one of: heuristic, llm_judge")
+        if self.audit_mode not in {"heuristic", "hybrid", "llm_judge"}:
+            raise ValueError("self_evolved.audit_mode must be one of: heuristic, hybrid, llm_judge")
         if self.skill_update_batch_size < 0:
             raise ValueError("self_evolved.skill_update_batch_size must be >= 0")
         if self.default_packet_max_chars < 0:
@@ -344,9 +347,9 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         harness_backend=str(self_evolved_raw.get("harness_backend", "openrouter")),
         max_initial_agents=int(self_evolved_raw.get("max_initial_agents", 5)),
         max_total_agents=int(self_evolved_raw.get("max_total_agents", 10)),
-        max_turns=int(self_evolved_raw.get("max_turns", 3)),
-        repair_budget=int(self_evolved_raw.get("repair_budget", 3)),
-        audit_mode=str(self_evolved_raw.get("audit_mode", "heuristic")),
+        max_turns=int(self_evolved_raw.get("max_turns", 5)),
+        repair_budget=int(self_evolved_raw.get("repair_budget", 4)),
+        audit_mode=str(self_evolved_raw.get("audit_mode", "hybrid")),
         playbook_path=str(self_evolved_raw.get("playbook_path", "config/topology_playbook.json")),
         skill_path=str(self_evolved_raw.get("skill_path", "config/topology_skill.md")),
         playbook_read=bool(self_evolved_raw.get("playbook_read", True)),

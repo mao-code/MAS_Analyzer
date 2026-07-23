@@ -536,7 +536,8 @@ class BrowseCompBenchmark:
 
         def _search(args: dict[str, Any]) -> list[dict[str, Any]]:
             query = str(args.get("query", "")).strip()
-            candidates = searcher.search(query, k=self.tool_k)
+            requested_k = max(1, min(int(args.get("k", self.tool_k)), 40))
+            candidates = searcher.search(query, k=requested_k)
             return [
                 {
                     "docid": item["docid"],
@@ -559,7 +560,16 @@ class BrowseCompBenchmark:
                         "query": {
                             "type": "string",
                             "description": "Search query text.",
-                        }
+                        },
+                        "k": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 40,
+                            "description": (
+                                "Optional recall depth. Omit for the configured default; use a "
+                                "larger value only when reranking multiple constraints."
+                            ),
+                        },
                     },
                     "required": ["query"],
                     "additionalProperties": False,

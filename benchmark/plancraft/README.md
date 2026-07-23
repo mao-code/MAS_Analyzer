@@ -50,6 +50,7 @@ Reported details include:
 split = "val"
 max_steps = 30
 resolution = "high"
+recipe_search = true  # upstream read-only `search: <item>` action; no evaluation labels
 ```
 
 Useful split values include:
@@ -72,6 +73,10 @@ uv run python main.py run \
 ## Notes
 
 - The adapter uses the official prompt helpers from the `plancraft` package.
+- Recipe search renders upstream's `RECIPES` objects exhaustively, including every accepted
+  ingredient alternative rather than one randomly sampled valid grid. It returns recipe
+  instructions as a normal environment observation, consumes an environment step, and never
+  exposes the example's `impossible` label, optimal path, reward, or reference answer.
 - The action format is aligned with the current upstream package.
 - This is MAS-compatible, but it is not a 1:1 copy of the upstream
   `Evaluator` harness.

@@ -30,6 +30,10 @@ _PLAN_INTROS = (
     "the following plan will be used",
     "here is the plan",
     "search strategy:",
+    "i need to first retrieve",
+    "i need to first call",
+    "i will start by calling",
+    "a plan has been established",
 )
 _BLOCKED_TEXT_SNIPPETS = (
     "insufficient information",
@@ -48,11 +52,16 @@ _BLOCKED_TEXT_SNIPPETS = (
     "no search has been performed",
     "no search has been executed",
     "no search or retrieval operations have been performed",
+    "no tool calls have been executed",
+    "tools have not been executed",
+    "actual data retrieval is pending",
+    "data retrieval is pending",
     "no research has been conducted",
     "remains unknown",
     "remain unknown",
     "not yet been identified",
     "task is currently blocked",
+    "request is currently blocked",
     "need more information",
     "need additional information",
     "requires external research",
@@ -67,6 +76,15 @@ _PROGRESS_STATUS_PATTERNS = (
     re.compile(r"^the initial search(?:es)?\b"),
     re.compile(r"^the search results provided do not contain\b"),
     re.compile(r"^i have performed searches\b.*\b(?:have not|did not|no specific|not yielded)\b"),
+)
+_FUTURE_ACTION_PATTERNS = (
+    re.compile(r"^i need to (?:first )?(?:fetch|gather|retrieve|look up|call|use|query)\b"),
+    re.compile(r"^i (?:will|shall) (?:first )?(?:fetch|gather|retrieve|look up|call|use|query)\b"),
+    re.compile(r"^i (?:will|shall) start by\b"),
+    re.compile(r"^i have identified (?:the )?(?:necessary|required|relevant) tools?\b"),
+    re.compile(r"^the agent (?:is initiating|will begin|has established)\b"),
+    re.compile(r"^the (?:workflow|plan) will (?:begin|start|proceed)\b"),
+    re.compile(r"^please provide\b.*\bso (?:that )?i can (?:find|locate|retrieve|look up)\b"),
 )
 _DIRECT_ANSWER_KEYS = (
     "final_answer",
@@ -144,7 +162,9 @@ def _looks_like_plan_text(raw: str) -> bool:
         return True
     if lowered.startswith(_PLAN_INTROS):
         return True
-    if lowered.startswith(
+    if any(pattern.search(lowered) for pattern in _FUTURE_ACTION_PATTERNS):
+        return True
+    return lowered.startswith(
         (
             "{'plan':",
             '{"plan":',
@@ -155,9 +175,7 @@ def _looks_like_plan_text(raw: str) -> bool:
             "[{'tool':",
             '[{"tool":',
         )
-    ):
-        return True
-    return False
+    )
 
 
 def _looks_like_blocked_text(raw: str) -> bool:
@@ -216,6 +234,19 @@ def _extract_from_mapping(value: Mapping[str, Any]) -> str:
 
     if _is_plan_mapping(lowered):
         return ""
+    data_keys = [
+        key
+        for key in lowered
+        if key not in _PLANNING_KEYS
+        and key not in _SUPPORT_KEYS
+        and key not in _DIRECT_ANSWER_KEYS
+        and not key.endswith("_name")
+    ]
+    if data_keys:
+        try:
+            return json.dumps(value, ensure_ascii=False, default=str, sort_keys=True)
+        except (TypeError, ValueError):
+            return _normalized_text(value)
     return ""
 
 
@@ -270,7 +301,7 @@ def classify_answer_mode(value: Any) -> str:
             support_values = [
                 _normalized_text(item)
                 for key, item in lowered.items()
-                if key in _SUPPORT_KEYS or key in _PLANNING_KEYS
+                if key in _SUPPORT_KEYS or key in _PLANNING_KEYS or key in _DIRECT_ANSWER_KEYS
             ]
             support_text = " ".join(item for item in support_values if item)
         elif isinstance(parsed, Sequence) and not isinstance(parsed, (str, bytes, bytearray)):

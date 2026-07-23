@@ -162,6 +162,17 @@ class TestTopologyPlanner(unittest.TestCase):
         self.assertFalse(proposal.used_fallback)
         self.assertEqual(len(proposal.spec.agents), 4)
 
+    def test_voting_uses_diversity_quorum_when_budget_allows(self) -> None:
+        planner = _planner(json.dumps({"pattern": "voting", "num_agents": 2}))
+        proposal = planner.propose_initial(
+            task=_Task(task_id="t", prompt="q"),
+            benchmark_name="math500",
+            num_agents=5,
+        )
+
+        self.assertFalse(proposal.used_fallback)
+        self.assertEqual(len(proposal.spec.agents), 4)
+
     def test_oversized_expansion_skipped(self) -> None:
         plan = json.dumps(
             {

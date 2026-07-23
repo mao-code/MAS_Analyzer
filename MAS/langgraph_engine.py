@@ -2325,7 +2325,9 @@ class LangGraphMASEngine:
                 retry_content = (
                     "Tools are available for this stage. If evidence is missing, call the relevant tool now "
                     "instead of returning a blocked or planning answer. Return the required JSON only after "
-                    "using tools or after deciding the visible evidence is already sufficient."
+                    "using tools or after deciding the visible evidence is already sufficient. If a required "
+                    "identifier is absent, use available list, catalog, search, schedule, or related discovery "
+                    "tools to resolve it before asking the user for information."
                 )
             retry_prompt.append(
                 {

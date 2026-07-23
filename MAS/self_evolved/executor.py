@@ -23,6 +23,7 @@ aggregates — its aggregate artifact is its report to the enclosing group.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -64,7 +65,16 @@ _READ_FIRST_DIRECTIVE = (
     "immediately call get_document on the top 1-3 docids; do NOT run more than two rounds "
     "of search before opening a document. Answer only from documents you have opened with "
     "get_document — never answer from snippets alone, and never return an 'insufficient "
-    "evidence' or blocked answer without having opened at least one document."
+    "evidence' or blocked answer without having opened at least one document. For a task with "
+    "several independent clues, call constraint_search first with 3-6 narrow clue clauses; it "
+    "tests small bounded numeric intervals one value at a time and ranks cross-clause support. "
+    "Copy rare modifiers from the task into those clauses verbatim; dropping an unusual word "
+    "can erase the decisive lexical hit. "
+    "Otherwise treat search as literal lexical retrieval: it does not understand wildcards. "
+    "Start with a high-information conjunction of several rare constraints rather than a "
+    "generic category query. Search your assigned facet; do not "
+    "repeat a peer's query or adopt its candidate until you have tested a distinct constraint. "
+    "When a plausible entity appears, pivot to entity-name queries and verify all constraints."
 )
 
 
@@ -84,6 +94,14 @@ _TOOL_CHAIN_DIRECTIVE = (
 )
 
 
+_INDEPENDENT_ROUTES = (
+    "derive the answer from first principles and expose the critical intermediate checks",
+    "use a materially different representation or decomposition from the most obvious route",
+    "try to falsify the leading conclusion with counterexamples, boundary cases, or unmet constraints",
+    "recompute the decisive steps backward from the proposed answer and check consistency",
+)
+
+
 def _run_has_get_document(state: dict[str, Any]) -> bool:
     return any(
         isinstance(tool, dict) and str(tool.get("name", "")) == "get_document"
@@ -93,6 +111,42 @@ def _run_has_get_document(state: dict[str, Any]) -> bool:
 
 def _run_has_tools(state: dict[str, Any]) -> bool:
     return bool(state.get("tools"))
+
+
+_MUTATION_VERBS = frozenset(
+    {
+        "add",
+        "book",
+        "cancel",
+        "create",
+        "delete",
+        "modify",
+        "move",
+        "remove",
+        "rename",
+        "schedule",
+        "send",
+        "set",
+        "submit",
+        "update",
+        "write",
+    }
+)
+
+
+def state_changing_tool_names(tools: list[dict[str, Any]]) -> set[str]:
+    """Conservatively identify externally mutating tools from their names."""
+
+    names: set[str] = set()
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        name = str(tool.get("name", "")).strip()
+        leaf = name.rsplit(".", 1)[-1].casefold()
+        tokens = set(re.findall(r"[a-z]+", leaf))
+        if tokens & _MUTATION_VERBS:
+            names.add(name)
+    return names
 
 
 def apply_updates(state: dict[str, Any], updates: dict[str, Any]) -> None:
@@ -335,6 +389,7 @@ class TurnExecutor:
             else "Verify the visible claims against evidence and revise toward "
             "the best supported answer."
         )
+        directive += self._independent_route_directive(group, agent_id)
         visible = self._context.visible_packets(
             state,
             agent_id=agent_id,
@@ -351,6 +406,23 @@ class TurnExecutor:
             stage_role=node.stage_role,
             directive=directive,
             visible_messages=visible,
+        )
+
+    @staticmethod
+    def _independent_route_directive(group: GroupSpec, agent_id: str) -> str:
+        """Assign epistemically distinct work to otherwise independent members."""
+
+        if group.pattern not in {"debate", "voting"} or len(group.member_ids) < 2:
+            return ""
+        try:
+            member_index = list(group.member_ids).index(agent_id)
+        except ValueError:
+            return ""
+        route = _INDEPENDENT_ROUTES[member_index % len(_INDEPENDENT_ROUTES)]
+        return (
+            f" Independent route {member_index + 1}/{len(group.member_ids)}: {route}. "
+            "Do not treat likely peer agreement as evidence; leave a checkable derivation "
+            "that another route could disprove."
         )
 
     def _run_debate_revision(
@@ -469,11 +541,67 @@ class TurnExecutor:
         directive: str,
         visible_messages: list[Any],
     ) -> ArtifactRecord | None:
-        if _run_has_get_document(state):
+        all_tools = list(state.get("tools", []))
+        mutation_names = set(state.get("self_evolved_mutation_tool_names", []))
+        committer_id = str(state.get("self_evolved_committer_id", ""))
+        is_committer_stage = agent_id == committer_id and stage_role == "aggregator"
+        stage_tools = (
+            all_tools
+            if not mutation_names or is_committer_stage
+            else [tool for tool in all_tools if str(tool.get("name", "")) not in mutation_names]
+        )
+        if mutation_names:
+            tool_names = {str(tool.get("name", "")) for tool in all_tools}
+            calendar_transaction = {
+                "calendar.search_events",
+                "calendar.create_event",
+            } <= tool_names
+            if is_committer_stage:
+                directive = (
+                    f"{directive} TRANSACTION COMMITTER CONTRACT: You are the only stage allowed "
+                    "to change external state. Reconcile the reader reports, verify every "
+                    "precondition with read tools, and perform exactly the requested mutation "
+                    "once. For calendar availability, compute each occupied interval as "
+                    "[event_start, event_start + duration] and choose the first requested-length "
+                    "gap after all overlaps end; never treat an event's start as its end. Do not "
+                    "stop at a plan or claim success until the mutation tool succeeds. "
+                )
+                if calendar_transaction:
+                    directive += (
+                        "You MUST call calendar.find_first_available_slot for availability and "
+                        "use its event_start exactly; do not manually infer the gap or re-fetch "
+                        "individual event fields. Then call calendar.create_event at that verified "
+                        "start time. "
+                    )
+            else:
+                directive = (
+                    f"{directive} READ-ONLY TRANSACTION CONTRACT: State-changing tools are "
+                    "intentionally unavailable in this stage. Verify preconditions and produce "
+                    "one exact proposed mutation, including canonical identifiers, arguments, "
+                    "and interval arithmetic, for the designated committer. Do not claim that "
+                    "the external action has already happened. "
+                )
+                if calendar_transaction:
+                    directive += (
+                        "Call calendar.find_first_available_slot and report its event_start "
+                        "exactly; do not manually infer availability or re-fetch individual "
+                        "event fields. "
+                    )
+        repair_directive = str(state.get("self_evolved_repair_directive", "")).strip()
+        if int(state.get("round_index", 0)) > 0 and repair_directive:
+            directive = (
+                f"{directive} TRACE-BACKED REPAIR DIAGNOSIS (untrusted; verify it against "
+                f"the task before acting): {repair_directive} Re-evaluate the prior answer "
+                "specifically against this diagnosis and produce a corrected direct answer."
+            )
+        stage_tool_state = {"tools": stage_tools}
+        if _run_has_get_document(stage_tool_state):
             directive = f"{directive}{_READ_FIRST_DIRECTIVE}"
-        elif _run_has_tools(state):
+        elif _run_has_tools(stage_tool_state):
             directive = f"{directive}{_TOOL_CHAIN_DIRECTIVE}"
+        original_tools = state.get("tools", [])
         try:
+            state["tools"] = stage_tools
             updates = self._engine._execute_agent_stage(
                 state,
                 agent_id=agent_id,
@@ -496,6 +624,8 @@ class TurnExecutor:
                 flush=True,
             )
             return None
+        finally:
+            state["tools"] = original_tools
         artifacts = updates.get("artifacts") or []
         apply_updates(state, updates)
         artifact = artifacts[0] if artifacts else None
@@ -672,12 +802,12 @@ class TurnExecutor:
             return None
         counts: dict[str, int] = {}
         for artifact in artifacts:
-            signature = answer_signature(str(artifact.get("answer", "")))
+            signature = TurnExecutor._decision_answer_signature(str(artifact.get("answer", "")))
             if signature:
                 counts[signature] = counts.get(signature, 0) + 1
 
         def rank(artifact: ArtifactRecord) -> tuple[int, int, float, str]:
-            signature = answer_signature(str(artifact.get("answer", "")))
+            signature = TurnExecutor._decision_answer_signature(str(artifact.get("answer", "")))
             evidence = artifact.get("evidence_summary", [])
             evidence_count = len(evidence) if isinstance(evidence, list) else 0
             used_tools = bool(artifact.get("tool_records"))
@@ -688,7 +818,45 @@ class TurnExecutor:
                 str(artifact.get("agent_id", "")),
             )
 
-        return sorted(artifacts, key=rank, reverse=True)[0]
+        selected = sorted(artifacts, key=rank, reverse=True)[0]
+        selected_text = str(selected.get("answer", ""))
+        explicit = TurnExecutor._last_balanced_final_form(
+            selected_text, commands=(r"\boxed", r"\fbox")
+        )
+        if explicit is not None and selected_text.lstrip().startswith(("{", "```")):
+            # Invalid JSON often leaves LaTeX in a raw wrapper. Project the already
+            # selected explicit final form before a later parser can interpret
+            # backslash escapes as control characters. This changes presentation only.
+            projected = dict(selected)
+            projected["answer"] = rf"\boxed{{{explicit}}}"
+            return projected
+        return selected
+
+    @staticmethod
+    def _decision_answer_signature(text: str) -> str:
+        """Recover an explicit final form before comparing malformed wrappers."""
+
+        boxed = TurnExecutor._last_balanced_final_form(text, commands=(r"\boxed", r"\fbox"))
+        return answer_signature(boxed if boxed is not None else text)
+
+    @staticmethod
+    def _last_balanced_final_form(text: str, *, commands: tuple[str, ...]) -> str | None:
+        starts = [(text.rfind(command), command) for command in commands]
+        start, command = max(starts, key=lambda item: item[0])
+        if start < 0:
+            return None
+        left = text.find("{", start + len(command))
+        if left < 0:
+            return None
+        depth = 0
+        for index in range(left, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[left + 1 : index]
+        return None
 
     @staticmethod
     def _packet_max_chars(state: dict[str, Any]) -> int:

@@ -40,6 +40,8 @@ from .spec import (
 
 logger = logging.getLogger(__name__)
 
+_SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
+
 
 def _principles_section(principles: list[str] | None) -> str:
     """Render benchmark-agnostic playbook principles for a planner prompt."""
@@ -178,7 +180,7 @@ class TopologyPlannerAgent:
         layout = build_layout(topology=fallback_topology, num_agents=num_agents)
         return spec_from_layout(layout, rationale=f"deterministic_fallback:{fallback_topology}")
 
-    # -- mutation proposal (the single trace-backed repair) ---------------------
+    # -- one mutation proposal within the bounded repair loop -------------------
 
     def propose_mutation(
         self,
@@ -191,8 +193,8 @@ class TopologyPlannerAgent:
         skill_text: str | None = None,
     ) -> MutationProposal:
         """Ask the planner LLM for one topology mutation addressing the audit
-        findings. There is no deterministic fallback mutation: an unusable
-        response means no repair (the run finalizes on the current topology)."""
+        findings. If a live model returns an unusable mutation, a conservative
+        deterministic compiler maps grounded findings to one valid repair."""
 
         prompt_messages = self._build_mutation_prompt(
             task=task,
@@ -237,9 +239,36 @@ class TopologyPlannerAgent:
                     llm=llm_payload,
                 )
             fallback_reason = "invalid_or_unparseable_mutation"
+        except ValueError as exc:
+            # Model-authored DSL is untrusted input.  A schema-invalid proposal is
+            # an ordinary compiler rejection, not an engine failure; the grounded
+            # deterministic repair compiler below still gets a chance to recover.
+            logger.info("Rejected invalid topology mutation: %s", exc)
+            fallback_reason = f"invalid_mutation: {exc}"
         except Exception as exc:
-            logger.warning("Mutation planning failed; no repair applied", exc_info=True)
+            logger.warning(
+                "Mutation planning failed; considering deterministic repair compiler",
+                exc_info=True,
+            )
             fallback_reason = str(exc) or "llm_error"
+
+        # Mock mode must remain a deterministic one-pass smoke path; it contains no
+        # model observation worth turning into extra synthetic work.
+        fallback = (
+            None
+            if bool(llm_payload.get("mock_used", False))
+            else self.fallback_mutation(spec, audit_report)
+        )
+        if fallback is not None:
+            fallback.apply(spec, max_agents=int(self.se_config.max_total_agents))
+            return MutationProposal(
+                mutation=fallback,
+                used_fallback=True,
+                fallback_reason=fallback_reason,
+                prompt_messages=prompt_messages,
+                response_text=response_text,
+                llm=llm_payload,
+            )
 
         return MutationProposal(
             mutation=None,
@@ -248,6 +277,113 @@ class TopologyPlannerAgent:
             prompt_messages=prompt_messages,
             response_text=response_text,
             llm=llm_payload,
+        )
+
+    def fallback_mutation(
+        self, spec: TopologySpec, audit_report: dict[str, Any]
+    ) -> TopologyMutation | None:
+        """Compile a conservative repair when the model emits no valid ops.
+
+        This is deliberately topology-generic. The open-set auditor may invent a
+        previously unseen mode name, so the fallback primarily uses trace-local
+        severity, implicated agents, and the current graph shape. Known safety modes
+        receive narrow repairs; other medium/high findings get one adversarial
+        verification or discussion step.
+        """
+
+        repairable_modes = [
+            mode
+            for mode in audit_report.get("detected_modes", [])
+            if _SEVERITY_RANK.get(str(mode.get("severity", "low")), 0) >= 1
+            and bool(mode.get("repairable", True))
+        ]
+        if not repairable_modes:
+            return None
+
+        mode_names = tuple(
+            str(mode.get("mode", "")) for mode in repairable_modes if mode.get("mode")
+        )
+        root = spec.group(spec.root_group_id)
+        agent_count = len(spec.agents)
+        capacity = int(self.se_config.max_total_agents) - agent_count
+        known_agents = {node.agent_id for node in spec.agents}
+        implicated = [
+            str(agent_id)
+            for mode in repairable_modes
+            for agent_id in mode.get("agent_ids", [])
+            if str(agent_id) in known_agents
+        ]
+
+        ops: tuple[MutationOp, ...]
+        rationale: str
+        if "duplicate_state_mutation" in mode_names and root.pattern != "chain":
+            ops = (
+                MutationOp(
+                    op="set_group_pattern",
+                    args={"group_id": root.group_id, "pattern": "chain"},
+                ),
+            )
+            rationale = "Serialize duplicated state-changing work through the root chain."
+        elif "evidence_lost_before_synthesis" in mode_names:
+            target = implicated[0] if implicated else (root.leader_id or root.member_ids[0])
+            ops = (
+                MutationOp(
+                    op="set_context_policy",
+                    args={"agent_id": target, "evidence_access": "global"},
+                ),
+            )
+            rationale = "Restore global evidence visibility at the synthesis bottleneck."
+        elif "branch_collapse" in mode_names and implicated and capacity >= 2:
+            target = next(
+                (agent_id for agent_id in implicated if spec.subgroup_of(agent_id) is None), None
+            )
+            if target is None:
+                return None
+            ops = (
+                MutationOp(
+                    op="expand_agent_to_group",
+                    args={"agent_id": target, "pattern": "chain", "num_subagents": 2},
+                ),
+            )
+            rationale = "Decompose the collapsed branch into a small sequential recovery path."
+        elif root.pattern in {"voting", "chain"} and len(root.member_ids) >= 2:
+            ops = (
+                MutationOp(
+                    op="set_group_pattern",
+                    args={"group_id": root.group_id, "pattern": "debate"},
+                ),
+            )
+            rationale = (
+                "Turn independent or sequential candidates into one adversarial revision "
+                "round for the grounded audit finding."
+            )
+        elif capacity >= 1:
+            ops = (
+                MutationOp(
+                    op="add_agent",
+                    args={
+                        "group_id": root.group_id,
+                        "structural_role": "verifier",
+                        "stage_role": "critic",
+                    },
+                ),
+            )
+            rationale = "Add one independent critic for the grounded audit finding."
+        elif root.pattern != "debate" and len(root.member_ids) >= 2:
+            ops = (
+                MutationOp(
+                    op="set_group_pattern",
+                    args={"group_id": root.group_id, "pattern": "debate"},
+                ),
+            )
+            rationale = "Use the existing agents for adversarial revision at the agent cap."
+        else:
+            return None
+
+        return TopologyMutation(
+            rationale=f"deterministic_repair_compiler: {rationale}",
+            target_failure_modes=mode_names,
+            ops=ops,
         )
 
     def _build_mutation_prompt(
@@ -306,11 +442,17 @@ class TopologyPlannerAgent:
         else:
             experience_block = f"{principles_section}{playbook_section}"
         system_msg = (
-            "You are a topology planner performing the single trace-backed repair of "
+            "You are a topology planner performing one step in a bounded trace-backed "
+            "repair loop for "
             "a multi-agent system. Given the current topology and audit findings, "
             "propose ONE small mutation that addresses the strongest failure signal. "
             "You return only a compact JSON mutation; deterministic code applies and "
             'validates it. If no mutation is clearly useful, return {"ops": []}. '
+            "A repair must have counterfactual information gain. If the current agents "
+            "already queried the same read-only API or structured dataset, do not add or "
+            "expand agents with identical access: change context/decision structure, add "
+            "at most one evidence-checking verifier, or return no mutation. More agents "
+            "cannot repair data that the source did not return. "
             "Weigh the topology planning skill and playbook memories below as "
             "accumulated experience when choosing the repair."
         )
@@ -342,6 +484,8 @@ class TopologyPlannerAgent:
             f"focused subtasks.\n\n"
             f"## Constraints\n"
             f"- At most {budget_left} new agents may be added in total.\n"
+            f"- Do not duplicate a read-only source already exhausted by current agents; "
+            f"every added agent must introduce a distinct evidence source or check.\n"
             f"- Keep the mutation minimal: target the audited failure, nothing else.\n\n"
             f"## Output format\n"
             f"Return ONLY one JSON object:\n"
@@ -371,6 +515,21 @@ class TopologyPlannerAgent:
             if op_name not in MUTATION_OPS:
                 continue
             args = {key: value for key, value in raw.items() if key != "op"}
+            if op_name == "add_agent":
+                # ``verifier`` is the public structural-role vocabulary and models
+                # naturally reuse it for ``stage_role``.  Compile that unambiguous
+                # intent to the schema's execution role instead of rejecting an
+                # otherwise valid bounded mutation.
+                stage_role = str(args.get("stage_role", "worker")).strip().lower()
+                structural_role = str(args.get("structural_role", "worker")).strip().lower()
+                if stage_role in {"verifier", "validator", "reviewer"}:
+                    args["stage_role"] = "critic"
+                elif stage_role not in {"worker", "critic"}:
+                    args["stage_role"] = (
+                        "critic"
+                        if structural_role in {"verifier", "validator", "reviewer"}
+                        else "worker"
+                    )
             ops.append(MutationOp(op=op_name, args=args))
         if not ops:
             return None
@@ -474,7 +633,12 @@ class TopologyPlannerAgent:
             "consensus, weak verification, poor decomposition.\n"
             "Prefer the smallest topology that covers the work — extra agents cost "
             "tokens and can conflict — but DO provision enough agents to cover the task "
-            "(for example, several searchers for broad retrieval). Consult the topology "
+            "(for example, several searchers for broad retrieval). "
+            "Count independent evidence sources, not requested output fields: when one "
+            "read-only API call or structured dataset can supply all fields, assign exactly "
+            "one retriever and at most one verifier over its relayed result; do not send "
+            "parallel agents to repeat the same call. "
+            "Consult the topology "
             "planning skill / accumulated experience below (standing principles, "
             "how-to-choose guidance, and lessons from prior runs); follow it unless this "
             "task clearly calls for otherwise."
@@ -577,6 +741,12 @@ class TopologyPlannerAgent:
     ) -> TopologySpec:
         min_agents = 2 if pattern in {"star", "debate", "voting"} else 1
         root_size = max(min_agents, min(int(num_agents), max_agents))
+        # A two/three-member "vote" is too easy to turn into correlated consensus.
+        # When capacity permits, keep a four-agent quorum so one dissenting route is
+        # observable and the dynamic system does not under-provision the static voting
+        # baseline it is meant to subsume. Tool/OOM caps flow in through max_agents.
+        if pattern == "voting":
+            root_size = max(root_size, min(4, max_agents))
         if pattern == "singleton":
             root_size = 1
 

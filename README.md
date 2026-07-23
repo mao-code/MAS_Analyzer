@@ -496,7 +496,7 @@ Setting `topology = "self_evolved"` in `[mas]` replaces the fixed layout with on
 the system designs per task (`MAS/self_evolved/`). Instead of running a
 hand-picked topology, each run plans its own agent graph from the query, executes
 it, audits its own trace for failure modes, and is allowed a bounded number of
-structural repairs (`repair_budget`, default 3; each repair consumes a turn, so
+structural repairs (`repair_budget`, default 4; each repair consumes a turn, so
 effectively `min(repair_budget, max_turns - 1)`) before finalizing. It flows through the same CLI, artifact
 hierarchy, and `summary.csv` as every other system, so it stays Q/C/D/R/P-comparable
 to SAS and fixed MAS.
@@ -523,8 +523,8 @@ flowchart TD
     Spawn["Orchestrator — code<br/>spawn agents + context policies + init state"]
     Roles["Role Assigner — LLM<br/>domain persona per agent"]
     Execute["Target-MAS agents — LLM<br/>Turn Executor walks the graph<br/>singleton / star / chain / debate / voting"]
-    Audit["Trace Auditor — code (+LLM if audit_mode=llm_judge)<br/>scan trace → process failure modes"]
-    Control{"Control — code<br/>repair recommended? mutation unused? turn left?"}
+    Audit["Trace Auditor — heuristic floor + grounded open-set observer<br/>scan trace → fixed and newly observed failure modes"]
+    Control{"Control — code<br/>repair recommended? budget + turn left?"}
     Mutate["Topology Planner — LLM<br/>propose ONE TopologyMutation → spec v1"]
     Finalize["Finalize — code<br/>vote over candidates"]
     Synth["Final Synthesizer — LLM<br/>evidence-grounded answer"]
@@ -540,7 +540,7 @@ flowchart TD
 
     %% control flow (solid)
     Plan --> Spawn --> Execute --> Audit --> Control
-    Control -- "continue (≤1 repair)" --> Mutate --> Execute
+    Control -- "continue (within elastic repair budget)" --> Mutate --> Execute
     Control -- stop --> Finalize --> Synth --> Maint --> Done
 
     %% reads (dashed)
@@ -577,13 +577,13 @@ Reading the stores off the diagram:
 
 The only LLM agents are the **Planner** (plan + mutate), the **Role Assigner**, the
 **Target-MAS agents**, the **Final Synthesizer**, the **Skill Reflection agent**, and the
-**Auditor** *only* under `audit_mode = "llm_judge"`. Everything else — orchestration,
+**Auditor** under the default `audit_mode = "hybrid"` (or `llm_judge`). Everything else — orchestration,
 control, the maintainer, the updater, visibility — is deterministic code. No agent ever
 sees the benchmark verdict.
 
 ### Turn lifecycle
 
-Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns = 2`):
+Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns = 5` by default):
 
 1. **Plan** — load the long-term skill (`config/topology_skill.md`, or the JSON playbook
    fallback), then the LLM **Topology Planner** proposes a per-task `TopologySpec` (nested
@@ -604,6 +604,14 @@ Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns 
    rationale so it is visible in the trace and the playbook candidate. If the LLM is
    mocked, unparseable, or errors, it falls back to a deterministic spec (`sas` for one
    agent, else `orchestrator_no_discussion`) and flags `used_fallback`.
+   A planned `voting` group uses a four-agent diversity quorum when the effective agent
+   budget permits; tighter tool/OOM caps still win. This prevents a dynamic vote from
+   under-provisioning the four-agent static voting baseline. Debate and voting members also
+   receive distinct independence contracts (direct derivation, alternative representation,
+   falsification, and backward consistency checking), reducing correlated copies of one route.
+   Before agreement counting, MANTA also recovers the last balanced explicit final form from a
+   malformed structured wrapper, so equivalent answers are not split into false minorities by JSON
+   escaping noise.
 2. **Spawn** — project the spec to a real layout, assign domain personas, init state.
 3. **Execute** — the **Turn Executor** walks the graph depth-first and runs each group
    by its pattern (`singleton` / `star` / `chain` / `debate` / `voting`). All agent
@@ -616,12 +624,30 @@ Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns 
    **`insufficient_search_coverage`** (a retrieval run that searched but opened no
    document, or had fewer than two agents searching a broad question) and
    **`duplicate_state_mutation`** (the same `(tool, arguments)` issued by ≥2 agents this
-   turn, i.e. a double-applied write). (`audit_mode = "llm_judge"` adds an LLM
-   refinement pass.) Each mode carries an actionable recommendation (e.g. "add searcher
+   turn, i.e. a double-applied write), and **`unsupported_impossibility_claim`** (a negative
+   conclusion that simultaneously names an untested constructive transformation), and
+   **`unverified_impossibility_consensus`** (every substantive candidate gives up, triggering
+   one bounded adversarial attempt to construct a counterexample before abstention). The
+   default `audit_mode = "hybrid"` also gives an
+   open-set model observer the task, current/prior artifacts, evidence, and tool outcomes.
+   It may name previously unseen failures, but a finding can spend repair budget only when
+   it supplies exact quotes that deterministic code verifies against at least two distinct
+   evidence refs, passes schema/confidence checks, and is structurally repairable. Structured
+   chat prompts are split into `current_task`, `task_instructions`, and `recent_context`, so a
+   few-shot example or earlier interactive step cannot masquerade as the live objective;
+   it cannot erase deterministic findings. The deterministic consensus check is also
+   state-transition aware: confident agreement on an explicit evidence action such as
+   `search: ...` is allowed to execute even though the evidence it requests is necessarily still
+   unresolved; low-confidence actions and unresolved proposed answers remain challengeable. Each
+   mode carries an actionable recommendation (e.g. "add searcher
    workers on different facets", "serialize the write through one executor").
 5. **Control** — deterministic ordered checks decide stop vs. continue. The *only*
-   continue path is: the audit recommends a repair, no mutation has been used yet, and
-   a turn remains. Otherwise the run finalizes.
+   continue path is: the audit recommends a repair, mutation budget remains, and a turn
+   remains. After a mutation, an unchanged semantic decision signature suppresses further
+   agent growth and finalizes from the temporal incumbents; the larger ceiling is therefore
+   reserved for repairs that actually change the decision. A grounded high-risk finding may
+   challenge otherwise decision-grade consensus; deterministic code still owns the decision
+   and all ceilings. Otherwise the run finalizes.
 6. **Mutate** (continue path only) — the planner proposes one `TopologyMutation`
    (e.g. expand a leaf into a star or debate group, change a group pattern, add a
    searcher, collapse parallel workers into a chain to serialize a write). The mutation
@@ -633,16 +659,96 @@ Each run executes this loop (`MAS/self_evolved/engine.py::run`, with `max_turns 
    never deleted — but the graph is otherwise editable in place: `set_group_pattern`
    rewires a group's collaboration mode, `add_edge`/`remove_edge` adjust peer visibility,
    and `set_context_policy` retunes an agent's evidence access. Hard caps:
-   `max_total_agents` and one mutation per run.
-7. **Finalize** — vote over the final candidates (deterministic or judge). Evidence-grounded
+   `max_total_agents`, `repair_budget`, and `max_turns`. If the planner emits unusable
+   mutation JSON, a conservative repair compiler maps the strongest grounded finding to a
+   validated context/topology operation instead of silently dropping the repair. The next
+   turn's agents receive the process diagnosis as explicitly untrusted evidence to verify,
+   so the repair changes both graph structure and the reasoning target.
+7. **Finalize** — vote over one preserved aggregate candidate from every executed turn
+   (deterministic or judge), so a later mutation cannot silently overwrite a better incumbent. Evidence-grounded
    re-synthesis runs not only when the pick is empty/planning/blocked but also on a **weak pick**
    (an unbroken vote tie, winner confidence `< 0.5`, or open unresolved issues), and is skipped
-   when no tool evidence exists — so confident, agreed answers are never disturbed. Then record a
+   when no tool evidence exists — so confident, agreed answers are never disturbed. Failed and
+   partial non-search tool records are retained as bounded negative evidence: they cannot become
+   domain facts, but they drive an **epistemic fallback ladder**: preserve tool-verified entities
+   and fields first; fill only responsibly known, durable missing attributes as explicitly
+   approximate background; otherwise mark the field unknown and provide a part-by-part limitation
+   plus concrete next action. It must not present background knowledge as current, personalized,
+   complete, or tool-verified; high-stakes answers require a safety caveat.
+   When no responsible partial answer is possible, it instead produces a complete failure report
+   covering every requested part, the concrete limitation, any partial result, and a safe next step.
+   Then record a
    **process-only** playbook update candidate (topology shape, auditor modes, termination signals —
    never the eval verdict) into `run_metadata`.
+   If the task itself declares an explicit final-form contract and the selected answer violates it, a
+   format-only enforcer may canonicalize the already-stated claim. It never sees the reference answer,
+   never changes a contract-satisfying candidate, and keeps the incumbent unless the result satisfies
+   the declared template.
 
-The resulting trace reads `plan → spawn → turn 0 → audit → (revise) → turn 1 → finalize`,
+The resulting trace reads `plan → spawn → turn 0 → audit → (revise → execute → audit)* → finalize`,
 with meta-agent tokens/cost on their own events so `C*` includes meta-control overhead.
+Every attempted mutation proposal (including invalid responses and deterministic compiler
+fallbacks) and every applied mutation is retained in metadata for replay.
+
+### Adaptive-repair evidence and evaluation boundary
+
+Development runs validate the mechanism without yet claiming benchmark-wide superiority. A fresh
+PlanCraft seed-42 gate completed **30/30 tasks successfully** with no run failures or fallbacks
+(`manta_adaptive_plancraft_30x1_exhaustive_search_v2`). The same sampled sequence had already become
+mathematically unable to clear the historical static threshold under the old no-search protocol
+(20/28 before stopping); all eight observed failures were false impossibility conclusions, and all
+eight exact failed episodes were rescued after the counterexample challenge plus exhaustive official
+recipe search were enabled. This is encouraging single-seed evidence, not a matched comparison:
+recipe search changes the observation protocol and benefits every topology.
+
+The required matched rerun now confirms that point and supplies a fair current-protocol comparison.
+On the identical 30 PlanCraft tasks, seed 42, Gemma model, five-agent ceiling, five-turn ceiling, and
+official recipe-search observations, both MANTA and the strongest historical static topology
+(`orchestrator_no_discussion`) reached **30/30 success**. MANTA used 86,670 mean tokens versus
+112,189 (22.75% fewer), 131.9 mean trace steps versus 185.5 (28.88% fewer), and 53.5 seconds mean
+latency versus 55.7 seconds (3.86% lower); it won the paired token comparison on 26/30 tasks and the
+step comparison on 28/30. This establishes a quality tie with a substantial efficiency advantage on
+one matched seed, not an all-benchmark or multi-seed victory. The completed MANTA run predates the
+state-transition-aware retrieval exception above, so those cost numbers conservatively include some
+unnecessary deliberation before executing agreed `search:` actions.
+
+StableToolBench exact-seed replays target four systematic historical MANTA failure clusters
+(`7658`, `13095`, `3510`, and `12204`; three original seeds each). The prior code solved 2/12 of
+these episodes. The adaptive branch now receives a solved FAC verdict on 12/12: 11 runs are clean,
+while one advertising run is correctly answered but marked `llm_or_tool_fallback` and still requires
+a clean rerun. The recoveries came from three generic substrate/control changes rather than hidden
+labels: structured future-tool plans now trigger the mandatory tool-use retry; the finalizer uses the
+epistemic fallback ladder above instead of a global refusal; and topology planning counts independent
+evidence sources rather than output fields, assigning a single retriever (plus at most one verifier)
+when one structured dataset supplies the task. These ten recovered episodes exceed the historical
+three-win deficit to the best static StableToolBench topology if every other outcome holds, but that
+counterfactual is not a result—the full matched gate is still required to measure regressions.
+
+The gate also exposed why an adaptive budget needs grounded control. Before quote anchoring, one
+successful two-step episode (`VAL0229`) spent four internal turns and 64,096 tokens because the
+open-set auditor confused a few-shot `iron_ingot` example with the live `cooked_salmon` task. After
+separating structured prompt sections and verifying exact evidence quotes, an exact-seed replay kept
+the success while using two turns and 29,962 tokens (53% fewer). This is a one-episode substrate
+regression, not an aggregate cost claim; the pre-fix 30-task gate averaged 155,985 tokens and 136.6
+seconds per task, so cost-aware matched evaluation remains necessary.
+
+A separate three-example Math500 smoke solved two historically weak examples but left one geometry
+example wrong after four agents reproduced the same arithmetic error. The latter is an important
+limitation: more agents and open-set auditing do not guarantee genuinely independent reasoning.
+
+Establishing that MANTA beats every static MAS requires a matched, multi-seed run on the same
+benchmark snapshots and budgets. The appropriate study is an ablation of the prior MANTA settings,
+hybrid audit only, adaptive repair only, temporal incumbents only, and the full system, reporting both
+success and the existing Q/C/D/R/P descriptors. Benchmark verdicts must remain post-run evaluation
+signals, never inputs to planning, auditing, control, or playbook retrieval.
+
+For PlanCraft, the adapter enables a read-only `search: <item>` action over upstream's official
+`RECIPES` objects by default (`[plancraft].recipe_search = true`). Search renders every accepted
+ingredient alternative (rather than upstream's randomly sampled single valid grid), returns the
+recipe as another environment observation, and consumes a step; it does not reveal the held-out
+possibility label, optimal path, reward, or reference answer. Historical runs made before this
+option was introduced used `recipe_search = false`, so publication comparisons must rerun every
+topology under the same setting rather than mixing protocols.
 
 ### Playbook (two timescales)
 
@@ -768,11 +874,12 @@ code, independent of the prompt:
 harness_backend = "openrouter"   # or "claude_agent_sdk"
 max_initial_agents = 5
 max_total_agents = 10            # hard cap on topology size after mutations
-max_turns = 3                    # 1 initial turn + up to (max_turns - 1) repair turns; the
+max_turns = 5                    # 1 initial turn + up to (max_turns - 1) repair turns; the
                                  # controller stops early on a decision-grade answer.
                                  # Retrieval tasks are force-capped to 1 turn (OOM guard).
-repair_budget = 3                # repair mutations per run; effective = min(repair_budget, max_turns - 1)
-audit_mode = "heuristic"         # or "llm_judge"
+repair_budget = 4                # repair mutations per run; effective = min(repair_budget, max_turns - 1)
+audit_mode = "hybrid"            # grounded open-set observer + heuristic safety floor;
+                                 # alternatives: "heuristic" or "llm_judge"
 playbook_path = "config/topology_playbook.json"
 skill_path = "config/topology_skill.md"   # the long-term agent-maintained skill
 playbook_read = true             # planner reads the skill (used in BOTH plan and mutation)

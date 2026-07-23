@@ -9,6 +9,7 @@ unbiased topology comparison:
 """
 
 import json
+import os
 import types
 import unittest
 from unittest import mock
@@ -60,6 +61,23 @@ class TestBuildArtifactFallbacks(unittest.TestCase):
         self.assertEqual(art["answer"], "just plain text answer")
         self.assertEqual(art["status"], "fallback")
 
+    def test_structured_answer_artifact_is_serialized_as_json(self) -> None:
+        art = _artifact(
+            json.dumps(
+                {
+                    "answer_artifact": {
+                        "categories": ["Electronics"],
+                        "products": [{"id": 893292, "name": "TV"}],
+                    }
+                }
+            )
+        )
+
+        self.assertEqual(
+            json.loads(art["answer"]),
+            {"categories": ["Electronics"], "products": [{"id": 893292, "name": "TV"}]},
+        )
+
 
 class TestSearchSnippetBudget(unittest.TestCase):
     def _client(self) -> OpenRouterLLMClient:
@@ -88,8 +106,41 @@ class TestSearchSnippetBudget(unittest.TestCase):
         self.assertGreater(len(compact["text_preview"]), 5000)
 
 
+class TestOpenRouterSamplingOverrides(unittest.TestCase):
+    def _client(self) -> OpenRouterLLMClient:
+        return OpenRouterLLMClient(OpenRouterConfig(), {"default": "openai/gpt-4o-mini"})
+
+    def test_completion_ceiling_is_applied(self) -> None:
+        client = self._client()
+        with mock.patch.dict(os.environ, {"OPENROUTER_MAX_TOKENS": "1024"}, clear=False):
+            request = client._apply_openrouter_sampling_overrides(
+                {"model": "test-model"}, temperature=0.0
+            )
+
+        self.assertEqual(request["max_tokens"], 1024)
+
+    def test_completion_ceiling_has_safe_default(self) -> None:
+        client = self._client()
+        with mock.patch.dict(os.environ, {}, clear=True):
+            request = client._apply_openrouter_sampling_overrides(
+                {"model": "test-model"}, temperature=0.0
+            )
+
+        self.assertEqual(request["max_tokens"], 4096)
+
+    def test_nonpositive_completion_ceiling_is_rejected(self) -> None:
+        client = self._client()
+        with (
+            mock.patch.dict(os.environ, {"OPENROUTER_MAX_TOKENS": "0"}, clear=False),
+            self.assertRaisesRegex(ValueError, "must be >= 1"),
+        ):
+            client._apply_openrouter_sampling_overrides({"model": "test-model"}, temperature=0.0)
+
+
 class TestLatestArtifactRecency(unittest.TestCase):
-    def _mk(self, *, round_index: int, discussion: int, dispatch: int, node: str, answer: str) -> ArtifactRecord:
+    def _mk(
+        self, *, round_index: int, discussion: int, dispatch: int, node: str, answer: str
+    ) -> ArtifactRecord:
         return ArtifactRecord(
             artifact_id=f"{round_index}-{discussion}-{dispatch}-{node}",
             agent_id="agent_0",
@@ -149,9 +200,7 @@ class TestEmptyCompletionContract(unittest.TestCase):
                 calls["n"] += 1
                 return seq[idx]
 
-        client.client = types.SimpleNamespace(
-            chat=types.SimpleNamespace(completions=_Chat())
-        )
+        client.client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=_Chat()))
         return client, calls
 
     def setUp(self) -> None:

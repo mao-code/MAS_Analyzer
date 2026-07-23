@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from benchmark.base import BenchmarkTask
 from benchmark.plancraft import PlancraftBenchmark
+from benchmark.plancraft.search import exhaustive_recipe_search
 
 
 class TestPlancraftBenchmark(unittest.TestCase):
@@ -28,6 +29,22 @@ class TestPlancraftBenchmark(unittest.TestCase):
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0].task_id, "VAL0001")
         self.assertIn("oak_planks", tasks[0].prompt)
+        self.assertTrue(tasks[0].metadata["recipe_search"])
+        self.assertIn("search: <recipe name>", bench._system_prompt_text)
+
+    def test_recipe_search_can_be_disabled_for_historical_protocol_replay(self) -> None:
+        bench = PlancraftBenchmark({"recipe_search": False})
+
+        self.assertNotIn("search: <recipe name>", bench._system_prompt_text)
+        self.assertNotIn("search", [handler.action_name for handler in bench._action_handlers])
+
+    def test_recipe_search_lists_all_accepted_shaped_alternatives(self) -> None:
+        result = exhaustive_recipe_search("red_sandstone_slab")
+
+        self.assertIn("chiseled_red_sandstone|red_sandstone at [A1]", result)
+        self.assertIn("chiseled_red_sandstone|red_sandstone at [A2]", result)
+        self.assertIn("chiseled_red_sandstone|red_sandstone at [A3]", result)
+        self.assertIn("produces 6 red_sandstone_slab", result)
 
     def test_evaluate_success(self) -> None:
         task = BenchmarkTask(

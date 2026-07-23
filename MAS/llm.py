@@ -56,6 +56,8 @@ class _EmptyCompletionError(RuntimeError):
 class OpenRouterLLMClient:
     """OpenRouter chat client with deterministic local fallback."""
 
+    _DEFAULT_MAX_COMPLETION_TOKENS = 4096
+
     def __init__(self, config: OpenRouterConfig, models: dict[str, str]) -> None:
         self.config = config
         self.models = dict(models)
@@ -149,6 +151,7 @@ class OpenRouterLLMClient:
         temperature_override = self._env_float("OPENROUTER_TEMPERATURE")
         top_p_override = self._env_float("OPENROUTER_TOP_P")
         top_k_override = self._env_int("OPENROUTER_TOP_K")
+        max_tokens_override = self._env_int("OPENROUTER_MAX_TOKENS")
         reasoning_effort_override = self._env_str("OPENROUTER_REASONING_EFFORT")
 
         effective_temperature = (
@@ -162,6 +165,14 @@ class OpenRouterLLMClient:
             extra_body = dict(request_kwargs.get("extra_body") or {})
             extra_body["top_k"] = top_k_override
             request_kwargs["extra_body"] = extra_body
+        max_tokens = (
+            max_tokens_override
+            if max_tokens_override is not None
+            else self._DEFAULT_MAX_COMPLETION_TOKENS
+        )
+        if max_tokens < 1:
+            raise ValueError("OPENROUTER_MAX_TOKENS must be >= 1")
+        request_kwargs["max_tokens"] = max_tokens
         if reasoning_effort_override is not None:
             extra_body = dict(request_kwargs.get("extra_body") or {})
             extra_body["reasoning"] = {
@@ -330,7 +341,9 @@ class OpenRouterLLMClient:
                 return result
 
         if self.require_live:
-            raise RuntimeError("Live OpenRouter generation is required but the client is unavailable.")
+            raise RuntimeError(
+                "Live OpenRouter generation is required but the client is unavailable."
+            )
 
         result = self._mock_result(
             prompt=prompt,
@@ -557,20 +570,22 @@ class OpenRouterLLMClient:
             for tool_call in serialized_tool_calls:
                 fn = tool_call["function"]
                 api_tool_name = str(fn.get("name") or "")
-                tool_name = original_tool_names.get(api_tool_name, api_tool_name)
+                handler_key = self._resolve_emitted_tool_name(api_tool_name, tool_handlers)
+                tool_name = original_tool_names.get(handler_key, handler_key)
                 tool_id = str(tool_call.get("id") or "")
                 args_text = str(fn.get("arguments") or "{}")
                 try:
                     args = json.loads(args_text) if args_text.strip() else {}
                     if not isinstance(args, dict):
                         args = {"value": args}
+                    args = self._normalize_tool_arguments(args)
                 except Exception:
                     args = {}
 
                 status = "completed"
                 error = None
                 output: Any
-                handler = tool_handlers.get(api_tool_name)
+                handler = tool_handlers.get(handler_key)
                 if handler is None:
                     status = "error"
                     error = f"Unknown tool: {tool_name}"
@@ -701,12 +716,9 @@ class OpenRouterLLMClient:
                     self._env_int("MAS_SEARCH_STAGNATION_CONSECUTIVE") or 2,
                 )
                 if search_fingerprint:
-                    if (
-                        previous_search_fingerprint is not None
-                        and self._search_results_stagnated(
-                            previous_search_fingerprint,
-                            search_fingerprint,
-                        )
+                    if previous_search_fingerprint is not None and self._search_results_stagnated(
+                        previous_search_fingerprint,
+                        search_fingerprint,
                     ):
                         consecutive_stagnant_search_iterations += 1
                     else:
@@ -854,9 +866,7 @@ class OpenRouterLLMClient:
                 details = self._parse_stop_reason_details(stop_reason)
                 failed_tool = str(details.get("tool", ""))
                 metadata["tool_failure_tool_name"] = failed_tool
-                metadata["tool_failure_consecutive_count"] = int(
-                    details.get("consecutive", 0) or 0
-                )
+                metadata["tool_failure_consecutive_count"] = int(details.get("consecutive", 0) or 0)
                 metadata["tool_failure_limit"] = int(details.get("limit", 0) or 0)
                 metadata["tool_failure_is_search"] = self._is_search_tool_name(failed_tool)
                 if metadata["tool_failure_is_search"]:
@@ -1167,7 +1177,9 @@ class OpenRouterLLMClient:
                 )
 
             if output.get("url"):
-                compact["url"] = self._preview_text(output.get("url"), limit=min(120, preview_chars))
+                compact["url"] = self._preview_text(
+                    output.get("url"), limit=min(120, preview_chars)
+                )
             if output.get("error"):
                 compact["error"] = self._preview_text(output.get("error"), limit=preview_chars)
 
@@ -1245,9 +1257,13 @@ class OpenRouterLLMClient:
             lines.append("Evidence snapshot:")
             lines.extend(f"- {line}" for line in evidence_lines)
         if stop_reason and stop_reason.startswith("search_results_stagnated:"):
-            lines.append("Best-effort conclusion: insufficient evidence from the gathered search results.")
+            lines.append(
+                "Best-effort conclusion: insufficient evidence from the gathered search results."
+            )
         else:
-            lines.append("Best-effort conclusion: insufficient evidence to provide a reliable final answer.")
+            lines.append(
+                "Best-effort conclusion: insufficient evidence to provide a reliable final answer."
+            )
         return "\n".join(lines)
 
     def _preview_document_text(self, value: Any, *, limit: int) -> str:
@@ -1355,9 +1371,7 @@ class OpenRouterLLMClient:
     @staticmethod
     def _looks_evidence_blocked(text: str) -> bool:
         lowered = str(text or "").lower()
-        return any(
-            marker in lowered for marker in OpenRouterLLMClient._READ_GATE_BLOCKED_MARKERS
-        )
+        return any(marker in lowered for marker in OpenRouterLLMClient._READ_GATE_BLOCKED_MARKERS)
 
     @staticmethod
     def _records_have_successful_read(records: list[dict[str, Any]]) -> bool:
@@ -1517,7 +1531,7 @@ class OpenRouterLLMClient:
                     return completion
                 raise _EmptyCompletionError("provider returned an empty completion")
             except _EmptyCompletionError:
-                delay_s = min(max_backoff_s, backoff_s * (2 ** attempt_index))
+                delay_s = min(max_backoff_s, backoff_s * (2**attempt_index))
                 jitter_factor = random.uniform(0.75, 1.35) if delay_s else 0.0
                 sleep_s = delay_s * jitter_factor if delay_s else 0.0
                 self._log(
@@ -1533,7 +1547,7 @@ class OpenRouterLLMClient:
                 if attempt_index >= min(attempts, timeout_attempts) - 1:
                     raise
                 retry_after_s = self._retry_after_seconds(exc)
-                delay_s = min(max_backoff_s, backoff_s * (2 ** attempt_index))
+                delay_s = min(max_backoff_s, backoff_s * (2**attempt_index))
                 if retry_after_s is not None:
                     delay_s = min(max_backoff_s, max(delay_s, retry_after_s))
                 jitter_factor = random.uniform(0.75, 1.35) if delay_s else 0.0
@@ -1552,7 +1566,7 @@ class OpenRouterLLMClient:
                 if attempt_index >= attempts - 1 or not self._is_retryable_llm_error(exc):
                     raise
                 retry_after_s = self._retry_after_seconds(exc)
-                delay_s = min(max_backoff_s, backoff_s * (2 ** attempt_index))
+                delay_s = min(max_backoff_s, backoff_s * (2**attempt_index))
                 if retry_after_s is not None:
                     delay_s = min(max_backoff_s, max(delay_s, retry_after_s))
                 jitter_factor = random.uniform(0.75, 1.35) if delay_s else 0.0
@@ -1575,10 +1589,7 @@ class OpenRouterLLMClient:
         # On worker threads (LangGraph Send branches) SIGALRM is unavailable, so
         # we run the HTTP call in a disposable thread and join with a timeout.
         # This ensures every API call is bounded regardless of which thread calls it.
-        if (
-            timeout_value > 0.0
-            and threading.current_thread() is not threading.main_thread()
-        ):
+        if timeout_value > 0.0 and threading.current_thread() is not threading.main_thread():
             # Do NOT use the context-manager form of ThreadPoolExecutor here.
             # Its __exit__ calls shutdown(wait=True), which would block forever
             # waiting for the background API thread even after a timeout fires.
@@ -1659,10 +1670,7 @@ class OpenRouterLLMClient:
         previous_delay, previous_interval = signal.setitimer(signal.ITIMER_REAL, 0.0)
 
         def _handle_timeout(signum: int, frame: Any) -> None:
-            self._log(
-                "TIMEOUT "
-                f"mode=main_thread timeout_s={timeout_value:.3f}"
-            )
+            self._log(f"TIMEOUT mode=main_thread timeout_s={timeout_value:.3f}")
             raise _HardTimeoutExpired(
                 f"LLM request exceeded configured timeout of {timeout_value:.3f}s"
             )
@@ -1689,6 +1697,49 @@ class OpenRouterLLMClient:
             suffix += 1
         used_names.add(candidate)
         return candidate
+
+    @staticmethod
+    def _resolve_emitted_tool_name(
+        name: str, handlers: dict[str, Callable[[dict[str, Any]], Any]]
+    ) -> str:
+        """Recover a known tool when a provider appends harmless punctuation."""
+
+        if name in handlers:
+            return name
+        stripped = re.sub(r"[^a-zA-Z0-9_-]+$", "", str(name or "").strip())
+        if stripped in handlers:
+            return stripped
+        return name
+
+    @staticmethod
+    def _normalize_tool_arguments(args: dict[str, Any]) -> dict[str, Any]:
+        """Repair harmless provider quoting around argument keys and identifiers."""
+
+        normalized: dict[str, Any] = {}
+        for key, value in args.items():
+            original = str(key).strip()
+            repaired = original
+            while (
+                len(repaired) >= 2
+                and repaired[0] == repaired[-1]
+                and repaired[0] in {'"', "'", "`"}
+            ):
+                repaired = repaired[1:-1].strip()
+            normalized_value = value
+            identifier_key = repaired.lower() in {"id", "docid"} or repaired.lower().endswith(
+                "_id"
+            )
+            if identifier_key and isinstance(value, str):
+                normalized_value = value.strip()
+                while (
+                    len(normalized_value) >= 2
+                    and normalized_value[0] == normalized_value[-1]
+                    and normalized_value[0] in {'"', "'", "`"}
+                ):
+                    normalized_value = normalized_value[1:-1].strip()
+            if repaired not in normalized or repaired == original:
+                normalized[repaired] = normalized_value
+        return normalized
 
     @staticmethod
     def _completion_has_usable_choice(completion: Any) -> bool:

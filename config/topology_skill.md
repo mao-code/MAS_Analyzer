@@ -55,3 +55,7 @@ simplest viable alternative.
 
 Concrete patterns learned from prior runs, with the evidence behind them. The reflection
 agent grows and prunes this list.
+
+- **Prefer voting over singleton or debate for tool-less reasoning.** Sequential or interactive topologies (chain/2, debate/2, star/2) and singletons correlate with higher process failure rates in tool-less reasoning contexts. Evidence shows `voting/3` and `voting/4` running clean 35/35 in these settings, while `singleton/1` (0/6), `debate/2` (0/4), and `star/2` (0/1) have triggered process failures.
+- **Minimize topology complexity to avoid signal loss.** Inefficient or over-provisioned structures correlate strongly with `message_compaction_loss` (flagged repeatedly across runs). Keep the topology lean to ensure evidence is preserved through the pipeline without being truncated or lost during synthesis.
+- **Include explicit validation for high-precision tasks.** Relying on implicit aggregation without a dedicated validator can trigger process failures; the auditor has flagged `missing_validator` when topologies lacked a distinct verification step to audit the final synthesis.

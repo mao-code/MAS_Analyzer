@@ -82,6 +82,9 @@ class TestMASConfig(unittest.TestCase):
         self.assertEqual(cfg.models["default"], "openai/gpt-4o-mini")
         self.assertEqual(cfg.mas.termination_consensus_mode, "llm_judge")
         self.assertEqual(cfg.mas.final_vote_mode, "llm_judge")
+        self.assertEqual(cfg.self_evolved.max_turns, 5)
+        self.assertEqual(cfg.self_evolved.repair_budget, 4)
+        self.assertEqual(cfg.self_evolved.audit_mode, "hybrid")
 
     def test_env_override_api_key(self) -> None:
         path = self._write(

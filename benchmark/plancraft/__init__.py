@@ -20,6 +20,7 @@ The agent interacts via text:
     - Observation: text inventory + target item description
     - Action: "move: from [I2] to [A1] with quantity 3"
             | "smelt: from [I5] to [I6] with quantity 1"
+            | "search: cyan_stained_glass_pane"
             | "impossible: <reason>"
 
 Evaluation:
@@ -57,6 +58,7 @@ class PlancraftBenchmark:
                         "val", "test", "val.small", "test.small"
         max_steps       Max steps per episode (default: 30)
         resolution      Image resolution "high" or "low" (default: "high")
+        recipe_search   Enable upstream's read-only recipe search action (default: true)
     """
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
@@ -64,6 +66,7 @@ class PlancraftBenchmark:
         self.split: str = str(cfg.get("split", "val"))
         self.max_steps: int = int(cfg.get("max_steps", 30))
         self.resolution: str = str(cfg.get("resolution", "high"))
+        self.recipe_search: bool = bool(cfg.get("recipe_search", True))
 
         # Cache examples for get_environment()
         self._examples: list | None = None
@@ -80,13 +83,21 @@ class PlancraftBenchmark:
                 get_system_prompt,
             )
 
-            handlers = [MoveActionHandler(), SmeltActionHandler(), ImpossibleActionHandler()]
-            self._system_prompt_text = get_system_prompt(handlers)["content"]
+            from .search import ExhaustiveRecipeSearchActionHandler
+
+            self._action_handlers = [MoveActionHandler(), SmeltActionHandler()]
+            if self.recipe_search:
+                self._action_handlers.append(ExhaustiveRecipeSearchActionHandler())
+            self._action_handlers.append(ImpossibleActionHandler())
+            self._system_prompt_text = get_system_prompt(self._action_handlers)["content"]
 
             # Retrieve official few-shot examples as dict array
-            self._few_shot_messages = get_prompt_example(handlers, use_text_inventory=True)
+            self._few_shot_messages = get_prompt_example(
+                self._action_handlers, use_text_inventory=True
+            )
         except ImportError:
             logger.warning("Failed to import PlanCraft system prompt tools.")
+            self._action_handlers = []
             self._few_shot_messages = []
 
     def load_tasks(self, task_limit: int | None = None) -> Sequence[BenchmarkTask]:
@@ -106,6 +117,7 @@ class PlancraftBenchmark:
                 "impossible": ex.impossible,
                 "target": ex.target,
                 "inventory": dict(ex.slotted_inventory),
+                "recipe_search": self.recipe_search,
             }
             tasks.append(
                 BenchmarkTask(
@@ -151,6 +163,7 @@ class PlancraftBenchmark:
 
         return PlancraftGymWrapper(
             example=example,
+            actions=self._action_handlers,
             max_steps=self.max_steps,
             resolution=self.resolution,
             use_text_inventory=True,
@@ -294,7 +307,8 @@ class PlancraftBenchmark:
                 "PlanCraft is a multi-step interactive environment.",
                 "The runner must call get_environment() and drive the step loop.",
                 "Adapter uses PlancraftGymWrapper + official prompt helpers (not full Evaluator parity).",
-                "Agent actions: move, smelt, impossible.",
+                "Agent actions: move, smelt, search, impossible.",
+                "Official read-only recipe search is enabled by default (recipe_search=true).",
                 "Upstream README (2025-11-07) notes original paper baseline scores were underreported; re-run baselines for fair comparison.",
             ],
         }

@@ -61,7 +61,7 @@ deterministic lexical voting when the judge is mocked or returns unusable JSON.
   and validation live in `MAS/config.py`; `validate()` is the gate for legal values.
 - `[self_evolved]` configures the dynamic topology system (`topology = "self_evolved"`):
   `harness_backend` (`openrouter` / `claude_agent_sdk`), `max_initial_agents`, `max_total_agents`,
-  `max_turns` (1–10, default 3), `repair_budget` (default 3; effective repairs =
+  `max_turns` (1–10, default 5), `repair_budget` (default 4; effective repairs =
   `min(repair_budget, max_turns - 1)`), `audit_mode`, `playbook_path` (default `config/topology_playbook.json`).
   Dataclass `SelfEvolvedConfig` in `MAS/config.py`.
 
@@ -87,10 +87,11 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   An LLM Topology Planner (`planner.py`) *analyzes the task* (type / attributes / failure risks) and
   proposes a per-task `TopologySpec` (`spec.py`) using general, task-characteristic topology guidance
   (no benchmark names); deterministic orchestrator code (`engine.py`) spawns and runs it via `TurnExecutor`
-  (`executor.py`), a Trace Auditor (`auditor.py`) flags process failure modes (incl.
-  `insufficient_search_coverage` and `duplicate_state_mutation`), and trace-backed repair mutations run
-  before finalize, bounded by `repair_budget` (default 3) and `max_turns` — effective repairs =
-  `min(repair_budget, max_turns - 1)`, so defaults 3/3 allow up to 2. Three correctness nets live in code, not the prompt: `TurnExecutor` dedups
+  (`executor.py`), a hybrid Trace Auditor (`auditor.py`) combines deterministic modes with grounded
+  open-set observations, and trace-backed repair mutations run before finalize, bounded by
+  `repair_budget` (default 4) and `max_turns` (default 5). Invalid model mutations use a conservative
+  repair compiler, and one candidate per turn is preserved for temporal final voting. Correctness nets
+  live in code, not the prompt: `TurnExecutor` dedups
   identical `(tool, args)` calls per run so a write replays once; retrieval keeps the full agent budget
   (single turn) for search breadth; and a finalize **read-net** opens the top surfaced docids and feeds full
   text to the synthesizer when a retrieval run answered without reading. Visibility is pure code

@@ -121,7 +121,7 @@ class TestBrowseCompBenchmark(unittest.TestCase):
                 "evidence_docs": [
                     {
                         "docid": "generic",
-                        "text": "The institution was in the city and it was the place of the event.",
+                        "text": "The institution was in the city and displayed moss at an event.",
                         "url": "u",
                     }
                 ],
@@ -148,6 +148,9 @@ class TestBrowseCompBenchmark(unittest.TestCase):
             self.assertEqual(results[0]["docid"], "gold")
             self.assertIn("alpine moss samples", results[0]["snippet"])
             self.assertEqual(search({"query": "zzzxxyy unlikelytoken"}), [])
+
+            expanded = search({"query": "moss", "k": 2})
+            self.assertEqual(len(expanded), 2)
 
     def test_substring_normalization_tolerates_accents_and_hyphens(self) -> None:
         self.assertTrue(

@@ -226,9 +226,7 @@ class TopologyPlaybook:
         if ran_pattern:
             stats = entry.setdefault("pattern_stats", {})
             pat_key = json.dumps(ran_pattern, sort_keys=True)
-            stat = stats.setdefault(
-                pat_key, {"pattern": dict(ran_pattern), "runs": 0, "clean": 0}
-            )
+            stat = stats.setdefault(pat_key, {"pattern": dict(ran_pattern), "runs": 0, "clean": 0})
             stat["runs"] = int(stat.get("runs", 0)) + 1
             stat["clean"] = int(stat.get("clean", 0)) + int(clean)
             ranked = sorted(
@@ -284,6 +282,7 @@ class PlaybookMaintainer:
         spec_versions: list[dict[str, Any]],
         audit_reports: list[dict[str, Any]],
         mutation_payload: dict[str, Any] | None,
+        mutation_payloads: list[dict[str, Any]],
         termination_decision: dict[str, Any],
     ) -> dict[str, Any]:
         audit_modes = sorted(
@@ -294,14 +293,20 @@ class PlaybookMaintainer:
                 if mode.get("mode")
             }
         )
-        mutation_summary = ""
-        if mutation_payload and mutation_payload.get("mutation"):
-            ops = mutation_payload["mutation"].get("ops", [])
-            mutation_summary = ",".join(
+        mutation_summaries: list[str] = []
+        history = list(mutation_payloads or ([mutation_payload] if mutation_payload else []))
+        for payload in history:
+            if not payload.get("mutation"):
+                continue
+            ops = payload["mutation"].get("ops", [])
+            summary = ",".join(
                 f"{op.get('op')}:{op.get('args', {}).get('pattern', '')}".rstrip(":")
                 for op in ops
                 if isinstance(op, dict)
             )
+            if summary:
+                mutation_summaries.append(summary)
+        mutation_summary = " -> ".join(mutation_summaries)
         return {
             "key": key,
             "benchmark": benchmark_name,

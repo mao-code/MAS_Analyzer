@@ -85,8 +85,10 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
 - **`MAS/self_evolved/`** — query-conditioned **dynamic topology** system (`topology = "self_evolved"`).
   An LLM Topology Planner (`planner.py`) proposes a per-task `TopologySpec` (`spec.py`); deterministic
   orchestrator code (`engine.py`) spawns and runs it via `TurnExecutor` (`executor.py`), a Trace Auditor
-  (`auditor.py`) flags process failure modes, and **at most one** trace-backed repair mutation runs before
-  finalize. Visibility is pure code (`context.py`); learning lives in `config/topology_playbook.json`,
+  (`auditor.py`) combines deterministic failure modes with trace-grounded open-set observations, and
+  bounded trace-backed repair mutations run before finalize. Invalid model mutations use a conservative
+  repair compiler, and temporal final voting preserves one candidate per turn. Visibility is pure code
+  (`context.py`); learning lives in `config/topology_playbook.json`,
   read at plan time and written **only** post-hoc by `scripts/update_topology_playbook.py`. The
   orchestration is deterministic (agents never decide termination); `benchmark.evaluate(...).success`
   stays the sole correctness authority. See the "Self-evolved topology system" section + diagram in `README.md`.
