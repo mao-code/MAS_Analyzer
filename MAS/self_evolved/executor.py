@@ -561,16 +561,22 @@ class TurnExecutor:
                     f"{directive} TRANSACTION COMMITTER CONTRACT: You are the only stage allowed "
                     "to change external state. Reconcile the reader reports, verify every "
                     "precondition with read tools, and perform exactly the requested mutation "
-                    "once. For calendar availability, compute each occupied interval as "
+                    "once. The mutation is conditional: if the task's trigger condition does not "
+                    "hold (for example the entity was already contacted, the record already "
+                    "exists, or the requested change is already in place), perform NO mutation "
+                    "and state that verified conclusion as the final answer. For calendar "
+                    "availability, compute each occupied interval as "
                     "[event_start, event_start + duration] and choose the first requested-length "
                     "gap after all overlaps end; never treat an event's start as its end. Do not "
-                    "stop at a plan or claim success until the mutation tool succeeds. "
+                    "stop at a plan or claim success until the mutation tool succeeds or you "
+                    "have verified that no mutation is required. "
                 )
                 if calendar_transaction:
                     directive += (
-                        "You MUST call calendar.find_first_available_slot for availability and "
-                        "use its event_start exactly; do not manually infer the gap or re-fetch "
-                        "individual event fields. Then call calendar.create_event at that verified "
+                        "For availability, call calendar.find_first_available_slot (duration is "
+                        "whole minutes, e.g. '30') and use its event_start exactly; do not "
+                        "manually infer the gap or re-fetch individual event fields. If and only "
+                        "if the booking is required, call calendar.create_event at that verified "
                         "start time. "
                     )
             else:
@@ -578,7 +584,9 @@ class TurnExecutor:
                     f"{directive} READ-ONLY TRANSACTION CONTRACT: State-changing tools are "
                     "intentionally unavailable in this stage. Verify preconditions and produce "
                     "one exact proposed mutation, including canonical identifiers, arguments, "
-                    "and interval arithmetic, for the designated committer. Do not claim that "
+                    "and interval arithmetic, for the designated committer — or, if the "
+                    "verified preconditions show the task's trigger condition does not hold, "
+                    "report that no mutation is needed and cite the evidence. Do not claim that "
                     "the external action has already happened. "
                 )
                 if calendar_transaction:
