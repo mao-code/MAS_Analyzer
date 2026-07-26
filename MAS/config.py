@@ -166,6 +166,10 @@ class SelfEvolvedConfig:
     """Settings for the self-evolved topology system (topology = "self_evolved")."""
 
     harness_backend: str = "openrouter"
+    # ``fixed`` skips the LLM initial-planning call and uses the deterministic
+    # coordinator-worker fallback while leaving auditing and repair unchanged.
+    # This is an ablation-only control for task-conditioned topology planning.
+    initial_planner_mode: str = "task_conditioned"
     max_initial_agents: int = 5
     max_total_agents: int = 10
     # Outer orchestration (EXECUTE -> AUDIT -> CONTROL -> MUTATE) turns: one initial
@@ -200,6 +204,10 @@ class SelfEvolvedConfig:
         if self.harness_backend not in {"openrouter", "claude_agent_sdk"}:
             raise ValueError(
                 "self_evolved.harness_backend must be one of: openrouter, claude_agent_sdk"
+            )
+        if self.initial_planner_mode not in {"task_conditioned", "fixed"}:
+            raise ValueError(
+                "self_evolved.initial_planner_mode must be one of: task_conditioned, fixed"
             )
         if self.max_initial_agents < 1:
             raise ValueError("self_evolved.max_initial_agents must be >= 1")
@@ -345,6 +353,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     self_evolved_raw = _as_dict(data.get("self_evolved"), "[self_evolved]")
     self_evolved = SelfEvolvedConfig(
         harness_backend=str(self_evolved_raw.get("harness_backend", "openrouter")),
+        initial_planner_mode=str(self_evolved_raw.get("initial_planner_mode", "task_conditioned")),
         max_initial_agents=int(self_evolved_raw.get("max_initial_agents", 5)),
         max_total_agents=int(self_evolved_raw.get("max_total_agents", 10)),
         max_turns=int(self_evolved_raw.get("max_turns", 5)),

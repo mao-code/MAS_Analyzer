@@ -52,7 +52,11 @@ from .planner import TopologyPlannerAgent
 from .playbook import PlaybookMaintainer, ShortTermTopologyPlaybook, TopologyPlaybook, task_key
 from .retrieval import augment_with_constraint_search
 from .spec import AgentNode, ContextPolicy, GroupSpec, TopologySpec
-from .transaction import augment_with_transaction_tools
+from .transaction import (
+    augment_with_transaction_tools,
+    calendar_scheduling_mode,
+    successful_mutation_record,
+)
 
 
 class SelfEvolvedEngine:
@@ -85,8 +89,10 @@ class SelfEvolvedEngine:
         if not agent_types:
             raise ValueError("agent_types must contain at least one entry")
 
+        task_prompt = getattr(task, "prompt", "")
+        calendar_mode = calendar_scheduling_mode(task_prompt)
         tools = augment_with_constraint_search(list(tools or []))
-        tools = augment_with_transaction_tools(tools)
+        tools = augment_with_transaction_tools(tools, task_prompt=task_prompt)
 
         num_agents = min(int(spec.num_agents), int(self.se_config.max_initial_agents))
         # Tool-bearing tasks run a multi-iteration tool loop per agent. Extra agents
@@ -127,6 +133,7 @@ class SelfEvolvedEngine:
                 "committer_id": topo_spec.group(topo_spec.root_group_id).leader_id,
                 "mutation_tools": sorted(mutation_tool_names),
                 "policy": "readers_then_single_committer",
+                "calendar_scheduling_mode": calendar_mode,
             }
         plan_latency_ms = max((time.perf_counter() - plan_started) * 1000.0, 1.0)
         topo_spec.validate(max_agents=int(self.se_config.max_total_agents))
@@ -161,6 +168,7 @@ class SelfEvolvedEngine:
             state["self_evolved_committer_id"] = str(
                 topo_spec.group(topo_spec.root_group_id).leader_id or ""
             )
+            state["self_evolved_calendar_scheduling_mode"] = calendar_mode
 
         spec_versions: list[dict[str, Any]] = [topo_spec.to_payload()]
         audit_reports: list[dict[str, Any]] = []
@@ -240,8 +248,7 @@ class SelfEvolvedEngine:
             mutations_used = len(spec_versions) - 1
             repeated_decision = self._repair_repeated_decision(turn_results)
             transaction_committed = bool(mutation_tool_names) and any(
-                str(record.get("tool_name", "")) in mutation_tool_names
-                and str(record.get("status", "")).casefold() in {"completed", "ok", "success"}
+                successful_mutation_record(record, mutation_tool_names)
                 for record in state.get("tool_records_log", [])
                 if isinstance(record, dict)
             )
@@ -475,6 +482,17 @@ class SelfEvolvedEngine:
     def _propose_initial_spec(
         self, task: Any, num_agents: int, benchmark_name: str, tools_available: bool
     ) -> tuple[TopologySpec, dict[str, Any]]:
+        if self.se_config.initial_planner_mode == "fixed":
+            fixed = self.planner.fallback_initial_spec(num_agents)
+            return fixed, {
+                "rationale": fixed.rationale,
+                "used_fallback": True,
+                "fallback_reason": "fixed_initial_topology_ablation",
+                "prompt_messages": [],
+                "response": "",
+                "llm": {},
+                "playbook_keys": [],
+            }
         proposal = self.planner.propose_initial(
             task=task,
             benchmark_name=benchmark_name,
@@ -3306,6 +3324,7 @@ class SelfEvolvedEngine:
             "final_reason": str(state.get("final_reason", "")),
             "self_evolved": {
                 "harness_backend": str(self.se_config.harness_backend),
+                "initial_planner_mode": str(self.se_config.initial_planner_mode),
                 "topology_spec_versions": list(spec_versions),
                 "context_state_versions": list(state.get("context_state_versions", [])),
                 "mutation": mutation_payload,

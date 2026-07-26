@@ -6,6 +6,81 @@ import re
 from datetime import datetime, timedelta
 from typing import Any
 
+_CALENDAR_ACTION_RE = re.compile(
+    r"\b(?:book|schedule|create|arrange|set\s+up)\b.{0,120}"
+    r"\b(?:meeting|event|appointment|call)\b"
+    r"|\b(?:meeting|event|appointment|call)\b.{0,120}"
+    r"\b(?:book|schedule|create|arrange|set\s+up)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+_FLEXIBLE_TIME_RE = re.compile(
+    r"\b(?:first|earliest|next)\b.{0,80}\b(?:free|available)\b"
+    r"|\b(?:free|available)\b.{0,80}\b(?:time|slot)\b"
+    r"|\bwhen\s+(?:i(?:'m|\s+am)|we(?:'re|\s+are))\s+(?:free|available)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+_FAILED_MUTATION_OUTPUT_RE = re.compile(
+    r"\b(?:not provided|missing required|missing argument|required argument)"
+    r"|\b(?:not found|does not exist|failed|failure)\b",
+    re.IGNORECASE,
+)
+
+
+def _user_prompt_text(task_prompt: Any) -> str:
+    if not isinstance(task_prompt, list):
+        return str(task_prompt or "")
+    user_parts: list[str] = []
+    for item in task_prompt:
+        if not isinstance(item, dict) or str(item.get("role", "")).casefold() != "user":
+            continue
+        content = item.get("content", "")
+        if isinstance(content, str):
+            user_parts.append(content)
+        elif isinstance(content, list):
+            user_parts.extend(
+                str(part.get("text", ""))
+                for part in content
+                if isinstance(part, dict) and part.get("text")
+            )
+    return "\n".join(user_parts)
+
+
+def calendar_scheduling_mode(task_prompt: Any) -> str:
+    """Classify explicit calendar-create intent as ``fixed`` or ``flexible``.
+
+    The derived availability verifier is appropriate only when the user asks the
+    system to choose a free slot. A request that supplies its own time must not
+    acquire an extra availability precondition.
+    """
+
+    text = _user_prompt_text(task_prompt)
+    if not _CALENDAR_ACTION_RE.search(text):
+        return ""
+    if _FLEXIBLE_TIME_RE.search(text):
+        return "flexible"
+    return "fixed"
+
+
+def successful_mutation_record(
+    record: dict[str, Any], mutation_tool_names: set[str]
+) -> bool:
+    """Return whether a tool record proves a mutation completed successfully."""
+
+    if str(record.get("tool_name", "")) not in mutation_tool_names:
+        return False
+    if str(record.get("status", "")).casefold() not in {"completed", "ok", "success"}:
+        return False
+    if record.get("error"):
+        return False
+    output = record.get("output")
+    if isinstance(output, dict) and (
+        output.get("success") is False or output.get("error")
+    ):
+        return False
+    return not (
+        isinstance(output, str) and _FAILED_MUTATION_OUTPUT_RE.search(output)
+    )
+
 
 def parse_duration_minutes(raw: Any, default: int = 30) -> int:
     """Parse the duration spellings models actually produce into whole minutes.
@@ -40,7 +115,9 @@ def parse_duration_minutes(raw: Any, default: int = 30) -> int:
     )
 
 
-def augment_with_transaction_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def augment_with_transaction_tools(
+    tools: list[dict[str, Any]], *, task_prompt: Any = None
+) -> list[dict[str, Any]]:
     """Add read-only deterministic verifiers composed from available APIs."""
 
     augmented = list(tools)
@@ -49,6 +126,8 @@ def augment_with_transaction_tools(tools: list[dict[str, Any]]) -> list[dict[str
     if search is None or not callable(search.get("handler")):
         return augmented
     if "calendar.find_first_available_slot" in by_name:
+        return augmented
+    if task_prompt is not None and calendar_scheduling_mode(task_prompt) != "flexible":
         return augmented
 
     search_handler = search["handler"]

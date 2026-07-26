@@ -85,6 +85,39 @@ class TestMASConfig(unittest.TestCase):
         self.assertEqual(cfg.self_evolved.max_turns, 5)
         self.assertEqual(cfg.self_evolved.repair_budget, 4)
         self.assertEqual(cfg.self_evolved.audit_mode, "hybrid")
+        self.assertEqual(cfg.self_evolved.initial_planner_mode, "task_conditioned")
+
+    def test_self_evolved_fixed_initial_planner_mode(self) -> None:
+        path = self._write(
+            """
+            [openrouter]
+            api_key = ""
+
+            [experiment]
+            runs_per_task = 1
+            seed = 42
+
+            [mas]
+            levels = 1
+            intra_level_link_ratio = 1.0
+            full_linked = true
+            topology = "self_evolved"
+            number_of_agents = 5
+            agent_types = ["general"]
+            communication_count_internally = 2
+            turn_mode = "multi_turn"
+            max_turns = 2
+
+            [self_evolved]
+            initial_planner_mode = "fixed"
+
+            [models]
+            default = "test-model"
+            """
+        )
+
+        cfg = load_experiment_config(path)
+        self.assertEqual(cfg.self_evolved.initial_planner_mode, "fixed")
 
     def test_env_override_api_key(self) -> None:
         path = self._write(

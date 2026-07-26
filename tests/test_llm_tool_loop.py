@@ -528,6 +528,16 @@ class TestLLMToolLoop(unittest.TestCase):
             "tool returned 429/rate-limit failure",
         )
 
+    def test_missing_required_mutation_output_is_a_tool_failure(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+
+        self.assertEqual(
+            client._tool_output_failure_reason("Event name not provided."),
+            "tool reported a missing required argument",
+        )
+
     def test_bounds_older_tool_turn_summary_size(self) -> None:
         client = OpenRouterLLMClient(
             OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}

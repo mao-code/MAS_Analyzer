@@ -159,6 +159,21 @@ class TestWorkBenchBenchmark(unittest.TestCase):
             self.assertIn("company_directory.find_email_address", tool_names)
             self.assertNotIn("email.send_email", tool_names)
 
+    def test_create_event_schema_requires_complete_mutation_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = self._build_fixture(Path(tmpdir))
+            benchmark = WorkBenchBenchmark({"domain": "calendar", "data_dir": str(data_dir)})
+
+            tools = benchmark._build_tools(benchmark_module_sandbox(data_dir), ["calendar"])
+            create_event = next(
+                tool for tool in tools if tool["name"] == "calendar.create_event"
+            )
+
+            self.assertEqual(
+                set(create_event["parameters"]["required"]),
+                {"event_name", "participant_email", "event_start", "duration"},
+            )
+
     def test_evaluate_marks_correct_state_change(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             data_dir = self._build_fixture(Path(tmpdir))

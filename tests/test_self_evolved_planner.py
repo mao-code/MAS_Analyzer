@@ -252,6 +252,46 @@ class TestPlannerEngineIntegration(unittest.TestCase):
         self.assertFalse(planner_events[0].payload["used_fallback"])
         self.assertTrue(str(result.final_answer).strip())
 
+    def test_fixed_initial_mode_skips_planner_llm_call(self) -> None:
+        from MAS.langgraph_engine import ExperimentSpec
+        from MAS.self_evolved.engine import SelfEvolvedEngine
+
+        client = _PlanLLM(_VALID_PLAN)
+        engine = SelfEvolvedEngine(
+            client,
+            SelfEvolvedConfig(
+                initial_planner_mode="fixed",
+                max_turns=1,
+                repair_budget=0,
+            ),
+        )
+        spec = ExperimentSpec(
+            topology="self_evolved",
+            num_agents=5,
+            rounds=1,
+            communication_budget_per_agent=2,
+            termination_consensus_mode="lexical",
+            final_vote_mode="deterministic",
+            benchmark_name="finance_agent",
+            enable_dynamic_roles=False,
+        )
+        result = engine.run(
+            task=_Task(task_id="fixed", prompt="Question"),
+            run_index=0,
+            seed=42,
+            spec=spec,
+            agent_types=["general"],
+        )
+
+        planner = result.run_metadata["self_evolved"]["planner"]
+        self.assertEqual(planner["fallback_reason"], "fixed_initial_topology_ablation")
+        self.assertEqual(planner["llm"], {})
+        self.assertEqual(
+            result.run_metadata["self_evolved"]["initial_planner_mode"],
+            "fixed",
+        )
+        self.assertNotIn("topology_planner", client.calls)
+
 
 if __name__ == "__main__":
     unittest.main()

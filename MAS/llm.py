@@ -1413,6 +1413,8 @@ class OpenRouterLLMClient:
             return "tool returned 429/rate-limit failure"
         if "432" in output_text and "error" in output_text:
             return "tool returned 432 failure"
+        if re.search(r"\b(?:not provided|missing required|required argument)\b", output_text):
+            return "tool reported a missing required argument"
         return None
 
     @staticmethod

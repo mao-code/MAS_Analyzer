@@ -693,6 +693,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "name": "calendar.create_event",
         "domain": "calendar",
         "description": "Creates a new event.",
+        "required": ["event_name", "participant_email", "event_start", "duration"],
         "properties": {
             "event_name": {"type": "string"},
             "participant_email": {"type": "string"},
@@ -1060,7 +1061,7 @@ class WorkBenchBenchmark:
                     "parameters": {
                         "type": "object",
                         "properties": dict(spec["properties"]),
-                        "required": [],
+                        "required": list(spec.get("required", [])),
                     },
                     "handler": lambda args, tool_name=name, sb=sandbox: sb.invoke(tool_name, args),
                 }

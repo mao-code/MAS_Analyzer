@@ -556,6 +556,12 @@ class TurnExecutor:
                 "calendar.search_events",
                 "calendar.create_event",
             } <= tool_names
+            calendar_mode = str(
+                state.get("self_evolved_calendar_scheduling_mode", "")
+            ).casefold()
+            availability_verifier_available = (
+                "calendar.find_first_available_slot" in tool_names
+            )
             if is_committer_stage:
                 directive = (
                     f"{directive} TRANSACTION COMMITTER CONTRACT: You are the only stage allowed "
@@ -564,20 +570,28 @@ class TurnExecutor:
                     "once. The mutation is conditional: if the task's trigger condition does not "
                     "hold (for example the entity was already contacted, the record already "
                     "exists, or the requested change is already in place), perform NO mutation "
-                    "and state that verified conclusion as the final answer. For calendar "
-                    "availability, compute each occupied interval as "
-                    "[event_start, event_start + duration] and choose the first requested-length "
-                    "gap after all overlaps end; never treat an event's start as its end. Do not "
+                    "and state that verified conclusion as the final answer. Do not "
                     "stop at a plan or claim success until the mutation tool succeeds or you "
                     "have verified that no mutation is required. "
                 )
-                if calendar_transaction:
+                if (
+                    calendar_transaction
+                    and calendar_mode == "flexible"
+                    and availability_verifier_available
+                ):
                     directive += (
                         "For availability, call calendar.find_first_available_slot (duration is "
                         "whole minutes, e.g. '30') and use its event_start exactly; do not "
                         "manually infer the gap or re-fetch individual event fields. If and only "
                         "if the booking is required, call calendar.create_event at that verified "
                         "start time. "
+                    )
+                elif calendar_transaction and calendar_mode == "fixed":
+                    directive += (
+                        "This request supplies a fixed calendar time. Do not add an availability "
+                        "precondition or substitute another time. If the task's other conditions "
+                        "hold, call calendar.create_event with the exact event name, participant "
+                        "email, start time, and duration requested by the user. "
                     )
             else:
                 directive = (
@@ -589,11 +603,21 @@ class TurnExecutor:
                     "report that no mutation is needed and cite the evidence. Do not claim that "
                     "the external action has already happened. "
                 )
-                if calendar_transaction:
+                if (
+                    calendar_transaction
+                    and calendar_mode == "flexible"
+                    and availability_verifier_available
+                ):
                     directive += (
                         "Call calendar.find_first_available_slot and report its event_start "
                         "exactly; do not manually infer availability or re-fetch individual "
                         "event fields. "
+                    )
+                elif calendar_transaction and calendar_mode == "fixed":
+                    directive += (
+                        "The user supplied a fixed calendar time. Preserve it exactly and do not "
+                        "invent an availability precondition; report the complete proposed "
+                        "calendar.create_event arguments to the committer. "
                     )
         repair_directive = str(state.get("self_evolved_repair_directive", "")).strip()
         if int(state.get("round_index", 0)) > 0 and repair_directive:
