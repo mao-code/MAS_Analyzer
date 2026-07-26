@@ -8,6 +8,12 @@ from benchmark.base import BenchmarkEvaluation, BenchmarkTask
 from MAS.llm import LLMResult
 from reproduce.aflow.official import optimizer as aflow_optimizer
 from reproduce.aflow.official.optimizer import OfficialAFlowBenchmarkOptimizer
+from reproduce.aflow.official.runtime import (
+    AFlowExecutionContext,
+    OfficialLLM,
+    Operators,
+    normalize_workflow_answer,
+)
 
 
 class FakeLLMClient:
@@ -151,3 +157,132 @@ def test_official_aflow_optimizer_writes_round_artifacts(tmp_path: Path, monkeyp
     assert not set(validation_summary["round"]["task_ids"]).intersection(
         test_summary["round"]["task_ids"]
     )
+
+
+def test_answer_generate_preserves_benchmark_message_prompt(tmp_path: Path) -> None:
+    llm_client = FakeLLMClient()
+    context = AFlowExecutionContext(
+        llm_client=llm_client,
+        agent_type="default",
+        task_id="plancraft:task_0",
+        run_index=0,
+        temperature=1.0,
+        checkpoint_path=tmp_path / "checkpoint.json",
+    )
+    operators = Operators(OfficialLLM(context))
+    messages = [
+        {"role": "system", "content": "official system prompt"},
+        {"role": "user", "content": "official observation prompt"},
+    ]
+
+    result = __import__("asyncio").run(operators.answer_generate(messages))
+
+    assert result["answer"] == "<thought>done</thought><answer>correct answer</answer>"
+    assert llm_client.calls[0]["prompt"] == messages
+
+
+def test_custom_preserves_benchmark_message_prompt(tmp_path: Path) -> None:
+    llm_client = FakeLLMClient()
+    context = AFlowExecutionContext(
+        llm_client=llm_client,
+        agent_type="default",
+        task_id="plancraft:task_0",
+        run_index=0,
+        temperature=1.0,
+        checkpoint_path=tmp_path / "checkpoint.json",
+    )
+    operators = Operators(OfficialLLM(context))
+    messages = [
+        {"role": "system", "content": "official system prompt"},
+        {"role": "user", "content": "official observation prompt"},
+    ]
+
+    result = __import__("asyncio").run(operators.custom(messages, ""))
+
+    assert result["response"] == "<thought>done</thought><answer>correct answer</answer>"
+    assert llm_client.calls[0]["prompt"] == messages
+
+
+def test_call_xml_fills_missing_final_field(tmp_path: Path) -> None:
+    class PartialXmlClient(FakeLLMClient):
+        def generate(self, **kwargs: Any) -> LLMResult:
+            self.calls.append(kwargs)
+            return LLMResult(
+                text="<thought>not enough evidence</thought>",
+                token_in=10,
+                token_out=5,
+                cost_usd=0.0,
+                model="fake-model",
+                mock_used=False,
+                metadata={"provider": "fake", "finish_reason": "stop", "hit_output_limit": False},
+                tool_calls=[],
+            )
+
+    context = AFlowExecutionContext(
+        llm_client=PartialXmlClient(),
+        agent_type="default",
+        task_id="browsecomp:task_0",
+        run_index=0,
+        temperature=1.0,
+        checkpoint_path=tmp_path / "checkpoint.json",
+    )
+
+    result = __import__("asyncio").run(
+        OfficialLLM(context).call_xml("question", ["thought", "answer"], operator="AnswerGenerate")
+    )
+
+    assert result["thought"] == "not enough evidence"
+    assert result["answer"] == "<thought>not enough evidence</thought>"
+
+
+def test_normalize_workflow_answer_extracts_xml_and_caps_broken_thought() -> None:
+    assert normalize_workflow_answer("<thought>brief</thought><answer>Stefanel</answer>") == "Stefanel"
+    assert normalize_workflow_answer("plain answer") == "plain answer"
+    assert normalize_workflow_answer("<thought>" + "long " * 500) == "no-answer"
+    assert normalize_workflow_answer(("analysis\n" * 500) + "Final Answer: **Brigitte Bardot**") == (
+        "Brigitte Bardot"
+    )
+    assert normalize_workflow_answer("analysis only\n" * 500) == "no-answer"
+    assert (
+        normalize_workflow_answer(
+            "Based on the available information, the individual is **Pouneh Shabani-Jadidi**. "
+            "She meets the criteria."
+        )
+        == "Pouneh Shabani-Jadidi"
+    )
+    assert normalize_workflow_answer("I am unable to identify the specific learning institution.") == (
+        "no-answer"
+    )
+    assert normalize_workflow_answer("Real-Life Relative:") == "no-answer"
+    assert (
+        normalize_workflow_answer(
+            "Based on the information provided in the search results, there is insufficient "
+            "evidence to identify the specific individual."
+        )
+        == "no-answer"
+    )
+    assert (
+        normalize_workflow_answer(
+            "The specific details were not found in the search results. A definitive answer "
+            "cannot be derived from the provided documents."
+        )
+        == "no-answer"
+    )
+
+
+def test_normalize_workflow_answer_keeps_tool_benchmark_answers_intact() -> None:
+    answer = (
+        "To help you plan a memorable surprise birthday party, here are the suggested popular "
+        "sites and main keywords.\n\n"
+        "**Popular Sites for Inspiration:**\n"
+        "* **Pinterest (pinterest.com)**\n"
+        "* **Martha Stewart (marthastewart.com)**\n\n"
+        "**Main Keywords:**\n"
+        "* **Party**\n"
+        "* **Ideas**\n"
+        "* **Birthday**\n\n"
+        "**Planning Tip:** combine the keywords with the friend's interests."
+    )
+
+    assert normalize_workflow_answer(answer, benchmark_name="stabletoolbench") == answer
+    assert normalize_workflow_answer(answer, benchmark_name="workbench") == answer

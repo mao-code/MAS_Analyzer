@@ -5,6 +5,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from benchmark import get_benchmark
@@ -76,6 +77,7 @@ class OfficialAFlowBenchmarkOptimizer:
         ]
         self.workflows_dir = self.output_dir / "workflows"
         self.results_path = self.workflows_dir / "results.json"
+        self._artifact_lock = Lock()
 
     def optimize(self) -> dict[str, Any]:
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -182,60 +184,51 @@ class OfficialAFlowBenchmarkOptimizer:
         if not eval_tasks:
             raise RuntimeError(f"No tasks loaded for benchmark '{self.benchmark_name}'")
         artifact_dir = self._artifact_dir(round_number, split)
-        task_payloads: list[dict[str, Any]] = []
-        total_cost = 0.0
-        for task_index, task in enumerate(eval_tasks):
-            run_payloads: list[dict[str, Any]] = []
-            run_metrics: list[dict[str, Any]] = []
-            missing_runs: list[tuple[int, int]] = []
-            for run_index in range(max(1, self.runs_per_task)):
-                run_payload = self._load_run_artifact(artifact_dir, str(task.task_id), run_index)
-                if run_payload is not None:
-                    run_payloads.append(run_payload)
-                    run_metrics.append(dict(run_payload["metrics"]))
-                    total_cost += float(
-                        run_payload.get("metrics", {}).get("C3_cost_total", 0.0) or 0.0
+        indexed_tasks = list(enumerate(eval_tasks))
+        if self.workers > 1 and len(indexed_tasks) > 1:
+            print(
+                f"[{_now_stamp()}] AFLOW_OFFICIAL_TASK_WORKERS benchmark={self.benchmark_name} "
+                f"split={split} round={round_number} workers={min(self.workers, len(indexed_tasks))} "
+                f"tasks={len(indexed_tasks)} runs_per_task={self.runs_per_task}",
+                flush=True,
+            )
+            task_payloads = []
+            with ThreadPoolExecutor(max_workers=min(self.workers, len(indexed_tasks))) as executor:
+                futures = [
+                    executor.submit(
+                        self._evaluate_one_task,
+                        benchmark=benchmark,
+                        task_index=task_index,
+                        task=task,
+                        artifact_dir=artifact_dir,
+                        workflow_class=workflow_class,
+                        prompt_module=prompt_module,
+                        split=split,
+                        run_workers=1,
                     )
-                    print(
-                        f"[{_now_stamp()}] AFLOW_OFFICIAL_RUN_RESUME benchmark={self.benchmark_name} "
-                        f"split={split} round={round_number} task_id={task.task_id} run_index={run_index}",
-                        flush=True,
-                    )
-                    continue
-                missing_runs.append((run_index, int(self.seed) + task_index * 1000 + run_index))
-
-            if missing_runs:
-                completed = self._execute_missing_runs(
+                    for task_index, task in indexed_tasks
+                ]
+                for future in as_completed(futures):
+                    task_payloads.append(future.result())
+            task_payloads.sort(key=lambda item: int(item["_task_index"]))
+        else:
+            task_payloads = [
+                self._evaluate_one_task(
                     benchmark=benchmark,
+                    task_index=task_index,
                     task=task,
                     artifact_dir=artifact_dir,
                     workflow_class=workflow_class,
                     prompt_module=prompt_module,
-                    missing_runs=missing_runs,
+                    split=split,
+                    run_workers=self.workers,
                 )
-                for run_payload in completed:
-                    metrics = dict(run_payload["metrics"])
-                    total_cost += float(metrics.get("C3_cost_total", 0.0) or 0.0)
-                    run_payloads.append(run_payload)
-                    run_metrics.append(metrics)
-            run_payloads.sort(key=lambda item: int(item.get("run_index", 0)))
-            if not run_payloads:
-                raise RuntimeError(
-                    f"No run payloads produced for benchmark={self.benchmark_name} "
-                    f"task_id={task.task_id} split={split} round={round_number}"
-                )
-            task_metrics = compute_task_metrics(run_metrics)
-            task_payloads.append(
-                {
-                    "task_id": str(task.task_id),
-                    "score": float(task_metrics["eval_avg_score"]),
-                    "success": bool(task_metrics["success_rate"] > 0.0),
-                    "success_rate": float(task_metrics["success_rate"]),
-                    "prediction": run_payloads[-1]["prediction"],
-                    "metrics": task_metrics,
-                    "runs": run_payloads,
-                }
-            )
+                for task_index, task in indexed_tasks
+            ]
+
+        total_cost = sum(float(item.pop("_total_cost", 0.0) or 0.0) for item in task_payloads)
+        for item in task_payloads:
+            item.pop("_task_index", None)
         score = sum(float(task["score"]) for task in task_payloads) / len(task_payloads)
         round_summary = {
             "round": round_number,
@@ -257,6 +250,73 @@ class OfficialAFlowBenchmarkOptimizer:
         )
         return round_summary
 
+    def _evaluate_one_task(
+        self,
+        *,
+        benchmark: Any,
+        task_index: int,
+        task: Any,
+        artifact_dir: Path,
+        workflow_class: Any,
+        prompt_module: Any,
+        split: str,
+        run_workers: int,
+    ) -> dict[str, Any]:
+        total_cost = 0.0
+        run_payloads: list[dict[str, Any]] = []
+        run_metrics: list[dict[str, Any]] = []
+        missing_runs: list[tuple[int, int]] = []
+        for run_index in range(max(1, self.runs_per_task)):
+            run_payload = self._load_run_artifact(artifact_dir, str(task.task_id), run_index)
+            if run_payload is not None:
+                run_payloads.append(run_payload)
+                run_metrics.append(dict(run_payload["metrics"]))
+                total_cost += float(
+                    run_payload.get("metrics", {}).get("C3_cost_total", 0.0) or 0.0
+                )
+                print(
+                    f"[{_now_stamp()}] AFLOW_OFFICIAL_RUN_RESUME benchmark={self.benchmark_name} "
+                    f"split={split} round={_round_from_artifact_dir(artifact_dir)} "
+                    f"task_id={task.task_id} run_index={run_index}",
+                    flush=True,
+                )
+                continue
+            missing_runs.append((run_index, int(self.seed) + task_index * 1000 + run_index))
+
+        if missing_runs:
+            completed = self._execute_missing_runs(
+                benchmark=benchmark,
+                task=task,
+                artifact_dir=artifact_dir,
+                workflow_class=workflow_class,
+                prompt_module=prompt_module,
+                missing_runs=missing_runs,
+                run_workers=run_workers,
+            )
+            for run_payload in completed:
+                metrics = dict(run_payload["metrics"])
+                total_cost += float(metrics.get("C3_cost_total", 0.0) or 0.0)
+                run_payloads.append(run_payload)
+                run_metrics.append(metrics)
+        run_payloads.sort(key=lambda item: int(item.get("run_index", 0)))
+        if not run_payloads:
+            raise RuntimeError(
+                f"No run payloads produced for benchmark={self.benchmark_name} "
+                f"task_id={task.task_id} split={split} round={_round_from_artifact_dir(artifact_dir)}"
+            )
+        task_metrics = compute_task_metrics(run_metrics)
+        return {
+            "_task_index": task_index,
+            "_total_cost": total_cost,
+            "task_id": str(task.task_id),
+            "score": float(task_metrics["eval_avg_score"]),
+            "success": bool(task_metrics["success_rate"] > 0.0),
+            "success_rate": float(task_metrics["success_rate"]),
+            "prediction": run_payloads[-1]["prediction"],
+            "metrics": task_metrics,
+            "runs": run_payloads,
+        }
+
     def _execute_missing_runs(
         self,
         *,
@@ -266,8 +326,10 @@ class OfficialAFlowBenchmarkOptimizer:
         workflow_class: Any,
         prompt_module: Any,
         missing_runs: list[tuple[int, int]],
+        run_workers: int | None = None,
     ) -> list[dict[str, Any]]:
-        if self.workers <= 1 or len(missing_runs) == 1:
+        worker_count = max(1, int(run_workers if run_workers is not None else self.workers))
+        if worker_count <= 1 or len(missing_runs) == 1:
             return [
                 self._execute_one_run(
                     benchmark=benchmark,
@@ -283,12 +345,12 @@ class OfficialAFlowBenchmarkOptimizer:
 
         print(
             f"[{_now_stamp()}] AFLOW_OFFICIAL_RUN_WORKERS benchmark={self.benchmark_name} "
-            f"task_id={task.task_id} workers={min(self.workers, len(missing_runs))} "
+            f"task_id={task.task_id} workers={min(worker_count, len(missing_runs))} "
             f"runs={len(missing_runs)}",
             flush=True,
         )
         completed: list[dict[str, Any]] = []
-        with ThreadPoolExecutor(max_workers=min(self.workers, len(missing_runs))) as executor:
+        with ThreadPoolExecutor(max_workers=min(worker_count, len(missing_runs))) as executor:
             futures = [
                 executor.submit(
                     self._execute_one_run,
@@ -364,7 +426,7 @@ class OfficialAFlowBenchmarkOptimizer:
             runner = OfficialAFlowRunnerAdapter(
                 workflow_class=workflow_class,
                 prompt_module=prompt_module,
-                llm_client=self.llm_client,
+                llm_client=self._llm_client_for_run(),
                 benchmark_name=self.benchmark_name,
                 agent_type=self.model_agent_type,
                 temperature=self.temperature,
@@ -409,6 +471,15 @@ class OfficialAFlowBenchmarkOptimizer:
         assert last_exc is not None
         raise last_exc
 
+    def _llm_client_for_run(self) -> OpenRouterLLMClient:
+        if self.workers <= 1:
+            return self.llm_client
+        config = getattr(self.llm_client, "config", None)
+        models = getattr(self.llm_client, "models", None)
+        if config is None or models is None:
+            return self.llm_client
+        return OpenRouterLLMClient(config, dict(models))
+
     def _evaluate_best_on_test(self, best_round: int) -> dict[str, Any]:
         print(
             f"[{_now_stamp()}] AFLOW_OFFICIAL_TEST_START benchmark={self.benchmark_name} "
@@ -425,6 +496,14 @@ class OfficialAFlowBenchmarkOptimizer:
         experience = self._format_experience(father_round)
         operator_description = self._operator_description()
         log_data = self._load_log(father_round)
+        benchmark_type = (
+            "BrowseComp retrieval-heavy tool-use benchmark"
+            if self.benchmark_name == "browsecomp"
+            else "tool-use benchmark"
+        )
+        benchmark_guidance = (
+            prompts.BROWSECOMP_WORKFLOW_GUIDANCE if self.benchmark_name == "browsecomp" else ""
+        )
         optimize_prompt = (
             prompts.WORKFLOW_INPUT.format(
                 experience=experience,
@@ -435,7 +514,8 @@ class OfficialAFlowBenchmarkOptimizer:
                 log=log_data,
             )
             + prompts.WORKFLOW_CUSTOM_USE
-            + prompts.WORKFLOW_OPTIMIZE_PROMPT.format(type="tool-use benchmark")
+            + benchmark_guidance
+            + prompts.WORKFLOW_OPTIMIZE_PROMPT.format(type=benchmark_type)
             + prompts.XML_RESPONSE_INSTRUCTION
         )
         result = self._call_optimizer_with_retries(optimize_prompt, father_round)
@@ -625,38 +705,40 @@ class OfficialAFlowBenchmarkOptimizer:
     def _write_run_artifact(
         self, artifact_dir: Path, task_id: str, run_index: int, payload: dict[str, Any]
     ) -> None:
-        run_dir = self._run_dir(artifact_dir, task_id)
-        run_dir.mkdir(parents=True, exist_ok=True)
-        path = run_dir / f"run_{run_index}.json"
-        trace_path = run_dir / f"run_{run_index}.trace.json"
-        payload["run_artifact_path"] = str(path.resolve())
-        payload["trace_path"] = str(trace_path.resolve())
-        trace_path.write_text(
-            json.dumps({"trace": payload["trace"]}, indent=2, default=str), encoding="utf-8"
-        )
-        path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        with self._artifact_lock:
+            run_dir = self._run_dir(artifact_dir, task_id)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            path = run_dir / f"run_{run_index}.json"
+            trace_path = run_dir / f"run_{run_index}.trace.json"
+            payload["run_artifact_path"] = str(path.resolve())
+            payload["trace_path"] = str(trace_path.resolve())
+            trace_path.write_text(
+                json.dumps({"trace": payload["trace"]}, indent=2, default=str), encoding="utf-8"
+            )
+            path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
     def _append_log(self, artifact_dir: Path, payload: dict[str, Any]) -> None:
-        path = artifact_dir / "log.json"
-        existing: list[Any] = []
-        if path.exists():
-            try:
-                existing = json.loads(path.read_text(encoding="utf-8"))
-                if not isinstance(existing, list):
-                    existing = [existing]
-            except Exception:
-                existing = []
-        existing.append(
-            {
-                "task_id": payload["task_id"],
-                "run_index": payload["run_index"],
-                "prediction": payload["prediction"][:1000],
-                "score": payload["score"],
-                "success": payload["success"],
-                "tool_calls_total": payload["run_metadata"].get("tool_calls_total", 0),
-            }
-        )
-        path.write_text(json.dumps(existing, indent=2, default=str), encoding="utf-8")
+        with self._artifact_lock:
+            path = artifact_dir / "log.json"
+            existing: list[Any] = []
+            if path.exists():
+                try:
+                    existing = json.loads(path.read_text(encoding="utf-8"))
+                    if not isinstance(existing, list):
+                        existing = [existing]
+                except Exception:
+                    existing = []
+            existing.append(
+                {
+                    "task_id": payload["task_id"],
+                    "run_index": payload["run_index"],
+                    "prediction": payload["prediction"][:1000],
+                    "score": payload["score"],
+                    "success": payload["success"],
+                    "tool_calls_total": payload["run_metadata"].get("tool_calls_total", 0),
+                }
+            )
+            path.write_text(json.dumps(existing, indent=2, default=str), encoding="utf-8")
 
     def _load_log(self, round_number: int) -> str:
         path = self.workflows_dir / f"round_{round_number}" / "log.json"

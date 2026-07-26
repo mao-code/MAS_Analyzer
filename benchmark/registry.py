@@ -7,6 +7,7 @@ BENCHMARK_REGISTRY = {
     "agentbench": ("benchmark.agentbench", "AgentBenchBenchmark"),
     "finance_agent": ("benchmark.finance_agent", "FinanceAgentBenchmark"),
     "browsecomp": ("benchmark.browsecomp", "BrowseCompBenchmark"),
+    "math500": ("benchmark.math500", "Math500Benchmark"),
     "stabletoolbench": ("benchmark.stabletoolbench", "StableToolBenchBenchmark"),
     "plancraft": ("benchmark.plancraft", "PlancraftBenchmark"),
     "scicode": ("benchmark.scicode", "SciCodeBenchmark"),

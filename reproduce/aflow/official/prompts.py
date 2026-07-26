@@ -10,6 +10,18 @@ revise, ensemble, selfAsk, loops, and conditional statements. The graph complexi
 Only generate prompts used by prompt_custom; remove unused prompts.
 The generated prompt must not contain placeholders."""
 
+BROWSECOMP_WORKFLOW_GUIDANCE = """
+
+Benchmark-specific guidance for BrowseComp:
+- This is a retrieval-heavy question answering task. Strong workflows should gather evidence before
+  committing to an answer.
+- Prefer graph changes that make the workflow search/read evidence, compare candidate entities
+  against every clue, then format a short final answer.
+- Penalize workflows that return refusal text, "insufficient evidence", "no-answer", empty answers,
+  long explanations, or answers based only on general memory.
+- The final output should be only the exact requested entity/name/title/number.
+"""
+
 WORKFLOW_INPUT = """
 Here is a graph and the corresponding prompt that performed well in a previous iteration
 (maximum score is 1). You must make one focused optimization based on this graph.
@@ -58,9 +70,15 @@ Return exactly these XML fields:
 """
 
 ANSWER_GENERATION_PROMPT = """
-Think step by step and solve the problem.
-1. In the "thought" field, explain your thinking process.
-2. In the "answer" field, provide the final answer concisely and directly.
+Solve the problem using the available tools when external evidence is needed.
+1. In the "thought" field, write at most 2 short sentences. Do not write a long chain of thought,
+   numbered derivation, transcript, or repeated self-checks.
+2. In the "answer" field, provide only the final answer, concisely and directly. For name/entity
+   questions, return only the exact name/entity. If tool evidence is partial or noisy, still return
+   the most plausible candidate answer. Do not output refusal text or an insufficient-evidence
+   placeholder.
+3. For BrowseComp-style questions, search with multiple targeted queries, compare candidates against
+   all clues, and prefer evidence from retrieved snippets/documents over memory.
 Your task: {input}
 """
 
@@ -83,16 +101,22 @@ the single letter ID.
 
 REVIEW_PROMPT = """
 Given a problem and solution, review whether the solution answers the task correctly.
+Keep the response short. Do not write a long chain of thought, transcript, numbered derivation, or
+repeated self-checks.
 
 problem: {problem}
 solution: {solution}
 
-If you are more than 95 percent confident the final answer is incorrect, return False and explain the
-error. Otherwise return True and explain why.
+If you are more than 95 percent confident the final answer is incorrect, put False in
+"review_result" and give at most 2 short sentences in "feedback". Otherwise put True in
+"review_result" and give at most 1 short sentence in "feedback".
 """
 
 REVISE_PROMPT = """
 Given a problem, a solution, and feedback, revise the solution to better solve the task.
+Keep the response short. Do not include long reasoning or analysis. In "solution", output only the
+revised final answer, not an explanation. If evidence is partial or noisy, still output the most
+plausible candidate answer. Do not output refusal text or an insufficient-evidence placeholder.
 
 problem: {problem}
 solution: {solution}

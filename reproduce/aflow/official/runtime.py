@@ -35,6 +35,7 @@ class AFlowExecutionContext:
     task_id: str
     run_index: int
     temperature: float
+    benchmark_name: str = ""
     tools: list[dict[str, Any]] = field(default_factory=list)
     max_tool_iterations: int = 8
     allow_mock: bool = False
@@ -54,27 +55,22 @@ class OfficialLLM:
         self.context = context
         self.total_cost = 0.0
 
-    async def __call__(self, prompt: str, *, operator: str = "Custom") -> str:
+    async def __call__(self, prompt: Any, *, operator: str = "Custom") -> str:
         await asyncio.sleep(0)
         started_wall = time.time()
         started_perf = time.perf_counter()
         result = self.context.llm_client.generate(
-            prompt=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are executing an AFlow workflow operator. Return only the requested "
-                        "operator output."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
+            prompt=messages_for_prompt(
+                prompt, benchmark_name=self.context.benchmark_name, operator=operator
+            ),
             agent_type=self.context.agent_type,
             task_id=self.context.task_id,
             run_index=self.context.run_index,
             agent_id=self.context.next_agent_id(operator),
-            tools=self.context.tools,
-            max_tool_iterations=self.context.max_tool_iterations,
+            tools=tools_for_operator(self.context.tools, self.context.benchmark_name, operator),
+            max_tool_iterations=max_tool_iterations_for_operator(
+                self.context.max_tool_iterations, self.context.benchmark_name, operator
+            ),
             temperature=self.context.temperature,
         )
         if result.mock_used and not self.context.allow_mock:
@@ -94,16 +90,17 @@ class OfficialLLM:
         write_execution_checkpoint(self.context)
         return result.text
 
-    async def call_xml(self, prompt: str, fields: list[str], *, operator: str) -> dict[str, str]:
+    async def call_xml(self, prompt: Any, fields: list[str], *, operator: str) -> dict[str, str]:
         field_examples = "\n".join(f"<{field}>{field}</{field}>" for field in fields)
         text = await self(
             f"{prompt}\n\nReturn XML with exactly these fields:\n{field_examples}",
             operator=operator,
         )
         parsed = parse_xml_fields(text, fields)
-        if parsed:
-            return parsed
-        return {fields[-1]: text}
+        output = {field: parsed.get(field, "") for field in fields}
+        if fields and not output[fields[-1]].strip():
+            output[fields[-1]] = text.strip()
+        return output
 
     def get_usage_summary(self) -> dict[str, Any]:
         token_in = sum(record.result.token_in for record in self.context.records)
@@ -122,15 +119,110 @@ def parse_xml_fields(text: str, fields: list[str]) -> dict[str, str]:
     return {field: found.get(field, "") for field in fields if found.get(field, "")}
 
 
+def is_message_list(prompt: Any) -> bool:
+    return isinstance(prompt, list) and all(
+        isinstance(message, dict) and "role" in message and "content" in message
+        for message in prompt
+    )
+
+
+def browsecomp_operator_guard(operator: str | None = None) -> str:
+    op = str(operator or "").lower()
+    if op in {"review"}:
+        return (
+            "BrowseComp review guard: do not solve the task from scratch. Verify only whether the "
+            "candidate answer is directly supported by retrieved snippets/documents or by evidence "
+            "quoted in the solution. Avoid introducing a brand-new answer unless it explicitly "
+            "appears in the retrieved evidence. Keep feedback short."
+        )
+    if op in {"revise"}:
+        return (
+            "BrowseComp revise guard: revise only when the feedback identifies a clear evidence "
+            "conflict. The revised answer must be a concise candidate explicitly appearing in the "
+            "retrieved evidence, previous solution, or feedback. Do not invent a new candidate from "
+            "general memory, and do not output refusal text."
+        )
+    if op in {"format"}:
+        return (
+            "BrowseComp format guard: do not search or reason. Extract only the exact final "
+            "entity/name/title/number from the provided solution. Return only that short answer."
+        )
+    return (
+        "BrowseComp answer guard: use the available search/get_document tools when the answer is "
+        "not directly known from the prompt. Make 2-4 targeted searches, inspect the most relevant "
+        "document when a candidate appears, then stop and answer. Compare candidate entities "
+        "against all clues and avoid relying on general memory alone. Do not output refusal text, "
+        "'insufficient evidence', or 'no-answer'. Final output must be only the exact requested "
+        "entity/name/title/number unless XML is explicitly requested."
+    )
+
+
+def browsecomp_tool_enabled_operator(operator: str | None = None) -> bool:
+    return str(operator or "").lower() in {"custom", "answergenerate"}
+
+
+def tools_for_operator(
+    tools: list[dict[str, Any]], benchmark_name: str | None = None, operator: str | None = None
+) -> list[dict[str, Any]]:
+    if str(benchmark_name or "").lower() == "browsecomp" and not browsecomp_tool_enabled_operator(
+        operator
+    ):
+        return []
+    return tools
+
+
+def max_tool_iterations_for_operator(
+    max_tool_iterations: int, benchmark_name: str | None = None, operator: str | None = None
+) -> int:
+    if str(benchmark_name or "").lower() == "browsecomp" and not browsecomp_tool_enabled_operator(
+        operator
+    ):
+        return 1
+    return max_tool_iterations
+
+
+def messages_for_prompt(
+    prompt: Any, *, benchmark_name: str | None = None, operator: str | None = None
+) -> list[dict[str, Any]]:
+    guard = (
+        browsecomp_operator_guard(operator)
+        if str(benchmark_name or "").lower() == "browsecomp"
+        else ""
+    )
+    if is_message_list(prompt):
+        messages = [dict(message) for message in prompt]
+        if guard:
+            if messages and messages[0].get("role") == "system":
+                messages[0]["content"] = f"{messages[0].get('content', '')}\n\n{guard}"
+            else:
+                messages.insert(0, {"role": "system", "content": guard})
+        return messages
+    system_content = (
+        "You are executing an AFlow workflow operator. Return only the requested operator output."
+    )
+    if guard:
+        system_content = f"{system_content}\n\n{guard}"
+    return [
+        {
+            "role": "system",
+            "content": system_content,
+        },
+        {"role": "user", "content": str(prompt)},
+    ]
+
+
 class Operators:
     def __init__(self, llm: OfficialLLM) -> None:
         self.llm = llm
 
-    async def custom(self, input: str, instruction: str) -> dict[str, str]:
-        text = await self.llm(f"{instruction}{input}", operator="Custom")
+    async def custom(self, input: Any, instruction: str) -> dict[str, str]:
+        text = await self.llm(prompt_with_instruction(input, instruction), operator="Custom")
         return {"response": text}
 
-    async def answer_generate(self, input: str) -> dict[str, str]:
+    async def answer_generate(self, input: Any) -> dict[str, str]:
+        if is_message_list(input):
+            text = await self.llm(input, operator="AnswerGenerate")
+            return {"thought": "", "answer": text.strip()}
         return await self.llm.call_xml(
             prompts.ANSWER_GENERATION_PROMPT.format(input=input),
             ["thought", "answer"],
@@ -174,6 +266,15 @@ class Operators:
             operator="Format",
         )
         return {"solution": text.strip()}
+
+
+def prompt_with_instruction(input_prompt: Any, instruction: str) -> Any:
+    if is_message_list(input_prompt):
+        messages = [dict(message) for message in input_prompt]
+        if instruction.strip():
+            messages.append({"role": "user", "content": instruction.strip()})
+        return messages
+    return f"{instruction}{input_prompt}"
 
 
 class OfficialWorkflowBase:
@@ -328,6 +429,7 @@ class OfficialAFlowRunnerAdapter:
             task_id=f"{benchmark_name or self.benchmark_name}:{task.task_id}",
             run_index=run_index,
             temperature=self.temperature,
+            benchmark_name=benchmark_name or self.benchmark_name,
             tools=list(tools or []),
             max_tool_iterations=max_tool_iterations,
             allow_mock=self.allow_mock,
@@ -342,14 +444,94 @@ class OfficialAFlowRunnerAdapter:
         )
         result = asyncio.run(workflow(task.prompt))
         if isinstance(result, tuple):
-            final_answer = str(result[0])
+            final_answer = normalize_workflow_answer(
+                str(result[0]), benchmark_name=benchmark_name or self.benchmark_name
+            )
         else:
-            final_answer = str(result)
+            final_answer = normalize_workflow_answer(
+                str(result), benchmark_name=benchmark_name or self.benchmark_name
+            )
         trace_events = trace_events_from_context(context)
         run_metadata = run_metadata_from_context(context)
         return MASRunResult(
             final_answer=final_answer, trace_events=trace_events, run_metadata=run_metadata
         )
+
+
+def normalize_workflow_answer(text: str, benchmark_name: str | None = None) -> str:
+    stripped = text.strip()
+    parsed = parse_xml_fields(stripped, ["answer"])
+    if parsed.get("answer"):
+        stripped = parsed["answer"].strip()
+    if is_non_answer_label(stripped):
+        return "no-answer"
+    if is_refusal_answer(stripped):
+        return "no-answer"
+    if str(benchmark_name or "").lower() in {"", "browsecomp"}:
+        extracted = extract_final_answer(stripped)
+        if extracted:
+            return extracted
+    if stripped.startswith("<thought>") and len(stripped) > 2000:
+        return "no-answer"
+    if len(stripped) > 2000:
+        return "no-answer"
+    return stripped
+
+
+def extract_final_answer(text: str) -> str:
+    patterns = [
+        r"(?im)^\s*final answer\s*[:：]\s*(.+?)\s*$",
+        r"(?im)^\s*answer\s*[:：]\s*(.+?)\s*$",
+        r"(?im)^\s*the answer is\s+(.+?)\s*$",
+        r"(?im)\bthe (?:individual|person|author|player|brand|institution|township|city|answer) (?:is|was|described is)\s+\*\*([^*\n]{1,120})\*\*",
+        r"(?im)\bthe (?:individual|person|author|player|brand|institution|township|city|answer) (?:is|was|described is)\s+([A-Z][^.\n,;:]{1,120})",
+        r"(?im)\bbased on .*?,\s*(?:the answer is\s+)?\*\*([^*\n]{1,120})\*\*",
+    ]
+    for pattern in patterns:
+        matches = re.findall(pattern, text)
+        if matches:
+            candidate = str(matches[-1]).strip()
+            candidate = re.sub(r"^\*\*(.*?)\*\*$", r"\1", candidate).strip()
+            if 0 < len(candidate) <= 300:
+                return candidate
+    bold_matches = re.findall(r"\*\*([^*\n]{1,120})\*\*", text)
+    if bold_matches:
+        return bold_matches[-1].strip()
+    return ""
+
+
+def is_refusal_answer(text: str) -> bool:
+    if not text:
+        return True
+    refusal_patterns = [
+        r"\bi am unable\b",
+        r"\bi am sorry\b",
+        r"\bi cannot\b",
+        r"\bcannot (?:determine|identify|answer)\b",
+        r"\bunable to (?:determine|identify|answer)\b",
+        r"\bno (?:specific )?(?:information|individual|person|answer|mention)\b",
+        r"\bnot enough information\b",
+        r"\bdoes not contain (?:the )?information\b",
+        r"\binsufficient-evidence\b",
+        r"\binsufficient evidence\b",
+        r"\bnot found in (?:the )?(?:search results|retrieved snippets|provided documents)\b",
+        r"\bwere not found in (?:the )?(?:search results|retrieved snippets|provided documents)\b",
+        r"\bcannot be derived from (?:the )?(?:provided documents|retrieved snippets|search results)\b",
+    ]
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in refusal_patterns)
+
+
+def is_non_answer_label(text: str) -> bool:
+    cleaned = re.sub(r"[\s:：-]+", " ", text.strip()).strip()
+    if len(cleaned) > 80:
+        return False
+    label_patterns = [
+        r"real life relative",
+        r"final answer",
+        r"answer",
+        r"candidate answer",
+    ]
+    return any(re.fullmatch(pattern, cleaned, flags=re.IGNORECASE) for pattern in label_patterns)
 
 
 def trace_events_from_context(context: AFlowExecutionContext) -> list[TraceEvent]:

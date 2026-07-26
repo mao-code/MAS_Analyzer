@@ -511,7 +511,8 @@ class OpenRouterLLMClient:
 
                 sig = f"{api_tool_name}:{args_text}"
                 duplicate_call_counts[sig] = duplicate_call_counts.get(sig, 0) + 1
-                if duplicate_call_counts[sig] >= 3:
+                duplicate_threshold = 8 if str(task_id).startswith("workbench:") else 3
+                if duplicate_call_counts[sig] >= duplicate_threshold:
                     self._log(
                         "TOOL_LOOP_STOP "
                         f"request_id={request_id} task_id={task_id} run_index={run_index} "
@@ -525,7 +526,7 @@ class OpenRouterLLMClient:
                             "name": api_tool_name,
                             "content": (
                                 "Repeated identical tool call detected. This exact call has been made "
-                                "3 or more times with the same arguments and is returning the same result. "
+                                f"{duplicate_threshold} or more times with the same arguments and is returning the same result. "
                                 "Please stop repeating this call and provide your final answer now."
                             ),
                         }
@@ -572,6 +573,7 @@ class OpenRouterLLMClient:
 
                 if (
                     search_fingerprint
+                    and not str(task_id).startswith("workbench:")
                     and consecutive_stagnant_search_iterations >= stagnation_threshold
                 ):
                     self._log(
@@ -590,11 +592,13 @@ class OpenRouterLLMClient:
                             "role": "user",
                             "content": (
                                 "Recent search iterations are stagnating: consecutive search calls are "
-                                "returning substantially overlapping documents without meaningful new evidence. "
-                                "Stop searching now. Based only on the evidence already gathered, provide "
-                                "your best final answer. If the evidence is insufficient, explicitly return "
-                                "a concise insufficient-evidence or blocked-status answer instead of making "
-                                "more paraphrase searches."
+                                "returning substantially overlapping documents without meaningful new "
+                                "evidence. Stop searching now. Based only on the evidence already "
+                                "gathered, provide your best concise final answer instead of making "
+                                "more paraphrase searches. Output only the answer string, with no "
+                                "preamble, no rationale, no label, and no bullet list. Return the most "
+                                "plausible candidate answer; do not return an insufficient-evidence "
+                                "placeholder."
                             ),
                         }
                     )
@@ -1104,8 +1108,10 @@ class OpenRouterLLMClient:
                     "role": "user",
                     "content": (
                         "The search results have stagnated and further search is unlikely to help. "
-                        "Do not call more tools. If the currently gathered evidence is insufficient, "
-                        "say so explicitly and return a concise insufficient-evidence or blocked-status answer."
+                        "Do not call more tools. Return your best concise final answer from the gathered "
+                        "evidence. Output only the answer string, with no preamble, no rationale, no "
+                        "label, and no bullet list. Return the most plausible candidate answer; do not "
+                        "return an insufficient-evidence placeholder."
                     ),
                 }
             )
@@ -1116,7 +1122,9 @@ class OpenRouterLLMClient:
                     "You have reached the maximum number of tool calls "
                     f"({max(1, int(max_tool_iterations))}). "
                     "Based only on the information already gathered, provide your best final answer now. "
-                    "Do not call any more tools."
+                    "Do not call any more tools. Output only the answer string, with no preamble, no "
+                    "rationale, no label, and no bullet list. If the evidence is weak, still return the "
+                    "most plausible candidate answer instead of an explanation."
                 ),
             }
         )

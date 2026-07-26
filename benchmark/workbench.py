@@ -78,6 +78,15 @@ SIDE_EFFECT_TOOLS = {
     "customer_relationship_manager.delete_customer",
 }
 
+TOOL_NAME_ALIASES = {
+    "crm_search_customers": "customer_relationship_manager.search_customers",
+    "crm.search_customers": "customer_relationship_manager.search_customers",
+}
+
+DOMAIN_ALIASES = {
+    "crm": "customer_relationship_manager",
+}
+
 FIELDS_NOT_TO_LOWER = {"status", "list_name", "board"}
 
 
@@ -709,7 +718,10 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "description": "Updates an event field by ID.",
         "properties": {
             "event_id": {"type": "string"},
-            "field": {"type": "string"},
+            "field": {
+                "type": "string",
+                "description": 'Field to update. Available: "event_name", "participant_email", "event_start", "duration".',
+            },
             "new_value": {
                 "type": "string",
                 "description": 'New field value. If updating duration, use whole minutes as a numeric string such as "30", "60", or "120".',
@@ -720,7 +732,13 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "name": "email.get_email_information_by_id",
         "domain": "email",
         "description": "Retrieves specific details of an email by ID.",
-        "properties": {"email_id": {"type": "string"}, "field": {"type": "string"}},
+        "properties": {
+            "email_id": {"type": "string"},
+            "field": {
+                "type": "string",
+                "description": 'Field to return. Available: "email_id", "inbox/outbox", "sender/recipient", "subject", "sent_datetime", "body", "status". Use "sender/recipient" for the email sender or recipient; do not use "sender", "from", or "recipient".',
+            },
+        },
     },
     {
         "name": "email.search_emails",
@@ -809,7 +827,13 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "name": "project_management.get_task_information_by_id",
         "domain": "project_management",
         "description": "Returns task information for a given ID.",
-        "properties": {"task_id": {"type": "string"}, "field": {"type": "string"}},
+        "properties": {
+            "task_id": {"type": "string"},
+            "field": {
+                "type": "string",
+                "description": 'Field to return. Available: "task_id", "task_name", "assigned_to_email", "list_name", "due_date", "board".',
+            },
+        },
     },
     {
         "name": "project_management.search_tasks",
@@ -847,20 +871,33 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "description": "Updates a task field by ID.",
         "properties": {
             "task_id": {"type": "string"},
-            "field": {"type": "string"},
+            "field": {
+                "type": "string",
+                "description": 'Field to update. Available: "task_name", "assigned_to_email", "list_name", "due_date", "board".',
+            },
             "new_value": {"type": "string"},
         },
     },
     {
         "name": "customer_relationship_manager.search_customers",
         "domain": "customer_relationship_manager",
-        "description": "Searches customer records by multiple filters.",
+        "description": (
+            "Searches customer/client records by multiple filters. Use customer_name to look up "
+            "a named customer, and read assigned_to_email to find the employee assigned to that "
+            "customer."
+        ),
         "properties": {
-            "customer_name": {"type": "string"},
+            "customer_name": {
+                "type": "string",
+                "description": "Customer/client name to search for, e.g. the person named in the task.",
+            },
             "customer_email": {"type": "string"},
             "product_interest": {"type": "string"},
             "status": {"type": "string"},
-            "assigned_to_email": {"type": "string"},
+            "assigned_to_email": {
+                "type": "string",
+                "description": "Employee email assigned to the customer.",
+            },
             "last_contact_date_min": {"type": "string"},
             "last_contact_date_max": {"type": "string"},
             "follow_up_by_min": {"type": "string"},
@@ -873,7 +910,10 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "description": "Updates a customer record by ID.",
         "properties": {
             "customer_id": {"type": "string"},
-            "field": {"type": "string"},
+            "field": {
+                "type": "string",
+                "description": 'Field to update. Available: "customer_name", "customer_email", "customer_phone", "last_contact_date", "product_interest", "status", "assigned_to_email", "notes", "follow_up_by".',
+            },
             "new_value": {"type": "string"},
         },
     },
@@ -902,7 +942,11 @@ TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "company_directory.find_email_address",
         "domain": "company_directory",
-        "description": "Finds the email address of an employee by name.",
+        "description": (
+            "Finds the email address of an employee by employee name. Do not use this to search "
+            "for customers/clients; for a customer's assigned employee, first use "
+            "customer_relationship_manager.search_customers and read assigned_to_email."
+        ),
         "properties": {"name": {"type": "string"}},
     },
 ]
@@ -933,6 +977,7 @@ def _parse_action_call(action: str) -> tuple[str, dict[str, Any]] | None:
 
 
 def _format_function_call(tool_name: str, arguments: dict[str, Any]) -> str:
+    tool_name = TOOL_NAME_ALIASES.get(tool_name, tool_name)
     parts = []
     for key, value in arguments.items():
         escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
@@ -1045,6 +1090,9 @@ class WorkBenchBenchmark:
         self, sandbox: WorkBenchSandbox, task_domains: list[str]
     ) -> list[dict[str, Any]]:
         active_domains = set(CORE_DOMAINS if self.tool_selection == "all" else task_domains)
+        active_domains.update(
+            DOMAIN_ALIASES[domain] for domain in list(active_domains) if domain in DOMAIN_ALIASES
+        )
         active_domains.add("company_directory")
         tools: list[dict[str, Any]] = []
         for spec in TOOL_SPECS:
@@ -1063,6 +1111,25 @@ class WorkBenchBenchmark:
                     "handler": lambda args, tool_name=name, sb=sandbox: sb.invoke(tool_name, args),
                 }
             )
+            if name == "customer_relationship_manager.search_customers":
+                tools.append(
+                    {
+                        "name": "crm_search_customers",
+                        "description": (
+                            "Alias for customer_relationship_manager.search_customers. Searches "
+                            "customer/client records; use customer_name for the named customer "
+                            "and assigned_to_email to identify who is assigned to them."
+                        ),
+                        "parameters": {
+                            "type": "object",
+                            "properties": dict(spec["properties"]),
+                            "required": [],
+                        },
+                        "handler": lambda args, sb=sandbox: sb.invoke(
+                            "customer_relationship_manager.search_customers", args
+                        ),
+                    }
+                )
         return tools
 
     def run(
@@ -1083,6 +1150,18 @@ class WorkBenchBenchmark:
                     "Remember the current date and time when answering queries. "
                     "Meetings must not start before 9am or end after 6pm. "
                     "Use the provided workplace tools to complete the task. "
+                    "For customer/client assignment questions, search CRM customer records by "
+                    "customer_name and use assigned_to_email; company_directory only searches "
+                    "employees. "
+                    "For meeting-booking requests about a customer: search the CRM customer once, "
+                    "use last_contact_date to decide whether the condition is met, use "
+                    "assigned_to_email as the meeting participant, inspect tomorrow's calendar "
+                    "availability if needed, then call calendar.create_event with the requested "
+                    "event name, participant_email, event_start, and duration. Do not repeat the "
+                    "same CRM search after it returned the customer record. "
+                    "If the user asks you to create, update, delete, send, forward, or reply, "
+                    "you must call the corresponding side-effect tool; a text statement that "
+                    "you completed the action does not complete the task. "
                     "After using tools, provide a brief natural-language confirmation."
                 ),
             },
@@ -1173,6 +1252,7 @@ class WorkBenchBenchmark:
             if parsed is None:
                 continue
             tool_name, kwargs = parsed
+            tool_name = TOOL_NAME_ALIASES.get(tool_name, tool_name)
             try:
                 sandbox.invoke(tool_name, kwargs)
             except Exception:
