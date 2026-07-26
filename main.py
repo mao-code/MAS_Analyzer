@@ -21,6 +21,12 @@ from descriptor.metrics import RunOutcome, compute_run_metrics, resolve_run_outc
 from descriptor.schema import TraceEvent
 from MAS import MASRunner, OpenRouterLLMClient, load_experiment_config
 from MAS.langgraph_engine import ExperimentSpec, LangGraphMASEngine
+from MAS.prompting_baselines import (
+    BASELINE_DIRECT,
+    PROMPTING_BASELINES,
+    PromptingBaselineRunner,
+    normalize_prompting_baseline,
+)
 from MAS.relay import TOPOLOGY_SELF_EVOLVED
 
 try:
@@ -1513,6 +1519,9 @@ def _experiment_settings_payload(
 ) -> dict[str, Any]:
     mas_cfg = config.mas
     benchmark_cfg_redacted = _redact_secrets(benchmark_cfg)
+    prompting_baseline = normalize_prompting_baseline(
+        getattr(args, "prompting_baseline", BASELINE_DIRECT)
+    )
 
     return {
         "timestamp": output_paths.experiment_id,
@@ -1536,6 +1545,13 @@ def _experiment_settings_payload(
         "system": {
             "system_label": output_paths.system_label,
             "mode": _mas_mode_label(config),
+            "prompting_baseline": {
+                "name": prompting_baseline,
+                "self_consistency_samples": int(
+                    getattr(args, "self_consistency_samples", 3) or 3
+                ),
+                "self_refine_rounds": int(getattr(args, "self_refine_rounds", 3) or 3),
+            },
             "mas": {
                 "topology": mas_cfg.topology,
                 "resolved_topology": mas_cfg.resolved_topology(),
@@ -1605,6 +1621,83 @@ def _summary_task_entry_from_payload(task_dir: Path, payload: dict[str, Any]) ->
     }
 
 
+def _run_progress_summary(run_artifacts: Sequence[dict[str, Any]]) -> tuple[dict[str, int], int, int]:
+    run_status_summary: dict[str, int] = {}
+    for artifact in run_artifacts:
+        status = str(artifact.get("run_status", "completed") or "completed")
+        run_status_summary[status] = run_status_summary.get(status, 0) + 1
+    run_failure_count = sum(
+        1
+        for artifact in run_artifacts
+        if str(artifact.get("run_status", "completed") or "completed") != "completed"
+    )
+    fallback_count = sum(1 for artifact in run_artifacts if bool(artifact.get("fallback", False)))
+    return run_status_summary, run_failure_count, fallback_count
+
+
+def _write_task_checkpoint(
+    *,
+    task_dir: Path,
+    task: Any,
+    benchmark_name: str,
+    system_info: dict[str, Any],
+    runs_per_task: int,
+    run_artifacts: Sequence[dict[str, Any]],
+    task_failure_details: Sequence[dict[str, Any]],
+    checkpoint_reason: str,
+) -> None:
+    run_status_summary, run_failure_count, fallback_count = _run_progress_summary(run_artifacts)
+    completed_runs = len(run_artifacts)
+    needs_rerun = (
+        completed_runs < runs_per_task
+        or run_failure_count > 0
+        or fallback_count > 0
+        or bool(task_failure_details)
+    )
+    payload = {
+        "task_id": str(task.task_id),
+        "benchmark": benchmark_name,
+        "system": system_info,
+        "task_dir": str(task_dir.resolve()),
+        "prompt_preview": _prompt_preview(task.prompt),
+        "reference_answer": task.reference_answer,
+        "checkpoint_complete": completed_runs >= runs_per_task,
+        "checkpoint_reason": checkpoint_reason,
+        "checkpoint_updated_at": datetime.now(UTC).isoformat(),
+        "completed_runs": completed_runs,
+        "runs_per_task": int(runs_per_task),
+        "runs": list(run_artifacts),
+        "run_status_summary": run_status_summary,
+        "run_failure_count": run_failure_count,
+        "fallback_count": fallback_count,
+        "needs_rerun": needs_rerun,
+        "rerun_details": {
+            "run_failure_count": run_failure_count,
+            "fallback_count": fallback_count,
+            "run_status_summary": run_status_summary,
+            "failure_details": list(task_failure_details),
+        },
+        "evaluation": {
+            "count": completed_runs,
+            "success_rate": None,
+            "completion_rate": None,
+            "avg_score": None,
+            "checkpoint_note": "Final aggregate metrics are written after all runs finish.",
+        },
+        "descriptor": {
+            "checkpoint_note": "Final descriptor metrics are written after all runs finish.",
+        },
+        "stage_bottleneck": {},
+        "artifacts": {
+            "task_summary_path": str((task_dir / "task_summary.json").resolve()),
+            "analysis_path": str((task_dir / "analysis.json").resolve()),
+            "descriptor_json_path": str((task_dir / "descriptor.json").resolve()),
+            "descriptor_csv_path": str((task_dir / "descriptor.csv").resolve()),
+        },
+    }
+    _write_json(task_dir / "task_summary.json", payload)
+
+
 def _summary_row_from_analysis(
     *,
     benchmark_name: str,
@@ -1659,6 +1752,8 @@ def _llm_payload_needs_rerun(payload: Any) -> bool:
 
 
 def _metadata_needs_rerun(run_metadata: dict[str, Any]) -> bool:
+    if _env_truthy("MAS_FAIR_REPRODUCTION"):
+        return False
     if str(run_metadata.get("run_status", "completed") or "completed") != "completed":
         return True
     if bool(run_metadata.get("fallback", False) or run_metadata.get("needs_rerun", False)):
@@ -1678,6 +1773,10 @@ def _metadata_needs_rerun(run_metadata: dict[str, Any]) -> bool:
 
 
 def _task_payload_needs_rerun(task_dir: Path, payload: dict[str, Any]) -> bool:
+    if payload.get("checkpoint_complete") is False:
+        return True
+    if _env_truthy("MAS_FAIR_REPRODUCTION"):
+        return False
     if bool(payload.get("needs_rerun", False) or payload.get("fallback", False)):
         return True
     if int(payload.get("run_failure_count", 0) or 0) > 0:
@@ -1926,7 +2025,18 @@ def run_command(args: argparse.Namespace) -> int:
     benchmark = get_benchmark(benchmark_name, config=benchmark_cfg)
 
     llm_client = OpenRouterLLMClient(config.openrouter, config.models)
-    runner = MASRunner(config, llm_client)
+    base_runner = MASRunner(config, llm_client)
+    prompting_baseline = normalize_prompting_baseline(
+        getattr(args, "prompting_baseline", BASELINE_DIRECT)
+    )
+    runner: Any = base_runner
+    if prompting_baseline != BASELINE_DIRECT:
+        runner = PromptingBaselineRunner(
+            base_runner,
+            baseline=prompting_baseline,
+            self_consistency_samples=int(getattr(args, "self_consistency_samples", 3)),
+            self_refine_rounds=int(getattr(args, "self_refine_rounds", 3)),
+        )
     skill_updater = _build_skill_updater(config, runner)
     if skill_updater is not None:
         _log_progress(
@@ -1981,6 +2091,7 @@ def run_command(args: argparse.Namespace) -> int:
         "Loaded run configuration "
         f"benchmark={benchmark_name} system={args.system_label or config.mas.resolved_topology()} "
         f"tasks={len(tasks)} runs_per_task={runs_per_task} seed={seed} "
+        f"prompting_baseline={prompting_baseline} "
         f"topology={config.mas.resolved_topology()} agents={config.mas.total_agents} "
         f"rounds={int(config.mas.max_turns)} discussion_rounds={int(config.mas.discussion_rounds)} "
         f"communication_budget={int(config.mas.communication_count_internally)}"
@@ -2013,6 +2124,9 @@ def run_command(args: argparse.Namespace) -> int:
         "system_label": output_paths.system_label,
         "mode": _mas_mode_label(config),
         "topology": config.mas.resolved_topology(),
+        "prompting_baseline": prompting_baseline,
+        "self_consistency_samples": int(getattr(args, "self_consistency_samples", 3)),
+        "self_refine_rounds": int(getattr(args, "self_refine_rounds", 3)),
         "agents": config.mas.total_agents,
         "agents_per_level": config.mas.resolved_agents_per_level(),
         "group_sizes": list(config.mas.group_sizes) if config.mas.group_sizes is not None else None,
@@ -2110,6 +2224,8 @@ def run_command(args: argparse.Namespace) -> int:
                 f"RUN_START task_id={task.task_id} run_index={run_index} seed={run_seed}"
             )
             try:
+                if hasattr(runner, "set_run_checkpoint_context"):
+                    runner.set_run_checkpoint_context(task_dir=task_dir, run_index=run_index)
                 run = benchmark.run(
                     task=task,
                     runner=runner,
@@ -2154,6 +2270,9 @@ def run_command(args: argparse.Namespace) -> int:
                 run_metadata = run.run_metadata
                 evaluation = None
                 run_outcome = None
+            finally:
+                if hasattr(runner, "set_run_checkpoint_context"):
+                    runner.set_run_checkpoint_context(task_dir=None, run_index=None)
 
             _log_progress(
                 f"RUN_FINISH task_id={task.task_id} run_index={run_index} "
@@ -2239,6 +2358,21 @@ def run_command(args: argparse.Namespace) -> int:
                 f"RUN_ARTIFACTS_WRITTEN task_id={task.task_id} run_index={run_index} "
                 f"metadata_path={artifact_paths['metadata_path']} eval_path={eval_path}"
             )
+            _write_task_checkpoint(
+                task_dir=task_dir,
+                task=task,
+                benchmark_name=benchmark_name,
+                system_info=system_info,
+                runs_per_task=runs_per_task,
+                run_artifacts=run_artifacts,
+                task_failure_details=task_failure_details,
+                checkpoint_reason=f"run_{run_index}_complete",
+            )
+            _log_progress(
+                f"TASK_CHECKPOINT_WRITTEN task_id={task.task_id} "
+                f"completed_runs={len(run_artifacts)}/{runs_per_task} "
+                f"path={task_dir / 'task_summary.json'}"
+            )
 
             # Online skill learning: feed this freshly executed run's playbook candidate
             # (PROCESS SIGNALS ONLY — never the eval verdict, to avoid biasing the study)
@@ -2266,16 +2400,7 @@ def run_command(args: argparse.Namespace) -> int:
             f"success_rate={float(analysis['evaluation'].get('success_rate', 0.0)):.4f} "
             f"completion_rate={float(analysis['evaluation'].get('completion_rate', 0.0)):.4f}"
         )
-        run_status_summary: dict[str, int] = {}
-        for artifact in run_artifacts:
-            status = str(artifact.get("run_status", "completed") or "completed")
-            run_status_summary[status] = run_status_summary.get(status, 0) + 1
-        run_failure_count = sum(
-            1
-            for artifact in run_artifacts
-            if str(artifact.get("run_status", "completed") or "completed") != "completed"
-        )
-        fallback_count = sum(1 for artifact in run_artifacts if bool(artifact.get("fallback", False)))
+        run_status_summary, run_failure_count, fallback_count = _run_progress_summary(run_artifacts)
         needs_rerun = run_failure_count > 0 or fallback_count > 0 or bool(task_failure_details)
         rerun_details = {
             "run_failure_count": run_failure_count,
@@ -2291,6 +2416,11 @@ def run_command(args: argparse.Namespace) -> int:
             "task_dir": str(task_dir.resolve()),
             "prompt_preview": _prompt_preview(task.prompt),
             "reference_answer": task.reference_answer,
+            "checkpoint_complete": True,
+            "checkpoint_reason": "task_analysis_complete",
+            "checkpoint_updated_at": datetime.now(UTC).isoformat(),
+            "completed_runs": len(run_artifacts),
+            "runs_per_task": int(runs_per_task),
             "evaluation": analysis["evaluation"],
             "descriptor": analysis["descriptor"],
             "stage_bottleneck": analysis["stage_bottleneck"],
@@ -2346,6 +2476,8 @@ def run_command(args: argparse.Namespace) -> int:
             }
         )
         summary_rows.append(row)
+        _write_json(output_paths.run_root / "summary.json", summary_json)
+        _write_summary_csv(output_paths.run_root / "summary.csv", summary_rows)
         _log_progress(
             f"TASK_FINISH index={task_idx + 1}/{len(tasks)} task_id={task.task_id} "
             f"task_dir={task_dir} failures={run_failure_count} fallbacks={fallback_count} "
@@ -2616,6 +2748,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--experiment-id", default=None)
     run_parser.add_argument("--system-label", default=None)
+    run_parser.add_argument(
+        "--prompting-baseline",
+        choices=sorted(PROMPTING_BASELINES),
+        default=BASELINE_DIRECT,
+        help=(
+            "Fixed prompting baseline to run on top of the configured SAS runtime. "
+            "Use cot, self_consistency, or self_refine for the paper table prompting rows."
+        ),
+    )
+    run_parser.add_argument(
+        "--self-consistency-samples",
+        type=int,
+        default=3,
+        help="Number of internal samples for --prompting-baseline self_consistency.",
+    )
+    run_parser.add_argument(
+        "--self-refine-rounds",
+        type=int,
+        default=3,
+        help="Number of feedback/revision rounds for --prompting-baseline self_refine.",
+    )
     run_parser.add_argument("--topology", default=None)
     run_parser.add_argument("--agents", type=int, default=None)
     run_parser.add_argument("--mas-rounds", type=int, default=None)

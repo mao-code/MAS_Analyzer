@@ -73,6 +73,20 @@ class _SlowOnceClient:
         self.chat = SimpleNamespace(completions=_SlowOnceCompletions())
 
 
+class _EmptyCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=3, completion_tokens=0))
+
+
+class _EmptyClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_EmptyCompletions())
+
+
 class _CompactingCompletions:
     def __init__(self) -> None:
         self.calls: list[dict] = []
@@ -484,6 +498,35 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertIn("NEEDLE_FACT", compact["text_preview"])
         self.assertIn("text_omitted_chars", compact)
 
+    def test_small_structured_tool_output_keeps_fields(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+
+        compact = client._compact_tool_output_for_prompt(
+            {
+                "college": [
+                    {
+                        "amenity": "The American University in Cairo",
+                        "address": "New Cairo, Cairo, Egypt",
+                        "latitude": "30.018923",
+                        "longitude": "31.499674",
+                    },
+                    {
+                        "amenity": "Cairo University",
+                        "address": "Giza, Cairo, Egypt",
+                        "latitude": "30.022052",
+                        "longitude": "31.208853",
+                    },
+                ]
+            },
+            preview_chars=80,
+        )
+
+        self.assertEqual(compact["college"][0]["latitude"], "30.018923")
+        self.assertEqual(compact["college"][0]["longitude"], "31.499674")
+        self.assertEqual(compact["college"][1]["amenity"], "Cairo University")
+
     def test_document_tool_prompt_compaction_samples_middle_for_long_text(self) -> None:
         client = OpenRouterLLMClient(
             OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
@@ -878,6 +921,35 @@ class TestLLMToolLoop(unittest.TestCase):
             ["google/gemini-2.0-flash-001", "qwen/qwen3-32b"],
         )
         sleep_mock.assert_called_once()
+
+    def test_empty_completion_retry_attempts_can_be_capped(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "google/gemma-4-31b-it"}
+        )
+        fake = _EmptyClient()
+        client.client = fake
+
+        with patch.dict(
+            "os.environ",
+            {
+                "MAS_LLM_RETRY_ATTEMPTS": "5",
+                "MAS_LLM_EMPTY_COMPLETION_RETRY_ATTEMPTS": "1",
+                "MAS_LLM_RETRY_BACKOFF_S": "0",
+            },
+            clear=False,
+        ):
+            result = client.generate(
+                prompt="solve",
+                agent_type="general",
+                task_id="t1",
+                run_index=0,
+                agent_id="agent_0",
+            )
+
+        self.assertEqual(len(fake.chat.completions.calls), 1)
+        self.assertEqual(result.text, "")
+        self.assertTrue(result.metadata.get("empty_completion"))
+        self.assertEqual(result.metadata.get("failure_category"), "empty_completion")
 
 
 if __name__ == "__main__":

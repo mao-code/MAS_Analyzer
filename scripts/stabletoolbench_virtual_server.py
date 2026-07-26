@@ -6,6 +6,7 @@ import ast
 import json
 import logging
 import re
+from itertools import combinations
 from functools import lru_cache
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -58,6 +59,21 @@ def _lookup_token(value: Any) -> str:
     return json.dumps(_normalize_key(value), ensure_ascii=False, sort_keys=True)
 
 
+def _subset_lookup_tokens(value: dict[str, Any]) -> list[str]:
+    if not isinstance(value, dict) or len(value) < 2:
+        return []
+
+    items = list(value.items())
+    tokens: list[str] = []
+    # Try the most-specific subsets first. This handles optional/default fields
+    # that are present in model calls but absent from the recorded cache key.
+    for subset_size in range(len(items) - 1, 0, -1):
+        for indexes in combinations(range(len(items)), subset_size):
+            subset = {items[index][0]: items[index][1] for index in indexes}
+            tokens.append(_lookup_token(subset))
+    return tokens
+
+
 @lru_cache(maxsize=512)
 def _cache_entries(path_text: str) -> dict[str, Any]:
     path = Path(path_text)
@@ -92,6 +108,9 @@ class StableToolBenchCacheServer:
             cache = _cache_entries(str(candidate))
             if token in cache:
                 return self._coerce_response(cache[token], source=candidate)
+            for subset_token in _subset_lookup_tokens(tool_input):
+                if subset_token in cache:
+                    return self._coerce_response(cache[subset_token], source=candidate)
             if not tool_input and len(cache) == 1:
                 only_value = next(iter(cache.values()))
                 return self._coerce_response(only_value, source=candidate)
@@ -105,12 +124,18 @@ class StableToolBenchCacheServer:
 
     def _candidate_paths(self, *, category: str, tool_name: str, api_name: str) -> list[Path]:
         category_dir = self.cache_root / str(category or "").strip()
-        tool_dir = category_dir / f"{_standardize(tool_name)}_for_{_standardize(category)}"
+        standardized_tool = _standardize(tool_name)
+        standardized_category = _standardize(category)
+        raw_category = str(category or "").strip()
+        tool_dir = category_dir / f"{standardized_tool}_for_{standardized_category}"
+        tool_dir_raw_category = category_dir / f"{standardized_tool}_for_{raw_category}"
         api_filename = f"{_standardize(api_name)}.json"
         api_filename_raw = f"{str(api_name or '').strip()}.json"
         return [
             tool_dir / api_filename,
             tool_dir / api_filename_raw,
+            tool_dir_raw_category / api_filename,
+            tool_dir_raw_category / api_filename_raw,
             category_dir / api_filename,
             category_dir / api_filename_raw,
             self.cache_root / api_filename,

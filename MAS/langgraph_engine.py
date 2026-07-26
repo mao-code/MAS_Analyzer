@@ -4563,6 +4563,24 @@ class LangGraphMASEngine:
         if tools_available:
             system_lines.append("Available tools:")
             system_lines.extend(self._compact_tool_summary(serialized_tools))
+            if os.getenv("MAS_STRICT_TOOL_JSON_PROMPT", "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }:
+                system_lines.extend(
+                    [
+                        "Strict tool-call format contract:",
+                        "- When calling a tool, the tool arguments must be exactly one valid JSON object.",
+                        "- Do not concatenate multiple JSON objects in one tool call.",
+                        "- Do not include prose, markdown, comments, or trailing text inside tool arguments.",
+                        '- For search, use exactly this argument shape: {"query": "your search query"}.',
+                        '- For get_document, use exactly this argument shape: {"docid": "document id"}.',
+                        "- If you need multiple searches, issue multiple separate tool calls; each call must have one JSON object.",
+                        "- If you are unsure of a required argument, do not call that tool with malformed arguments.",
+                    ]
+                )
             if self._is_answer_producing_stage(stage_role):
                 system_lines.append(
                     "Tool-use contract: if evidence is missing or weak, call the relevant tool instead of narrating that you need to search."

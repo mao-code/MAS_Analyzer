@@ -1,0 +1,59 @@
+[openrouter]
+api_key = ""
+base_url = "https://openrouter.ai/api/v1"
+timeout_s = 600
+
+[experiment]
+output_dir = "outputs"
+runs_per_task = 1
+seed = 42
+task_limit = 40
+
+[models]
+default = "google/gemma-4-31b-it"
+
+[mas]
+levels = 1
+intra_level_link_ratio = 1.0
+full_linked = true
+number_of_agents = 1
+agent_types = ["general"]
+communication_count_internally = 0
+turn_mode = "single_turn"
+max_turns = 20
+termination_consensus_mode = "llm_judge"
+final_vote_mode = "llm_judge"
+peer_artifact_max_chars = 320
+
+[browsecomp]
+auto_download = true
+eval_mode = "llm_judge"
+judge_model = "openai/gpt-4.1-mini"
+judge_temperature = 0.0
+judge_max_tokens = 4096
+enable_tools = true
+max_tool_iterations = 8
+tool_k = 5
+
+[math500]
+split = "test"
+
+[plancraft]
+max_steps = 5
+
+[stabletoolbench]
+auto_download = true
+auto_download_server_assets = false
+task_sets = ["G1_instruction"]
+virtual_server_url = "http://localhost:8080/virtual"
+enable_tools = true
+max_tool_iterations = 8
+eval_mode = "fac"
+judge_model = "openai/gpt-4.1-mini"
+judge_temperature = 0.0
+judge_max_tokens = 256
+
+[workbench]
+domain = "multi_domain"
+tool_selection = "domains"
+max_tool_iterations = 20

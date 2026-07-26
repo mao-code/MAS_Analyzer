@@ -85,6 +85,11 @@ def extract_answer(prediction: str) -> tuple[str, str]:
     Returns (answer, match_type) where match_type is "boxed", "phrase",
     "last_line", or "empty".
     """
+    # Some OpenRouter/Gemma responses arrive with JSON-style backslash escapes
+    # interpreted as control characters, e.g. "\boxed{...}" becomes
+    # "\x08oxed{...}". Recover the LaTeX command before boxed-answer parsing.
+    prediction = prediction.replace("\x08oxed", "\\boxed").replace("\x0cbox", "\\fbox")
+
     boxed = _last_boxed_only_string(prediction)
     if boxed is not None:
         return _remove_boxed(boxed).strip(), "boxed"

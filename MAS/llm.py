@@ -236,6 +236,7 @@ class OpenRouterLLMClient:
         tools: list[dict[str, Any]] | None = None,
         max_tool_iterations: int = 8,
         temperature: float = 0.0,
+        max_tokens: int | None = None,
     ) -> LLMResult:
         model = self.model_for_agent_type(agent_type)
         tool_defs, tool_handlers, original_tool_names = self._normalize_tools(tools or [])
@@ -285,11 +286,21 @@ class OpenRouterLLMClient:
                     model=model,
                     messages=messages,
                     temperature=temperature,
+                    max_tokens=max_tokens,
                 )
                 text = self._extract_text(completion)
                 usage = getattr(completion, "usage", None)
                 token_in = int(getattr(usage, "prompt_tokens", self._estimate_tokens(prompt)))
                 token_out = int(getattr(usage, "completion_tokens", self._estimate_tokens(text)))
+                empty_completion = not self._completion_has_usable_choice(completion)
+                metadata = {
+                    "provider": "openrouter",
+                    "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
+                    "generation_status": "answered" if text.strip() else "failed",
+                }
+                if empty_completion:
+                    metadata["empty_completion"] = True
+                    metadata["failure_category"] = "empty_completion"
 
                 result = LLMResult(
                     text=text,
@@ -298,11 +309,7 @@ class OpenRouterLLMClient:
                     cost_usd=0.0,
                     model=model,
                     mock_used=False,
-                    metadata={
-                        "provider": "openrouter",
-                        "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
-                        "generation_status": "answered" if text.strip() else "failed",
-                    },
+                    metadata=metadata,
                 )
                 elapsed_s = max(time.perf_counter() - started, 0.0)
                 self._log(
@@ -1110,6 +1117,15 @@ class OpenRouterLLMClient:
         preview_chars: int,
         max_list_items: int = 2,
     ) -> Any:
+        if isinstance(output, (dict, list)) and not self._looks_like_retrieval_output(output):
+            full_json_chars = max(
+                preview_chars,
+                self._env_int("MAS_TOOL_CONTEXT_FULL_JSON_CHARS") or 12000,
+            )
+            jsonable_output = self._to_jsonable(output)
+            if len(self._safe_json_dumps(jsonable_output)) <= full_json_chars:
+                return jsonable_output
+
         if isinstance(output, list):
             compact_items = [
                 self._compact_tool_output_for_prompt(
@@ -1215,6 +1231,36 @@ class OpenRouterLLMClient:
             return self._preview_text(output, limit=preview_chars)
 
         return self._to_jsonable(output)
+
+    @staticmethod
+    def _looks_like_retrieval_output(output: Any) -> bool:
+        retrieval_keys = {
+            "docid",
+            "score",
+            "title",
+            "query",
+            "snippet",
+            "text",
+            "content",
+            "payload",
+            "url",
+            "error",
+        }
+        if isinstance(output, dict):
+            if any(key in output for key in retrieval_keys):
+                return True
+            return any(
+                OpenRouterLLMClient._looks_like_retrieval_output(value)
+                for value in output.values()
+                if isinstance(value, (dict, list))
+            )
+        if isinstance(output, list):
+            return any(
+                OpenRouterLLMClient._looks_like_retrieval_output(item)
+                for item in output
+                if isinstance(item, (dict, list))
+            )
+        return False
 
     def _best_effort_tool_timeout_answer(
         self,
@@ -1508,6 +1554,10 @@ class OpenRouterLLMClient:
         )
         kwargs.setdefault("timeout", self.config.timeout_s)
         attempts = max(1, self._env_int("MAS_LLM_RETRY_ATTEMPTS") or 3)
+        empty_completion_attempts = max(
+            1,
+            self._env_int("MAS_LLM_EMPTY_COMPLETION_RETRY_ATTEMPTS") or attempts,
+        )
         timeout_attempts = max(1, self._env_int("MAS_LLM_TIMEOUT_RETRY_ATTEMPTS") or 2)
         backoff_s = max(0.0, self._env_float("MAS_LLM_RETRY_BACKOFF_S") or 2.0)
         max_backoff_s = max(backoff_s, self._env_float("MAS_LLM_RETRY_MAX_BACKOFF_S") or 60.0)
@@ -1524,11 +1574,12 @@ class OpenRouterLLMClient:
                 # attempt, hand the empty completion back so the caller records a
                 # typed failure; otherwise retry — routing overrides rotate the
                 # provider per attempt, so a different upstream often succeeds.
-                if attempt_index >= attempts - 1:
+                if attempt_index >= min(attempts, empty_completion_attempts) - 1:
                     self._log(
                         "EMPTY_COMPLETION "
                         f"model={request_kwargs.get('model', '')} "
-                        f"attempt={attempt_index + 1}/{attempts} returning_empty_after_retries"
+                        f"attempt={attempt_index + 1}/{min(attempts, empty_completion_attempts)} "
+                        "returning_empty_after_retries"
                     )
                     return completion
                 raise _EmptyCompletionError("provider returned an empty completion")
