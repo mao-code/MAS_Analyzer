@@ -575,7 +575,7 @@ def test_agentsquare_max_tokens_zero_clears_openrouter_limit(monkeypatch) -> Non
 
 def test_agentsquare_formal_launcher_keeps_table_contract() -> None:
     script = (
-        __import__("pathlib").Path("scripts/run_agentsquare_formal.sh").read_text(encoding="utf-8")
+        __import__("pathlib").Path("scripts/baselines/run_agentsquare_formal.sh").read_text(encoding="utf-8")
     )
 
     for benchmark in ("browsecomp", "math500", "plancraft", "stabletoolbench", "workbench"):

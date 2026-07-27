@@ -14,6 +14,7 @@ import types
 import unittest
 from unittest import mock
 
+from cli.resume import _llm_payload_needs_rerun, _metadata_needs_rerun
 from MAS.artifacts import ArtifactRecord, build_artifact, latest_artifact_by_agent
 from MAS.config import OpenRouterConfig
 from MAS.llm import OpenRouterLLMClient
@@ -231,6 +232,43 @@ class TestEmptyCompletionContract(unittest.TestCase):
         self.assertEqual(result.text, "")
         self.assertEqual(result.metadata.get("generation_status"), "failed")
         self.assertGreaterEqual(calls["n"], 2)  # exhausted retries, no crash
+        self.assertTrue(
+            _llm_payload_needs_rerun(
+                {
+                    "mock_used": result.mock_used,
+                    "metadata": result.metadata,
+                }
+            )
+        )
+
+    def test_nested_empty_completion_marks_run_for_rerun(self) -> None:
+        run_metadata = {
+            "run_status": "completed",
+            "artifact_records": [
+                {
+                    "llm": {
+                        "mock_used": False,
+                        "metadata": {
+                            "empty_completion": True,
+                            "failure_category": "empty_completion",
+                            "generation_status": "failed",
+                        },
+                    }
+                }
+            ],
+        }
+
+        self.assertTrue(_metadata_needs_rerun(run_metadata))
+
+    def test_answered_completion_does_not_mark_run_for_rerun(self) -> None:
+        payload = {
+            "mock_used": False,
+            "metadata": {
+                "generation_status": "answered",
+            },
+        }
+
+        self.assertFalse(_llm_payload_needs_rerun(payload))
 
     def test_usable_first_try_no_wasted_retries(self) -> None:
         client, calls = self._client(

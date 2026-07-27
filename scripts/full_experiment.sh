@@ -281,12 +281,13 @@ cat >&2 <<'EOF'
 scripts/full_experiment.sh requires Python 3.11+.
 
 Recommended fix:
-  conda env create -f environment.yml
-  conda run -n agents python -V
-  bash scripts/full_experiment.sh
+  uv sync
+  uv run bash scripts/full_experiment.sh
 
-If the 'agents' environment already exists but is stale, recreate or update it:
-  conda env remove -n agents
-  conda env create -f environment.yml
+Or with a plain virtualenv on a 3.11+ interpreter:
+  python3.11 -m venv .venv
+  source .venv/bin/activate
+  pip install -e .
+  bash scripts/full_experiment.sh
 EOF
 exit 1

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import main as main_module
 from benchmark.base import BenchmarkEvaluation, BenchmarkTask
+from cli import commands as commands_module  # run_command's own module: patch targets live here
 
 
 class TestMainBrowseCompSmoke(unittest.TestCase):
@@ -327,11 +328,11 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
                 no_dynamic_roles=False,
             )
 
-            with patch.object(main_module, "get_benchmark", return_value=FakeBenchmark()):
-                with patch.object(main_module, "OpenRouterLLMClient", return_value=object()):
-                    with patch.object(main_module, "MASRunner", return_value=SimpleNamespace()):
+            with patch.object(commands_module, "get_benchmark", return_value=FakeBenchmark()):
+                with patch.object(commands_module, "OpenRouterLLMClient", return_value=object()):
+                    with patch.object(commands_module, "MASRunner", return_value=SimpleNamespace()):
                         with patch.object(
-                            main_module,
+                            commands_module,
                             "_write_system_graph_artifact",
                             return_value={"png_path": "graph.png"},
                         ):
@@ -444,11 +445,11 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
                 no_dynamic_roles=False,
             )
 
-            with patch.object(main_module, "get_benchmark", return_value=FakeBenchmark()):
-                with patch.object(main_module, "OpenRouterLLMClient", return_value=object()):
-                    with patch.object(main_module, "MASRunner", return_value=SimpleNamespace()):
+            with patch.object(commands_module, "get_benchmark", return_value=FakeBenchmark()):
+                with patch.object(commands_module, "OpenRouterLLMClient", return_value=object()):
+                    with patch.object(commands_module, "MASRunner", return_value=SimpleNamespace()):
                         with patch.object(
-                            main_module,
+                            commands_module,
                             "_write_system_graph_artifact",
                             return_value={"png_path": "graph.png"},
                         ):
@@ -481,11 +482,11 @@ class TestMainBrowseCompSmoke(unittest.TestCase):
                         },
                     )
 
-            with patch.object(main_module, "get_benchmark", return_value=SecondPassBenchmark()):
-                with patch.object(main_module, "OpenRouterLLMClient", return_value=object()):
-                    with patch.object(main_module, "MASRunner", return_value=SimpleNamespace()):
+            with patch.object(commands_module, "get_benchmark", return_value=SecondPassBenchmark()):
+                with patch.object(commands_module, "OpenRouterLLMClient", return_value=object()):
+                    with patch.object(commands_module, "MASRunner", return_value=SimpleNamespace()):
                         with patch.object(
-                            main_module,
+                            commands_module,
                             "_write_system_graph_artifact",
                             return_value={"png_path": "graph.png"},
                         ):

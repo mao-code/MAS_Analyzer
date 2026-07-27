@@ -54,15 +54,15 @@ tool_snippet_max_tokens = 512
 max_tool_iterations = 8
 ```
 
-## Sync Official Assets
+## Official Assets
 
-Run:
+With `browsecomp.auto_download = true` (the default) the adapter fetches and decrypts the
+dataset from Hugging Face on first use, writing it to `browsecomp.decrypted_path`. Set
+`HF_TOKEN` in `.env` if the source repo requires authentication.
 
-```bash
-bash scripts/pull_browsecomp_plus.sh
-```
-
-This updates qrels from `texttron/BrowseComp-Plus` into this folder.
+The qrel files in `topics-qrels/` are vendored in this folder and come from
+[`texttron/BrowseComp-Plus`](https://github.com/texttron/BrowseComp-Plus); refresh them from
+upstream if the benchmark is revised.
 
 ## Run Helper Script
 

@@ -43,7 +43,7 @@ uv run python -m reproduce.adas.run_existing_benchmarks \
 
 ## Formal Run
 
-Use `scripts/run_adas_formal.sh`. It runs the five table benchmarks in this
+Use `scripts/baselines/run_adas_formal.sh`. It runs the five table benchmarks in this
 order:
 
 `BrowseComp, StableToolBench, PlanCraft, WorkBench, MATH, Average`

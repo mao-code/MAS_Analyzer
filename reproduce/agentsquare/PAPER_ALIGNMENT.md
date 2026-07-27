@@ -31,7 +31,7 @@ Local implementation:
 - Runtime adapter: `reproduce/agentsquare/runtime_runner.py`
 - Result summarizer: `reproduce/agentsquare/summarize_results.py`
 - Status checker: `reproduce/agentsquare/status.py`
-- Formal launcher: `scripts/run_agentsquare_formal.sh`
+- Formal launcher: `scripts/baselines/run_agentsquare_formal.sh`
 
 Implemented mapping:
 
@@ -100,7 +100,7 @@ larger search budget is explicitly desired.
 Launch:
 
 ```bash
-tmux new -s agentsquare 'bash scripts/run_agentsquare_formal.sh agentsquare_gemma_10val_30test_T1'
+tmux new -s agentsquare 'bash scripts/baselines/run_agentsquare_formal.sh agentsquare_gemma_10val_30test_T1'
 ```
 
 Status:

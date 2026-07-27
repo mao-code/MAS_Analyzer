@@ -1,14 +1,17 @@
+# --- Python ---
 __pycache__/
 *.py[cod]
-.pytest_cache/
 *.egg-info/
-.DS_Store
-
-.cache/
-
+.pytest_cache/
+.ruff_cache/
 .venv/
 venv/
+.DS_Store
 
+# --- Secrets and local config ---
+# config/ holds the researcher's own experiment.toml (may contain API keys).
+# Only the checked-in examples and shared assets are tracked.
+.env
 config/*
 !config/*.example.toml
 !config/benchmarks/
@@ -19,46 +22,43 @@ config/*
 !config/manta_ablation_tasks_seed42.json
 !config/manta_ablation_tasks_30_seed42.json
 
-.env
+# --- Benchmark assets (downloaded, not vendored) ---
+.cache/
 data/
 benchmark/browsecomp/data/
 benchmark/webshop/data/
+benchmark/stabletoolbench/data/
+benchmark/stabletoolbench/tool_response_cache/
+benchmark/stabletoolbench/tools/
+benchmark/stabletoolbench/server.log
 third_party/BrowseComp-Plus/
+
+# --- Experiment outputs ---
+artifacts/*
 outputs/
+/outputs
 outputs_agentsquare_reproduce/
 outputs_aflow_reproduce/
 run_logs/
-benchmark/stabletoolbench/tool_response_cache
-benchmark/stabletoolbench/tools
-
-artifacts/*
-
-.claude/*
-
-# Local experiment runs and generated analysis artifacts
-202604*T*Z*/
-202604*_paper_run__*/
-20260426_qwen3_32b_paper_run__qwen_qwen3_32b_nitro*/
+logs_verify/
 */Plot/
 */logs/
-logs_verify/
 experiment_summary.csv
 experiment_summary.json
 run_*.trajectory.json
 run_*.trace_metrics.json
 summary.csv
-/outputs
 mas_failure_analysis_report.html
 
-# Files commonly created by extracted archives/downloads
+# --- Paper drafts (kept out of the code repo) ---
+AAAI2027/
+PAPER_DRAFT.md
+
+# --- Editor / agent local state ---
+.claude/*
+
+# --- Archive extraction leftovers ---
 __MACOSX/
 *Zone.Identifier
 *.zip
 *.7z
-PAPER_DRAFT.md
-
-docs/*
-
-AAAI2027
-CLAUDE.md
-AGENTS.md

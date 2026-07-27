@@ -91,19 +91,19 @@ secrets from `.env`, and defaults to a tractable AgentSquare search budget:
 cache server automatically if needed.
 
 ```bash
-bash scripts/run_agentsquare_formal.sh
+bash scripts/baselines/run_agentsquare_formal.sh
 ```
 
 To use a stable run id for resume:
 
 ```bash
-bash scripts/run_agentsquare_formal.sh agentsquare_gemma_10val_30test_T1
+bash scripts/baselines/run_agentsquare_formal.sh agentsquare_gemma_10val_30test_T1
 ```
 
 To run detached:
 
 ```bash
-tmux new -s agentsquare 'bash scripts/run_agentsquare_formal.sh agentsquare_gemma_10val_30test_T1'
+tmux new -s agentsquare 'bash scripts/baselines/run_agentsquare_formal.sh agentsquare_gemma_10val_30test_T1'
 ```
 
 Monitor progress:

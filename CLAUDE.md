@@ -9,8 +9,12 @@ Experiment harness for an economics-of-collaboration study (see `README.md`). It
 traces, and aggregates repeated runs into a trace-derived task descriptor (`Q / C / D / R / P`:
 quality, execution cost, coordination diagnostics, reliability, process). The strict metric
 contract — what `success` vs `completion` mean, how every `Q*/C*/D*/R*/P*` field is computed, and
-what lands in `summary.csv` — is specified in detail in `README.md` and is the source of truth; do
-not silently change a metric definition.
+what lands in `summary.csv` — is specified in detail in `docs/metrics.md` and is the source of
+truth; do not silently change a metric definition.
+
+Documentation lives in `docs/` (`reproducing.md`, `metrics.md`, `termination.md`, `traces.md`,
+`prompting.md`, `self-evolved.md`, `topology-analysis.md`, `benchmarks.md`); `README.md` is a slim
+overview that indexes them.
 
 ## Commands
 
@@ -72,8 +76,8 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
 - **`benchmark/`** — benchmark adapters. `benchmark/registry.py` maps names → classes (add new
   benchmarks here). All adapters implement the `BenchmarkAdapter` protocol in `benchmark/base.py`:
   `load_tasks`, `run`, `evaluate` (returns `.success`), `requirements`. `benchmark.evaluate(...).success`
-  is the **only** authority on correctness — never infer success elsewhere. (`benchmarks/` is just a
-  docs/compatibility shim; the real package is `benchmark/`.)
+  is the **only** authority on correctness — never infer success elsewhere. Every adapter is a package
+  directory with its own `README.md`.
 
 - **`MAS/`** — the SAS/MAS runtime. `MAS/langgraph_engine.py` is the heart: it builds per-agent
   prompts (`_build_agent_prompt`, `_execute_agent_stage`), runs controller/worker nodes, and centralizes
@@ -110,8 +114,8 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
   the deterministic fallback when no skill file exists; its `lookup` transfers entries by task shape
   (`tools::size`) across benchmarks, ranked by the same process proxy. **Online updates are ON by default, so a
   `run` rewrites the skill mid-experiment — use a single sequential process; set `skill_update_batch_size = 0` for
-  parallel experiments.** The orchestration is deterministic (agents never decide termination). See the
-  "Self-evolved topology system" section + diagram in `README.md`.
+  parallel experiments.** The orchestration is deterministic (agents never decide termination). See
+  `docs/self-evolved.md` for the full description + diagram.
 
 - **`descriptor/`** — trace schema (`descriptor/schema.py`), run-level metrics, and task-level
   aggregation (`descriptor/experiment.py::analyze_task_runs`), plus comparison tooling in
@@ -120,12 +124,20 @@ The core flow **config → benchmark task → MAS run → trace → descriptor**
 - **`analysis/econ_eval/`** — economic post-analysis (utility, cost/quality regime classification);
   consumed by `scripts/analyze_experiment.py`.
 
-- **`scripts/`** — `full_experiment.py`/`.sh` (batch wrapper), `analyze_experiment.py`,
-  `generate_mas_failure_analysis_report.py`, `update_topology_playbook.py` (offline process-only playbook merge),
-  and the StableToolBench virtual server.
+- **`scripts/`** — three tiers, indexed in `scripts/README.md`. Top level is the supported tooling:
+  `full_experiment.py`/`.sh` (batch wrapper), `full_selfevo_{bw,ps}.sh` (the two paper runs),
+  `analyze_experiment.py`, `generate_mas_failure_analysis_report.py`, `reflect_topology_skill.py` /
+  `update_topology_playbook.py` (offline process-only learning writers), and the StableToolBench
+  virtual server. `scripts/baselines/` drives the `reproduce/` baselines; `scripts/experiments/`
+  holds one-off drivers kept for provenance — do not treat those as general tooling.
 
-- **`main.py`** — single CLI entrypoint (subcommands: `run`, `list-benchmarks`, `benchmark-info`,
-  `summarize-experiment`). Large file; it wires config → runner → descriptor → artifact writing.
+- **`main.py` + `cli/`** — CLI entrypoint (subcommands: `run`, `list-benchmarks`, `benchmark-info`,
+  `summarize-experiment`). `main.py` is a thin parser that re-exports the internals scripts and tests
+  import from `main`; the implementation lives in `cli/`: `settings.py` (config resolution and CLI
+  overrides), `artifacts.py` (per-run/per-task artifact writing), `trajectory.py` (trajectory payload
+  + markdown), `graphs.py` (topology PNGs), `resume.py` (completed-run detection), `commands.py` (the
+  subcommand bodies), `common.py` (shared helpers). Note for tests: patch targets follow the
+  implementation — patch `cli.commands`, not `main`.
 
 ### Key invariants
 
