@@ -292,11 +292,14 @@ class OpenRouterLLMClient:
                 usage = getattr(completion, "usage", None)
                 token_in = int(getattr(usage, "prompt_tokens", self._estimate_tokens(prompt)))
                 token_out = int(getattr(usage, "completion_tokens", self._estimate_tokens(text)))
+                finish_reason = self._finish_reason(completion)
                 empty_completion = not self._completion_has_usable_choice(completion)
                 metadata = {
                     "provider": "openrouter",
                     "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
                     "generation_status": "answered" if text.strip() else "failed",
+                    "finish_reason": finish_reason,
+                    "hit_output_limit": self._is_output_limit_finish_reason(finish_reason),
                 }
                 if empty_completion:
                     metadata["empty_completion"] = True
@@ -405,6 +408,7 @@ class OpenRouterLLMClient:
         }
         timeout_recovery_stage: str | None = None
         timeout_recovery_iteration: int | None = None
+        finish_reasons: list[str] = []
         consecutive_tool_failures: dict[str, int] = {}
         tool_failure_circuit_breaker = max(
             1,
@@ -483,6 +487,9 @@ class OpenRouterLLMClient:
                 total_token_in = self._estimate_tokens(working_messages)
 
             choice = completion.choices[0] if getattr(completion, "choices", None) else None
+            finish_reason = self._finish_reason(completion)
+            if finish_reason:
+                finish_reasons.append(finish_reason)
             message = getattr(choice, "message", None)
             if message is None:
                 # Empty completion survived all provider retries. Don't silently
@@ -593,7 +600,16 @@ class OpenRouterLLMClient:
                 error = None
                 output: Any
                 handler = tool_handlers.get(handler_key)
-                if handler is None:
+                tool_name_lc = tool_name.lower()
+                if "search" in tool_name_lc and not str(args.get("query", "")).strip():
+                    status = "error"
+                    error = "Invalid search call: provide a non-empty query string."
+                    output = {"error": error}
+                elif "get_document" in tool_name_lc and not str(args.get("docid", "")).strip():
+                    status = "error"
+                    error = "Invalid get_document call: provide a non-empty docid string."
+                    output = {"error": error}
+                elif handler is None:
                     status = "error"
                     error = f"Unknown tool: {tool_name}"
                     output = {"error": error}
@@ -637,7 +653,8 @@ class OpenRouterLLMClient:
 
                 sig = f"{api_tool_name}:{args_text}"
                 duplicate_call_counts[sig] = duplicate_call_counts.get(sig, 0) + 1
-                if duplicate_call_counts[sig] >= 3:
+                duplicate_threshold = 8 if str(task_id).startswith("workbench:") else 3
+                if duplicate_call_counts[sig] >= duplicate_threshold:
                     self._log(
                         "TOOL_LOOP_STOP "
                         f"request_id={request_id} task_id={task_id} run_index={run_index} "
@@ -651,7 +668,7 @@ class OpenRouterLLMClient:
                             "name": api_tool_name,
                             "content": (
                                 "Repeated identical tool call detected. This exact call has been made "
-                                "3 or more times with the same arguments and is returning the same result. "
+                                f"{duplicate_threshold} or more times with the same arguments and is returning the same result. "
                                 "Please stop repeating this call and provide your final answer now."
                             ),
                         }
@@ -737,6 +754,7 @@ class OpenRouterLLMClient:
 
                 if (
                     search_fingerprint
+                    and not str(task_id).startswith("workbench:")
                     and consecutive_stagnant_search_iterations >= stagnation_threshold
                 ):
                     if (
@@ -805,7 +823,7 @@ class OpenRouterLLMClient:
                 f"agent_id={agent_id}"
             )
             try:
-                final_text, extra_in, extra_out = self._force_final_response(
+                final_text, extra_in, extra_out, force_finish_reason = self._force_final_response(
                     model=model,
                     messages=final_messages,
                     temperature=temperature,
@@ -814,6 +832,8 @@ class OpenRouterLLMClient:
                 )
                 total_token_in += extra_in
                 total_token_out += extra_out
+                if force_finish_reason:
+                    finish_reasons.append(force_finish_reason)
             except _HardTimeoutExpired:
                 if any(turn.tool_records for turn in tool_turns):
                     final_text = self._best_effort_tool_timeout_answer(
@@ -839,6 +859,10 @@ class OpenRouterLLMClient:
             "missing_cost_note": "OpenRouter response did not provide cost_usd; recorded as 0.0",
             "tool_context_raw_turns": latest_context_stats["raw_turns"],
             "tool_context_summarized_turns": latest_context_stats["summarized_turns"],
+            "finish_reasons": finish_reasons,
+            "hit_output_limit": any(
+                self._is_output_limit_finish_reason(reason) for reason in finish_reasons
+            ),
         }
         if latest_context_stats["summarized_turns"] > 0:
             metadata["tool_context_compacted"] = True
@@ -1079,13 +1103,11 @@ class OpenRouterLLMClient:
                         ),
                     )
                 lines.append(
-                    (
-                        f"Iteration {turn.iteration} tool {record['tool_name']} "
-                        f"args={self._truncate_for_log(record.get('arguments'), limit=preview_chars)} "
-                        f"status={record.get('status', 'completed')} "
-                        "output="
-                        f"{self._truncate_for_log(compact_output, limit=output_limit)}"
-                    )
+                    f"Iteration {turn.iteration} tool {record['tool_name']} "
+                    f"args={self._truncate_for_log(record.get('arguments'), limit=preview_chars)} "
+                    f"status={record.get('status', 'completed')} "
+                    "output="
+                    f"{self._truncate_for_log(compact_output, limit=output_limit)}"
                 )
 
         clipped: list[str] = []
@@ -1499,7 +1521,7 @@ class OpenRouterLLMClient:
         temperature: float,
         max_tool_iterations: int,
         stop_reason: str | None = None,
-    ) -> tuple[str, int, int]:
+    ) -> tuple[str, int, int, str | None]:
         follow_up_messages = [dict(item) for item in messages]
         if stop_reason and stop_reason.startswith("search_results_stagnated:"):
             follow_up_messages.append(
@@ -1543,7 +1565,23 @@ class OpenRouterLLMClient:
         usage = getattr(completion, "usage", None)
         token_in = int(getattr(usage, "prompt_tokens", self._estimate_tokens(follow_up_messages)))
         token_out = int(getattr(usage, "completion_tokens", self._estimate_tokens(text)))
-        return text, token_in, token_out
+        return text, token_in, token_out, self._finish_reason(completion)
+
+    @staticmethod
+    def _finish_reason(completion: Any) -> str | None:
+        choices = getattr(completion, "choices", None) or []
+        if not choices:
+            return None
+        return getattr(choices[0], "finish_reason", None)
+
+    @staticmethod
+    def _is_output_limit_finish_reason(reason: str | None) -> bool:
+        return str(reason or "").strip().lower() in {
+            "length",
+            "max_tokens",
+            "max_completion_tokens",
+            "content_length",
+        }
 
     def _create_chat_completion(self, **kwargs: Any) -> Any:
         if self.client is None:
@@ -1652,7 +1690,7 @@ class OpenRouterLLMClient:
                 result = _future.result(timeout=timeout_value)
                 _ex.shutdown(wait=False)
                 return result
-            except concurrent.futures.TimeoutError:
+            except concurrent.futures.TimeoutError as exc:
                 _ex.shutdown(wait=False)
                 self._log(
                     "TIMEOUT "
@@ -1661,7 +1699,7 @@ class OpenRouterLLMClient:
                 )
                 raise _HardTimeoutExpired(
                     f"LLM request exceeded configured timeout of {timeout_value:.3f}s"
-                )
+                ) from exc
             except Exception:
                 _ex.shutdown(wait=False)
                 raise
