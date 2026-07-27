@@ -471,7 +471,16 @@ class OpenRouterLLMClient:
                 error = None
                 output: Any
                 handler = tool_handlers.get(api_tool_name)
-                if handler is None:
+                tool_name_lc = tool_name.lower()
+                if "search" in tool_name_lc and not str(args.get("query", "")).strip():
+                    status = "error"
+                    error = "Invalid search call: provide a non-empty query string."
+                    output = {"error": error}
+                elif "get_document" in tool_name_lc and not str(args.get("docid", "")).strip():
+                    status = "error"
+                    error = "Invalid get_document call: provide a non-empty docid string."
+                    output = {"error": error}
+                elif handler is None:
                     status = "error"
                     error = f"Unknown tool: {tool_name}"
                     output = {"error": error}

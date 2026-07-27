@@ -95,8 +95,11 @@ Given the question:
 Several solutions have been generated:
 {solutions}
 
-Identify the most reliable solution. In "thought", explain briefly. In "solution_letter", output only
-the single letter ID.
+Select the most reliable existing solution by comparing its stated evidence against every clue in
+the question. Do not solve the question again, introduce a new answer, or add facts that are absent
+from the candidate solutions. Prefer a candidate with direct, clue-specific evidence; use agreement
+between candidates only as a tie-breaker. In "thought", give at most 2 short sentences. In
+"solution_letter", output only the single letter ID.
 """
 
 REVIEW_PROMPT = """
