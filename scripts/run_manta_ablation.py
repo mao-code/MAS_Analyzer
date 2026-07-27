@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the compact seed-42 MANTA component ablation.
+"""Run one seed-42 sample for each MANTA variant on 30 tasks per benchmark.
 
 The driver deliberately executes one task per ``main.py run`` process. Completed
 task artifacts are the checkpoint: restarting this command skips them, reconciles
@@ -26,13 +26,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DEFAULT_MANIFEST = ROOT / "config" / "manta_ablation_tasks_seed42.json"
+TASKS_PER_BENCHMARK = 30
+RUNS_PER_TASK = 1
+DEFAULT_MANIFEST = ROOT / "config" / "manta_ablation_tasks_30_seed42.json"
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "full_experiment"
-DEFAULT_EXPERIMENT_ID = "manta_ablation_seed42"
+DEFAULT_EXPERIMENT_ID = "manta_ablation_30_seed42_batch10"
 DEFAULT_MODEL = "google/gemma-4-31b-it:nitro"
 SEED_SKILL = ROOT / "config" / "topology_skill.md"
 PLAYBOOK = ROOT / "config" / "topology_playbook.json"
-REFLECTION_BATCH_SIZE = 5
+REFLECTION_BATCH_SIZE = 10
 
 
 @dataclass(frozen=True)
@@ -145,8 +147,12 @@ def _load_manifest(path: Path) -> dict[str, Any]:
         raise ValueError(f"Manifest is missing benchmarks or execution_order: {path}")
     for benchmark in BENCHMARK_TOML:
         task_ids = benchmarks.get(benchmark, {}).get("task_ids", [])
-        if len(task_ids) != 10 or len(set(map(str, task_ids))) != 10:
-            raise ValueError(f"Manifest must contain 10 unique {benchmark} task ids")
+        if len(task_ids) != TASKS_PER_BENCHMARK or len(set(map(str, task_ids))) != (
+            TASKS_PER_BENCHMARK
+        ):
+            raise ValueError(
+                f"Manifest must contain {TASKS_PER_BENCHMARK} unique {benchmark} task ids"
+            )
     pairs = [
         (str(item.get("benchmark", "")), str(item.get("task_id", "")))
         for item in order
@@ -157,8 +163,12 @@ def _load_manifest(path: Path) -> dict[str, Any]:
         for benchmark, entry in benchmarks.items()
         for task_id in entry.get("task_ids", [])
     }
-    if len(pairs) != 30 or set(pairs) != expected:
-        raise ValueError("Manifest execution_order must contain each selected task exactly once")
+    expected_task_count = len(BENCHMARK_TOML) * TASKS_PER_BENCHMARK
+    if len(pairs) != expected_task_count or set(pairs) != expected:
+        raise ValueError(
+            "Manifest execution_order must contain each selected task exactly once "
+            f"({expected_task_count} tasks total)"
+        )
     return payload
 
 
@@ -192,7 +202,7 @@ timeout_s = 600
 
 [experiment]
 output_dir = "artifacts/benchmark_traces/manta_ablation"
-runs_per_task = 1
+runs_per_task = {RUNS_PER_TASK}
 seed = 42
 
 [models]
@@ -245,7 +255,7 @@ def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
     requested = {
         "experiment_id": str(args.experiment_id),
         "seed": 42,
-        "runs_per_task": 1,
+        "runs_per_task": RUNS_PER_TASK,
         "model": str(args.model),
         "task_manifest_path": str(manifest_path),
         "task_manifest_sha256": _sha256(manifest_path),
@@ -492,7 +502,7 @@ def _task_command(
         "--task-ids",
         ",".join(task_ids),
         "--runs-per-task",
-        "1",
+        str(RUNS_PER_TASK),
         "--seed",
         "42",
     ]
@@ -589,7 +599,7 @@ def run(args: argparse.Namespace) -> int:
         signal.signal(signum, _signal_handler)
 
     try:
-        total = len(VARIANTS) * len(manifest["execution_order"])
+        total = RUNS_PER_TASK * len(VARIANTS) * len(manifest["execution_order"])
         completed_at_start = sum(
             _task_complete(
                 args,
