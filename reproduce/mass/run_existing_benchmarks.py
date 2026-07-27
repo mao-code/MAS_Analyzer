@@ -203,7 +203,19 @@ def _run_one_benchmark(
                 ),
             )
             best_candidate = _candidate_from_payload(payload["final_stage"]["best_candidate"])
+            if benchmark_name.lower() == "plancraft" and prompt_templates:
+                best_candidate = _refresh_candidate_output_contracts(
+                    best_candidate, prompt_templates
+                )
+                _store_candidate_output_contracts(
+                    payload["final_stage"]["best_candidate"], best_candidate
+                )
             payload["prompt_search_source"] = str(prompt_source.resolve())
+            payload["prompt_contract_refresh"] = {
+                "benchmark": benchmark_name,
+                "source_workflow_unchanged": True,
+                "output_contracts_refreshed": benchmark_name.lower() == "plancraft",
+            }
             _write_json(prompt_checkpoint, payload)
             print(
                 f"[{_now_stamp()}] MASS_PROMPT_SEARCH_SOURCE "
@@ -825,6 +837,44 @@ def _candidate_from_payload(payload: dict[str, Any]) -> MASSCandidate:
         stage=str(payload.get("stage") or "resumed_prompt_search"),
         metadata=dict(payload.get("metadata") or {}),
     )
+
+
+def _refresh_candidate_output_contracts(
+    candidate: MASSCandidate,
+    prompt_templates: dict[str, AgentPromptBundle],
+) -> MASSCandidate:
+    prompts: dict[str, AgentPromptBundle] = {}
+    for name, prompt in candidate.prompts.items():
+        template = prompt_templates.get(name)
+        prompts[name] = AgentPromptBundle(
+            system_instruction=prompt.system_instruction,
+            input_fields=prompt.input_fields,
+            output_fields=prompt.output_fields,
+            output_contract=(template.output_contract if template else prompt.output_contract),
+            exemplar=prompt.exemplar,
+            metadata=dict(prompt.metadata),
+        )
+    return MASSCandidate(
+        workflow=candidate.workflow,
+        prompts=prompts,
+        stage=candidate.stage,
+        metadata={**candidate.metadata, "output_contracts_refreshed": True},
+    )
+
+
+def _store_candidate_output_contracts(
+    payload: dict[str, Any], candidate: MASSCandidate
+) -> None:
+    prompt_payload = payload.get("prompts")
+    if not isinstance(prompt_payload, dict):
+        return
+    for name, prompt in candidate.prompts.items():
+        item = prompt_payload.get(name)
+        if isinstance(item, dict):
+            item["output_contract"] = prompt.output_contract
+    metadata = payload.setdefault("metadata", {})
+    if isinstance(metadata, dict):
+        metadata["output_contracts_refreshed"] = True
 
 
 def _jsonable(value: Any) -> Any:

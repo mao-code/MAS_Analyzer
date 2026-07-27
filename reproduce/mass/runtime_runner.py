@@ -284,6 +284,9 @@ class MASSRuntimeRunner:
         if impossible:
             reason = (impossible.group(2) or "").strip()
             return f"impossible: {reason}" if reason else "impossible"
+        search = re.match(r"(?is)^(search\s*:\s*[a-z0-9_]+)", answer)
+        if search:
+            return re.sub(r"\s+", " ", search.group(1)).strip()
         move = re.match(
             r"(?is)^(move\s*:\s*from\s*\[[^\]]+\]\s*to\s*\[[^\]]+\]\s*with\s*quantity\s*\d+)",
             answer,

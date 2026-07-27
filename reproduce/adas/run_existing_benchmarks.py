@@ -117,7 +117,12 @@ def _run_one_benchmark(
     if not final_tasks:
         raise RuntimeError(f"No final tasks selected for benchmark '{benchmark_name}'")
 
-    if args.search:
+    search_source: Path | None = None
+    if args.search_source:
+        search_source = _resolve_search_source(args.search_source)
+        search_payload = json.loads(search_source.read_text(encoding="utf-8"))
+        solution = ADASSolution.from_payload(search_payload["best_solution"])
+    elif args.search:
         if not validation_tasks:
             raise RuntimeError("--search requires --validation-task-limit > 0")
         search_payload = _run_search(
@@ -196,8 +201,22 @@ def _run_one_benchmark(
         run_payloads=run_payloads,
         search_payload=search_payload,
     )
+    if search_source is not None:
+        payload["transfer_source"] = str(search_source)
     _write_json(output_dir / "results.json", payload)
     return payload
+
+
+def _resolve_search_source(value: str) -> Path:
+    source = Path(value).expanduser().resolve()
+    if source.is_dir():
+        for relative in ("search_results.json", "search/search_results.json"):
+            candidate = source / relative
+            if candidate.is_file():
+                return candidate
+    if source.is_file():
+        return source
+    raise FileNotFoundError(f"ADAS search source not found: {source}")
 
 
 def _run_search(
@@ -888,6 +907,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--final-task-offset", type=int, default=0)
     parser.add_argument("--runs-per-task", type=int, default=1)
     parser.add_argument("--search", action="store_true")
+    parser.add_argument(
+        "--search-source",
+        default=None,
+        help="Load an existing search_results.json and skip search.",
+    )
     parser.add_argument("--search-generations", type=int, default=3)
     parser.add_argument("--debug-max", type=int, default=3)
     parser.add_argument("--reject-all-zero", action="store_true")
@@ -906,7 +930,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout-s", type=float, default=120.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-tool-iterations", type=int, default=None)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.search and args.search_source:
+        parser.error("--search and --search-source are mutually exclusive")
+    return args
 
 
 if __name__ == "__main__":

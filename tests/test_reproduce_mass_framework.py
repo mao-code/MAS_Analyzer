@@ -842,3 +842,9 @@ def test_runtime_runner_normalizes_plancraft_action_output() -> None:
         )
         == "impossible: missing sticks to craft fishing rod"
     )
+    assert (
+        MASSRuntimeRunner._normalize_plancraft_action(
+            "Action: search: end_rod\nReasoning: verify the recipe first"
+        )
+        == "search: end_rod"
+    )

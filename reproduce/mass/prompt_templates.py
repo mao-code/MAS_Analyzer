@@ -198,7 +198,12 @@ _CODING_TEMPLATES: dict[str, AgentPromptBundle] = {
 _PLANCraft_CONTRACT = (
     "Return exactly one valid PlanCraft action for the current observation: "
     "`move: from [slot] to [slot] with quantity N`, "
-    "`smelt: from [slot] to [slot] with quantity N`, or `impossible` only when the task is impossible. "
+    "`smelt: from [slot] to [slot] with quantity N`, `search: <recipe name>` when the recipe "
+    "or accepted ingredient alternatives are uncertain, or `impossible` only after recipe search "
+    "confirms that the task cannot be completed from the available inventory. When a recipe needs "
+    "a missing intermediate item, search for that intermediate item's recipe before declaring "
+    "the task impossible; continue recursively until a valid inventory action or a genuinely "
+    "unobtainable ingredient is identified. "
     "Do not answer with the target item name, do not compare against a reference answer, "
     "and do not use match/mismatch wording."
 )

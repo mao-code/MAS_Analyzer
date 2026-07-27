@@ -136,7 +136,13 @@ def _run_one_benchmark(
     spec = initial_spec
     generated_modules: dict[str, dict[str, AgentSquareModule]] = {}
     search_payload: dict[str, Any] | None = None
-    if args.search:
+    search_source: Path | None = None
+    if args.search_source:
+        search_source = _resolve_search_source(args.search_source)
+        search_payload = json.loads(search_source.read_text(encoding="utf-8"))
+        generated_modules = _modules_from_archive_payload(search_payload.get("module_archive", {}))
+        spec = spec_from_names(**search_payload["best_spec_names"], extra_modules=generated_modules)
+    elif args.search:
         if not validation_tasks:
             raise RuntimeError("--search requires --validation-task-limit > 0")
         search_payload = _run_search(
@@ -227,8 +233,22 @@ def _run_one_benchmark(
     }
     if search_payload is not None:
         payload["search"] = search_payload
+    if search_source is not None:
+        payload["transfer_source"] = str(search_source)
     _write_json(output_dir / "results.json", payload)
     return payload
+
+
+def _resolve_search_source(value: str) -> Path:
+    source = Path(value).expanduser().resolve()
+    if source.is_dir():
+        for relative in ("search_results.json", "search/search_results.json"):
+            candidate = source / relative
+            if candidate.is_file():
+                return candidate
+    if source.is_file():
+        return source
+    raise FileNotFoundError(f"AgentSquare search source not found: {source}")
 
 
 def _run_search(
@@ -1232,6 +1252,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--final-task-offset", type=int, default=0)
     parser.add_argument("--runs-per-task", type=int, default=1)
     parser.add_argument("--search", action="store_true")
+    parser.add_argument(
+        "--search-source",
+        default=None,
+        help="Load an existing search_results.json and skip search.",
+    )
     parser.add_argument("--max-search-candidates", type=int, default=8)
     parser.add_argument("--search-iterations", type=int, default=2)
     parser.add_argument("--module-evolution-mode", choices=("llm", "off"), default="llm")
@@ -1256,7 +1281,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--reasoning", default="IO")
     parser.add_argument("--tooluse", default="None")
     parser.add_argument("--memory", default="None")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.search and args.search_source:
+        parser.error("--search and --search-source are mutually exclusive")
+    return args
 
 
 if __name__ == "__main__":

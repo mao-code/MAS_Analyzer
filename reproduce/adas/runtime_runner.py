@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import builtins
 import json
 import random
@@ -7,6 +8,7 @@ import re
 import string
 import threading
 import time
+import warnings
 from collections import Counter, namedtuple
 from typing import Any
 
@@ -142,6 +144,7 @@ class _AgentSystemRuntime:
         self.max_tool_iterations = max_tool_iterations
         self.trace_events = trace_events
         self.llm_results = llm_results
+        self.tool_authority_agent_id: str | None = None
 
 
 class LLMAgentBase:
@@ -196,6 +199,7 @@ class LLMAgentBase:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
+        tools = _tools_for_agent(runtime, self)
         try:
             result = runtime.llm_client.generate(
                 prompt=messages,
@@ -203,7 +207,7 @@ class LLMAgentBase:
                 task_id=f"{runtime.benchmark_name}:{runtime.task.task_id}:{self.agent_name}",
                 run_index=runtime.run_index,
                 agent_id=f"adas_{self.agent_name}_{self.id}",
-                tools=runtime.tools,
+                tools=tools,
                 max_tool_iterations=max(1, int(runtime.max_tool_iterations)),
                 temperature=self.temperature,
                 max_tokens=runtime.config.max_tokens,
@@ -325,7 +329,10 @@ def _safe_globals() -> dict[str, Any]:
             "dict",
             "enumerate",
             "float",
+            "getattr",
+            "hasattr",
             "int",
+            "isinstance",
             "len",
             "list",
             "max",
@@ -359,16 +366,24 @@ def _safe_globals() -> dict[str, Any]:
 
 def _parse_json_fields(text: str, fields: list[str]) -> dict[str, str]:
     parsed: dict[str, Any] = {}
-    stripped = str(text or "").strip()
-    try:
-        parsed = json.loads(stripped)
-    except Exception:
-        match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
-        if match:
+    stripped = _strip_model_wrappers(str(text or ""))
+    candidates = [stripped]
+    match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
+    if match and match.group(0) != stripped:
+        candidates.append(match.group(0))
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+        except Exception:
             try:
-                parsed = json.loads(match.group(0))
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", SyntaxWarning)
+                    value = ast.literal_eval(candidate)
             except Exception:
-                parsed = {}
+                continue
+        if isinstance(value, dict):
+            parsed = value
+            break
     result = {field: "" for field in fields}
     if isinstance(parsed, dict):
         for field in fields:
@@ -377,6 +392,36 @@ def _parse_json_fields(text: str, fields: list[str]) -> dict[str, str]:
     if not any(result.values()) and fields:
         result[fields[-1]] = stripped
     return result
+
+
+def _strip_model_wrappers(text: str) -> str:
+    stripped = str(text or "").strip()
+    stripped = re.sub(r"<\|channel\>[^\n]*\n?<channel\|>", "", stripped).strip()
+    fence = re.fullmatch(r"```(?:json|python)?\s*(.*?)\s*```", stripped, flags=re.DOTALL)
+    return fence.group(1).strip() if fence else stripped
+
+
+def _tools_for_agent(runtime: _AgentSystemRuntime, agent: LLMAgentBase) -> list[dict[str, Any]]:
+    if runtime.benchmark_name.lower() != "workbench" or not runtime.tools:
+        return runtime.tools
+
+    name = agent.agent_name.lower()
+    non_executing_markers = (
+        "audit",
+        "critic",
+        "extract",
+        "plan",
+        "reflect",
+        "review",
+        "route",
+        "verify",
+    )
+    if any(marker in name for marker in non_executing_markers):
+        return []
+
+    if runtime.tool_authority_agent_id is None:
+        runtime.tool_authority_agent_id = agent.id
+    return runtime.tools if runtime.tool_authority_agent_id == agent.id else []
 
 
 def _tool_trace_events(parent: TraceEvent, agent_name: str, records: list[dict[str, Any]]) -> list[TraceEvent]:
