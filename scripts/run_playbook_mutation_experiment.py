@@ -27,6 +27,8 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -46,15 +48,33 @@ TASKS_PER_BENCHMARK = 30
 RUNS_PER_TASK = 1
 REFLECTION_BATCH_SIZE = 10
 DEFAULT_MANIFEST = ROOT / "config" / "manta_ablation_tasks_30_seed42.json"
+STABLETOOLBENCH_MANIFEST = (
+    ROOT / "config" / "manta_ablation_stabletoolbench_tasks_30_seed42.json"
+)
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "full_experiment"
 DEFAULT_EXPERIMENT_ID = "playbook_transfer_mutation_curve_pw_30_seed42_batch10"
 DEFAULT_MODEL = "google/gemma-4-31b-it:nitro"
 DEFAULT_BENCHMARKS = ("workbench", "plancraft")
 DEFAULT_MUTATION_BUDGETS = (0, 1, 2, 3)
+STABLETOOLBENCH_URL = "http://127.0.0.1:8080/virtual"
+STABLETOOLBENCH_MAX_ATTEMPTS = 3
 SEED_SKILL = ROOT / "config" / "topology_skill.md"
 PLAYBOOK = ROOT / "config" / "topology_playbook.json"
 
 BENCHMARK_TOML = {
+    "browsecomp": """
+[browsecomp]
+decrypted_path = "benchmark/browsecomp/data/browsecomp_plus_decrypted.jsonl"
+qrel_evidence_path = "benchmark/browsecomp/topics-qrels/qrel_evidence.txt"
+qrel_golds_path = "benchmark/browsecomp/topics-qrels/qrel_golds.txt"
+auto_download = true
+eval_mode = "substring"
+enable_tools = true
+tool_k = 5
+include_get_document = true
+tool_snippet_max_tokens = 160
+max_tool_iterations = 6
+""",
     "workbench": """
 [workbench]
 domain = "multi_domain"
@@ -68,10 +88,23 @@ split = "val.small"
 max_steps = 30
 resolution = "high"
 """,
+    "stabletoolbench": f"""
+[stabletoolbench]
+auto_download = true
+auto_download_server_assets = true
+task_sets = ["G1_instruction"]
+virtual_server_url = "{STABLETOOLBENCH_URL}"
+enable_tools = true
+max_tool_iterations = 8
+skip_missing_cache_tasks = true
+eval_mode = "fac"
+judge_model = "gpt-4.1-mini"
+""",
 }
 
 _STOP_REQUESTED = False
 _CURRENT_CHILD: subprocess.Popen[str] | None = None
+_STABLETOOLBENCH_SERVER: subprocess.Popen[str] | None = None
 
 
 def _read_json(path: Path, default: Any = None) -> Any:
@@ -132,20 +165,27 @@ def _parse_budgets(value: str) -> tuple[int, ...]:
 
 
 def _design(args: argparse.Namespace) -> tuple[tuple[str, ...], tuple[str, ...], tuple[int, ...]]:
-    sources = _parse_names(args.source_benchmarks, option="--source-benchmarks")
     targets = _parse_names(args.target_benchmarks, option="--target-benchmarks")
+    sources = (
+        ()
+        if bool(getattr(args, "mutation_only", False))
+        else _parse_names(args.source_benchmarks, option="--source-benchmarks")
+    )
     budgets = _parse_budgets(args.mutation_budgets)
     return sources, targets, budgets
 
 
-def _load_manifest(path: Path) -> dict[str, Any]:
+def _load_manifest(
+    path: Path,
+    required_benchmarks: tuple[str, ...],
+) -> dict[str, Any]:
     payload = _read_json(path)
     if not isinstance(payload, dict) or int(payload.get("seed", -1)) != 42:
         raise ValueError(f"Invalid seed-42 task manifest: {path}")
     benchmarks = payload.get("benchmarks")
     if not isinstance(benchmarks, dict):
         raise ValueError(f"Manifest has no benchmark mapping: {path}")
-    for benchmark in BENCHMARK_TOML:
+    for benchmark in required_benchmarks:
         task_ids = benchmarks.get(benchmark, {}).get("task_ids", [])
         if len(task_ids) != TASKS_PER_BENCHMARK or len(set(map(str, task_ids))) != (
             TASKS_PER_BENCHMARK
@@ -193,8 +233,10 @@ def evaluation_cells(
     sources: tuple[str, ...],
     targets: tuple[str, ...],
     budgets: tuple[int, ...],
+    *,
+    mutation_only: bool = False,
 ) -> list[tuple[str, str, int]]:
-    playbook_sources = ("seed", *sources)
+    playbook_sources = ("seed",) if mutation_only else ("seed", *sources)
     return [
         (source, target, budget)
         for target in targets
@@ -262,8 +304,10 @@ default_packet_max_chars = 0
 
 def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
     sources, targets, budgets = _design(args)
+    mutation_only = bool(getattr(args, "mutation_only", False))
     manifest_path = Path(args.manifest).expanduser().resolve()
-    manifest = _load_manifest(manifest_path)
+    required_benchmarks = tuple(dict.fromkeys((*sources, *targets)))
+    manifest = _load_manifest(manifest_path, required_benchmarks)
     state_root = _state_root(args)
     state_root.mkdir(parents=True, exist_ok=True)
 
@@ -275,6 +319,12 @@ def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
     if not 0 <= training_budget <= 9:
         raise ValueError("--training-mutation-budget must be between 0 and 9")
 
+    cells = evaluation_cells(
+        sources,
+        targets,
+        budgets,
+        mutation_only=mutation_only,
+    )
     run_manifest_path = state_root / "experiment_manifest.json"
     existing = _read_json(run_manifest_path)
     requested = {
@@ -293,10 +343,12 @@ def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
         "task_manifest_sha256": _sha256(manifest_path),
         "seed_skill_path": str(SEED_SKILL.resolve()),
         "seed_skill_sha256": _sha256(SEED_SKILL),
-        "evaluation_cells": len(evaluation_cells(sources, targets, budgets)),
-        "learning_runs": len(sources) * TASKS_PER_BENCHMARK,
-        "evaluation_runs": (len(evaluation_cells(sources, targets, budgets)) * TASKS_PER_BENCHMARK),
+        "evaluation_cells": len(cells),
+        "learning_runs": 0 if mutation_only else len(sources) * TASKS_PER_BENCHMARK,
+        "evaluation_runs": len(cells) * TASKS_PER_BENCHMARK,
     }
+    if mutation_only:
+        requested["mutation_only"] = True
     if isinstance(existing, dict):
         # Resume against the immutable snapshot copied at experiment creation, even if
         # another experiment subsequently updates the repository's canonical skill.
@@ -313,33 +365,34 @@ def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
     seed_frozen = _frozen_skill(state_root, "seed")
     if not seed_frozen.exists():
         _copy_atomic(SEED_SKILL, seed_frozen)
-    for source in sources:
-        skill = _training_skill(state_root, source)
-        if not skill.exists():
-            _copy_atomic(seed_frozen, skill)
-        frozen = _frozen_skill(state_root, source)
-        if not frozen.exists():
-            # Placeholder only; evaluation starts after _freeze_source replaces it.
-            _copy_atomic(seed_frozen, frozen)
+    if not mutation_only:
+        for source in sources:
+            skill = _training_skill(state_root, source)
+            if not skill.exists():
+                _copy_atomic(seed_frozen, skill)
+            frozen = _frozen_skill(state_root, source)
+            if not frozen.exists():
+                # Placeholder only; evaluation starts after _freeze_source replaces it.
+                _copy_atomic(seed_frozen, frozen)
 
-        learning_config = _config_path(
-            state_root,
-            phase="learning",
-            source=source,
-            target=source,
-            budget=training_budget,
-        )
-        _write_config_once(
-            learning_config,
-            _render_config(
-                model=str(args.model),
-                benchmark=source,
-                skill_path=skill,
-                mutation_budget=training_budget,
-            ),
-        )
+            learning_config = _config_path(
+                state_root,
+                phase="learning",
+                source=source,
+                target=source,
+                budget=training_budget,
+            )
+            _write_config_once(
+                learning_config,
+                _render_config(
+                    model=str(args.model),
+                    benchmark=source,
+                    skill_path=skill,
+                    mutation_budget=training_budget,
+                ),
+            )
 
-    for source, target, budget in evaluation_cells(sources, targets, budgets):
+    for source, target, budget in cells:
         config_path = _config_path(
             state_root,
             phase="evaluation",
@@ -583,6 +636,79 @@ def _python() -> str:
     return str(candidate if candidate.exists() else Path(sys.executable))
 
 
+def _stabletoolbench_healthcheck() -> bool:
+    health_url = STABLETOOLBENCH_URL.rsplit("/virtual", 1)[0] + "/healthz"
+    try:
+        with urllib.request.urlopen(health_url, timeout=2) as response:  # noqa: S310
+            return response.status == 200
+    except (OSError, urllib.error.URLError):
+        return False
+
+
+def _start_stabletoolbench_server(state_root: Path) -> None:
+    global _STABLETOOLBENCH_SERVER
+    if _stabletoolbench_healthcheck():
+        print(f"[stabletoolbench] using server at {STABLETOOLBENCH_URL}", flush=True)
+        return
+
+    cache_root = ROOT / "benchmark" / "stabletoolbench" / "tool_response_cache"
+    if not cache_root.exists():
+        raise FileNotFoundError(
+            f"StableToolBench cache is missing: {cache_root}. "
+            "Run the StableToolBench setup before starting the experiment."
+        )
+
+    log_path = state_root / "logs" / "stabletoolbench_server.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as server_log:
+        _STABLETOOLBENCH_SERVER = subprocess.Popen(
+            [
+                _python(),
+                str(ROOT / "scripts" / "stabletoolbench_virtual_server.py"),
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080",
+                "--path",
+                "/virtual",
+                "--cache-root",
+                str(cache_root),
+            ],
+            cwd=ROOT,
+            stdout=server_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if _STABLETOOLBENCH_SERVER.poll() is not None:
+            raise RuntimeError(f"StableToolBench server exited; see {log_path}")
+        if _stabletoolbench_healthcheck():
+            print(f"[stabletoolbench] started server at {STABLETOOLBENCH_URL}", flush=True)
+            return
+        time.sleep(0.25)
+    _stop_stabletoolbench_server()
+    raise RuntimeError(f"StableToolBench server did not become ready; see {log_path}")
+
+
+def _stop_stabletoolbench_server() -> None:
+    global _STABLETOOLBENCH_SERVER
+    server = _STABLETOOLBENCH_SERVER
+    _STABLETOOLBENCH_SERVER = None
+    if server is None or server.poll() is not None:
+        return
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(server.pid, signal.SIGTERM)
+    try:
+        server.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(server.pid, signal.SIGKILL)
+        server.wait(timeout=5)
+
+
 def _run_command(
     *,
     args: argparse.Namespace,
@@ -671,6 +797,29 @@ def _run_child(command: list[str], log_path: Path, *, allow_mock: bool) -> int:
         return code
 
 
+def _run_benchmark_command(
+    *,
+    args: argparse.Namespace,
+    state_root: Path,
+    benchmark: str,
+    command: list[str],
+    log_path: Path,
+) -> int:
+    attempts = STABLETOOLBENCH_MAX_ATTEMPTS if benchmark == "stabletoolbench" else 1
+    for attempt in range(1, attempts + 1):
+        if benchmark == "stabletoolbench":
+            _start_stabletoolbench_server(state_root)
+        code = _run_child(command, log_path, allow_mock=bool(args.allow_mock))
+        if code == 0 or _STOP_REQUESTED or attempt == attempts:
+            return code
+        print(
+            f"[retry] benchmark={benchmark} attempt={attempt + 1}/{attempts} "
+            "retrying unresolved checkpoints",
+            flush=True,
+        )
+    raise AssertionError("unreachable")
+
+
 def _signal_handler(signum: int, _frame: Any) -> None:
     global _STOP_REQUESTED
     _STOP_REQUESTED = True
@@ -734,7 +883,13 @@ def _run_learning(
                     f"[learning] source={source} task={index}/{len(task_ids)} id={task_id}",
                     flush=True,
                 )
-                code = _run_child(command, log_path, allow_mock=bool(args.allow_mock))
+                code = _run_benchmark_command(
+                    args=args,
+                    state_root=state_root,
+                    benchmark=source,
+                    command=command,
+                    log_path=log_path,
+                )
                 if _STOP_REQUESTED:
                     return 130
                 if code != 0:
@@ -806,7 +961,13 @@ def _run_evaluation(
             f"budget={budget} completed={completed}/{len(task_ids)}",
             flush=True,
         )
-        code = _run_child(command, log_path, allow_mock=bool(args.allow_mock))
+        code = _run_benchmark_command(
+            args=args,
+            state_root=state_root,
+            benchmark=target,
+            command=command,
+            log_path=log_path,
+        )
         if _STOP_REQUESTED:
             return 130
         if code != 0:
@@ -1005,6 +1166,116 @@ def summarize_results(
     return configured, actual
 
 
+def progressive_success_results(
+    rows: list[dict[str, Any]],
+    *,
+    budgets: tuple[int, ...],
+    task_ids_by_target: dict[str, list[str]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Carry task success forward across configured budgets.
+
+    A task can flip only from unsuccessful to successful. Missing runs in a partial
+    budget cell do not create flips; the fixed benchmark cohort remains the denominator.
+    """
+
+    row_lookup: dict[tuple[str, str, int, str], dict[str, Any]] = {}
+    series_keys: set[tuple[str, str, str]] = set()
+    observed_budgets: dict[tuple[str, str, str], set[int]] = defaultdict(set)
+    for row in rows:
+        source = str(row["playbook_source"])
+        target = str(row["target_benchmark"])
+        transfer = str(row["transfer_type"])
+        budget = int(row["configured_mutation_budget"])
+        task_id = str(row["task_id"])
+        key = (source, target, budget, task_id)
+        if key in row_lookup:
+            raise ValueError(f"Duplicate progressive result row: {key}")
+        row_lookup[key] = row
+        series_key = (source, target, transfer)
+        series_keys.add(series_key)
+        observed_budgets[series_key].add(budget)
+
+    task_rows: list[dict[str, Any]] = []
+    summary_rows: list[dict[str, Any]] = []
+    for source, target, transfer in sorted(series_keys):
+        expected_task_ids = [str(value) for value in task_ids_by_target[target]]
+        progressive_success = {task_id: 0 for task_id in expected_task_ids}
+        first_success_budget: dict[str, int] = {}
+        for budget in budgets:
+            if budget not in observed_budgets[(source, target, transfer)]:
+                continue
+            observed = {
+                task_id: row_lookup[(source, target, budget, task_id)]
+                for task_id in expected_task_ids
+                if (source, target, budget, task_id) in row_lookup
+            }
+            new_success_flips = 0
+            regressions_ignored = 0
+            for task_id, row in observed.items():
+                observed_success = int(row["success"])
+                if observed_success and not progressive_success[task_id]:
+                    progressive_success[task_id] = 1
+                    first_success_budget[task_id] = budget
+                    new_success_flips += 1
+                elif not observed_success and progressive_success[task_id]:
+                    regressions_ignored += 1
+
+            successes = sum(progressive_success.values())
+            low, high = _wilson(successes, len(expected_task_ids))
+            summary_rows.append(
+                {
+                    "playbook_source": source,
+                    "target_benchmark": target,
+                    "transfer_type": transfer,
+                    "configured_mutation_budget": budget,
+                    "expected_tasks": len(expected_task_ids),
+                    "observed_runs": len(observed),
+                    "coverage_rate": len(observed) / len(expected_task_ids),
+                    "cell_complete": len(observed) == len(expected_task_ids),
+                    "observed_successes_at_budget": sum(
+                        int(row["success"]) for row in observed.values()
+                    ),
+                    "observed_success_rate_at_budget": (
+                        sum(int(row["success"]) for row in observed.values()) / len(observed)
+                    ),
+                    "new_success_flips": new_success_flips,
+                    "regressions_ignored": regressions_ignored,
+                    "successes": successes,
+                    "success_rate": successes / len(expected_task_ids),
+                    "success_ci95_low": low,
+                    "success_ci95_high": high,
+                }
+            )
+            for task_id in expected_task_ids:
+                row = observed.get(task_id)
+                task_rows.append(
+                    {
+                        "playbook_source": source,
+                        "target_benchmark": target,
+                        "transfer_type": transfer,
+                        "configured_mutation_budget": budget,
+                        "task_id": task_id,
+                        "observed_at_budget": row is not None,
+                        "observed_success": "" if row is None else int(row["success"]),
+                        "progressive_success": progressive_success[task_id],
+                        "flipped_at_budget": first_success_budget.get(task_id) == budget,
+                        "first_success_budget": first_success_budget.get(task_id, ""),
+                    }
+                )
+    return task_rows, summary_rows
+
+
+def mutation_only_progressive_summary(
+    progressive_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    excluded_fields = {"playbook_source", "transfer_type"}
+    return [
+        {key: value for key, value in row.items() if key not in excluded_fields}
+        for row in progressive_rows
+        if row["playbook_source"] == "seed"
+    ]
+
+
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
@@ -1023,6 +1294,8 @@ def _render_curve(
     output_path: Path,
     title: str,
     subtitle: str,
+    reveal_partial_coverage: bool = False,
+    show_legend: bool = True,
 ) -> None:
     if not rows:
         return
@@ -1079,21 +1352,43 @@ def _render_curve(
                 linewidth=1.8,
                 capsize=2.5,
             )
+            if reveal_partial_coverage:
+                for x_value, y_value, row in zip(x, y, series, strict=True):
+                    observed = int(row.get("observed_runs", row.get("expected_tasks", 0)))
+                    expected = int(row.get("expected_tasks", observed))
+                    if observed < expected:
+                        axis.annotate(
+                            f"partial {observed}/{expected}",
+                            (x_value, y_value),
+                            xytext=(4, 7),
+                            textcoords="offset points",
+                            fontsize=7,
+                            color=colors[source],
+                        )
         axis.set_title(f"Target: {target}", loc="left", fontsize=11, fontweight="semibold")
         axis.set_ylabel("Success rate")
         axis.set_ylim(-0.03, 1.03)
         axis.set_xticks(sorted({int(row[x_field]) for row in target_rows}))
         axis.grid(axis="y", color="#D9E2EC", linewidth=0.8)
         axis.spines[["top", "right"]].set_visible(False)
-        axis.legend(frameon=False, fontsize=8, ncol=2, loc="best")
+        if show_legend:
+            axis.legend(frameon=False, fontsize=8, ncol=2, loc="best")
     axes[-1, 0].set_xlabel(
         "Configured mutation budget"
         if x_field == "configured_mutation_budget"
         else "Actual mutations applied"
     )
-    fig.suptitle(title, x=0.08, ha="left", fontsize=14, fontweight="bold", color="#102A43")
-    fig.text(0.08, 0.955, subtitle, ha="left", va="top", fontsize=9, color="#486581")
-    fig.tight_layout(rect=(0.04, 0.03, 0.99, 0.92))
+    fig.suptitle(
+        title,
+        x=0.08,
+        y=0.985,
+        ha="left",
+        fontsize=14,
+        fontweight="bold",
+        color="#102A43",
+    )
+    fig.text(0.08, 0.935, subtitle, ha="left", va="top", fontsize=9, color="#486581")
+    fig.tight_layout(rect=(0.04, 0.03, 0.99, 0.86))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=180, bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -1102,13 +1397,33 @@ def _render_curve(
 def analyze(args: argparse.Namespace) -> int:
     sources, targets, budgets = _design(args)
     manifest, _ = prepare(args)
-    cells = evaluation_cells(sources, targets, budgets)
+    cells = evaluation_cells(
+        sources,
+        targets,
+        budgets,
+        mutation_only=bool(getattr(args, "mutation_only", False)),
+    )
     rows = collect_results(args, manifest, cells)
     configured, actual = summarize_results(rows)
+    progressive_runs, progressive = progressive_success_results(
+        rows,
+        budgets=budgets,
+        task_ids_by_target={
+            target: [str(value) for value in manifest["benchmarks"][target]["task_ids"]]
+            for target in targets
+        },
+    )
+    mutation_only_progressive = [
+        row for row in progressive if row["playbook_source"] == "seed"
+    ]
+    mutation_only_table = mutation_only_progressive_summary(progressive)
     analysis_root = _experiment_root(args) / "combined_analysis"
     _write_csv(analysis_root / "run_results.csv", rows)
     _write_csv(analysis_root / "mutation_budget_summary.csv", configured)
     _write_csv(analysis_root / "actual_mutation_summary.csv", actual)
+    _write_csv(analysis_root / "progressive_mutation_budget_run_results.csv", progressive_runs)
+    _write_csv(analysis_root / "progressive_mutation_budget_summary.csv", progressive)
+    _write_csv(analysis_root / "progressive_mutation_only_summary.csv", mutation_only_table)
     _render_curve(
         configured,
         x_field="configured_mutation_budget",
@@ -1129,6 +1444,29 @@ def analyze(args: argparse.Namespace) -> int:
             "does not identify the causal effect of mutation."
         ),
     )
+    _render_curve(
+        progressive,
+        x_field="configured_mutation_budget",
+        output_path=analysis_root / "progressive_mutation_budget_success_curve.png",
+        title="Progressive success rate by configured mutation budget",
+        subtitle=(
+            "Fixed 30-task cohort; earlier successes are retained and only new 0→1 flips "
+            "increase the rate. Partial points show observed runs at that budget."
+        ),
+        reveal_partial_coverage=True,
+    )
+    _render_curve(
+        mutation_only_progressive,
+        x_field="configured_mutation_budget",
+        output_path=analysis_root / "progressive_mutation_only_success_curve.png",
+        title="Progressive success rate by mutation budget",
+        subtitle=(
+            "Seed/control playbook held fixed; only mutation budget changes. Earlier "
+            "successes are retained, and partial points show observed runs."
+        ),
+        reveal_partial_coverage=True,
+        show_legend=False,
+    )
     _write_json(
         analysis_root / "analysis_manifest.json",
         {
@@ -1136,10 +1474,20 @@ def analyze(args: argparse.Namespace) -> int:
             "expected_evaluation_runs": len(cells) * TASKS_PER_BENCHMARK,
             "configured_summary_rows": len(configured),
             "actual_mutation_summary_rows": len(actual),
+            "progressive_summary_rows": len(progressive),
+            "progressive_mutation_only_summary_rows": len(mutation_only_table),
             "primary_metric": "benchmark.evaluate(...).success",
             "notes": [
                 "Configured-budget curves compare randomized-identical task sets across arms.",
                 "Actual-mutation curves are descriptive because harder runs may consume more mutations.",
+                (
+                    "Progressive curves are derived cumulative attainment curves: task success "
+                    "is carried forward across budgets, and only new 0-to-1 flips increase the rate."
+                ),
+                (
+                    "Progressive partial cells use the fixed benchmark cohort as denominator and "
+                    "report observed_runs and expected_tasks explicitly."
+                ),
             ],
         },
     )
@@ -1165,7 +1513,13 @@ def run(args: argparse.Namespace) -> int:
         if args.training_mutation_budget is not None
         else max(budgets)
     )
-    cells = evaluation_cells(sources, targets, budgets)
+    mutation_only = bool(getattr(args, "mutation_only", False))
+    cells = evaluation_cells(
+        sources,
+        targets,
+        budgets,
+        mutation_only=mutation_only,
+    )
     experiment_manifest = _read_json(state_root / "experiment_manifest.json")
     print(
         "[design] "
@@ -1181,9 +1535,12 @@ def run(args: argparse.Namespace) -> int:
     for signum in previous_handlers:
         signal.signal(signum, _signal_handler)
     try:
-        code = _run_learning(args, manifest, state_root, sources, training_budget)
-        if code != 0:
-            return code
+        if "stabletoolbench" in set((*sources, *targets)):
+            _start_stabletoolbench_server(state_root)
+        if not mutation_only:
+            code = _run_learning(args, manifest, state_root, sources, training_budget)
+            if code != 0:
+                return code
         code = _run_evaluation(args, manifest, state_root, cells)
         if code != 0:
             return code
@@ -1205,6 +1562,7 @@ def run(args: argparse.Namespace) -> int:
         print(f"[complete] {_experiment_root(args)}", flush=True)
         return 0
     finally:
+        _stop_stabletoolbench_server()
         pid_path.unlink(missing_ok=True)
         for signum, previous in previous_handlers.items():
             signal.signal(signum, previous)
@@ -1213,32 +1571,39 @@ def run(args: argparse.Namespace) -> int:
 def status(args: argparse.Namespace) -> int:
     sources, targets, budgets = _design(args)
     manifest, state_root = prepare(args)
+    mutation_only = bool(getattr(args, "mutation_only", False))
     training_budget = (
         int(args.training_mutation_budget)
         if args.training_mutation_budget is not None
         else max(budgets)
     )
-    for source in sources:
-        task_ids = [str(value) for value in manifest["benchmarks"][source]["task_ids"]]
-        completed = sum(
-            _task_complete(
-                args,
-                benchmark=source,
-                phase="learning",
-                source=source,
-                budget=training_budget,
-                task_id=task_id,
+    if not mutation_only:
+        for source in sources:
+            task_ids = [str(value) for value in manifest["benchmarks"][source]["task_ids"]]
+            completed = sum(
+                _task_complete(
+                    args,
+                    benchmark=source,
+                    phase="learning",
+                    source=source,
+                    budget=training_budget,
+                    task_id=task_id,
+                )
+                for task_id in task_ids
             )
-            for task_id in task_ids
-        )
-        reflection = _load_reflection_state(state_root, source)
-        frozen = (_frozen_skill(state_root, source).parent / "freeze.json").exists()
-        print(
-            f"learning {source:15s} {completed:2d}/{len(task_ids)} "
-            f"updates={len(reflection['updates'])} pending={len(reflection['pending'])} "
-            f"frozen={frozen}"
-        )
-    cells = evaluation_cells(sources, targets, budgets)
+            reflection = _load_reflection_state(state_root, source)
+            frozen = (_frozen_skill(state_root, source).parent / "freeze.json").exists()
+            print(
+                f"learning {source:15s} {completed:2d}/{len(task_ids)} "
+                f"updates={len(reflection['updates'])} pending={len(reflection['pending'])} "
+                f"frozen={frozen}"
+            )
+    cells = evaluation_cells(
+        sources,
+        targets,
+        budgets,
+        mutation_only=mutation_only,
+    )
     complete_cells = 0
     complete_runs = 0
     for source, target, budget in cells:
@@ -1296,7 +1661,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--source-benchmarks",
         default=",".join(DEFAULT_BENCHMARKS),
-        help="Comma-separated benchmarks that each learn a long-term playbook.",
+        help=(
+            "Comma-separated benchmarks that each learn a long-term playbook "
+            "(ignored with --mutation-only)."
+        ),
     )
     parser.add_argument(
         "--target-benchmarks",
@@ -1315,6 +1683,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Mutation budget used while learning each playbook (default: largest eval budget).",
     )
     parser.add_argument(
+        "--mutation-only",
+        action="store_true",
+        help=(
+            "Skip long-term playbook learning and evaluate only the fixed seed/control "
+            "skill across mutation budgets."
+        ),
+    )
+    parser.add_argument(
         "--allow-mock",
         action="store_true",
         help="Permit deterministic mock LLM calls for smoke tests. Never use for paper results.",
@@ -1327,10 +1703,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "prepare":
         _, state_root = prepare(args)
         sources, targets, budgets = _design(args)
-        cells = evaluation_cells(sources, targets, budgets)
+        mutation_only = bool(args.mutation_only)
+        cells = evaluation_cells(
+            sources,
+            targets,
+            budgets,
+            mutation_only=mutation_only,
+        )
         print(f"Prepared experiment state under {state_root}")
         print(
-            f"Learning runs: {len(sources) * TASKS_PER_BENCHMARK}; "
+            f"Learning runs: {0 if mutation_only else len(sources) * TASKS_PER_BENCHMARK}; "
             f"evaluation cells: {len(cells)}; "
             f"evaluation runs: {len(cells) * TASKS_PER_BENCHMARK}"
         )

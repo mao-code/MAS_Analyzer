@@ -18,6 +18,8 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,12 +31,17 @@ if str(ROOT) not in sys.path:
 TASKS_PER_BENCHMARK = 30
 RUNS_PER_TASK = 1
 DEFAULT_MANIFEST = ROOT / "config" / "manta_ablation_tasks_30_seed42.json"
+STABLETOOLBENCH_MANIFEST = (
+    ROOT / "config" / "manta_ablation_stabletoolbench_tasks_30_seed42.json"
+)
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "full_experiment"
 DEFAULT_EXPERIMENT_ID = "manta_ablation_30_seed42_batch10"
 DEFAULT_MODEL = "google/gemma-4-31b-it:nitro"
+DEFAULT_BENCHMARKS = ("browsecomp", "workbench", "plancraft")
 SEED_SKILL = ROOT / "config" / "topology_skill.md"
 PLAYBOOK = ROOT / "config" / "topology_playbook.json"
 REFLECTION_BATCH_SIZE = 10
+STABLETOOLBENCH_URL = "http://127.0.0.1:8080/virtual"
 
 
 @dataclass(frozen=True)
@@ -101,10 +108,23 @@ split = "val.small"
 max_steps = 30
 resolution = "high"
 """,
+    "stabletoolbench": f"""
+[stabletoolbench]
+auto_download = true
+auto_download_server_assets = true
+task_sets = ["G1_instruction"]
+virtual_server_url = "{STABLETOOLBENCH_URL}"
+enable_tools = true
+max_tool_iterations = 8
+skip_missing_cache_tasks = true
+eval_mode = "fac"
+judge_model = "gpt-4.1-mini"
+""",
 }
 
 _STOP_REQUESTED = False
 _CURRENT_CHILD: subprocess.Popen[str] | None = None
+_STABLETOOLBENCH_SERVER: subprocess.Popen[str] | None = None
 
 
 def _json_string(value: str | Path) -> str:
@@ -137,7 +157,23 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _load_manifest(path: Path) -> dict[str, Any]:
+def _selected_benchmarks(args: argparse.Namespace) -> tuple[str, ...]:
+    selected = tuple(
+        part.strip() for part in str(args.benchmarks or "").split(",") if part.strip()
+    )
+    if not selected:
+        selected = DEFAULT_BENCHMARKS
+    duplicates = sorted({name for name in selected if selected.count(name) > 1})
+    invalid = sorted(set(selected) - set(BENCHMARK_TOML))
+    if duplicates or invalid:
+        raise ValueError(
+            f"Invalid --benchmarks selection; duplicates={duplicates}, invalid={invalid}, "
+            f"supported={sorted(BENCHMARK_TOML)}"
+        )
+    return selected
+
+
+def _load_manifest(path: Path, selected_benchmarks: tuple[str, ...]) -> dict[str, Any]:
     payload = _read_json(path)
     if not isinstance(payload, dict) or int(payload.get("seed", -1)) != 42:
         raise ValueError(f"Invalid seed-42 task manifest: {path}")
@@ -145,7 +181,7 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     order = payload.get("execution_order")
     if not isinstance(benchmarks, dict) or not isinstance(order, list):
         raise ValueError(f"Manifest is missing benchmarks or execution_order: {path}")
-    for benchmark in BENCHMARK_TOML:
+    for benchmark in selected_benchmarks:
         task_ids = benchmarks.get(benchmark, {}).get("task_ids", [])
         if len(task_ids) != TASKS_PER_BENCHMARK or len(set(map(str, task_ids))) != (
             TASKS_PER_BENCHMARK
@@ -156,14 +192,15 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     pairs = [
         (str(item.get("benchmark", "")), str(item.get("task_id", "")))
         for item in order
-        if isinstance(item, dict)
+        if isinstance(item, dict) and str(item.get("benchmark", "")) in selected_benchmarks
     ]
     expected = {
         (benchmark, str(task_id))
         for benchmark, entry in benchmarks.items()
+        if benchmark in selected_benchmarks
         for task_id in entry.get("task_ids", [])
     }
-    expected_task_count = len(BENCHMARK_TOML) * TASKS_PER_BENCHMARK
+    expected_task_count = len(selected_benchmarks) * TASKS_PER_BENCHMARK
     if len(pairs) != expected_task_count or set(pairs) != expected:
         raise ValueError(
             "Manifest execution_order must contain each selected task exactly once "
@@ -245,7 +282,8 @@ default_packet_max_chars = 0
 
 def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
     manifest_path = Path(args.manifest).expanduser().resolve()
-    manifest = _load_manifest(manifest_path)
+    selected_benchmarks = _selected_benchmarks(args)
+    manifest = _load_manifest(manifest_path, selected_benchmarks)
     experiment_root = _experiment_root(args)
     state_root = _state_root(args)
     state_root.mkdir(parents=True, exist_ok=True)
@@ -262,6 +300,7 @@ def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
         "seed_skill_path": str(SEED_SKILL.resolve()),
         "seed_skill_sha256": _sha256(SEED_SKILL),
         "reflection_batch_size": REFLECTION_BATCH_SIZE,
+        "benchmarks": list(selected_benchmarks),
         "variants": [
             {
                 "slug": variant.slug,
@@ -276,6 +315,8 @@ def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
         ],
     }
     if isinstance(existing, dict):
+        if "benchmarks" not in existing and selected_benchmarks == DEFAULT_BENCHMARKS:
+            requested.pop("benchmarks")
         # The experiment uses isolated skill copies after preparation. A different
         # experiment may legitimately update the repository skill while this run is
         # paused, so resume against the seed hash recorded at creation time.
@@ -294,7 +335,7 @@ def prepare(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
         if not skill_path.exists():
             skill_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(SEED_SKILL, skill_path)
-        for benchmark in BENCHMARK_TOML:
+        for benchmark in selected_benchmarks:
             path = _config_path(state_root, variant, benchmark)
             content = _variant_config(
                 variant=variant,
@@ -434,7 +475,8 @@ def _reflect_pending(
         }
         _save_reflection_state(state_root, variant, state)
 
-        config = load_experiment_config(_config_path(state_root, variant, "browsecomp"))
+        benchmark = str(batch[0]["run_key"]).split("/", 1)[0]
+        config = load_experiment_config(_config_path(state_root, variant, benchmark))
         client = OpenRouterLLMClient(config.openrouter, config.models)
         reflector = SkillReflector(client, config.self_evolved)
         skill = TopologySkill.load(skill_path)
@@ -557,10 +599,88 @@ def _signal_handler(signum: int, _frame: Any) -> None:
             os.killpg(_CURRENT_CHILD.pid, signal.SIGTERM)
 
 
+def _stabletoolbench_healthcheck() -> bool:
+    health_url = STABLETOOLBENCH_URL.rsplit("/virtual", 1)[0] + "/healthz"
+    try:
+        with urllib.request.urlopen(health_url, timeout=2) as response:  # noqa: S310
+            return response.status == 200
+    except (OSError, urllib.error.URLError):
+        return False
+
+
+def _start_stabletoolbench_server(state_root: Path) -> None:
+    global _STABLETOOLBENCH_SERVER
+    if _stabletoolbench_healthcheck():
+        print(f"[stabletoolbench] using server at {STABLETOOLBENCH_URL}", flush=True)
+        return
+
+    cache_root = ROOT / "benchmark" / "stabletoolbench" / "tool_response_cache"
+    if not cache_root.exists():
+        raise FileNotFoundError(
+            f"StableToolBench cache is missing: {cache_root}. "
+            "Run the StableToolBench setup before starting the ablation."
+        )
+
+    log_path = state_root / "logs" / "stabletoolbench_server.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as server_log:
+        _STABLETOOLBENCH_SERVER = subprocess.Popen(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "stabletoolbench_virtual_server.py"),
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080",
+                "--path",
+                "/virtual",
+                "--cache-root",
+                str(cache_root),
+            ],
+            cwd=ROOT,
+            stdout=server_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if _STABLETOOLBENCH_SERVER.poll() is not None:
+            raise RuntimeError(f"StableToolBench server exited; see {log_path}")
+        if _stabletoolbench_healthcheck():
+            print(f"[stabletoolbench] started server at {STABLETOOLBENCH_URL}", flush=True)
+            return
+        time.sleep(0.25)
+    _stop_stabletoolbench_server()
+    raise RuntimeError(f"StableToolBench server did not become ready; see {log_path}")
+
+
+def _stop_stabletoolbench_server() -> None:
+    global _STABLETOOLBENCH_SERVER
+    server = _STABLETOOLBENCH_SERVER
+    _STABLETOOLBENCH_SERVER = None
+    if server is None or server.poll() is not None:
+        return
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(server.pid, signal.SIGTERM)
+    try:
+        server.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(server.pid, signal.SIGKILL)
+        server.wait(timeout=5)
+
+
 def _finalize_summaries(
-    *, args: argparse.Namespace, manifest: dict[str, Any], state_root: Path, variant: Variant
+    *,
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+    state_root: Path,
+    variant: Variant,
+    selected_benchmarks: tuple[str, ...],
 ) -> None:
-    for benchmark in BENCHMARK_TOML:
+    for benchmark in selected_benchmarks:
         task_ids = [str(value) for value in manifest["benchmarks"][benchmark]["task_ids"]]
         command = _task_command(
             args=args,
@@ -581,6 +701,12 @@ def run(args: argparse.Namespace) -> int:
     global _STOP_REQUESTED
     _STOP_REQUESTED = False
     manifest, state_root = prepare(args)
+    selected_benchmarks = _selected_benchmarks(args)
+    execution_order = [
+        item
+        for item in manifest["execution_order"]
+        if str(item["benchmark"]) in selected_benchmarks
+    ]
     pid_path = state_root / "runner.pid"
     if pid_path.exists():
         try:
@@ -599,7 +725,9 @@ def run(args: argparse.Namespace) -> int:
         signal.signal(signum, _signal_handler)
 
     try:
-        total = RUNS_PER_TASK * len(VARIANTS) * len(manifest["execution_order"])
+        if "stabletoolbench" in selected_benchmarks:
+            _start_stabletoolbench_server(state_root)
+        total = RUNS_PER_TASK * len(VARIANTS) * len(execution_order)
         completed_at_start = sum(
             _task_complete(
                 args,
@@ -608,7 +736,7 @@ def run(args: argparse.Namespace) -> int:
                 str(item["task_id"]),
             )
             for variant in VARIANTS
-            for item in manifest["execution_order"]
+            for item in execution_order
         )
         print(
             f"[start] experiment={_experiment_root(args)} completed={completed_at_start}/{total}",
@@ -617,7 +745,7 @@ def run(args: argparse.Namespace) -> int:
         ordinal = 0
         for variant in VARIANTS:
             print(f"\n[variant] {variant.slug}: {variant.description}", flush=True)
-            for item in manifest["execution_order"]:
+            for item in execution_order:
                 ordinal += 1
                 benchmark = str(item["benchmark"])
                 task_id = str(item["task_id"])
@@ -674,6 +802,7 @@ def run(args: argparse.Namespace) -> int:
                 manifest=manifest,
                 state_root=state_root,
                 variant=variant,
+                selected_benchmarks=selected_benchmarks,
             )
 
         summary_log = state_root / "logs" / "summarize.log"
@@ -690,6 +819,7 @@ def run(args: argparse.Namespace) -> int:
         print(f"[complete] {_experiment_root(args)}", flush=True)
         return 0
     finally:
+        _stop_stabletoolbench_server()
         pid_path.unlink(missing_ok=True)
         for signum, previous in previous_handlers.items():
             signal.signal(signum, previous)
@@ -697,11 +827,17 @@ def run(args: argparse.Namespace) -> int:
 
 def status(args: argparse.Namespace) -> int:
     manifest, state_root = prepare(args)
-    total_per_variant = len(manifest["execution_order"])
+    selected_benchmarks = _selected_benchmarks(args)
+    execution_order = [
+        item
+        for item in manifest["execution_order"]
+        if str(item["benchmark"]) in selected_benchmarks
+    ]
+    total_per_variant = len(execution_order)
     for variant in VARIANTS:
         completed = sum(
             _task_complete(args, variant, str(item["benchmark"]), str(item["task_id"]))
-            for item in manifest["execution_order"]
+            for item in execution_order
         )
         reflection = _load_reflection_state(state_root, variant)
         print(
@@ -742,6 +878,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
     parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument(
+        "--benchmarks",
+        default=",".join(DEFAULT_BENCHMARKS),
+        help=(
+            "Comma-separated benchmark subset. "
+            f"Supported: {','.join(BENCHMARK_TOML)}."
+        ),
+    )
     parser.add_argument(
         "--allow-mock",
         action="store_true",

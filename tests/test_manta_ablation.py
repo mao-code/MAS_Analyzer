@@ -15,11 +15,15 @@ class TestMantaAblation(unittest.TestCase):
             output_root=str(output_root),
             manifest=str(run_manta_ablation.DEFAULT_MANIFEST),
             model="test-model",
+            benchmarks=",".join(run_manta_ablation.DEFAULT_BENCHMARKS),
             allow_mock=True,
         )
 
     def test_committed_manifest_has_thirty_unique_tasks_per_benchmark(self) -> None:
-        manifest = run_manta_ablation._load_manifest(run_manta_ablation.DEFAULT_MANIFEST)
+        manifest = run_manta_ablation._load_manifest(
+            run_manta_ablation.DEFAULT_MANIFEST,
+            run_manta_ablation.DEFAULT_BENCHMARKS,
+        )
 
         self.assertEqual(len(manifest["execution_order"]), 90)
         for benchmark in ("browsecomp", "workbench", "plancraft"):
@@ -57,6 +61,33 @@ class TestMantaAblation(unittest.TestCase):
             )
             self.assertEqual(run_manta_ablation.REFLECTION_BATCH_SIZE, 10)
             self.assertEqual(run_manifest["seed"], 42)
+
+    def test_stabletoolbench_subset_has_thirty_tasks_and_parseable_configs(self) -> None:
+        manifest = run_manta_ablation._load_manifest(
+            run_manta_ablation.STABLETOOLBENCH_MANIFEST,
+            ("stabletoolbench",),
+        )
+        self.assertEqual(len(manifest["execution_order"]), 30)
+        task_ids = manifest["benchmarks"]["stabletoolbench"]["task_ids"]
+        self.assertEqual(len(task_ids), 30)
+        self.assertEqual(len(set(task_ids)), 30)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self._args(Path(tmp))
+            args.manifest = str(run_manta_ablation.STABLETOOLBENCH_MANIFEST)
+            args.benchmarks = "stabletoolbench"
+            _, state_root = run_manta_ablation.prepare(args)
+
+            for variant in run_manta_ablation.VARIANTS:
+                config_path = run_manta_ablation._config_path(
+                    state_root,
+                    variant,
+                    "stabletoolbench",
+                )
+                config = load_experiment_config(config_path)
+                self.assertEqual(config.stabletoolbench["eval_mode"], "fac")
+                self.assertEqual(config.stabletoolbench["task_sets"], ["G1_instruction"])
+                self.assertEqual(config.experiment.runs_per_task, 1)
 
 
 if __name__ == "__main__":

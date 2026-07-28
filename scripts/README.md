@@ -18,7 +18,7 @@ topology, and they are what the main [README](../README.md) and
 | `analyze_experiment.py` / `.sh` | Economic post-analysis over a finished experiment root. |
 | `generate_mas_failure_analysis_report.py` | HTML failure-mode report from traces. |
 | `plot_model_comparison.py` | Cross-model comparison plots. |
-| `run_manta_ablation.py` | MANTA ablation: one seed-42 sample per variant, 30 tasks/benchmark. |
+| `run_manta_ablation.py` | MANTA ablation: one seed-42 sample per variant, 30 tasks/benchmark; supports benchmark-subset runs, including StableToolBench. |
 | `run_playbook_mutation_experiment.py` | Long-term-playbook transfer + mutation-budget experiment. |
 | `reflect_topology_skill.py` | Offline rewrite of `config/topology_skill.md` from run traces. |
 | `update_topology_playbook.py` | Offline merge into the legacy JSON playbook fallback. |

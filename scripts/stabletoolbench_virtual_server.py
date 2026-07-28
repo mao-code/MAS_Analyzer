@@ -6,14 +6,21 @@ import ast
 import json
 import logging
 import re
-from itertools import combinations
 from functools import lru_cache
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
 LOGGER = logging.getLogger("stabletoolbench_virtual_server")
+
+_CACHE_PARAMETER_ALIASES = {
+    "is_class": "class",
+    "is_from": "from",
+    "is_id": "id",
+    "is_return": "return",
+}
 
 
 def _standardize(value: str) -> str:
@@ -45,7 +52,12 @@ def _parse_key_text(value: Any) -> Any:
 
 def _normalize_key(value: Any) -> Any:
     if isinstance(value, dict):
-        return {str(key): _normalize_key(val) for key, val in sorted(value.items(), key=lambda item: str(item[0]))}
+        return {
+            _CACHE_PARAMETER_ALIASES.get(str(key).casefold(), str(key).casefold()): (
+                _normalize_key(val)
+            )
+            for key, val in sorted(value.items(), key=lambda item: str(item[0]))
+        }
     if isinstance(value, list):
         return [_normalize_key(item) for item in value]
     if value is None:
