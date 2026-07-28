@@ -1,6 +1,6 @@
-import unittest
-import time
 import json
+import time
+import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -212,6 +212,34 @@ class _FailingSearchCompletions:
 class _FailingSearchClient:
     def __init__(self) -> None:
         self.chat = SimpleNamespace(completions=_FailingSearchCompletions())
+
+
+class _StructuredSearchCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            tool_call = SimpleNamespace(
+                id="crm_search_1",
+                type="function",
+                function=SimpleNamespace(
+                    name="customer_relationship_manager_search_customers",
+                    arguments=json.dumps({"customer_name": "Taylor"}),
+                ),
+            )
+            return _make_completion(tool_calls=[tool_call], prompt_tokens=12, completion_tokens=2)
+        return _make_completion(
+            content="FINAL ANSWER: customer found",
+            prompt_tokens=8,
+            completion_tokens=4,
+        )
+
+
+class _StructuredSearchClient:
+    def __init__(self) -> None:
+        self.chat = SimpleNamespace(completions=_StructuredSearchCompletions())
 
 
 class _RateLimitOnceCompletions:
@@ -882,6 +910,38 @@ class TestLLMToolLoop(unittest.TestCase):
         self.assertIn("Repeated tool failures", result.metadata.get("tool_loop_stopped_reason", ""))
         self.assertTrue(all(call["status"] == "error" for call in result.tool_calls))
         self.assertIn("tool failure circuit breaker", joined_content.lower())
+
+    def test_structured_search_without_query_reaches_handler(self) -> None:
+        client = OpenRouterLLMClient(
+            OpenRouterConfig(api_key="test"), {"default": "openai/gpt-4o-mini"}
+        )
+        client.client = _StructuredSearchClient()
+        received: list[dict] = []
+
+        result = client.generate(
+            prompt=[{"role": "user", "content": "find Taylor"}],
+            agent_type="general",
+            task_id="workbench:multi_domain_0",
+            run_index=0,
+            agent_id="agent_0",
+            tools=[
+                {
+                    "name": "customer_relationship_manager.search_customers",
+                    "description": "Search customer records by structured filters.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"customer_name": {"type": "string"}},
+                        "required": [],
+                    },
+                    "handler": lambda args: received.append(args) or [{"customer_id": "00000001"}],
+                }
+            ],
+            max_tool_iterations=2,
+        )
+
+        self.assertEqual(received, [{"customer_name": "Taylor"}])
+        self.assertEqual(result.tool_calls[0]["status"], "completed")
+        self.assertEqual(result.text, "FINAL ANSWER: customer found")
 
     def test_retry_adds_openrouter_provider_and_model_fallbacks(self) -> None:
         client = OpenRouterLLMClient(

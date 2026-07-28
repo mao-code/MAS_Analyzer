@@ -418,6 +418,19 @@ class OpenRouterLLMClient:
             1,
             self._env_int("MAS_SEARCH_TOOL_FAILURE_CIRCUIT_BREAKER") or 2,
         )
+        query_search_tools: set[str] = set()
+        for tool_def in tool_defs:
+            function = tool_def.get("function", {})
+            if not isinstance(function, dict):
+                continue
+            parameters = function.get("parameters", {})
+            properties = parameters.get("properties", {}) if isinstance(parameters, dict) else {}
+            if not isinstance(properties, dict) or "query" not in properties:
+                continue
+            api_name = str(function.get("name", "")).strip()
+            if api_name:
+                query_search_tools.add(api_name)
+                query_search_tools.add(original_tool_names.get(api_name, api_name))
         # Read-gate: in benchmarks that expose a get_document tool, an agent that
         # searches but never opens a document and then gives up with a blocked /
         # "insufficient evidence" answer is the search-without-reading failure mode.
@@ -601,7 +614,11 @@ class OpenRouterLLMClient:
                 output: Any
                 handler = tool_handlers.get(handler_key)
                 tool_name_lc = tool_name.lower()
-                if "search" in tool_name_lc and not str(args.get("query", "")).strip():
+                if (
+                    "search" in tool_name_lc
+                    and tool_name in query_search_tools
+                    and not str(args.get("query", "")).strip()
+                ):
                     status = "error"
                     error = "Invalid search call: provide a non-empty query string."
                     output = {"error": error}
