@@ -24,7 +24,9 @@ from descriptor.utils import FAIL_STATUSES
 
 from ..artifacts import ArtifactRecord, _extract_json_payload, compute_consensus
 from ..config import SelfEvolvedConfig
+from .executor import state_changing_tool_names
 from .spec import TopologySpec
+from .transaction import successful_mutation_record
 
 logger = logging.getLogger(__name__)
 
@@ -367,15 +369,25 @@ class TraceAuditorAgent:
                     }
                 )
 
-        # duplicate_state_mutation: the same non-read tool call (tool + arguments) was
-        # issued by >= 2 agents this turn. For side-effecting tools (calendar/email/etc.)
-        # this double-applies and corrupts the evaluated state (the dominant workbench
-        # failure). The executor's per-run dedup net collapses the recorded call; this
-        # flags the structural cause so a repair can serialize the write next turn.
+        # duplicate_state_mutation: the same successful state-changing call (tool +
+        # arguments) was issued by >= 2 agents this turn. Use the engine's mutation-tool
+        # classification rather than a small read-tool allowlist: domain-qualified reads
+        # such as project_management.search_tasks must never be treated as writes.
+        mutation_tool_names = {
+            str(name)
+            for name in state.get("self_evolved_mutation_tool_names", [])
+            if str(name).strip()
+        }
+        if not mutation_tool_names:
+            mutation_tool_names = state_changing_tool_names(
+                [tool for tool in run_tools if isinstance(tool, dict)]
+            )
         sig_agents: dict[str, set[str]] = {}
         for record in turn_calls:
             name = str(record.get("tool_name", "")).strip()
-            if not name or name in {"search", "get_document", "inter_agent_send"}:
+            if name not in mutation_tool_names:
+                continue
+            if not successful_mutation_record(record, mutation_tool_names):
                 continue
             arguments = record.get("arguments")
             try:

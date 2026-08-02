@@ -273,6 +273,67 @@ class TestTraceAuditorHeuristics(unittest.TestCase):
         self.assertEqual(mode["severity"], "high")
         self.assertEqual(mode["agent_ids"], ["agent_1", "agent_2"])
 
+    def test_repeated_domain_reads_do_not_flag_duplicate_mutation(self) -> None:
+        state = _base_state(
+            artifacts=[_artifact("agent_1"), _artifact("agent_2")],
+            tools=[
+                {"name": "project_management.search_tasks"},
+                {"name": "customer_relationship_manager.add_customer"},
+            ],
+            self_evolved_mutation_tool_names=[
+                "customer_relationship_manager.add_customer"
+            ],
+            tool_records_log=[
+                {
+                    "agent_id": "agent_1",
+                    "round_index": 0,
+                    "tool_name": "project_management.search_tasks",
+                    "arguments": {"list_name": "Backlog"},
+                    "status": "completed",
+                },
+                {
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "tool_name": "project_management.search_tasks",
+                    "arguments": {"list_name": "Backlog"},
+                    "status": "completed",
+                },
+            ],
+        )
+
+        report = _auditor().audit(state, _spec(), turn_index=0)
+
+        self.assertNotIn("duplicate_state_mutation", self._modes(report))
+
+    def test_failed_duplicate_mutations_do_not_flag_duplicate_mutation(self) -> None:
+        state = _base_state(
+            artifacts=[_artifact("agent_1"), _artifact("agent_2")],
+            tools=[{"name": "calendar.create_event"}],
+            self_evolved_mutation_tool_names=["calendar.create_event"],
+            tool_records_log=[
+                {
+                    "agent_id": "agent_1",
+                    "round_index": 0,
+                    "tool_name": "calendar.create_event",
+                    "arguments": {"name": "Standup"},
+                    "status": "completed",
+                    "output": "Missing required argument: event_start",
+                },
+                {
+                    "agent_id": "agent_2",
+                    "round_index": 0,
+                    "tool_name": "calendar.create_event",
+                    "arguments": {"name": "Standup"},
+                    "status": "completed",
+                    "output": "Missing required argument: event_start",
+                },
+            ],
+        )
+
+        report = _auditor().audit(state, _spec(), turn_index=0)
+
+        self.assertNotIn("duplicate_state_mutation", self._modes(report))
+
     def test_distinct_tool_args_do_not_flag_duplicate(self) -> None:
         # Different arguments = legitimately distinct calls; must not flag.
         state = _base_state(

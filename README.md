@@ -2,6 +2,7 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-2607.28527-b31b1b.svg)](https://arxiv.org/abs/2607.28527)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Official implementation and evaluation harness for
 **[MANTA: Multi-Agent Network Topology Adaptation for Self-Evolving Multi-Agent Systems](https://arxiv.org/abs/2607.28527)**.
@@ -170,7 +171,6 @@ descriptor/          trace schema, run metrics, and aggregation over repeated ru
 reproduce/           reproductions of external baselines (ADAS, AFlow, AgentSquare, MASS)
 scripts/             batch runners and analysis tools (see scripts/README.md)
   baselines/           drivers for the reproduce/ baselines
-  experiments/         one-off drivers kept for provenance
 config/              experiment configs (gitignored except the examples)
 docs/                documentation
 tests/               offline test suite
@@ -190,7 +190,8 @@ ruff check . && ruff format .
 pre-commit run --all-files
 ```
 
-Contributor and coding-agent guidance lives in [CLAUDE.md](CLAUDE.md).
+Ruff is configured in `pyproject.toml` (line length 100, target py311); `pre-commit` runs it
+alongside the hygiene hooks.
 
 ## Citation
 
@@ -203,6 +204,11 @@ Contributor and coding-agent guidance lives in [CLAUDE.md](CLAUDE.md).
   url     = {https://arxiv.org/abs/2607.28527}
 }
 ```
+
+## License
+
+Released under the [MIT License](LICENSE). Benchmarks and baseline reproductions under
+`benchmark/` and `reproduce/` carry their own upstream licenses.
 
 ## Acknowledgements
 

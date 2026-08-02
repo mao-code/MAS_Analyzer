@@ -54,7 +54,7 @@ no key is configured, so this exercises the whole pipeline for free:
 pytest
 ```
 
-470 tests should pass. If they do, config → benchmark → MAS run → trace → descriptor is wired
+480 tests should pass. If they do, config → benchmark → MAS run → trace → descriptor is wired
 up correctly and any later failure is a credentials or benchmark-asset problem, not a code one.
 
 ## 4. One real run
@@ -137,13 +137,11 @@ bash scripts/full_selfevo_ps.sh    # PlanCraft + StableToolBench  (run after the
 
 ```bash
 python main.py summarize-experiment --experiment-root artifacts/full_experiment/<experiment-id>
-python scripts/analyze_experiment.py --experiment-root artifacts/full_experiment/<experiment-id>
 ```
 
-`summarize-experiment` produces the descriptor rollups and `summary.csv`;
-`analyze_experiment.py` adds the economic post-analysis (utility, cost/quality regimes).
-For failure-mode breakdowns use `scripts/generate_mas_failure_analysis_report.py`, and for
-cross-topology comparison see [topology-analysis.md](topology-analysis.md).
+`summarize-experiment` produces the per-task rollups and `summary.csv`. For failure-mode
+breakdowns use `scripts/generate_mas_failure_analysis_report.py`, and for cross-topology
+comparison see [topology-analysis.md](topology-analysis.md).
 
 ## Reproducibility caveats
 
