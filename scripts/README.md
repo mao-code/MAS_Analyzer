@@ -56,7 +56,8 @@ Grouped by what they were for:
   `exp_plancraft_giveup_net_all.py`
 - **Targeted repairs and re-runs** — `fix_selfevo_browsecomp_failures.sh`,
   `fixcheck_browsecomp_failures.py`, `rerun_plancraft_runs12.py`, `rerun_plancraft_bf16.py`,
-  `rerun_workbench_crm_fix.sh`, `redo_workbench_error_runs.py`
+  `rerun_workbench_crm_fix.sh`, `redo_workbench_error_runs.py`,
+  `run_manta_workbench_10_39.sh` (MANTA on the adaptive baselines' held-out WorkBench split)
 - **Config sweeps** — `exp_plancraft_maxturns5.py`, `exp_math500.sh`
 - **Full-run launchers (superseded by `full_selfevo_{bw,ps}.sh`)** — `run_full_selfevo.sh`,
   `run_browsecomp_selfevo_seq.sh`, `run_stb_selfevo_seq.sh`,
